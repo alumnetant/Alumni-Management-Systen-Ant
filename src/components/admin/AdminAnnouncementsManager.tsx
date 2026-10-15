@@ -25,10 +25,8 @@ import {
   Camera,
   Loader2,
   Image as ImageIcon,
-  Download,
   RefreshCw,
   Eye,
-  Activity,
   ShieldCheck,
   Pin,
   ExternalLink,
@@ -254,32 +252,6 @@ export const AdminAnnouncementsManager: React.FC = () => {
     setDeletingId(null);
   }, [deletingId, deleteAnnouncement, addAuditLog, currentUser, showToast]);
 
-  // Export CSV
-  const handleExportCsv = useCallback(() => {
-    const headers = ['ID', 'Headline', 'Channel / Category', 'Priority', 'Author', 'Date Published', 'Content'];
-    const rows = announcements.map((a) => [
-      `"${a.id}"`,
-      `"${(a.title || '').replace(/"/g, '""')}"`,
-      `"${(a.category || '').replace(/"/g, '""')}"`,
-      `"${a.urgent ? 'URGENT' : a.important ? 'IMPORTANT' : 'STANDARD'}"`,
-      `"${(a.authorName || a.createdBy || '').replace(/"/g, '""')}"`,
-      `"${a.publishedAt || a.createdAt || ''}"`,
-      `"${(a.content || '').replace(/"/g, '""')}"`
-    ]);
-
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `SCC_Campus_Dispatches_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    showToast('Official gazette ledger exported to CSV.', 'success');
-  }, [announcements, showToast]);
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* 1. TOP INSTITUTIONAL MASTHEAD BANNER */}
@@ -299,32 +271,10 @@ export const AdminAnnouncementsManager: React.FC = () => {
               <span>Urgent Alerts: <strong className={urgentCount > 0 ? 'text-rose-600 font-semibold' : 'text-stone-700'}>{urgentCount}</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
               <span>Important Bulletins: <strong className="text-stone-900 font-semibold">{importantCount}</strong></span>
-              <span aria-hidden="true" className="text-stone-300">·</span>
-              <span>Channel Dispatch: <strong className="text-emerald-700 font-semibold">Active & Synced</strong></span>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200/80 transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsUrgent(true);
-                setCategory('Emergency Advisory');
-                setShowAuthoringStudio(true);
-              }}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
-            >
-              <AlertTriangle className="w-3.5 h-3.5" />
-              <span>Quick Emergency Alert</span>
-            </button>
             <button
               type="button"
               onClick={() => {
@@ -342,114 +292,59 @@ export const AdminAnnouncementsManager: React.FC = () => {
       </div>
 
       {/* 2. PANORAMIC BROADCAST BILLBOARD (ASYMMETRIC NEWSROOM MONITOR) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* LEFT ZONE (7 cols): FEATURED BROADCAST SPOTLIGHT */}
-        <div className="lg:col-span-7 bg-white border border-stone-200/80 rounded-2xl p-6 shadow-2xs flex flex-col justify-between space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-stone-900">
-                <Radio className="w-4 h-4 text-[#8B181B] animate-pulse" />
-                <span>Featured Campus Broadcast</span>
-              </div>
-              {spotlightDispatch?.urgent ? (
-                <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-md border border-rose-200">
-                  Priority Advisory
-                </span>
-              ) : (
-                <span className="text-xs font-medium text-stone-500">Live on Student & Alumni Portal</span>
-              )}
+      {/* 2. PANORAMIC BROADCAST BILLBOARD */}
+      <div className="w-full bg-white border border-stone-200/80 rounded-2xl p-6 shadow-2xs flex flex-col justify-between space-y-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-stone-900">
+              <Radio className="w-4 h-4 text-[#8B181B] animate-pulse" />
+              <span>Featured Campus Broadcast</span>
             </div>
-
-            {spotlightDispatch ? (
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-2 text-xs text-stone-500">
-                  <span className="font-semibold text-[#8B181B]">{spotlightDispatch.category || 'Announcement'}</span>
-                  <span className="text-stone-300">·</span>
-                  <span>{(spotlightDispatch.publishedAt || spotlightDispatch.createdAt) ? new Date(spotlightDispatch.publishedAt || spotlightDispatch.createdAt || '').toLocaleDateString() : 'Recent'}</span>
-                  <span className="text-stone-300">·</span>
-                  <span>By {spotlightDispatch.authorName || spotlightDispatch.createdBy || 'Office of Communications'}</span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 leading-snug">
-                  {spotlightDispatch.title}
-                </h2>
-                <p className="text-xs sm:text-sm text-stone-600 line-clamp-3 leading-relaxed">
-                  {spotlightDispatch.content}
-                </p>
-              </div>
+            {spotlightDispatch?.urgent ? (
+              <span className="text-xs font-bold text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-md border border-rose-200">
+                Priority Advisory
+              </span>
             ) : (
-              <div className="py-6 text-center text-stone-400 text-xs">
-                No active announcements published yet. Click "Draft New Dispatch" above.
-              </div>
+              <span className="text-xs font-medium text-stone-500">Live on Student & Alumni Portal</span>
             )}
           </div>
 
-          {spotlightDispatch && (
-            <div className="pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
-              <span className="text-stone-400">Broadcast ID: #{spotlightDispatch.id}</span>
-              <button
-                type="button"
-                onClick={() => setInspectingDispatch(spotlightDispatch)}
-                className="inline-flex items-center gap-1.5 font-semibold text-[#8B181B] hover:text-[#721316] cursor-pointer"
-              >
-                <span>Read Full Dispatch</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+          {spotlightDispatch ? (
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 text-xs text-stone-500">
+                <span className="font-semibold text-[#8B181B]">{spotlightDispatch.category || 'Announcement'}</span>
+                <span className="text-stone-300">·</span>
+                <span>{(spotlightDispatch.publishedAt || spotlightDispatch.createdAt) ? new Date(spotlightDispatch.publishedAt || spotlightDispatch.createdAt || '').toLocaleDateString() : 'Recent'}</span>
+                <span className="text-stone-300">·</span>
+                <span>By {spotlightDispatch.authorName || spotlightDispatch.createdBy || 'Office of Communications'}</span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-stone-900 leading-snug">
+                {spotlightDispatch.title}
+              </h2>
+              <p className="text-xs sm:text-sm text-stone-600 line-clamp-3 leading-relaxed">
+                {spotlightDispatch.content}
+              </p>
+            </div>
+          ) : (
+            <div className="py-6 text-center text-stone-400 text-xs">
+              No active announcements published yet. Click "Draft New Dispatch" above.
             </div>
           )}
         </div>
 
-        {/* RIGHT ZONE (5 cols): CHANNEL REACH RADAR */}
-        <div className="lg:col-span-5 bg-stone-900 text-white rounded-2xl p-6 shadow-2xs flex flex-col justify-between space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-300">
-                <Activity className="w-4 h-4" />
-                <span>Audience Reach Radar</span>
-              </div>
-              <span className="text-xs text-stone-400">Portal & Mobile Channels</span>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <div className="flex justify-between text-stone-300 mb-1">
-                  <span>Presidential & Administrative Directives</span>
-                  <span className="font-semibold text-white">100% Reach</span>
-                </div>
-                <div className="w-full bg-stone-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-[#8B181B] h-full rounded-full" style={{ width: '100%' }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-stone-300 mb-1">
-                  <span>Academic Calendar & Registrar Circulars</span>
-                  <span className="font-semibold text-white">Active Feed</span>
-                </div>
-                <div className="w-full bg-stone-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-amber-500 h-full rounded-full" style={{ width: '85%' }} />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-stone-300 mb-1">
-                  <span>Alumni Chapters & Career Advisories</span>
-                  <span className="font-semibold text-white">Verified Cohorts</span>
-                </div>
-                <div className="w-full bg-stone-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-emerald-500 h-full rounded-full" style={{ width: '92%' }} />
-                </div>
-              </div>
-            </div>
+        {spotlightDispatch && (
+          <div className="pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
+            <span className="text-stone-400">Broadcast ID: #{spotlightDispatch.id}</span>
+            <button
+              type="button"
+              onClick={() => setInspectingDispatch(spotlightDispatch)}
+              className="inline-flex items-center gap-1.5 font-semibold text-[#8B181B] hover:text-[#721316] cursor-pointer"
+            >
+              <span>Read Full Dispatch</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
-
-          <div className="pt-3 border-t border-stone-800/80 flex items-center justify-between text-xs text-stone-400">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-              <span>Gateway: Operational</span>
-            </span>
-            <span>All Channels Synced</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 3. NEWSROOM EDITORIAL COMMAND DECK */}

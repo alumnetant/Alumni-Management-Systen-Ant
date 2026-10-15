@@ -15,7 +15,6 @@ import {
   Briefcase,
   Building2,
   FileText,
-  Bot,
   BarChart3,
   Award,
   MapPin,
@@ -586,14 +585,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             icon: Scale,
             badge: null,
             visible: permissions.canAccessGovernance || currentUser?.role === 'superadmin'
-          },
-          {
-            id: 'automations' as WorkspaceModuleId,
-            label: 'Automations & Sync',
-            shortLabel: 'Automations',
-            icon: Bot,
-            badge: null,
-            visible: currentUser?.role === 'superadmin' || currentUser?.role === 'admin'
           },
           {
             id: 'settings' as WorkspaceModuleId,
@@ -1438,102 +1429,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               </div>
             )}
 
-            {/* MODULE: Automations & Cloud Sync Controls */}
-            {currentModule === 'automations' && (
-              <div className="space-y-6">
-                <div className="bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-2xs relative overflow-hidden">
-                  <div className="h-1 absolute top-0 left-0 right-0 bg-[#8B181B]" />
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 text-[11px] font-semibold text-stone-500 uppercase tracking-wider">
-                        <span className="text-[#8B181B] font-bold">St. Cecilia's College</span>
-                        <span>·</span>
-                        <span>System Automations & Cloud Sync</span>
-                      </div>
-                      <h2 className="text-2xl sm:text-3xl font-bold font-serif text-stone-900 tracking-tight mt-1">
-                        Automations & Cloud Synchronization
-                      </h2>
-                      <p className="text-xs sm:text-sm text-stone-600 mt-1">
-                        Trigger automated student identity matching, refresh Firestore cloud caches, and verify roster integrity.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => syncAllDataToCloud()}
-                        disabled={isFirestoreSyncing}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                      >
-                        <Loader2 className={`w-4 h-4 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
-                        <span>{isFirestoreSyncing ? 'Synchronizing...' : 'Sync Cloud Now'}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-2xs space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-red-50 text-[#8B181B] flex items-center justify-center border border-red-100">
-                      <ShieldCheck className="w-5 h-5" />
-                    </div>
-                    <h3 className="text-sm font-bold text-stone-900">Automated Triage</h3>
-                    <p className="text-xs text-stone-500 leading-relaxed">
-                      Scans unverified accounts against official graduation registrar records using student ID and birthdate matching algorithms.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const unverified = (users || []).filter(u => !u.isVerified);
-                        if (unverified.length === 0) {
-                          showToast('All alumni accounts are already verified!', 'info');
-                          return;
-                        }
-                        showToast(`Initiating automated verification scan across ${unverified.length} pending profiles...`, 'info');
-                      }}
-                      className="w-full py-2 px-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-                    >
-                      Run Verification Scan
-                    </button>
-                  </div>
-
-                  <div className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-2xs space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
-                      <RefreshCw className="w-5 h-5" />
-                    </div>
-                    <h3 className="text-sm font-bold text-stone-900">Firestore Cloud Sync</h3>
-                    <p className="text-xs text-stone-500 leading-relaxed">
-                      Commits local state, registry indexes, audit logs, and verified alumni roster to institutional cloud storage.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => syncAllDataToCloud()}
-                      disabled={isFirestoreSyncing}
-                      className="w-full py-2 px-3 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      {isFirestoreSyncing ? 'Syncing...' : 'Execute Cloud Sync'}
-                    </button>
-                  </div>
-
-                  <div className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-2xs space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
-                      <Download className="w-4 h-4" />
-                    </div>
-                    <h3 className="text-sm font-bold text-stone-900">Institutional Export</h3>
-                    <p className="text-xs text-stone-500 leading-relaxed">
-                      Generates a signed CSV export of the verified alumni roster for accreditation audits and institutional reporting.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleExportCsv}
-                      className="w-full py-2 px-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-                    >
-                      Download Roster CSV
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* MODULE: Governance Policies */}
             {currentModule === 'governance' && (

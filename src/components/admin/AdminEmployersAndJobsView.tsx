@@ -23,8 +23,6 @@ import {
   Globe,
   Mail,
   Phone,
-  TrendingUp,
-  Download,
   Sparkles,
   ExternalLink,
   ChevronRight,
@@ -35,11 +33,9 @@ import {
   BriefcaseBusiness,
   Layers,
   Send,
-  Building,
   GraduationCap,
   ChevronDown,
   ChevronUp,
-  Award,
   BookOpen,
   BadgeCheck,
   CheckCheck,
@@ -139,20 +135,7 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
   }, [users]);
   const employmentRate = users.length > 0 ? Math.round((employedAlumni.length / users.length) * 100) : 89;
 
-  // Top companies where alumni work
-  const topAlumniHiringFirms = useMemo(() => {
-    const counts: Record<string, number> = {};
-    users.forEach((u) => {
-      const comp = (u.company || '').trim();
-      if (comp) {
-        counts[comp] = (counts[comp] || 0) + 1;
-      }
-    });
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([name, count]) => ({ name, count }));
-  }, [users]);
+
 
   // Industry sectors with dynamic counts
   const industrySectors = useMemo(() => {
@@ -367,31 +350,7 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
     ]
   );
 
-  const handleExportPlacementLedger = useCallback(() => {
-    const headers = ['Opportunity ID', 'Job Title', 'Company', 'Type', 'Location', 'Salary / Stipend', 'Approval Status', 'Posted Date'];
-    const rows = opportunities.map((o) => [
-      `"${o.id}"`,
-      `"${(o.title || '').replace(/"/g, '""')}"`,
-      `"${(o.company || '').replace(/"/g, '""')}"`,
-      `"${o.type || 'Full-time'}"`,
-      `"${(o.location || '').replace(/"/g, '""')}"`,
-      `"${(o.salaryOrStipend || '').replace(/"/g, '""')}"`,
-      `"${o.approvalStatus || 'approved'}"`,
-      `"${o.postedAt || o.createdAt || ''}"`
-    ]);
 
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `SCC_Career_Placement_Ledger_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    showToast('Placement ledger exported to CSV.', 'success');
-  }, [opportunities, showToast]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -420,121 +379,12 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
-              onClick={handleExportPlacementLedger}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200/80 transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
-            </button>
-            {permissions.canAccessEmployerAccreditation && (
-              <button
-                type="button"
-                onClick={() => setActiveViewMode(activeViewMode === 'employers' ? 'all' : 'employers')}
-                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-                  activeViewMode === 'employers'
-                    ? 'bg-stone-900 text-white'
-                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200/80'
-                }`}
-              >
-                <Building className="w-3.5 h-3.5" />
-                <span>Partner Directory ({allEmployers.length})</span>
-              </button>
-            )}
-            <button
-              type="button"
               onClick={() => setShowCreateJobModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] shadow-sm transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>Post New Opportunity</span>
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. HORIZONTAL 4-TILE VELOCITY LEDGER */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Tile 1: Opportunity Pipeline */}
-        <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Opportunity Pool</span>
-            <Briefcase className="w-4 h-4 text-stone-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-stone-900">{opportunities.length}</span>
-            <span className="text-xs text-stone-500 font-medium">live postings</span>
-          </div>
-          <div className="text-xs text-stone-500 flex items-center gap-1.5 pt-1 border-t border-stone-100">
-            <span className="text-emerald-700 font-medium">{approvedJobs.length} active</span>
-            <span className="text-stone-300">·</span>
-            <span className={pendingJobs.length > 0 ? 'text-amber-700 font-medium' : 'text-stone-400'}>
-              {pendingJobs.length} in moderation
-            </span>
-          </div>
-        </div>
-
-        {/* Tile 2: Corporate Partners */}
-        <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Corporate Partners</span>
-            <Building2 className="w-4 h-4 text-stone-400" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-stone-900">{allEmployers.length}</span>
-            <span className="text-xs text-stone-500 font-medium">registered firms</span>
-          </div>
-          <div className="text-xs text-stone-500 flex items-center gap-1.5 pt-1 border-t border-stone-100">
-            <span className="text-emerald-700 font-medium">{verifiedEmployers.length} accredited</span>
-            <span className="text-stone-300">·</span>
-            <span className={pendingEmployers.length > 0 ? 'text-amber-700 font-medium' : 'text-stone-400'}>
-              {pendingEmployers.length} pending audit
-            </span>
-          </div>
-        </div>
-
-        {/* Tile 3: Tracer Study Index */}
-        <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Tracer Index</span>
-            <TrendingUp className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-stone-900">{employmentRate}%</span>
-            <span className="text-xs text-emerald-700 font-semibold">employed alumni</span>
-          </div>
-          <div className="text-xs text-stone-500 flex items-center gap-1.5 pt-1 border-t border-stone-100">
-            <span>{employedAlumni.length} verified in field</span>
-            <span className="text-stone-300">·</span>
-            <span className="text-stone-600">CHED Benchmark</span>
-          </div>
-        </div>
-
-        {/* Tile 4: Moderation Pressure */}
-        <div
-          onClick={() => setActiveViewMode(activeViewMode === 'moderation' ? 'all' : 'moderation')}
-          className={`border rounded-2xl p-5 shadow-2xs space-y-2 cursor-pointer transition-all ${
-            totalPendingModeration > 0
-              ? 'bg-amber-50/60 border-amber-200/90 hover:bg-amber-50'
-              : 'bg-white border-stone-200/80 hover:bg-stone-50'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className={`text-xs font-semibold uppercase tracking-wider ${totalPendingModeration > 0 ? 'text-amber-800' : 'text-stone-500'}`}>
-              Moderation Desk
-            </span>
-            <AlertCircle className={`w-4 h-4 ${totalPendingModeration > 0 ? 'text-amber-600' : 'text-stone-400'}`} />
-          </div>
-          <div className="flex items-baseline gap-2">
-            <span className={`text-2xl font-bold tracking-tight ${totalPendingModeration > 0 ? 'text-amber-900' : 'text-stone-900'}`}>
-              {totalPendingModeration}
-            </span>
-            <span className={`text-xs font-medium ${totalPendingModeration > 0 ? 'text-amber-800' : 'text-stone-500'}`}>
-              items require review
-            </span>
-          </div>
-          <div className="text-xs flex items-center justify-between pt-1 border-t border-amber-200/60 text-amber-800">
-            <span>{pendingJobs.length} jobs · {pendingEmployers.length} partners</span>
-            <span className="font-semibold underline">Filter & Review →</span>
           </div>
         </div>
       </div>
@@ -637,27 +487,7 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
             </div>
           </div>
 
-          {/* Institutional Placement Standards & Guidelines */}
-          <div className="bg-stone-50/80 border border-stone-200/80 rounded-2xl p-4 shadow-2xs space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-stone-900">
-              <ShieldCheck className="w-4 h-4 text-[#8B181B]" />
-              <span>SCC Placement Governance</span>
-            </div>
-            <ul className="text-xs text-stone-600 space-y-2 leading-relaxed">
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#8B181B] font-bold">·</span>
-                <span>All listings must guarantee at least minimum statutory wage or standard internship allowance.</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#8B181B] font-bold">·</span>
-                <span>Unverified employers are held in moderation until institutional MOUs are confirmed.</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#8B181B] font-bold">·</span>
-                <span>Direct CHED Tracer study tagging for graduate employment outcomes.</span>
-              </li>
-            </ul>
-          </div>
+
         </div>
 
         {/* ================= COLUMN B (6 cols): THE OPPORTUNITY EXCHANGE DECK ================= */}
@@ -1096,55 +926,6 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
             )}
           </div>
 
-          {/* Top Alumni Hiring Partners */}
-          <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs space-y-4">
-            <div className="text-xs font-bold text-stone-900 uppercase tracking-wider border-b border-stone-100 pb-3">
-              Top Alumni Employers
-            </div>
-            <p className="text-xs text-stone-500 leading-relaxed">
-              Leading organizations where verified St. Cecilia alumni currently practice professionally:
-            </p>
-
-            <div className="space-y-2">
-              {topAlumniHiringFirms.length > 0 ? (
-                topAlumniHiringFirms.map((firm) => (
-                  <div
-                    key={firm.name}
-                    className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50 hover:bg-stone-100/80 transition-colors"
-                  >
-                    <span className="text-xs font-semibold text-stone-800 truncate mr-2">{firm.name}</span>
-                    <span className="text-[11px] font-bold text-[#8B181B] bg-[#8B181B]/10 px-2 py-0.5 rounded-md">
-                      {firm.count} alumni
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="text-xs text-stone-400 py-2">
-                  Populated dynamically from verified alumni profiles.
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Corporate Placement Directives Card */}
-          <div className="bg-[#8B181B] text-white rounded-2xl p-5 shadow-2xs space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-200">
-              <Award className="w-4 h-4" />
-              <span>Placement Directive</span>
-            </div>
-            <p className="text-xs text-stone-100 leading-relaxed">
-              Employers offering paid internships or signing corporate memoranda of agreement (MOA) receive priority placement in the student & alumni bulletin.
-            </p>
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setShowCreateJobModal(true)}
-                className="w-full py-2 bg-white text-[#8B181B] hover:bg-stone-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-              >
-                Draft Institutional Listing
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 

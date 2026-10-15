@@ -27,8 +27,6 @@ import {
   Loader2,
   AlertTriangle,
   Sliders,
-  ShieldCheck,
-  Download,
   CheckCircle2,
   ArrowRight,
   Filter,
@@ -297,34 +295,6 @@ export const AdminEventsManager: React.FC = () => {
     showToast('Event removed from collegiate calendar.', 'info');
   }, [eventToDelete, deleteEvent, addAuditLog, currentUser, showToast]);
 
-  // Export CSV
-  const handleExportCsv = useCallback(() => {
-    const headers = ['ID', 'Event Title', 'Category', 'Start Date', 'End Date', 'Location / Format', 'Capacity', 'RSVPs', 'Status'];
-    const rows = events.map((ev) => [
-      `"${ev.id}"`,
-      `"${(ev.title || '').replace(/"/g, '""')}"`,
-      `"${ev.type || 'reunion'}"`,
-      `"${ev.startDate || ''}"`,
-      `"${ev.endDate || ''}"`,
-      `"${(ev.location || '').replace(/"/g, '""')}"`,
-      `"${ev.maxAttendees || 200}"`,
-      `"${ev.attendeesCount || 0}"`,
-      `"${ev.isVirtual ? 'Virtual' : 'In-Person'}"`
-    ]);
-
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `SCC_Campus_Events_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    showToast('Convocations schedule exported to CSV.', 'success');
-  }, [events, showToast]);
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
       {/* 1. EXECUTIVE CONVOCATIONS RIBBON */}
@@ -348,14 +318,6 @@ export const AdminEventsManager: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200/80 transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
-            </button>
             <button
               type="button"
               onClick={() => setShowCreateModal(true)}
@@ -468,27 +430,7 @@ export const AdminEventsManager: React.FC = () => {
             </div>
           </div>
 
-          {/* Institutional Convocation Directives */}
-          <div className="bg-stone-50/80 border border-stone-200/80 rounded-2xl p-4 shadow-2xs space-y-2.5">
-            <div className="flex items-center gap-2 text-xs font-bold text-stone-900">
-              <ShieldCheck className="w-4 h-4 text-[#8B181B]" />
-              <span>Collegiate Gathering Directives</span>
-            </div>
-            <ul className="text-xs text-stone-600 space-y-2 leading-relaxed">
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#8B181B] font-bold">·</span>
-                <span>Post open campus gatherings, grand homecomings, and batch reunions.</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#8B181B] font-bold">·</span>
-                <span>Gatherings are announced across the alumni network without gatekeeping or ticket monitoring.</span>
-              </li>
-              <li className="flex items-start gap-1.5">
-                <span className="text-[#8B181B] font-bold">·</span>
-                <span>Alumni can coordinate attendance, batch discussions, and program agendas freely.</span>
-              </li>
-            </ul>
-          </div>
+
         </div>
 
         {/* ================= RIGHT DECK (8 cols): CONVOCATIONS TIMELINE & SCHEDULE ================= */}

@@ -5,7 +5,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
-  ShieldCheck,
   ShieldAlert,
   Scale,
   AlertTriangle,
@@ -33,9 +32,6 @@ import {
   AlertCircle,
   Building2,
   Briefcase,
-  Database,
-  Lock,
-  FileCheck2,
   ExternalLink,
   Eye,
   X,
@@ -606,14 +602,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     }
   };
 
-  // Spotlight discrepancy
-  const spotlitDiscrepancy = useMemo(() => {
-    return (
-      pendingAnalyses.find((a) => a.status === 'DEGREE_DISCREPANCY' && a.registryRecord) ||
-      pendingAnalyses.find((a) => a.status !== 'PERFECT_MATCH' && a.registryRecord) ||
-      null
-    );
-  }, [pendingAnalyses]);
+
 
   // Strict RBAC Gate
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
@@ -638,344 +627,98 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
           1. TOP COMMAND CENTER-STYLE HEADER:
              Large title + Circular Metric Telemetry Pills + Round Pill Switcher + Export Circle
           ======================================================== */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-2">
-        <div className="flex flex-wrap items-center gap-6 sm:gap-10">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-stone-900 tracking-tight font-sans">
-              Requests & Conflicts
-            </h1>
-            <p className="text-xs text-stone-500 font-medium mt-0.5">
-              St. Cecilia's College • Governance, Identity & Dispute Tribunal
-            </p>
-          </div>
-
-          {/* Metric Pill 1: ID Collisions (Matching Command Center Pill Style) */}
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${
-              pendingConflicts.length > 0
-                ? 'border-amber-400 bg-amber-50 text-amber-800 animate-pulse'
-                : 'border-stone-300 text-stone-700'
-            }`}>
-              <Scale className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] text-stone-500 block leading-tight font-medium">
-                ID Collisions
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className={`text-2xl font-extrabold tracking-tight ${
-                  pendingConflicts.length > 0 ? 'text-[#8B181B]' : 'text-stone-900'
-                }`}>
-                  {pendingConflicts.length}
-                </span>
-                <span className="text-[10px] text-stone-400 font-medium">
-                  {pendingConflicts.length > 0 ? 'hearing required' : 'docket clear'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Metric Pill 2: Unverified Alumni Backlog */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full border border-stone-300 flex items-center justify-center text-stone-700 shrink-0">
-              <GraduationCap className="w-4 h-4 text-[#8B181B]" />
-            </div>
-            <div>
-              <span className="text-[11px] text-stone-500 block leading-tight font-medium">
-                Alumni Claims
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-extrabold text-stone-900 tracking-tight">
-                  {pendingAlumniUsers.length}
-                </span>
-                <span className="text-[10px] text-emerald-700 font-bold">
-                  {perfectMatchAnalyses.length} ready
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Command Center-Style Segmented Pill Switcher & Action Circles */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="inline-flex items-center p-1 bg-stone-100/90 rounded-full border border-stone-200 shadow-2xs relative">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('alumni');
-                setSelectedSpectrumIndex(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'alumni'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
-              }`}
-            >
-              <span>Alumni</span>
-              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                activeTab === 'alumni' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
-              }`}>
-                {pendingAlumniUsers.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('conflicts');
-                setSelectedSpectrumIndex(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'conflicts'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
-              }`}
-            >
-              <span>Collisions</span>
-              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                activeTab === 'conflicts'
-                  ? 'bg-white/20 text-white'
-                  : pendingConflicts.length > 0
-                  ? 'bg-rose-100 text-rose-800'
-                  : 'bg-stone-200/80 text-stone-600'
-              }`}>
-                {pendingConflicts.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('employers');
-                setSelectedSpectrumIndex(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'employers'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
-              }`}
-            >
-              <span>Employers</span>
-              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                activeTab === 'employers' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
-              }`}>
-                {pendingEmployers.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('jobs');
-                setSelectedSpectrumIndex(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'jobs'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
-              }`}
-            >
-              <span>Jobs</span>
-              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                activeTab === 'jobs' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
-              }`}>
-                {pendingJobs.length}
-              </span>
-            </button>
-          </div>
-
-          {/* Quick Action Button: Audit PDF Download */}
-          <button
-            type="button"
-            onClick={handleGeneratePdfReport}
-            title="Download Forensic Audit PDF Docket"
-            className="w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 border border-stone-200 flex items-center justify-center text-stone-700 transition-all cursor-pointer shrink-0"
-          >
-            <FileDown className="w-4 h-4 text-[#8B181B]" />
-          </button>
-
-          {/* Export CSV Button */}
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            title="Export Triage Ledger to CSV"
-            className="w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 border border-stone-200 flex items-center justify-center text-stone-700 transition-all cursor-pointer shrink-0"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-        </div>
+      <div className="pb-2 border-b border-stone-200/80">
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight font-sans">
+          Requests & Conflicts
+        </h1>
+        <p className="text-xs text-stone-500 font-medium mt-0.5">
+          St. Cecilia's College • Governance, Identity & Dispute Tribunal
+        </p>
       </div>
 
       {/* ========================================================
-          2. MAIN 2-COLUMN VIEWPORT (Center 8.5 Cols + Right 3.5 Cols)
+          2. MAIN TRIBUNAL WORKSPACE
           ======================================================== */}
-      <div className="grid grid-cols-12 gap-6 items-start">
-        
-        {/* ======================================================
-            CENTER WORKSPACE COLUMN (8.5 cols on desktop XL)
-            ====================================================== */}
-        <div className="col-span-12 xl:col-span-8 space-y-6">
+      <div className="w-full space-y-4">
+        {/* Category Switcher Tabs */}
+        <div className="flex items-center gap-1.5 p-1 bg-stone-100/90 rounded-2xl border border-stone-200/80 w-fit flex-wrap">
+          <button
+            type="button"
+            onClick={() => setActiveTab('alumni')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'alumni'
+                ? 'bg-[#8B181B] text-white shadow-xs font-bold'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+            }`}
+          >
+            <span>Alumni Claims</span>
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
+              activeTab === 'alumni' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
+            }`}>
+              {pendingAlumniUsers.length}
+            </span>
+          </button>
 
-          {/* ----------------------------------------------------
-              COMMAND CENTER SIGNATURE: WIDE HERO BENTO CARD
-              With St. Cecilia Crimson Top Trim & Interactive 7-Segment Spectrum
-              ---------------------------------------------------- */}
-          <div className="bg-white rounded-[32px] p-6 sm:p-7 relative overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.02),0_8px_24px_rgba(0,0,0,0.03)] border border-stone-200/90 transition-all duration-300">
-            {/* Institutional St. Cecilia Crimson Architectural Top Trim */}
-            <div className="h-1 absolute top-0 left-0 right-0 bg-[#8B181B]" />
+          <button
+            type="button"
+            onClick={() => setActiveTab('conflicts')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'conflicts'
+                ? 'bg-[#8B181B] text-white shadow-xs font-bold'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+            }`}
+          >
+            <span>ID Collisions</span>
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
+              activeTab === 'conflicts'
+                ? 'bg-white/20 text-white'
+                : pendingConflicts.length > 0
+                ? 'bg-rose-100 text-rose-800'
+                : 'bg-stone-200/80 text-stone-600'
+            }`}>
+              {pendingConflicts.length}
+            </span>
+          </button>
 
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pt-1">
-              
-              {/* Left Sub-Card Details */}
-              <div className="space-y-4 max-w-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B181B] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-200/60 shadow-2xs">
-                    {dynamicHeroData.badge}
-                  </span>
-                  <span className="text-xs font-semibold text-stone-500">
-                    {dynamicHeroData.subtitle}
-                  </span>
-                </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('employers')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'employers'
+                ? 'bg-[#8B181B] text-white shadow-xs font-bold'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+            }`}
+          >
+            <span>Employer Requests</span>
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
+              activeTab === 'employers' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
+            }`}>
+              {pendingEmployers.length}
+            </span>
+          </button>
 
-                <div>
-                  <h3 className="text-2xl font-extrabold text-stone-900 tracking-tight leading-tight">
-                    {dynamicHeroData.title}
-                  </h3>
-                  <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-                    {dynamicHeroData.description}
-                  </p>
-                </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('jobs')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'jobs'
+                ? 'bg-[#8B181B] text-white shadow-xs font-bold'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+            }`}
+          >
+            <span>Job Approvals</span>
+            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
+              activeTab === 'jobs' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
+            }`}>
+              {pendingJobs.length}
+            </span>
+          </button>
+        </div>
 
-                <div className="space-y-2 pt-1">
-                  {/* Status Chip 1: Masterlist Purity */}
-                  <div className="bg-stone-50/80 rounded-2xl p-3 flex items-center justify-between border border-stone-200/80 shadow-2xs">
-                    <div>
-                      <span className="text-[11px] font-bold text-stone-800 block">
-                        {dynamicHeroData.chip1Title}
-                      </span>
-                      <span className="text-[10px] text-stone-500">
-                        {dynamicHeroData.chip1Sub}
-                      </span>
-                    </div>
-                    <span className="text-xs font-extrabold text-emerald-800 font-mono bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      {dynamicHeroData.chip1Count}
-                    </span>
-                  </div>
-
-                  {/* Status Chip 2: Auto Reconcile Action Button */}
-                  <div className="bg-stone-50/80 rounded-2xl p-3 flex items-center justify-between border border-stone-200/80 shadow-2xs">
-                    <div>
-                      <span className="text-[11px] font-bold text-stone-800 block">
-                        {dynamicHeroData.chip2Title}
-                      </span>
-                      <span className="text-[10px] text-stone-500">
-                        {dynamicHeroData.chip2Sub}
-                      </span>
-                    </div>
-
-                    {perfectMatchAnalyses.length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={handleSmartAutoReconcile}
-                        disabled={isReconciling}
-                        className="px-3 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-[10px] font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
-                      >
-                        <Sparkles className="w-3 h-3 text-amber-300" />
-                        <span>Verify All ({perfectMatchAnalyses.length})</span>
-                      </button>
-                    ) : (
-                      <span className="text-[10px] font-bold text-stone-400 px-2 py-1 bg-stone-100 rounded-lg">
-                        Aligned
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Right Side: Interactive Dynamic 7-Channel Dispute Spectrum */}
-              <div className="flex-1 flex flex-col items-center md:items-end justify-center gap-3 pt-4 md:pt-0">
-                {/* Selected Spectrum Inspector Banner */}
-                {selectedSpectrumIndex !== null && dynamicHeroData.bars[selectedSpectrumIndex] && (
-                  <div className="w-full max-w-md bg-stone-50 rounded-xl p-2.5 border border-stone-200/90 shadow-xs flex items-center justify-between gap-3 text-xs animate-in fade-in zoom-in-95 duration-150">
-                    <div className="min-w-0">
-                      <span className="font-bold text-stone-900 block truncate">
-                        {dynamicHeroData.bars[selectedSpectrumIndex].sub}
-                      </span>
-                      <span className="text-[10px] text-stone-500">
-                        {dynamicHeroData.bars[selectedSpectrumIndex].count} records in this channel
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedSpectrumIndex(null)}
-                      className="text-[10px] font-bold text-[#8B181B] hover:underline cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                )}
-
-                {/* 7 Interactive Segmented Columns */}
-                <div className="flex items-end justify-center md:justify-end gap-2.5 sm:gap-3.5 pt-2">
-                  {dynamicHeroData.bars.map((bar, idx) => {
-                    const isSelected = selectedSpectrumIndex === idx;
-
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() =>
-                          setSelectedSpectrumIndex(isSelected ? null : idx)
-                        }
-                        className="flex flex-col items-center gap-1.5 cursor-pointer group transition-transform hover:scale-105"
-                      >
-                        {/* Segmented Tube */}
-                        <div
-                          className={`w-7 sm:w-8 h-28 rounded-full p-1 flex flex-col justify-end gap-1 relative overflow-hidden border transition-all ${
-                            isSelected
-                              ? 'border-[#8B181B] ring-2 ring-[#8B181B]/20 bg-red-50/40'
-                              : 'border-stone-200 bg-stone-100'
-                          }`}
-                        >
-                          {bar.activeDot && (
-                            <span className="absolute top-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse" />
-                          )}
-
-                          {bar.segments.map((seg, sIdx) => (
-                            <div
-                              key={sIdx}
-                              className={`w-full rounded-full transition-all duration-300 ${
-                                seg === 'crimson'
-                                  ? 'h-3.5 bg-[#8B181B]'
-                                  : 'h-2 bg-stone-200'
-                              }`}
-                            />
-                          ))}
-                        </div>
-
-                        {/* Label & Count */}
-                        <span className="text-[10px] font-extrabold font-mono text-stone-900">
-                          {bar.count}
-                        </span>
-                        <span className="text-[9px] font-bold text-stone-500 uppercase tracking-tight truncate max-w-[50px]">
-                          {bar.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="text-[10px] text-stone-400 font-medium text-center md:text-right">
-                  Click any channel above to filter the tribunal stream
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ----------------------------------------------------
-              THE TRIBUNAL STREAM & FORENSIC CARDS
-              ---------------------------------------------------- */}
-          <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-4">
+        {/* ----------------------------------------------------
+            THE TRIBUNAL STREAM & FORENSIC CARDS
+            ---------------------------------------------------- */}
+        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-4">
             
             {/* Search & Action Filter Bar */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -1663,140 +1406,6 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                 )}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* ======================================================
-            RIGHT SIDEBAR COLUMN (3.5 cols on desktop XL)
-            Matching Command Center's Right Bento Stack Architecture
-            ====================================================== */}
-        <div className="col-span-12 xl:col-span-4 space-y-6">
-          
-          {/* Bento Tile 1: Masterlist Purity & Security Index */}
-          <div className="bg-white rounded-[32px] p-6 border border-stone-200/90 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h4 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#8B181B]" />
-                <span>Security & Integrity Telemetry</span>
-              </h4>
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                Gate Active
-              </span>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80 flex items-center justify-between">
-                <div>
-                  <span className="text-stone-500 block text-[11px]">Masterlist Purity Index</span>
-                  <span className="font-bold text-stone-900 text-sm font-mono tabular-nums">
-                    {integrityMetrics.purityScore}% match
-                  </span>
-                </div>
-                <Database className="w-5 h-5 text-stone-400" />
-              </div>
-
-              <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80 flex items-center justify-between">
-                <div>
-                  <span className="text-stone-500 block text-[11px]">Flawless 100% Matches</span>
-                  <span className="font-bold text-emerald-700 text-sm font-mono tabular-nums">
-                    {integrityMetrics.perfectMatchesCount} ready
-                  </span>
-                </div>
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              </div>
-
-              <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80 flex items-center justify-between">
-                <div>
-                  <span className="text-stone-500 block text-[11px]">Quarantined Discrepancies</span>
-                  <span className="font-bold text-amber-700 text-sm font-mono tabular-nums">
-                    {integrityMetrics.discrepanciesCount} flagged
-                  </span>
-                </div>
-                <AlertTriangle className="w-5 h-5 text-amber-600" />
-              </div>
-
-              <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80 flex items-center justify-between">
-                <div>
-                  <span className="text-stone-500 block text-[11px]">Duplicate ID Collisions</span>
-                  <span className={`font-bold text-sm font-mono tabular-nums ${
-                    pendingConflicts.length > 0 ? 'text-[#8B181B]' : 'text-stone-900'
-                  }`}>
-                    {pendingConflicts.length} disputes
-                  </span>
-                </div>
-                <Scale className="w-5 h-5 text-stone-400" />
-              </div>
-            </div>
-          </div>
-
-          {/* Bento Tile 2: 1-Click Transcript Alignment Assistant */}
-          {spotlitDiscrepancy && spotlitDiscrepancy.registryRecord ? (
-            <div className="bg-gradient-to-br from-[#8B181B] to-[#721316] text-white rounded-[32px] p-6 shadow-md space-y-3 relative overflow-hidden">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-300" />
-                <span className="text-xs font-bold uppercase tracking-wider text-amber-200">
-                  Curriculum Alignment Assistant
-                </span>
-              </div>
-
-              <h4 className="text-lg font-bold font-serif leading-tight">
-                {spotlitDiscrepancy.user.name}
-              </h4>
-
-              <div className="bg-white/10 rounded-2xl p-3 border border-white/15 text-xs space-y-1.5">
-                <div className="flex justify-between text-red-100">
-                  <span>Declared:</span>
-                  <span className="font-medium text-white">{spotlitDiscrepancy.user.course}</span>
-                </div>
-                <div className="flex justify-between text-emerald-200">
-                  <span>Archive:</span>
-                  <span className="font-bold text-white">{spotlitDiscrepancy.registryRecord.course}</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleSyncToTranscriptAndVerify(spotlitDiscrepancy)}
-                className="w-full py-2.5 bg-white hover:bg-stone-100 text-[#8B181B] font-bold rounded-xl text-xs transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-2 active:scale-95"
-              >
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Sync to Transcript & Verify</span>
-              </button>
-            </div>
-          ) : (
-            <div className="bg-stone-50 rounded-[32px] p-6 border border-stone-200/80 space-y-3">
-              <h4 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-                <FileCheck2 className="w-4 h-4 text-emerald-700" />
-                <span>Discrepancy Hearing Protocol</span>
-              </h4>
-              <p className="text-xs text-stone-500 leading-relaxed">
-                When student claims differ from the diploma archive, click <strong>"Sync Transcript"</strong> on their card to automatically bind their profile to accredited university curriculum.
-              </p>
-            </div>
-          )}
-
-          {/* Bento Tile 3: Enforced Institutional Policies */}
-          <div className="bg-white rounded-[32px] p-6 border border-stone-200/90 shadow-2xs space-y-3">
-            <h4 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-              <Lock className="w-4 h-4 text-stone-600" />
-              <span>Institutional Governance Mandates</span>
-            </h4>
-
-            <div className="space-y-2.5 text-xs text-stone-600">
-              <div className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#8B181B] mt-1.5 shrink-0" />
-                <span><strong>Zero-Trust ID Lock:</strong> Competing claims on verified Student IDs are automatically quarantined.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#8B181B] mt-1.5 shrink-0" />
-                <span><strong>Transcript Binding:</strong> Self-declared degrees are aligned with official curriculum titles for tracer accuracy.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#8B181B] mt-1.5 shrink-0" />
-                <span><strong>Immutable Audit Log:</strong> Every hearing override logs actor name, timestamp, and justification.</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>

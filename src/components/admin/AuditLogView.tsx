@@ -7,13 +7,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShieldCheck,
   ShieldAlert,
-  AlertTriangle,
   CheckCircle2,
-  Activity,
-  Clock,
   Lock,
   Server,
-  Terminal,
   Hash,
   Database,
   Download,
@@ -30,15 +26,12 @@ import {
   Building,
   ChevronRight,
   ArrowUpDown,
-  BarChart3,
-  TrendingUp,
   Radio,
   FileSpreadsheet,
   Sparkles,
   ScanFace,
   Key,
   Globe,
-  ArrowRight,
   Shield,
   FileText
 } from 'lucide-react';
@@ -65,14 +58,8 @@ export const AuditLogView: React.FC = () => {
   // Primary active filter pill (Command Center style)
   const [activeFilterPill, setActiveFilterPill] = useState<'all' | 'alerts' | 'masterlist' | 'security' | 'cloud'>('all');
 
-  // Chart tool inside hero card: 'spectrum' (Event distribution) | 'velocity' (Anomaly velocity) | 'cloud_stream' (Server log stream)
-  const [selectedChartTool, setSelectedChartTool] = useState<'spectrum' | 'velocity' | 'cloud_stream'>('spectrum');
-
   // View format for ledger: 'matrix' (data table) vs 'timeline' (incident stream)
   const [displayMode, setDisplayMode] = useState<'matrix' | 'timeline'>('matrix');
-
-  // Selected cohort or bar in hero visualizer
-  const [selectedBarIndex, setSelectedBarIndex] = useState<number | null>(null);
 
   // Search & Detailed Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,7 +76,6 @@ export const AuditLogView: React.FC = () => {
   // Server-Authoritative Logs
   const [serverLogs, setServerLogs] = useState<ServerAuditLogItem[]>([]);
   const [isLoadingServerLogs, setIsLoadingServerLogs] = useState(false);
-  const [isTriggeringProbe, setIsTriggeringProbe] = useState(false);
 
   // Fetch Server-Authoritative Audit Logs from backend API
   const fetchServerAuditLogs = async () => {
@@ -112,49 +98,13 @@ export const AuditLogView: React.FC = () => {
     }
   };
 
-  // Trigger manual security diagnostic probe
-  const handleTriggerSecurityProbe = async () => {
-    setIsTriggeringProbe(true);
-    try {
-      const token = localStorage.getItem('alumni_auth_token') || sessionStorage.getItem('alumni_auth_token');
-      const res = await fetch('/api/admin/audit-logs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          action: 'SECURITY_DIAGNOSTIC_PROBE_AUTHORIZED',
-          details: {
-            reason: 'Administrative manual integrity validation & forensic checkpoint',
-            triggeredBy: currentUser?.email || 'admin@scc.edu.ph',
-            clientTimestamp: new Date().toISOString(),
-            integrityStatus: 'VERIFIED_SECURE',
-            encryption: 'SHA-256'
-          }
-        })
-      });
-
-      if (res.ok) {
-        showToast('Diagnostic probe logged & validated by cloud server.', 'success');
-        await fetchServerAuditLogs();
-      } else {
-        showToast('Security probe recorded locally.', 'info');
-      }
-    } catch {
-      showToast('Recorded diagnostic audit event.', 'info');
-    } finally {
-      setIsTriggeringProbe(false);
-    }
-  };
-
   useEffect(() => {
-    if (activeFilterPill === 'cloud' || selectedChartTool === 'cloud_stream') {
+    if (activeFilterPill === 'cloud') {
       if (serverLogs.length === 0) {
         fetchServerAuditLogs();
       }
     }
-  }, [activeFilterPill, selectedChartTool]);
+  }, [activeFilterPill]);
 
   // Telemetry Aggregation
   const alertCount = useMemo(() => auditLogs.filter((l) => l.severity === 'alert').length, [auditLogs]);
@@ -208,43 +158,6 @@ export const AuditLogView: React.FC = () => {
       });
   }, [auditLogs, activeFilterPill, searchQuery, severityFilter, roleFilter, timeFilter, sortOrder]);
 
-  // Dynamic Spectrum Data for Hero Visualizer
-  const spectrumData = useMemo(() => {
-    const categories = [
-      { key: 'masterlist', label: 'Masterlist', match: 'registry_masterlist', color: 'crimson' },
-      { key: 'auth', label: 'Auth & Login', match: 'alumni_registration', color: 'crimson' },
-      { key: 'security', label: 'Security', match: 'security', color: 'crimson' },
-      { key: 'roles', label: 'Governance', match: 'admin', color: 'crimson' },
-      { key: 'careers', label: 'Jobs & Tracer', match: 'career', color: 'muted' },
-      { key: 'events', label: 'Events & Comms', match: 'events', color: 'muted' },
-      { key: 'system', label: 'Server API', match: 'system', color: 'crimson' }
-    ];
-
-    const bars = categories.map((cat) => {
-      const matched = auditLogs.filter(
-        (l) => l.category === cat.match || (cat.key === 'security' && l.severity === 'alert')
-      );
-      const alerts = matched.filter((l) => l.severity === 'alert').length;
-      const count = matched.length;
-
-      const segments: ('crimson' | 'muted')[] = [];
-      const segCount = Math.min(5, Math.max(1, count > 0 ? Math.ceil(count / 2) : 1));
-      for (let i = 0; i < segCount; i++) {
-        segments.push(i % 2 === 0 ? 'crimson' : 'muted');
-      }
-
-      return {
-        label: cat.label,
-        categoryKey: cat.key,
-        count,
-        alerts,
-        segments,
-        activeDot: alerts > 0
-      };
-    });
-
-    return bars;
-  }, [auditLogs]);
 
   // Export functions
   const handleExportCsv = () => {
@@ -327,128 +240,82 @@ export const AuditLogView: React.FC = () => {
               St. Cecilia's College • Cryptographic Forensic & Accountability Ledger
             </p>
           </div>
-
-          {/* Metric Pill 1: Total Recorded Events */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full border border-stone-300 flex items-center justify-center text-stone-700 shrink-0">
-              <Clock className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] text-stone-500 block leading-tight font-medium">
-                Recorded Events
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-extrabold text-stone-900 tracking-tight">
-                  {auditLogs.length}
-                </span>
-                <span className="text-[10px] text-stone-400 font-medium">immutable logs</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Metric Pill 2: Security & Integrity State */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full border border-stone-300 flex items-center justify-center text-stone-700 shrink-0">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div>
-              <span className="text-[11px] text-stone-500 block leading-tight font-medium">
-                Cryptographic Seal
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-extrabold text-emerald-700 tracking-tight">
-                  100%
-                </span>
-                <span className="text-[10px] text-stone-400 font-medium">SHA-256 Valid</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Metric Pill 3: Critical Alerts */}
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-full border flex items-center justify-center shrink-0 ${
-              alertCount > 0 ? 'border-rose-300 text-rose-600 bg-rose-50/50' : 'border-stone-300 text-stone-700'
-            }`}>
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-            <div>
-              <span className="text-[11px] text-stone-500 block leading-tight font-medium">
-                Security Alerts
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className={`text-2xl font-extrabold tracking-tight ${alertCount > 0 ? 'text-rose-600' : 'text-stone-900'}`}>
-                  {alertCount}
-                </span>
-                <span className="text-[10px] text-stone-400 font-medium">flagged events</span>
-              </div>
-            </div>
-          </div>
         </div>
+      </div>
 
-        {/* Filter Pills + Download Action (Command Center Style) */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="inline-flex items-center p-1 bg-stone-100/90 rounded-full border border-stone-200 shadow-2xs relative">
+      {/* BENTO TILE 3: "Audit Action Queue & Diagnostic Desk" */}
+      <div className="w-full">
+        <div className="bg-white rounded-2xl border border-stone-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03),0_6px_20px_rgba(0,0,0,0.02)] p-4 sm:px-6 sm:py-4.5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-200/60 flex items-center justify-center text-[#8B181B] shrink-0">
+              <Shield className="w-5 h-5 stroke-[1.75]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-stone-900 tracking-tight">
+                  Audit Action Queue
+                </h3>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                  alertCount > 0 
+                    ? 'bg-rose-50 text-rose-700 border border-rose-200' 
+                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${alertCount > 0 ? 'bg-rose-500 animate-pulse' : 'bg-emerald-600'}`} />
+                  {alertCount > 0 ? `${alertCount} require review` : 'All nominal'}
+                </span>
+              </div>
+              <p className="text-xs text-stone-500 font-normal mt-0.5">
+                {auditLogs.length} total forensic transactions recorded • Rapid security triage and audit ledger export
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
             <button
               type="button"
               onClick={() => {
-                setActiveFilterPill('all');
-                setSelectedBarIndex(null);
+                if (activeFilterPill === 'alerts') {
+                  setActiveFilterPill('all');
+                  setSeverityFilter('all');
+                } else {
+                  setActiveFilterPill('alerts');
+                  setSeverityFilter('alert');
+                }
               }}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeFilterPill === 'all'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 border ${
+                activeFilterPill === 'alerts'
+                  ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
+                  : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200/80'
               }`}
             >
-              <span>All Ledger</span>
+              <span>Security Alerts</span>
               <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                activeFilterPill === 'all' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
+                activeFilterPill === 'alerts' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-700'
               }`}>
-                {auditLogs.length}
+                {alertCount}
               </span>
             </button>
 
             <button
               type="button"
               onClick={() => {
-                setActiveFilterPill('alerts');
-                setSelectedBarIndex(null);
+                if (activeFilterPill === 'masterlist') {
+                  setActiveFilterPill('all');
+                  setSearchQuery('');
+                } else {
+                  setActiveFilterPill('masterlist');
+                  setSearchQuery('masterlist');
+                }
               }}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeFilterPill === 'alerts'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
-              }`}
-            >
-              <span>Alerts</span>
-              {alertCount > 0 ? (
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-rose-600 text-white font-extrabold animate-pulse">
-                  {alertCount}
-                </span>
-              ) : (
-                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                  activeFilterPill === 'alerts' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
-                }`}>
-                  0
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveFilterPill('masterlist');
-                setSelectedBarIndex(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 border ${
                 activeFilterPill === 'masterlist'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
+                  ? 'bg-[#8B181B] text-white border-[#721316] shadow-xs'
+                  : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200/80'
               }`}
             >
-              <span>Masterlist</span>
+              <span>Masterlist Mutations</span>
               <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                activeFilterPill === 'masterlist' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
+                activeFilterPill === 'masterlist' ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-700'
               }`}>
                 {masterlistCount}
               </span>
@@ -456,520 +323,14 @@ export const AuditLogView: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => {
-                setActiveFilterPill('security');
-                setSelectedBarIndex(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeFilterPill === 'security'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
-              }`}
-            >
-              <span>Security</span>
-              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                activeFilterPill === 'security' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
-              }`}>
-                {securityCount}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveFilterPill('cloud');
-                setSelectedBarIndex(null);
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeFilterPill === 'cloud'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
-              }`}
-            >
-              <span>Server Stream</span>
-              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                activeFilterPill === 'cloud' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
-              }`}>
-                {serverLogs.length}
-              </span>
-            </button>
-          </div>
-
-          {/* Quick Action Button: Export CSV */}
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            title="Download Full Forensic Audit Ledger CSV"
-            className="w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 border border-stone-200 flex items-center justify-center text-stone-700 transition-all cursor-pointer shrink-0"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* HERO BENTO CARD: AUDIT SPECTRUM & FORENSIC RADAR                          */}
-      {/* ========================================================================= */}
-      <div className="bg-white rounded-[32px] p-6 sm:p-7 relative overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.02),0_8px_24px_rgba(0,0,0,0.03)] border border-stone-200/90 transition-all duration-300">
-        {/* Institutional St. Cecilia Crimson Architectural Top Trim */}
-        <div className="h-1 absolute top-0 left-0 right-0 bg-[#8B181B]" />
-
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-1">
-          {/* Left Details */}
-          <div className="space-y-4 max-w-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B181B] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-200/60 shadow-2xs">
-                Forensic Operations
-              </span>
-              <span className="text-xs font-semibold text-stone-500">
-                Institutional Integrity
-              </span>
-            </div>
-
-            <div>
-              <h3 className="text-2xl font-extrabold text-stone-900 tracking-tight leading-tight">
-                Audit Trail Telemetry
-              </h3>
-              <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-                Immutable record of registrar reconciliation, administrative role modifications, and student identity authorizations.
-              </p>
-            </div>
-
-            <div className="space-y-2 pt-1">
-              {/* Chip 1: Cryptographic status */}
-              <div className="bg-stone-50/80 rounded-2xl p-3 flex items-center justify-between border border-stone-200/80 shadow-2xs">
-                <div>
-                  <span className="text-[11px] font-bold text-stone-800 block">
-                    Cryptographic Seal
-                  </span>
-                  <span className="text-[10px] text-stone-500">
-                    Chain verified across all client transactions
-                  </span>
-                </div>
-                <span className="text-xs font-mono font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                  NOMINAL
-                </span>
-              </div>
-
-              {/* Chip 2: Quick Probe & Triage action */}
-              <div className="bg-stone-50/80 rounded-2xl p-3 flex items-center justify-between border border-stone-200/80 shadow-2xs">
-                <div>
-                  <span className="text-[11px] font-bold text-stone-800 block">
-                    Security Probe
-                  </span>
-                  <span className="text-[10px] text-stone-500">
-                    Server-signed verification test
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTriggerSecurityProbe}
-                  disabled={isTriggeringProbe}
-                  className="px-2.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] active:scale-95 text-white rounded-xl text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1"
-                >
-                  <Activity className={`w-3.5 h-3.5 ${isTriggeringProbe ? 'animate-spin' : ''}`} />
-                  <span>{isTriggeringProbe ? 'Probing...' : 'Dispatch Probe'}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Center / Right: Interactive Visualizer & Tools */}
-          <div className="flex-1 flex flex-col items-center lg:items-end justify-center gap-3 pt-4 lg:pt-0">
-            {/* Banner when a segment column is selected */}
-            {selectedBarIndex !== null && spectrumData[selectedBarIndex] && (
-              <div className="w-full max-w-md bg-stone-50 rounded-xl p-2.5 border border-stone-200/90 shadow-xs flex items-center justify-between gap-3 text-xs animate-in fade-in zoom-in-95 duration-150">
-                <div className="min-w-0">
-                  <span className="font-bold text-stone-900 block truncate">
-                    {spectrumData[selectedBarIndex].label} Category
-                  </span>
-                  <span className="text-[10px] text-stone-500 font-medium">
-                    {spectrumData[selectedBarIndex].count} events logged · {spectrumData[selectedBarIndex].alerts} alerts
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery(spectrumData[selectedBarIndex].label)}
-                  className="px-2.5 py-1 bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg text-[10px] font-bold shrink-0 cursor-pointer shadow-2xs"
-                >
-                  Filter Stream
-                </button>
-              </div>
-            )}
-
-            <div className="flex items-end justify-center lg:justify-end gap-3 sm:gap-4.5 w-full">
-              {/* Tool 1: Segmented Capsule Spectrum Bar Chart */}
-              {selectedChartTool === 'spectrum' && (
-                <div className="flex items-end gap-2.5 sm:gap-4">
-                  {spectrumData.map((bar, idx) => {
-                    const isSelected = selectedBarIndex === idx;
-                    return (
-                      <div
-                        key={idx}
-                        onClick={() => setSelectedBarIndex(isSelected ? null : idx)}
-                        title={`${bar.label}: ${bar.count} logs (${bar.alerts} critical alerts)`}
-                        className={`flex flex-col items-center gap-1.5 cursor-pointer group transition-all ${
-                          isSelected ? 'scale-105' : 'hover:scale-102'
-                        }`}
-                      >
-                        {/* Stacked Capsule Bar */}
-                        <div className={`flex flex-col-reverse gap-1 items-center p-1 rounded-xl transition-all ${
-                          isSelected ? 'bg-stone-100 ring-2 ring-[#8B181B]/20' : 'group-hover:bg-stone-50/80'
-                        }`}>
-                          {bar.segments.map((seg, sIdx) => {
-                            const isTop = sIdx === bar.segments.length - 1;
-                            return (
-                              <div
-                                key={sIdx}
-                                className={`w-7 sm:w-8 h-6 sm:h-7 rounded-lg transition-all relative ${
-                                  seg === 'crimson'
-                                    ? 'bg-[#8B181B] shadow-xs ring-1 ring-red-900/20'
-                                    : 'bg-stone-200/90 border border-stone-200/60 group-hover:bg-red-50/60'
-                                }`}
-                              >
-                                {isTop && bar.activeDot && (
-                                  <span className="absolute -top-1 right-1/2 translate-x-1/2 w-1.5 h-1.5 rounded-full bg-rose-600 ring-2 ring-white animate-pulse" />
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {/* Label */}
-                        <span className={`text-[10px] tracking-tight mt-1 whitespace-nowrap transition-colors ${
-                          isSelected ? 'font-bold text-[#8B181B]' : 'font-medium text-stone-600'
-                        }`}>
-                          {bar.label}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Tool 2: Velocity & Threat Anomaly Mode */}
-              {selectedChartTool === 'velocity' && (
-                <div className="w-full max-w-sm bg-white/80 backdrop-blur-xs rounded-2xl p-3.5 border border-white/60 shadow-2xs space-y-2.5">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-stone-800 pb-1 border-b border-stone-100">
-                    <span className="flex items-center gap-1.5">
-                      <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
-                      Forensic Stream Velocity
-                    </span>
-                    <span className="text-[10px] font-mono text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
-                      Zero Breach
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-[10px]">
-                    <div className="p-2 rounded-xl bg-stone-50">
-                      <span className="text-stone-400 block text-[9px]">Alert Ratio</span>
-                      <span className="font-extrabold text-stone-900 font-mono text-xs">
-                        {auditLogs.length > 0 ? ((alertCount / auditLogs.length) * 100).toFixed(1) : 0}%
-                      </span>
-                    </div>
-                    <div className="p-2 rounded-xl bg-stone-50">
-                      <span className="text-stone-400 block text-[9px]">Server Authenticated</span>
-                      <span className="font-extrabold text-emerald-800 font-mono text-xs">100% Tokenized</span>
-                    </div>
-                    <div className="p-2 rounded-xl bg-stone-50">
-                      <span className="text-stone-400 block text-[9px]">Masterlist Operations</span>
-                      <span className="font-extrabold text-stone-900 font-mono text-xs">{masterlistCount}</span>
-                    </div>
-                    <div className="p-2 rounded-xl bg-stone-50">
-                      <span className="text-stone-400 block text-[9px]">Cloud Ledger</span>
-                      <span className="font-extrabold text-stone-900 font-mono text-xs">Active Firestore</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tool 3: Server Stream Mode */}
-              {selectedChartTool === 'cloud_stream' && (
-                <div className="w-full max-w-sm bg-stone-900 text-stone-100 rounded-2xl p-3.5 border border-stone-800 shadow-2xs space-y-2">
-                  <div className="flex items-center justify-between text-[11px] font-bold pb-1 border-b border-stone-800">
-                    <span className="flex items-center gap-1.5 text-emerald-400">
-                      <Terminal className="w-3.5 h-3.5" />
-                      Server API Events
-                    </span>
-                    <button
-                      type="button"
-                      onClick={fetchServerAuditLogs}
-                      className="text-[10px] text-stone-400 hover:text-white flex items-center gap-1 cursor-pointer"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${isLoadingServerLogs ? 'animate-spin' : ''}`} />
-                      <span>Sync</span>
-                    </button>
-                  </div>
-
-                  <div className="space-y-1.5 max-h-32 overflow-y-auto font-mono text-[10px]">
-                    {serverLogs.length === 0 ? (
-                      <div className="text-stone-500 py-3 text-center">No server API events yet</div>
-                    ) : (
-                      serverLogs.slice(0, 3).map((sl) => (
-                        <div key={sl.id} className="p-1.5 rounded-lg bg-stone-800/80 border border-stone-700 flex items-center justify-between">
-                          <span className="text-amber-400 truncate max-w-[180px]">{sl.action}</span>
-                          <span className="text-stone-400 shrink-0">{sl.ip}</span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Tool Switcher Rail */}
-              <div className="flex flex-col items-center gap-2 pl-3 border-l border-black/5 ml-2 relative">
-                <button
-                  type="button"
-                  onClick={() => setSelectedChartTool('spectrum')}
-                  title="Category Spectrum Bar Chart"
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                    selectedChartTool === 'spectrum'
-                      ? 'bg-stone-900 text-white shadow-2xs'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                  }`}
-                >
-                  <BarChart3 className="w-3.5 h-3.5 stroke-[1.75]" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedChartTool('velocity')}
-                  title="Anomaly & Stream Velocity"
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                    selectedChartTool === 'velocity'
-                      ? 'bg-stone-900 text-white shadow-2xs'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                  }`}
-                >
-                  <TrendingUp className="w-3.5 h-3.5 stroke-[1.75]" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedChartTool('cloud_stream')}
-                  title="Server Diagnostic Log Stream"
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                    selectedChartTool === 'cloud_stream'
-                      ? 'bg-stone-900 text-white shadow-2xs'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                  }`}
-                >
-                  <Server className="w-3.5 h-3.5 stroke-[1.75]" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* BOTTOM 3 BENTO TILES (COMMAND CENTER CUSTOM AUDIT SUITE)                   */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* BENTO TILE 1: "Ledger Cryptography & Chain Integrity" */}
-        <div className="bg-white rounded-[32px] p-5 sm:p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <h4 className="text-base font-extrabold text-stone-900 tracking-tight">
-                Chain Integrity
-              </h4>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
-                100% Sealed
-              </span>
-            </div>
-            <p className="text-[11px] text-stone-400 font-medium">
-              Cryptographic SHA-256 ledger tamper defense
-            </p>
-          </div>
-
-          <div className="py-4 space-y-2.5">
-            <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-stone-500 font-medium">Digital Signature:</span>
-                <span className="font-mono font-bold text-stone-800">ED25519-AUTH</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-stone-500 font-medium">Origin IP Verification:</span>
-                <span className="font-mono font-bold text-emerald-700">Enforced</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-stone-500 font-medium">Cloud Database:</span>
-                <span className="font-mono font-bold text-stone-800">Firestore Rules</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-xs px-1 text-stone-500">
-              <span>Sequence Hash Status</span>
-              <span className="font-mono text-emerald-700 font-bold">Unbroken Chain</span>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
-            <span className="text-stone-500 text-[10px] font-medium">
-              Zero unauthorized rollbacks detected
-            </span>
-            <button
-              type="button"
-              onClick={() => showToast('Cryptographic chain audit verified: All sequence numbers valid.', 'success')}
-              className="font-bold text-[#8B181B] hover:text-[#721316] text-[11px] hover:underline cursor-pointer flex items-center gap-1"
-            >
-              <span>Verify Chain</span>
-              <ArrowRight className="w-3 h-3 stroke-[2]" />
-            </button>
-          </div>
-        </div>
-
-        {/* BENTO TILE 2: "Security & Role Operations Gauge" */}
-        <div className="bg-white rounded-[32px] p-5 sm:p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <h4 className="text-base font-extrabold text-stone-900 tracking-tight">
-                Role Authority
-              </h4>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-800">
-                5 Authorities
-              </span>
-            </div>
-            <p className="text-[11px] text-stone-400 font-medium">
-              Event distribution across actor roles
-            </p>
-          </div>
-
-          {/* Vertical Capsule Meters for Actor Roles */}
-          <div className="flex items-end justify-between gap-2 py-4">
-            {[
-              { name: 'Admin', role: 'admin', count: auditLogs.filter(l => l.actorRole === 'admin').length, highlight: true },
-              { name: 'Registrar', role: 'registrar', count: auditLogs.filter(l => l.actorRole === 'registrar').length, highlight: false },
-              { name: 'Staff', role: 'staff', count: auditLogs.filter(l => l.actorRole === 'staff').length, highlight: false },
-              { name: 'Alumni', role: 'alumni', count: auditLogs.filter(l => l.actorRole === 'alumni').length, highlight: false },
-              { name: 'Daemon', role: 'system', count: auditLogs.filter(l => l.actorRole === 'system').length, highlight: false }
-            ].map((actor, idx) => {
-              const maxC = Math.max(1, ...[10, auditLogs.length]);
-              const heightPercent = Math.max(18, Math.min(100, Math.round((actor.count / maxC) * 100) + 20));
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setRoleFilter(roleFilter === actor.role ? 'all' : actor.role)}
-                  title={`${actor.name} (${actor.role}): ${actor.count} events recorded`}
-                  className="flex flex-col items-center gap-1.5 cursor-pointer group/tube transition-transform hover:scale-105"
-                >
-                  <div className="w-8 sm:w-9 h-28 rounded-full bg-stone-100 p-1 flex flex-col justify-end relative overflow-hidden border border-stone-200/60">
-                    <div
-                      style={{ height: `${heightPercent}%` }}
-                      className={`w-full rounded-full transition-all duration-500 flex items-end justify-center pb-1 ${
-                        actor.highlight || roleFilter === actor.role
-                          ? 'bg-[#8B181B] text-white shadow-xs'
-                          : 'bg-stone-200 text-stone-700'
-                      }`}
-                    >
-                      <span className="text-[10px] font-extrabold font-mono">
-                        {actor.count}
-                      </span>
-                    </div>
-                  </div>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors ${
-                    roleFilter === actor.role ? 'text-[#8B181B]' : 'text-stone-600'
-                  }`}>
-                    {actor.name}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
-            <span className="text-stone-500 text-[10px] font-medium truncate pr-2">
-              Filter ledger by active authority
-            </span>
-            <button
-              type="button"
-              onClick={() => setRoleFilter('all')}
-              className="font-bold text-[#8B181B] hover:text-[#721316] text-[11px] hover:underline cursor-pointer"
-            >
-              Reset Role
-            </button>
-          </div>
-        </div>
-
-        {/* BENTO TILE 3: "Audit Action Queue & Diagnostic Desk" */}
-        <div className="bg-white rounded-[32px] p-5 sm:p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <h4 className="text-base font-extrabold text-stone-900 tracking-tight">
-                Audit Action Queue
-              </h4>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                alertCount > 0 ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-emerald-100 text-emerald-900'
-              }`}>
-                {alertCount > 0 ? `${alertCount} require review` : 'All nominal'}
-              </span>
-            </div>
-            <p className="text-[11px] text-stone-400 font-medium">
-              Rapid forensic triage and export
-            </p>
-          </div>
-
-          <div className="bg-stone-50 rounded-2xl p-3.5 my-2 border border-stone-200/90 space-y-2">
-            <div className="flex items-center justify-between text-[11px] font-bold text-stone-700">
-              <span className="flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${alertCount > 0 ? 'bg-rose-500 animate-pulse' : 'bg-emerald-600'}`} />
-                <span>Forensic Priority Backlog</span>
-              </span>
-              <span className="font-mono text-[10px] text-stone-500 font-bold">
-                {auditLogs.length} total
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-[10px] pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveFilterPill('alerts');
-                  setSeverityFilter('alert');
-                }}
-                className="w-full text-left bg-white hover:bg-stone-100 rounded-xl p-2 border border-stone-200/80 cursor-pointer transition-all hover:shadow-2xs active:scale-95"
-              >
-                <span className="text-stone-400 block text-[9px] font-medium">Security Alerts</span>
-                <span className="font-extrabold font-mono text-rose-700 text-xs">
-                  {alertCount} flagged
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveFilterPill('masterlist');
-                  setSearchQuery('masterlist');
-                }}
-                className="w-full text-left bg-white hover:bg-stone-100 rounded-xl p-2 border border-stone-200/80 cursor-pointer transition-all hover:shadow-2xs active:scale-95"
-              >
-                <span className="text-stone-400 block text-[9px] font-medium">Masterlist Mutations</span>
-                <span className="font-extrabold font-mono text-stone-900 text-xs">
-                  {masterlistCount} changes
-                </span>
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-stone-900 text-white rounded-2xl p-3 flex items-center justify-between shadow-2xs">
-            <div>
-              <span className="text-[10px] text-stone-400 font-medium block">
-                Forensic Export
-              </span>
-              <span className="text-xs font-bold">Comprehensive Trail</span>
-            </div>
-            <button
-              type="button"
               onClick={handleExportCsv}
-              className="px-3 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-[11px] font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95"
+              className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] active:scale-95 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 shrink-0"
             >
-              <span>Download CSV</span>
               <Download className="w-3.5 h-3.5 stroke-[2]" />
+              <span>Download CSV</span>
             </button>
           </div>
         </div>
-
       </div>
 
       {/* ========================================================================= */}
@@ -977,7 +338,7 @@ export const AuditLogView: React.FC = () => {
       {/* ========================================================================= */}
       <div className="space-y-4 pt-2">
         {/* Controls Ribbon */}
-        <div className="bg-white p-4 rounded-2xl border border-stone-200/90 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-stone-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.03),0_6px_20px_rgba(0,0,0,0.02)] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           
           {/* Search Bar */}
           <div className="relative flex-1">
@@ -987,7 +348,7 @@ export const AuditLogView: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search action signature, actor name, student record ID, IP, or details..."
-              className="w-full pl-10 pr-9 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:border-[#8B181B] transition-colors"
+              className="w-full pl-10 pr-9 py-2 bg-stone-50/80 border border-stone-200/80 rounded-xl text-xs placeholder:text-stone-400 focus:bg-white focus:outline-hidden focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all text-stone-800"
             />
             {searchQuery && (
               <button
@@ -1001,30 +362,32 @@ export const AuditLogView: React.FC = () => {
           </div>
 
           {/* Format & Sort Controls */}
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <div className="flex items-center gap-2.5 flex-wrap shrink-0">
             {/* View Format Selector */}
-            <div className="flex items-center p-1 bg-stone-100 rounded-xl text-xs">
+            <div className="flex items-center p-1 bg-stone-100 rounded-xl text-xs border border-stone-200/60">
               <button
                 type="button"
                 onClick={() => setDisplayMode('matrix')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                   displayMode === 'matrix'
-                    ? 'bg-white text-stone-900 shadow-2xs'
+                    ? 'bg-white text-stone-900 shadow-2xs font-bold'
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                Data Grid
+                <Layers className="w-3.5 h-3.5 stroke-[1.75]" />
+                <span>Data Grid</span>
               </button>
               <button
                 type="button"
                 onClick={() => setDisplayMode('timeline')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                   displayMode === 'timeline'
-                    ? 'bg-white text-stone-900 shadow-2xs'
+                    ? 'bg-white text-stone-900 shadow-2xs font-bold'
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
               >
-                Timeline
+                <Radio className="w-3.5 h-3.5 stroke-[1.75]" />
+                <span>Timeline</span>
               </button>
             </div>
 
@@ -1032,7 +395,7 @@ export const AuditLogView: React.FC = () => {
             <select
               value={timeFilter}
               onChange={(e) => setTimeFilter(e.target.value as any)}
-              className="px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-700 cursor-pointer focus:outline-hidden"
+              className="px-3 py-1.5 bg-stone-50 border border-stone-200/80 rounded-xl text-xs font-medium text-stone-700 cursor-pointer focus:outline-hidden hover:bg-stone-100 transition-colors"
             >
               <option value="all">All Horizons</option>
               <option value="24h">Past 24 Hours</option>
@@ -1044,13 +407,13 @@ export const AuditLogView: React.FC = () => {
             <button
               type="button"
               onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
-              className="px-3 py-1.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl text-xs font-semibold text-stone-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="px-3 py-1.5 bg-stone-50 hover:bg-stone-100 border border-stone-200/80 rounded-xl text-xs font-semibold text-stone-700 flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <ArrowUpDown className="w-3.5 h-3.5 text-stone-500" />
-              <span>{sortOrder === 'newest' ? 'Newest First' : 'Oldest First'}</span>
+              <span>{sortOrder === 'newest' ? 'Newest' : 'Oldest'}</span>
             </button>
 
-            <span className="text-xs text-stone-500 font-mono tabular-nums pl-1">
+            <span className="text-xs text-stone-500 font-mono tabular-nums pl-1 font-semibold">
               {filteredLogs.length} entries
             </span>
           </div>
@@ -1061,15 +424,15 @@ export const AuditLogView: React.FC = () => {
           <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#FAF9F5] text-stone-600 text-[11px] font-semibold border-b border-stone-200/90">
+                <thead className="bg-[#FAF9F5] text-stone-600 text-[11px] font-bold uppercase tracking-wider border-b border-stone-200/90">
                   <tr>
-                    <th className="py-3 px-4">Timestamp</th>
-                    <th className="py-3 px-4">Severity</th>
-                    <th className="py-3 px-4">Action Signature</th>
-                    <th className="py-3 px-4">Actor Authority</th>
-                    <th className="py-3 px-4">Target Record</th>
-                    <th className="py-3 px-4">Origin IP</th>
-                    <th className="py-3 px-4 text-right">Inspect</th>
+                    <th className="py-3.5 px-4 w-44 font-semibold text-stone-600">Timestamp</th>
+                    <th className="py-3.5 px-4 w-32 font-semibold text-stone-600">Severity</th>
+                    <th className="py-3.5 px-4 min-w-[220px] font-semibold text-stone-600">Action Signature</th>
+                    <th className="py-3.5 px-4 w-48 font-semibold text-stone-600">Actor Authority</th>
+                    <th className="py-3.5 px-4 w-36 font-semibold text-stone-600">Target Record</th>
+                    <th className="py-3.5 px-4 w-32 font-semibold text-stone-600">Origin IP</th>
+                    <th className="py-3.5 px-4 w-24 text-right pr-5 font-semibold text-stone-600">Inspect</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100 font-sans">
@@ -1092,70 +455,86 @@ export const AuditLogView: React.FC = () => {
                               : 'hover:bg-stone-50/80'
                           }`}
                         >
-                          <td className="py-3 px-4 whitespace-nowrap text-stone-500 font-mono text-[11px] tabular-nums">
-                            {new Date(log.timestamp).toLocaleString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit'
-                            })}
+                          <td className="py-3.5 px-4 whitespace-nowrap text-stone-600 font-mono text-[11px] tabular-nums">
+                            <span className="font-semibold text-stone-900 block">
+                              {new Date(log.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                            <span className="text-[10px] text-stone-400">
+                              {new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </span>
                           </td>
-                          <td className="py-3 px-4 whitespace-nowrap">
+                          <td className="py-3.5 px-4 whitespace-nowrap">
                             {log.severity === 'alert' ? (
-                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-md">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200/70 px-2.5 py-1 rounded-full">
                                 <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-pulse" />
                                 Alert
                               </span>
                             ) : log.severity === 'warning' ? (
-                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200/70 px-2.5 py-1 rounded-full">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                                 Warning
                               </span>
                             ) : log.severity === 'success' ? (
-                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/70 px-2.5 py-1 rounded-full">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
                                 Success
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-600 bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-md">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-600 bg-stone-100 border border-stone-200/70 px-2.5 py-1 rounded-full">
                                 <span className="w-1.5 h-1.5 rounded-full bg-stone-400" />
                                 Info
                               </span>
                             )}
                           </td>
-                          <td className="py-3 px-4 font-semibold text-stone-900 max-w-xs truncate">
-                            {log.action}
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-stone-800">{log.actorName}</span>
-                              <span className="text-[10px] px-1.5 py-0.5 bg-stone-100 rounded text-stone-600 uppercase font-semibold">
-                                {log.actorRole}
-                              </span>
+                          <td className="py-3.5 px-4 max-w-sm">
+                            <div className="font-semibold text-stone-900 text-xs truncate">
+                              {log.action}
                             </div>
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap font-mono text-stone-600">
-                            {log.targetRecordId ? (
-                              <span className="text-[#8B181B] font-semibold">{log.targetRecordId}</span>
-                            ) : (
-                              <span className="text-stone-400 italic">—</span>
+                            {log.category && (
+                              <span className="text-[10px] text-stone-400 uppercase tracking-wider font-mono">
+                                {log.category.replace('_', ' ')}
+                              </span>
                             )}
                           </td>
-                          <td className="py-3 px-4 whitespace-nowrap font-mono text-stone-500 text-[11px]">
-                            {log.ipAddress || '127.0.0.1'}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-stone-100 border border-stone-200 flex items-center justify-center text-[10px] font-bold text-stone-700 shrink-0">
+                                {(log.actorName || 'S').charAt(0)}
+                              </div>
+                              <div className="min-w-0">
+                                <span className="font-medium text-stone-900 text-xs block truncate">{log.actorName}</span>
+                                <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-stone-100 text-stone-600 uppercase font-semibold font-mono">
+                                  {log.actorRole}
+                                </span>
+                              </div>
+                            </div>
                           </td>
-                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <td className="py-3.5 px-4 whitespace-nowrap font-mono text-xs">
+                            {log.targetRecordId ? (
+                              <span className="text-[#8B181B] bg-red-50/70 border border-red-200/50 px-2 py-0.5 rounded font-semibold text-[11px]">
+                                {log.targetRecordId}
+                              </span>
+                            ) : (
+                              <span className="text-stone-300 italic text-[11px]">—</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap font-mono text-stone-500 text-[11px]">
+                            <span className="bg-stone-50 border border-stone-200/60 px-2 py-0.5 rounded-md inline-block">
+                              {log.ipAddress || '127.0.0.1'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap pr-5">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setInspectedLog(log);
                               }}
-                              className="p-1.5 text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors cursor-pointer"
+                              className="px-2.5 py-1 rounded-lg bg-stone-100/90 hover:bg-[#8B181B] hover:text-white text-stone-600 transition-all text-xs font-semibold inline-flex items-center gap-1 cursor-pointer group shadow-2xs"
                               title="Inspect Forensic Payload"
                             >
-                              <Eye className="w-4 h-4" />
+                              <span>Inspect</span>
+                              <Eye className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
                             </button>
                           </td>
                         </tr>
