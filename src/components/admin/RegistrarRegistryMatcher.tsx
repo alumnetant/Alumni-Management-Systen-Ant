@@ -257,18 +257,10 @@ export const RegistrarRegistryMatcher: React.FC = () => {
   return (
     <div className="w-full space-y-6 antialiased">
       {/* ========================================================
-          1. TOP ARCHIVAL HEADER & ACTION TOOLBAR
+          1. TOP ARCHIVAL HEADER & CSV ACTION
           ======================================================== */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-stone-200/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-stone-200/80">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B181B] bg-red-50 px-2 py-0.5 rounded-full border border-red-200/60 shadow-2xs">
-              Registrar Masterlist
-            </span>
-            <span className="text-[11px] text-stone-400 font-mono">
-              Sync: {lastSyncTime}
-            </span>
-          </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 tracking-tight font-sans">
             Registrar Registry
           </h1>
@@ -277,8 +269,8 @@ export const RegistrarRegistryMatcher: React.FC = () => {
           </p>
         </div>
 
-        {/* Prominent Action Toolbar */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Action Toolbar with Upload CSV */}
+        <div className="flex items-center gap-2.5">
           <button
             type="button"
             id="registrar-upload-csv-btn"
@@ -292,32 +284,12 @@ export const RegistrarRegistryMatcher: React.FC = () => {
 
           <button
             type="button"
-            onClick={downloadSampleCsvTemplate}
-            className="px-3.5 py-2 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Download official sample CSV template"
-          >
-            <FileDown className="w-3.5 h-3.5 text-stone-500" />
-            <span>Sample CSV</span>
-          </button>
-
-          <button
-            type="button"
             onClick={handleExportCsv}
             className="px-3.5 py-2 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Export accredited roster to CSV spreadsheet"
           >
             <Download className="w-3.5 h-3.5 text-stone-500" />
             <span>Export CSV</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsAccreditModalOpen(true)}
-            className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
-            title="Accredit an individual student into the official masterlist"
-          >
-            <UserPlus className="w-3.5 h-3.5 text-amber-400" />
-            <span>Accredit Student</span>
           </button>
         </div>
       </div>
@@ -326,89 +298,6 @@ export const RegistrarRegistryMatcher: React.FC = () => {
           2. MASTER ROSTER DATA LEDGER
           ======================================================== */}
       <div className="bg-white rounded-[32px] border border-stone-200/90 shadow-2xs overflow-hidden">
-        {/* Table Controls Bar */}
-        <div className="p-5 sm:p-6 border-b border-stone-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-stone-900">
-              Official Accredited Student Roster
-            </h3>
-            <p className="text-xs text-stone-500 mt-0.5">
-              Live database ledger of graduates accredited by the University Registrar
-            </p>
-          </div>
-
-          {(searchQuery || selectedBatch !== 'all' || selectedStatus !== 'all' || selectedCourse !== 'all') && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedBatch('all');
-                setSelectedStatus('all');
-                setSelectedCourse('all');
-              }}
-              className="text-xs font-bold text-[#8B181B] hover:underline cursor-pointer self-start md:self-auto"
-            >
-              Reset Filters
-            </button>
-          )}
-        </div>
-
-        {/* Search & Filter Toolbar */}
-        <div className="p-4 bg-stone-50/80 border-b border-stone-200/80 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5">
-            {/* Search */}
-            <div className="lg:col-span-5 relative">
-              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search Student ID, name, email, degree..."
-                className="w-full pl-9 pr-8 py-2 bg-white border border-stone-200 rounded-xl text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 p-0.5 text-xs font-bold cursor-pointer"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* Academic Program Filter */}
-            <div className="lg:col-span-4">
-              <select
-                value={selectedCourse}
-                onChange={(e) => setSelectedCourse(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs text-stone-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20"
-              >
-                <option value="all">All Academic Programs ({courses.length})</option>
-                {courses.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Sort Order Selector */}
-            <div className="lg:col-span-3">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs text-stone-800 font-medium focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20"
-              >
-                <option value="batch_desc">Cohort (Newest First)</option>
-                <option value="batch_asc">Cohort (Oldest First)</option>
-                <option value="name_asc">Graduate Name (A–Z)</option>
-                <option value="id_asc">Student ID (A–Z)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
         {/* Ledger Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
