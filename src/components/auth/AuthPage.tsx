@@ -96,11 +96,22 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   onLoginSuccess,
   onBackToApp
 }) => {
-  const { login, register, users, resetUserPasswordByEmail, addAuditLog, showToast } = useAlumni();
+  const {
+    login,
+    register,
+    users,
+    resetUserPasswordByEmail,
+    addAuditLog,
+    showToast,
+    activeSessionConflict,
+    clearActiveSessionConflict,
+    terminateOtherSessionAndLogin
+  } = useAlumni();
   const { isDark, toggleTheme } = useTheme();
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode);
   const [loginMethod, setLoginMethod] = useState<'email' | 'studentId'>('email');
+  const [isSubmittingEndSession, setIsSubmittingEndSession] = useState(false);
 
   // Login form state
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -636,6 +647,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         onBackToApp();
       }
     } else {
+      // If failure was due to an active session conflict, do not increment failed password lockout
+      if (activeSessionConflict) {
+        return;
+      }
+
       // Failed login attempt tracking
       const newAttempts = failedAttempts + 1;
 
@@ -1085,27 +1101,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         </div>
 
         {/* Mobile Header (When screen is small) */}
-        <div className="lg:hidden mb-6 pb-4 border-b border-stone-100">
+        <div className="lg:hidden mb-6 pb-4 border-b border-stone-100 dark:border-stone-800">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <img
                 src="/assets/cecilians-seal.jpg"
-                alt="Alumni Cecilian's Logo"
+                alt="St. Cecilia's College Official Seal"
                 referrerPolicy="no-referrer"
-                className="w-7 h-7 rounded-full object-cover border border-stone-200"
+                className="w-8 h-8 rounded-full object-cover border border-stone-200 dark:border-stone-700 shadow-xs"
               />
-              <span className="text-xs font-bold uppercase tracking-wider text-[#991B1B]">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#991B1B] dark:text-[#f87171]">
                 St. Cecilia's Alumni
               </span>
             </div>
-            {onBackToApp && (
-              <button
-                onClick={onBackToApp}
-                className="text-xs text-stone-500 hover:text-stone-800"
-              >
-                Back to App
-              </button>
-            )}
+            {/* Mobile & tablet skip landing page */}
           </div>
         </div>
 
@@ -1115,12 +1124,92 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         {mode === 'login' && (
           <div className="max-w-md w-full mx-auto">
             {/* Form Title & Subtitle */}
-            <h2 className="font-serif text-3xl sm:text-4xl text-stone-900 font-normal tracking-tight mb-2">
+            <h2 className="font-serif text-3xl sm:text-4xl text-stone-900 dark:text-stone-100 font-normal tracking-tight mb-2">
               Sign In
             </h2>
-            <p className="text-sm text-stone-500 font-normal mb-6">
+            <p className="text-sm text-stone-500 dark:text-stone-400 font-normal mb-6">
               Enter your credentials to access the portal.
             </p>
+
+            {/* Requirement 1: Active Login Session Conflict Banner (One Account, One Active Login) */}
+            {activeSessionConflict && (
+              <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border-2 border-amber-300 dark:border-amber-700/60 text-amber-950 dark:text-amber-100 shadow-sm animate-in fade-in duration-200">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 shrink-0 mt-0.5">
+                    <ShieldAlert className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h4 className="font-bold text-sm text-amber-950 dark:text-amber-100">
+                        Account Currently in Use
+                      </h4>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-200/80 dark:bg-amber-800 text-amber-900 dark:text-amber-100">
+                        1 Active Session
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-amber-800 dark:text-amber-200 mt-1.5 leading-relaxed">
+                      {activeSessionConflict.message}
+                    </p>
+
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-white/90 dark:bg-stone-900/90 border border-amber-200 dark:border-amber-800/50 space-y-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-stone-500 dark:text-stone-400">Active Device:</span>
+                        <span className="font-semibold text-stone-900 dark:text-stone-100">
+                          {activeSessionConflict.activeSession.deviceInfo || 'Another Device'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-stone-500 dark:text-stone-400">Location:</span>
+                        <span className="font-semibold text-stone-900 dark:text-stone-100">
+                          {activeSessionConflict.activeSession.approxLocation || 'Cebu, Philippines'}
+                        </span>
+                      </div>
+                      {activeSessionConflict.attemptInfo?.attemptTime && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-stone-500 dark:text-stone-400">Attempt Time:</span>
+                          <span className="font-mono text-[11px] text-stone-700 dark:text-stone-300">
+                            {activeSessionConflict.attemptInfo.attemptTime}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-2 leading-tight">
+                      A security alert email notification was sent to <span className="font-semibold underline">{activeSessionConflict.ownerEmailMasked}</span>.
+                    </p>
+
+                    <div className="mt-3 pt-2.5 border-t border-amber-200 dark:border-amber-800/60 flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        disabled={isSubmittingEndSession}
+                        onClick={async () => {
+                          setIsSubmittingEndSession(true);
+                          const ok = await terminateOtherSessionAndLogin(
+                            activeSessionConflict.identifier,
+                            activeSessionConflict.password || loginPassword
+                          );
+                          setIsSubmittingEndSession(false);
+                          if (ok && onLoginSuccess) {
+                            onLoginSuccess('alumni');
+                          }
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                      >
+                        {isSubmittingEndSession ? 'Ending Session...' : 'End Existing Session & Log In Here'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearActiveSessionConflict}
+                        className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 text-xs font-medium transition-colors cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Prominent Live Countdown Lockout Banner or Error State */}
             {isLockedOut ? (

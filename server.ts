@@ -196,6 +196,118 @@ interface StoredUserCredential {
 const credentialsDb = new Map<string, StoredUserCredential>();
 const revokedTokens = new Set<string>();
 
+// ============================================================================
+// SINGLE ACTIVE SESSION & SECURITY NOTIFICATIONS (ONE ACCOUNT, ONE ACTIVE LOGIN)
+// ============================================================================
+interface ActiveSession {
+  sessionId: string;
+  token: string;
+  uid: string;
+  email: string;
+  name: string;
+  createdAt: number;
+  lastActiveAt: number;
+  deviceInfo: string;
+  ipAddress: string;
+  approxLocation: string;
+  userAgent: string;
+}
+
+interface SecurityAttemptNotice {
+  id: string;
+  uid: string;
+  email: string;
+  attemptTime: string;
+  deviceInfo: string;
+  approxLocation: string;
+  ipAddress: string;
+  status: 'BLOCKED_CONCURRENT_LOGIN';
+  notificationSentAt: string;
+  message: string;
+}
+
+// Stores the single active login session per account (keyed by user.uid)
+const activeSessions = new Map<string, ActiveSession>();
+// Security audit logs of blocked concurrent login attempts
+const securityAttemptNotices: SecurityAttemptNotice[] = [];
+
+function maskEmail(email: string): string {
+  if (!email || !email.includes('@')) return 'your registered email';
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) {
+    return `${local[0]}***@${domain}`;
+  }
+  return `${local.slice(0, 2)}***${local.slice(-1)}@${domain}`;
+}
+
+function extractDeviceInfo(req: Request): { deviceInfo: string; approxLocation: string; ipAddress: string } {
+  const ua = req.headers['user-agent'] || '';
+  const bodyDevice = (req.body && req.body.deviceInfo) || '';
+  
+  let deviceInfo = bodyDevice;
+  if (!deviceInfo) {
+    if (/android/i.test(ua)) {
+      deviceInfo = 'Android Device (Mobile App)';
+    } else if (/iphone|ipad|ipod/i.test(ua)) {
+      deviceInfo = 'Apple iOS Device (Mobile Safari / App)';
+    } else if (/macintosh|mac os x/i.test(ua)) {
+      deviceInfo = 'macOS Desktop';
+    } else if (/windows/i.test(ua)) {
+      deviceInfo = 'Windows PC';
+    } else if (/linux/i.test(ua)) {
+      deviceInfo = 'Linux Device';
+    } else {
+      deviceInfo = 'Web Browser Session';
+    }
+  }
+
+  // Extract client IP address
+  const forwarded = req.headers['x-forwarded-for'];
+  const ipAddress = typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : req.ip || '127.0.0.1';
+
+  // Approximate location (client reported or geographic header fallback)
+  const bodyLoc = (req.body && req.body.approxLocation) || '';
+  const approxLocation = bodyLoc || (req.headers['x-client-location'] as string) || 'Minglanilla, Cebu, Philippines';
+
+  return { deviceInfo, approxLocation, ipAddress };
+}
+
+function sendSecurityEmailNotification({
+  toEmail,
+  ownerName,
+  attemptTime,
+  deviceInfo,
+  approxLocation,
+  ipAddress
+}: {
+  toEmail: string;
+  ownerName: string;
+  attemptTime: string;
+  deviceInfo: string;
+  approxLocation: string;
+  ipAddress: string;
+}) {
+  const masked = maskEmail(toEmail);
+  const logMessage = `[SECURITY EMAIL DISPATCHED] To: ${masked} | Subject: Security Notice: Login Attempt on Another Device | Time: ${attemptTime} | Device: ${deviceInfo} | Location: ${approxLocation}`;
+  console.log(`\n======================================================\n${logMessage}\n======================================================\n`);
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'SECURITY_ALERT_CONCURRENT_LOGIN_BLOCKED',
+    actor: 'SYSTEM_SECURITY_SUPERVISOR',
+    actorRole: 'system',
+    ip: ipAddress || 'internal',
+    details: {
+      accountEmailMasked: masked,
+      attemptTime,
+      deviceInfo,
+      approxLocation,
+      message: 'Email notification sent to account owner. Single active session strictly preserved.'
+    }
+  });
+}
+
 function hashPassword(password: string, saltHex?: string): { hash: string; salt: string } {
   const salt = saltHex || crypto.randomBytes(32).toString('hex');
   const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
@@ -570,18 +682,40 @@ function requireServerAuth(req: Request, res: Response, next: NextFunction) {
     }
     const payload = JSON.parse(payloadStr);
 
+    const userUid = payload.uid || payload.user_id || payload.sub || 'usr_session';
+
     if (payload.exp && typeof payload.exp === 'number') {
       const expMs = payload.exp < 10000000000 ? payload.exp * 1000 : payload.exp;
       if (expMs < Date.now()) {
-        return res.status(401).json({ error: 'Session has expired. Please sign in again.' });
+        const activeSess = activeSessions.get(userUid);
+        if (activeSess && activeSess.token === token) {
+          activeSessions.delete(userUid);
+        }
+        return res.status(401).json({ error: 'Session has expired. Please sign in again.', code: 'SESSION_EXPIRED' });
       }
     }
 
+    // Server-Authoritative Single Active Session Enforcement
+    const activeSession = activeSessions.get(userUid);
+    if (activeSession) {
+      const isMatchingToken = activeSession.token === token;
+      const isMatchingSessionId = payload.sessionId && activeSession.sessionId === payload.sessionId;
+      if (!isMatchingToken && !isMatchingSessionId) {
+        return res.status(401).json({
+          error: 'Your session has ended because this account was logged into on another device.',
+          code: 'SESSION_TERMINATED'
+        });
+      }
+      // Touch activity timestamp
+      activeSession.lastActiveAt = Date.now();
+    }
+
     (req as any).user = {
-      uid: payload.uid || payload.user_id || payload.sub || 'usr_session',
+      uid: userUid,
       email: payload.email || 'user@stcecilia.edu',
       role: payload.role || 'alumni',
       emailVerified: !!(payload.emailVerified || payload.email_verified),
+      sessionId: payload.sessionId,
       ...payload
     };
     next();
@@ -827,8 +961,106 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Invalid email address/Student ID or password.' });
   }
 
-  // Issue session token with 7-day persistent validity
+  const forceTerminate = !!req.body.forceTerminateOtherSession;
+  const currentDevice = extractDeviceInfo(req);
+
+  // Requirement 1: Allow only one active login session per account at a time.
+  const existingSession = activeSessions.get(user.uid);
+  if (existingSession) {
+    const isSessionExpired = existingSession.createdAt + 7 * 24 * 60 * 60 * 1000 < Date.now();
+    if (isSessionExpired) {
+      activeSessions.delete(user.uid);
+    } else if (forceTerminate) {
+      // Owner confirmed ending the previous session to log in on this new device
+      revokedTokens.add(existingSession.token);
+      activeSessions.delete(user.uid);
+      serverAuditLogs.push({
+        id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        timestamp: new Date().toISOString(),
+        action: 'ACTIVE_SESSION_TERMINATED_AND_REPLACED',
+        actor: user.email,
+        actorRole: user.role,
+        ip: currentDevice.ipAddress,
+        details: {
+          previousDevice: existingSession.deviceInfo,
+          newDevice: currentDevice.deviceInfo,
+          location: currentDevice.approxLocation,
+          reason: 'Owner ended existing session to authenticate on new device.'
+        }
+      });
+    } else {
+      // Check if it's the exact same session re-authenticating with the same token
+      const authHeader = req.headers.authorization;
+      const clientToken = authHeader ? authHeader.split(' ')[1] : '';
+      if (clientToken && clientToken === existingSession.token) {
+        existingSession.lastActiveAt = Date.now();
+      } else {
+        // PREVENT CONCURRENT LOGIN!
+        // Show clear message explaining account is currently in use
+        // Send email notification to account owner with attempt time, device info, approximate location
+        const attemptTimeStr = new Date().toLocaleString('en-US', {
+          timeZone: 'Asia/Manila',
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        });
+
+        const attemptNotice: SecurityAttemptNotice = {
+          id: `sec_notif_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+          uid: user.uid,
+          email: user.email,
+          attemptTime: attemptTimeStr,
+          deviceInfo: currentDevice.deviceInfo,
+          approxLocation: currentDevice.approxLocation,
+          ipAddress: currentDevice.ipAddress,
+          status: 'BLOCKED_CONCURRENT_LOGIN',
+          notificationSentAt: new Date().toISOString(),
+          message: `Another sign-in attempt was detected on ${attemptTimeStr} from ${currentDevice.deviceInfo} near ${currentDevice.approxLocation}. Access was blocked because only one active login session is permitted.`
+        };
+        securityAttemptNotices.unshift(attemptNotice);
+
+        sendSecurityEmailNotification({
+          toEmail: user.email,
+          ownerName: user.name || 'Cecilian Alumnus',
+          attemptTime: attemptTimeStr,
+          deviceInfo: currentDevice.deviceInfo,
+          approxLocation: currentDevice.approxLocation,
+          ipAddress: currentDevice.ipAddress
+        });
+
+        return res.status(409).json({
+          error: 'This account is currently in use on another device.',
+          code: 'ACCOUNT_ALREADY_LOGGED_IN',
+          message: 'This account is currently in use on another device. Only one active login session is allowed per account at a time. A security alert notification has been sent to the account owner.',
+          activeSession: {
+            deviceInfo: existingSession.deviceInfo,
+            approxLocation: existingSession.approxLocation,
+            createdAt: new Date(existingSession.createdAt).toLocaleString('en-US', {
+              timeZone: 'Asia/Manila',
+              dateStyle: 'medium',
+              timeStyle: 'short'
+            }),
+            lastActiveAt: new Date(existingSession.lastActiveAt).toLocaleString('en-US', {
+              timeZone: 'Asia/Manila',
+              dateStyle: 'medium',
+              timeStyle: 'short'
+            })
+          },
+          attemptInfo: {
+            attemptTime: attemptTimeStr,
+            deviceInfo: currentDevice.deviceInfo,
+            approxLocation: currentDevice.approxLocation
+          },
+          ownerEmailMasked: maskEmail(user.email),
+          canTerminateExistingSession: true
+        });
+      }
+    }
+  }
+
+  // Issue session token with 7-day persistent validity & unique sessionId
+  const sessionId = `sess_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
   const tokenPayload = {
+    sessionId,
     uid: user.uid,
     name: user.name,
     email: user.email,
@@ -842,9 +1074,29 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
   };
   const token = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
 
+  // Register authoritative active single session
+  activeSessions.set(user.uid, {
+    sessionId,
+    token,
+    uid: user.uid,
+    email: user.email,
+    name: user.name,
+    createdAt: Date.now(),
+    lastActiveAt: Date.now(),
+    deviceInfo: currentDevice.deviceInfo,
+    ipAddress: currentDevice.ipAddress,
+    approxLocation: currentDevice.approxLocation,
+    userAgent: req.headers['user-agent'] || ''
+  });
+
   res.json({
     message: 'Sign-in successful.',
     token,
+    sessionId,
+    activeSession: {
+      deviceInfo: currentDevice.deviceInfo,
+      approxLocation: currentDevice.approxLocation
+    },
     user: {
       uid: user.uid,
       name: user.name,
@@ -872,6 +1124,8 @@ app.get('/api/auth/session', requireServerAuth, (req: Request, res: Response) =>
     matchedUser = credentialsDb.get(userPayload.email.toLowerCase());
   }
 
+  const activeSess = activeSessions.get(userPayload.uid);
+
   res.json({
     success: true,
     user: {
@@ -884,8 +1138,106 @@ app.get('/api/auth/session', requireServerAuth, (req: Request, res: Response) =>
       employeeId: matchedUser?.employeeId || userPayload.employeeId,
       emailVerified: matchedUser?.emailVerified ?? userPayload.emailVerified ?? true,
       isVerified: matchedUser?.isVerified ?? userPayload.isVerified ?? true
-    }
+    },
+    session: activeSess ? {
+      sessionId: activeSess.sessionId,
+      deviceInfo: activeSess.deviceInfo,
+      approxLocation: activeSess.approxLocation,
+      createdAt: activeSess.createdAt,
+      lastActiveAt: activeSess.lastActiveAt
+    } : null
   });
+});
+
+// 6.2.2 Authentication: Secure Session Termination (Owner Ending Existing Session)
+app.post('/api/auth/terminate-session', authRateLimiter, (req: Request, res: Response) => {
+  const identifier = String(req.body.identifier || req.body.email || req.body.studentId || '').toLowerCase().trim();
+  const password = typeof req.body.password === 'string' ? req.body.password : '';
+  const authHeader = req.headers.authorization;
+
+  let targetUid = '';
+  let targetEmail = '';
+
+  // 1. Authenticated user revoking remote session
+  if (authHeader) {
+    const token = authHeader.split(' ')[1];
+    try {
+      let payloadStr = '';
+      if (token.includes('.')) {
+        payloadStr = Buffer.from(token.split('.')[1], 'base64').toString('utf-8');
+      } else {
+        payloadStr = Buffer.from(token, 'base64').toString('utf-8');
+      }
+      const payload = JSON.parse(payloadStr);
+      targetUid = payload.uid;
+      targetEmail = payload.email;
+    } catch {}
+  }
+
+  // 2. Unauthenticated user on login screen providing valid password credentials
+  if (!targetUid) {
+    if (!identifier || !password) {
+      return res.status(400).json({ error: 'Account identifier and password are required.' });
+    }
+
+    // Flexible lookup
+    const normalizedId = identifier.replace(/[^a-zA-Z0-9]/g, '');
+    const rawClean = identifier.replace(/^scc-?/i, '').replace(/^alum-?/i, '');
+
+    let user = credentialsDb.get(identifier);
+    if (!user && normalizedId) {
+      user =
+        credentialsDb.get(normalizedId) ||
+        credentialsDb.get(`scc-${rawClean}`) ||
+        credentialsDb.get(`scc${normalizedId}`) ||
+        credentialsDb.get(rawClean);
+    }
+    if (!user) {
+      for (const cred of credentialsDb.values()) {
+        if (cred.email && cred.email.toLowerCase() === identifier) {
+          user = cred;
+          break;
+        }
+        if (cred.studentId && cred.studentId.toLowerCase() === identifier) {
+          user = cred;
+          break;
+        }
+      }
+    }
+
+    if (!user || !verifyPassword(password, user.salt, user.hash)) {
+      return res.status(401).json({ error: 'Invalid password. Could not terminate session.' });
+    }
+    targetUid = user.uid;
+    targetEmail = user.email;
+  }
+
+  const existing = activeSessions.get(targetUid);
+  if (existing) {
+    revokedTokens.add(existing.token);
+    activeSessions.delete(targetUid);
+    serverAuditLogs.push({
+      id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      timestamp: new Date().toISOString(),
+      action: 'SESSION_TERMINATED_BY_OWNER',
+      actor: targetEmail || targetUid,
+      actorRole: 'user',
+      ip: req.ip || 'internal',
+      details: { previousDevice: existing.deviceInfo, endedBy: 'Owner manual termination request' }
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Active session ended successfully. You can now log in on this device.'
+  });
+});
+
+// 6.2.3 Authentication: Security Attempt Notices
+app.get('/api/auth/security-notices', requireServerAuth, (req: Request, res: Response) => {
+  const userPayload = (req as any).user;
+  const notices = securityAttemptNotices.filter((n) => n.uid === userPayload.uid);
+  res.json({ success: true, notices });
 });
 
 // 6.3 Email Verification: Request Verification Token
@@ -940,10 +1292,14 @@ app.post('/api/auth/verify-email/confirm', (req: Request, res: Response) => {
 
 // 6.5 Authentication: Logout & Token Revocation
 app.post('/api/auth/logout', requireServerAuth, (req: Request, res: Response) => {
+  const userPayload = (req as any).user;
   const authHeader = req.headers.authorization;
   if (authHeader) {
     const token = authHeader.split(' ')[1];
     revokedTokens.add(token);
+  }
+  if (userPayload && userPayload.uid) {
+    activeSessions.delete(userPayload.uid);
   }
   res.json({ message: 'Signed out successfully. Token revoked.' });
 });

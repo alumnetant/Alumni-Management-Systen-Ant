@@ -579,14 +579,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             visible: permissions.canAccessAuditTrails || currentUser?.role === 'admin' || currentUser?.role === 'superadmin'
           },
           {
-            id: 'governance' as WorkspaceModuleId,
-            label: 'Governance Policies',
-            shortLabel: 'Policies',
-            icon: Scale,
-            badge: null,
-            visible: permissions.canAccessGovernance || currentUser?.role === 'superadmin'
-          },
-          {
             id: 'settings' as WorkspaceModuleId,
             label: 'Console Settings',
             shortLabel: 'Settings',
@@ -1084,8 +1076,8 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                   onNavigateTab={(tab) => {
                     if (tab === 'users') setCurrentModule('users');
                     else if (tab === 'registry') setCurrentModule('registry');
-                    else if (tab === 'governance') {
-                      setCurrentModule('governance');
+                    else if (tab === 'governance' || tab === 'automations') {
+                      setCurrentModule('audit');
                     }
                     else if (tab === 'conflicts') {
                       setConflictSubTab('conflicts');
@@ -1107,7 +1099,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                     else if (tab === 'events' || tab === 'attendance') setCurrentModule('events');
                     else if (tab === 'milestones') setCurrentModule('milestones');
                     else if (tab === 'chapters') setCurrentModule('chapters');
-                    else if (tab === 'automations') setCurrentModule('automations');
                     else if (tab === 'gallery') setCurrentModule('gallery');
                     else if (tab === 'audit') setCurrentModule('audit');
                     else if (tab === 'settings') setCurrentModule('settings');
@@ -1911,14 +1902,13 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               onNavigateTab={(tab) => {
                 if (tab === 'users') setCurrentModule('users');
                 else if (tab === 'registry') setCurrentModule('registry');
-                else if (tab === 'governance') setCurrentModule('governance');
+                else if (tab === 'governance' || tab === 'automations') setCurrentModule('audit');
                 else if (tab === 'conflicts' || tab === 'requests') setCurrentModule('conflicts');
                 else if (tab === 'jobs' || tab === 'employers') setCurrentModule('jobs');
                 else if (tab === 'announcements') setCurrentModule('announcements');
                 else if (tab === 'events' || tab === 'attendance') setCurrentModule('events');
                 else if (tab === 'milestones') setCurrentModule('milestones');
                 else if (tab === 'chapters') setCurrentModule('chapters');
-                else if (tab === 'automations') setCurrentModule('automations');
                 else if (tab === 'gallery') setCurrentModule('gallery');
                 else if (tab === 'audit') setCurrentModule('audit');
                 else setCurrentModule('dashboard');

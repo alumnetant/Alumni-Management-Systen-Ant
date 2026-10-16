@@ -127,6 +127,7 @@ import {
 } from '../lib/defaultImages';
 import { alumniService } from '../services/alumniService';
 import { calculateProfileCompletion } from '../services/automationService';
+import { analyzeUserRegistryIntegrity } from '../services/governanceLogicService';
 import { getEventCancellationInfo } from '../services/eventCancellationService';
 import {
   sendJobPostingEmail,
@@ -158,6 +159,25 @@ import {
   QueuedOfflineMessage
 } from '../services/offlineMessageQueueService';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+
+export interface ActiveSessionConflictInfo {
+  identifier: string;
+  password?: string;
+  message: string;
+  activeSession: {
+    deviceInfo: string;
+    approxLocation: string;
+    createdAt?: string;
+    lastActiveAt?: string;
+  };
+  attemptInfo?: {
+    attemptTime: string;
+    deviceInfo: string;
+    approxLocation: string;
+  };
+  ownerEmailMasked: string;
+  canTerminateExistingSession: boolean;
+}
 
 interface AlumniContextType {
   currentUser: UserProfile | null;
@@ -224,8 +244,11 @@ interface AlumniContextType {
     canManageChapters: boolean;
   };
 
-  // Auth & Session
+  // Auth & Session (One Account, One Active Login)
   login: (identifier: string, pass: string) => Promise<boolean>;
+  activeSessionConflict: ActiveSessionConflictInfo | null;
+  clearActiveSessionConflict: () => void;
+  terminateOtherSessionAndLogin: (identifier: string, pass: string) => Promise<boolean>;
   register: (data: Partial<UserProfile> & { password?: string }) => boolean;
   createUserByAdmin: (data: Partial<UserProfile> & { password?: string; role: UserRole }) => boolean;
   logout: () => void;
@@ -1158,6 +1181,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [lastBackgroundSyncTime, setLastBackgroundSyncTime] = useState<Date | null>(null);
   const isSyncInProgressRef = useRef<boolean>(false);
 
+  // Single Active Login State (One Account, One Active Login)
+  const [activeSessionConflict, setActiveSessionConflict] = useState<ActiveSessionConflictInfo | null>(null);
+  const clearActiveSessionConflict = useCallback(() => {
+    setActiveSessionConflict(null);
+  }, []);
+
+  const getClientDeviceInfo = useCallback((): string => {
+    if (typeof window === 'undefined') return 'Web Client';
+    const ua = navigator.userAgent;
+    if (/android/i.test(ua)) return 'Android Device (Mobile App)';
+    if (/iphone|ipad|ipod/i.test(ua)) return 'Apple iOS Device (Mobile Safari / App)';
+    if (/macintosh|mac os x/i.test(ua)) return 'macOS Desktop';
+    if (/windows/i.test(ua)) return 'Windows PC';
+    if (/linux/i.test(ua)) return 'Linux Device';
+    return 'Web Browser';
+  }, []);
+
   // Initial loading grace period for immediate skeleton visual feedback
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -1439,6 +1479,20 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       window.removeEventListener('applet:offline-messages-synced', handleOfflineMessagesSynced);
     };
   }, [triggerBackgroundSync, showToast]);
+
+  // System Background Sync Engine:
+  // Automatically synchronizes cloud records with local store on a continuous background interval
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        triggerBackgroundSync().catch((err) => {
+          console.warn('Silent background synchronization notice:', err);
+        });
+      }
+    }, 60000); // Syncs silently in background every 60 seconds
+
+    return () => clearInterval(syncInterval);
+  }, [triggerBackgroundSync]);
 
   const refreshData = useCallback(async () => {
     setIsLoadingData(true);
@@ -2496,15 +2550,46 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const normalizedInputId = normalizeStudentId(trimmed).toLowerCase();
     const digitsOnly = trimmed.replace(/[^a-zA-Z0-9]/g, '');
 
-    // 2. Server-side validation via backend /api/auth/login (optional session token provider)
+    // 2. Server-side validation via backend /api/auth/login (authoritative single active session provider)
     try {
       const serverRes = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ identifier: trimmed, password: pass })
+        body: JSON.stringify({
+          identifier: trimmed,
+          password: pass,
+          deviceInfo: getClientDeviceInfo()
+        })
       });
+
+      if (serverRes.status === 409) {
+        const conflictData = await serverRes.json();
+        setActiveSessionConflict({
+          identifier: trimmed,
+          password: pass,
+          message: conflictData.message || 'This account is currently in use on another device.',
+          activeSession: conflictData.activeSession || {
+            deviceInfo: 'Another device',
+            approxLocation: 'Minglanilla, Cebu, Philippines'
+          },
+          attemptInfo: conflictData.attemptInfo,
+          ownerEmailMasked: conflictData.ownerEmailMasked || 'your registered email',
+          canTerminateExistingSession: true
+        });
+        showToast(
+          'This account is currently in use on another device. An alert notification has been sent to your email.',
+          'error'
+        );
+        return false;
+      }
+
+      if (serverRes.status === 401) {
+        showToast('Invalid email address/Student ID or password.', 'error');
+        return false;
+      }
+
       if (serverRes.ok) {
         const authData = await serverRes.json();
         if (authData.token) {
@@ -2514,6 +2599,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             localStorage.setItem('alumni_auth_token', authData.token);
           } catch {}
         }
+        setActiveSessionConflict(null);
       }
     } catch {
       // In offline / standalone preview mode, continue to local validation
@@ -2675,6 +2761,76 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
     showToast(`Welcome back, ${userToSave.name}!`);
     return true;
+  };
+
+  const terminateOtherSessionAndLogin = async (identifier: string, pass: string): Promise<boolean> => {
+    const trimmed = identifier.trim().toLowerCase();
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: trimmed,
+          password: pass,
+          forceTerminateOtherSession: true,
+          deviceInfo: getClientDeviceInfo()
+        })
+      });
+
+      if (res.ok) {
+        const authData = await res.json();
+        if (authData.token) {
+          try {
+            sessionStorage.setItem('alumni_server_auth_token', authData.token);
+            localStorage.setItem('alumni_server_auth_token', authData.token);
+            localStorage.setItem('alumni_auth_token', authData.token);
+          } catch {}
+        }
+        setActiveSessionConflict(null);
+
+        // Find user to log in
+        let user = users.find(u => u.uid === authData.user?.uid || u.email?.toLowerCase() === authData.user?.email?.toLowerCase());
+        if (!user) {
+          const vaultCred = findCredentialInVault(trimmed);
+          if (vaultCred) {
+            user = users.find(u => u.uid === vaultCred.uid || u.email?.toLowerCase() === vaultCred.email.toLowerCase());
+          }
+        }
+        if (!user && authData.user) {
+          user = {
+            uid: authData.user.uid,
+            name: authData.user.name,
+            email: authData.user.email,
+            role: authData.user.role,
+            isVerified: true,
+            verified: true,
+            password: pass,
+            studentId: authData.user.studentId,
+            alumniId: authData.user.alumniId
+          } as UserProfile;
+        }
+
+        if (user) {
+          saveActiveSession(user);
+          setCurrentUserId(user.uid);
+          setAuthReady(true);
+          setActiveTab('dashboard');
+          if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+          showToast(`Welcome back, ${user.name}! Other device session ended.`);
+          return true;
+        }
+        return true;
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Could not end other session.', 'error');
+        return false;
+      }
+    } catch {
+      showToast('Connection error while ending session. Please check your network.', 'error');
+      return false;
+    }
   };
 
   const register = (data: Partial<UserProfile> & { password?: string }): boolean => {
@@ -3107,18 +3263,86 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     showToast('Post removed from feed.', 'info');
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    try {
+      const token =
+        sessionStorage.getItem('alumni_server_auth_token') ||
+        localStorage.getItem('alumni_server_auth_token') ||
+        localStorage.getItem('alumni_auth_token');
+      if (token) {
+        fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          }
+        }).catch(() => {});
+      }
+    } catch {}
+
     signOutUser().catch(() => {});
     clearStoredSession();
     setCurrentUserId(null);
+    setActiveSessionConflict(null);
     try {
       localStorage.removeItem(STORAGE_KEYS.ACTIVE_TAB);
       localStorage.removeItem(STORAGE_KEYS.VIEW);
+      localStorage.removeItem('alumni_server_auth_token');
+      localStorage.removeItem('alumni_auth_token');
       sessionStorage.clear();
     } catch {}
     setActiveTab('dashboard');
     showToast('Logged out successfully.');
-  };
+  }, [showToast]);
+
+  // Server-Authoritative Session Heartbeat Supervisor: Checks single active session validity
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const checkActiveSessionHealth = async () => {
+      try {
+        const token =
+          sessionStorage.getItem('alumni_server_auth_token') ||
+          localStorage.getItem('alumni_server_auth_token') ||
+          localStorage.getItem('alumni_auth_token');
+        if (!token) return;
+
+        const res = await fetch('/api/auth/session', {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (res.status === 401) {
+          const errData = await res.json().catch(() => ({}));
+          if (errData.code === 'SESSION_TERMINATED') {
+            logout();
+            showToast('You were signed out because this account was logged into on another device.', 'error');
+          } else if (errData.code === 'SESSION_EXPIRED') {
+            logout();
+            showToast('Your session has expired. Please sign in again.', 'info');
+          }
+        }
+      } catch {
+        // Do not kick user out on temporary connection issues
+      }
+    };
+
+    // Check periodically every 30 seconds
+    const interval = setInterval(checkActiveSessionHealth, 30000);
+    // Also check when tab becomes visible
+    const handleVis = () => {
+      if (document.visibilityState === 'visible') {
+        checkActiveSessionHealth();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVis);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVis);
+    };
+  }, [currentUserId, logout, showToast]);
 
   const switchUser = (uid: string) => {
     const target = users.find((u) => u.uid === uid);
@@ -6504,6 +6728,66 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return () => clearInterval(interval);
   }, [checkAndEnforceEmployerExpirations]);
 
+  // System Background Automation Engine:
+  // Automatically reconciles, validates, and approves perfect registrar matches in the background
+  useEffect(() => {
+    const runBackgroundRegistrarReconciliation = () => {
+      try {
+        const records = getRegistrarRecords();
+        if (!records || records.length === 0) return;
+
+        setUsers((prevUsers) => {
+          let updated = false;
+          let verifiedCount = 0;
+
+          const next = prevUsers.map((user) => {
+            if (user.role === 'alumni' && !user.isVerified && user.studentId) {
+              const analysis = analyzeUserRegistryIntegrity(user, prevUsers, records);
+              if (analysis.status === 'PERFECT_MATCH' && analysis.recommendedAction === 'AUTO_VERIFY') {
+                updated = true;
+                verifiedCount++;
+                return {
+                  ...user,
+                  isVerified: true,
+                  verified: true,
+                  verificationStatus: 'verified' as const,
+                  verificationFlagReason: undefined
+                };
+              }
+            }
+            return user;
+          });
+
+          if (updated) {
+            try {
+              localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
+            } catch {}
+
+            setAutomationJobs((prevJobs) =>
+              prevJobs.map((j) =>
+                j.id === 'job_reg_verifier'
+                  ? {
+                      ...j,
+                      lastRun: new Date().toISOString(),
+                      triggerCount: j.triggerCount + verifiedCount,
+                      status: 'active'
+                    }
+                  : j
+              )
+            );
+          }
+          return next;
+        });
+      } catch (err) {
+        console.warn('Background registrar reconciliation notice:', err);
+      }
+    };
+
+    runBackgroundRegistrarReconciliation();
+    const recInterval = setInterval(runBackgroundRegistrarReconciliation, 60000);
+    return () => clearInterval(recInterval);
+  }, []);
+
   const submitCareerSurvey = useCallback((survey: Omit<CareerSurveyResponse, 'id' | 'submittedAt'>) => {
     const newSurvey: CareerSurveyResponse = {
       id: `survey_${Date.now()}`,
@@ -6866,6 +7150,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         testDatabaseWrite,
         firestoreDatabaseId: FIRESTORE_DATABASE_ID,
         login,
+        activeSessionConflict,
+        clearActiveSessionConflict,
+        terminateOtherSessionAndLogin,
         register,
         logout,
         switchUser,

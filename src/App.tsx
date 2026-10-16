@@ -34,10 +34,22 @@ import { SplashScreen } from '@capacitor/splash-screen';
 import { initPushNotificationListeners } from './services/pushNotificationService';
 import { Network } from '@capacitor/network';
 import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { BiometricAppLockModal } from './components/auth/BiometricAppLockModal';
 import { isBiometricAppLockEnabled } from './services/biometricAuthService';
 import { initMobileApp } from './services/mobileAppService';
 import { initEventReminderScheduler } from './services/eventReminderService';
+
+// Requirement 3: Mobile and Tablet Layout / Device Detection
+export const isMobileOrTabletDevice = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (Capacitor.isNativePlatform()) return true;
+  const isWidthUnder1024 = window.innerWidth < 1024;
+  const isMobileUA =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Silk/i.test(navigator.userAgent) ||
+    (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 1024);
+  return isWidthUnder1024 || isMobileUA;
+};
 
 function AppContent() {
   const {
@@ -71,10 +83,14 @@ function AppContent() {
         }
         return 'portal';
       }
-      // Unauthenticated visitors start at the institutional landing page
+      // Requirement 3: On mobile phones and tablets, skip the public landing page
+      if (isMobileOrTabletDevice()) {
+        return 'auth';
+      }
+      // Unauthenticated visitors on desktop start at the institutional landing page
       return 'landing';
     } catch {
-      return 'landing';
+      return isMobileOrTabletDevice() ? 'auth' : 'landing';
     }
   });
   const [authViewMode, setAuthViewMode] = useState<'login' | 'register'>('login');
@@ -186,10 +202,13 @@ function AppContent() {
         return;
       }
 
-      // 3. If in auth view, step back to landing (or portal if already authenticated)
+      // 3. If in auth view, step back to landing (on desktop) or exit app (on mobile/tablet)
       if (currentView === 'auth') {
         if (currentUser) {
           setCurrentView('portal');
+          setActiveTab('dashboard');
+        } else if (isMobileOrTabletDevice()) {
+          CapApp.exitApp();
         } else {
           setCurrentView('landing');
         }
@@ -354,23 +373,44 @@ function AppContent() {
       // Strict Verification Enforcement: Do not let explicitly rejected accounts access the portal
       if (currentUser.verificationStatus === 'rejected' && currentUser.role === 'alumni') {
         logout();
-        setCurrentView('landing');
+        setCurrentView(isMobileOrTabletDevice() ? 'auth' : 'landing');
         return;
       }
       if (currentUser.role === 'employer' && currentUser.employerVerificationStatus === 'rejected') {
         logout();
-        setCurrentView('landing');
+        setCurrentView(isMobileOrTabletDevice() ? 'auth' : 'landing');
         return;
       }
       if (currentView === 'auth') {
         setCurrentView('portal');
+        setActiveTab('dashboard');
       }
     } else if (authReady) {
       if (!currentUser && currentView === 'portal') {
-        setCurrentView('landing');
+        setCurrentView(isMobileOrTabletDevice() ? 'auth' : 'landing');
       }
     }
-  }, [currentUser, currentView, logout, authReady]);
+  }, [currentUser, currentView, logout, authReady, setActiveTab]);
+
+  // Requirement 3: Mobile and Tablet: No Landing Page
+  // Dynamically ensure mobile and tablet devices skip the public landing page
+  React.useEffect(() => {
+    const enforceMobileTabletRouting = () => {
+      if (isMobileOrTabletDevice()) {
+        if (currentView === 'landing') {
+          if (currentUser) {
+            setCurrentView('portal');
+            setActiveTab('dashboard');
+          } else {
+            setCurrentView('auth');
+          }
+        }
+      }
+    };
+    enforceMobileTabletRouting();
+    window.addEventListener('resize', enforceMobileTabletRouting);
+    return () => window.removeEventListener('resize', enforceMobileTabletRouting);
+  }, [currentView, currentUser, setActiveTab]);
 
   React.useEffect(() => {
     // Prioritize Profile Setup on first-time login
@@ -421,8 +461,8 @@ function AppContent() {
   // Animate view transitions (landing, auth, portal)
   return (
     <AnimatePresence mode="wait">
-      {/* Landing page view */}
-      {currentView === 'landing' && (
+      {/* Landing page view (Only displayed on desktop; skipped on mobile and tablet) */}
+      {currentView === 'landing' && !isMobileOrTabletDevice() && (
         <motion.div
           key="view-landing"
           initial={{ opacity: 0 }}
@@ -455,35 +495,55 @@ function AppContent() {
             initialMode={authViewMode}
             initialRole={authRole}
             onLoginSuccess={handleLoginSuccess}
-            onBackToApp={() => {
-              if (currentUser) {
-                handleLoginSuccess(currentUser.role);
-              } else {
-                setCurrentView('landing');
-              }
-            }}
+            onBackToApp={
+              isMobileOrTabletDevice()
+                ? undefined
+                : () => {
+                    if (currentUser) {
+                      handleLoginSuccess(currentUser.role);
+                    } else {
+                      setCurrentView('landing');
+                    }
+                  }
+            }
           />
         </motion.div>
       )}
 
-      {/* Authenticated Member Portal View or Fallback to Landing */}
+      {/* Authenticated Member Portal View or Fallback to Auth/Landing */}
       {currentView === 'portal' && (!currentUser ? (
-        <motion.div
-          key="view-landing-fallback"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="min-h-screen"
-        >
-          <LandingPage
-            onNavigateToAuth={(mode, role = 'alumni') => {
-              setAuthViewMode(mode);
-              setAuthRole(role);
-              setCurrentView('auth');
-            }}
-          />
-        </motion.div>
+        isMobileOrTabletDevice() ? (
+          <motion.div
+            key="view-auth-fallback"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="min-h-screen"
+          >
+            <AuthPage
+              initialMode="login"
+              onLoginSuccess={handleLoginSuccess}
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="view-landing-fallback"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="min-h-screen"
+          >
+            <LandingPage
+              onNavigateToAuth={(mode, role = 'alumni') => {
+                setAuthViewMode(mode);
+                setAuthRole(role);
+                setCurrentView('auth');
+              }}
+            />
+          </motion.div>
+        )
       ) : isAppBiometricallyLocked ? (
         /* Optical Face Detection Biometric Recognition Gate Before Accessing Main Dashboard */
         <motion.div
@@ -520,7 +580,17 @@ function AppContent() {
               setAuthViewMode(mode);
               setCurrentView('auth');
             }}
-            onGoToLanding={() => setCurrentView('landing')}
+            onGoToLanding={() => {
+              if (isMobileOrTabletDevice()) {
+                if (currentUser) {
+                  setActiveTab('dashboard');
+                } else {
+                  setCurrentView('auth');
+                }
+              } else {
+                setCurrentView('landing');
+              }
+            }}
           />
 
           {/* Public Profile Modal (Available anywhere in the app) */}
@@ -547,7 +617,17 @@ function AppContent() {
               setAuthViewMode(mode);
               setCurrentView('auth');
             }}
-            onGoToLanding={() => setCurrentView('landing')}
+            onGoToLanding={() => {
+              if (isMobileOrTabletDevice()) {
+                if (currentUser) {
+                  setActiveTab('dashboard');
+                } else {
+                  setCurrentView('auth');
+                }
+              } else {
+                setCurrentView('landing');
+              }
+            }}
           />
 
           {/* Public Profile Modal (Available anywhere in the app) */}
