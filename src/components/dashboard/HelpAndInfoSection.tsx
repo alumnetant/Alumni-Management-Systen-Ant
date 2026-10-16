@@ -48,27 +48,27 @@ export const HelpAndInfoSection: React.FC<HelpAndInfoSectionProps> = ({ isLoadin
   const faqs = [
     {
       id: 'faq_verify',
-      question: 'How do I authenticate my Cecilian Alumni status?',
+      question: 'How do I verify my alumni account?',
       answer:
-        'All alumni accounts are cross-checked against official St. Cecilia’s College Registrar masterlist records using your Academic Student ID and Graduation Batch. Once validated, an official gold verified badge and encrypted Cecilian Alumni ID are issued to your profile.'
+        'All alumni accounts are checked against official St. Cecilia’s College records using your Student ID and Graduation Year. Once verified, a verified badge and digital Alumni ID are added to your profile.'
     },
     {
       id: 'faq_events',
-      question: 'How do Event RSVPs and attendee group chats work?',
+      question: 'How do event sign-ups and group chats work?',
       answer:
-        'When you RSVP "Going" to any campus or virtual alumni convocation, the portal automatically syncs you into the dedicated Event Attendee Group Chat in your Messages tab. If you update your RSVP, your membership is updated in real time.'
+        'When you select "Going" to any event, the app automatically adds you to the Event Group Chat in your Messages tab. If you change your response, your group chat status updates right away.'
     },
     {
       id: 'faq_milestones',
-      question: 'How can I submit career milestones or campus gallery photos?',
+      question: 'How can I post achievements or campus photos?',
       answer:
-        'Navigate to the Milestones tab in the portal. You can upload high-resolution photos, celebrate board exam results or promotions, tag verified batchmates, and publish directly to the live campus community stream.'
+        'Go to the Milestones tab in the portal. You can share photos, celebrate passing board exams or work promotions, tag classmates, and post directly to the campus feed.'
     },
     {
       id: 'faq_security',
-      question: 'How are my private student records and contact details safeguarded?',
+      question: 'How is my private information protected?',
       answer:
-        'Your profile is strictly protected under Republic Act 10173 (Philippine Data Privacy Act) and our Zero Disclosure Policy. Your phone number and private contact records are never published publicly or shared with commercial entities.'
+        'Your profile is protected under the Philippine Data Privacy Act. Your phone number and private contact details are never shown publicly or sold to third parties.'
     }
   ];
 
@@ -177,11 +177,11 @@ export const HelpAndInfoSection: React.FC<HelpAndInfoSectionProps> = ({ isLoadin
                   <BookOpen className="w-3.5 h-3.5 stroke-[1.75]" />
                 </div>
                 <h3 className="text-xs sm:text-[13px] font-bold uppercase tracking-wider text-stone-900 break-words">
-                  Frequently Consulted Inquiries
+                  Frequently Asked Questions
                 </h3>
               </div>
               <span className="text-[10px] sm:text-[11px] font-medium text-stone-500">
-                4 Core Directives
+                4 Common Questions
               </span>
             </div>
 

@@ -3410,7 +3410,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     alumniService.updateAlumni(currentUserId, { email: newEmail }).catch((err) => {
       console.warn('Error updating email in Firestore:', err);
     });
-    showToast(`Email updated to ${newEmail}. Verification link dispatched.`);
+    showToast(`Email updated to ${newEmail}. Verification link sent.`);
     return true;
   };
 
@@ -5423,7 +5423,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       severity: 'info'
     });
 
-    showToast(`🚨 24-Hour Push Alert dispatched! Preview notification banner, sound chime, and in-app feed.`, 'success');
+    showToast(`Event reminder sent! You can preview the notification now.`, 'success');
   };
 
   // Memoized list of current user's confirmed reservations in 24h window
@@ -6968,7 +6968,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       severity: 'alert'
     });
 
-    showToast('Emergency announcement broadcast dispatched to all members.', 'success');
+    showToast('Urgent announcement sent to all members.', 'success');
   }, [currentUser, permissions.canPostAnnouncements, addAuditLog, showToast]);
 
   const updateEmploymentStatus = useCallback((status: 'Employed' | 'Self-employed' | 'Unemployed' | 'Student' | 'Retired') => {

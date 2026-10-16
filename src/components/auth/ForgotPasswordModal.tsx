@@ -107,7 +107,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
     setEmail(emailToTest);
     setVerificationCode('');
     setStep(2);
-    showToast(`Verification code dispatched to ${emailToTest}`);
+    showToast(`Verification code sent to ${emailToTest}`);
   };
 
   // STEP 2: Verify code
@@ -122,12 +122,12 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
     }
 
     if (Date.now() > codeExpiry) {
-      setErrorMsg('The verification code has expired. Please click "Resend Code" to generate a new one.');
+      setErrorMsg('The verification code has expired. Please click "Resend Code" to get a new one.');
       return;
     }
 
     if (entered !== generatedCode) {
-      setErrorMsg('Invalid verification code. Please check your simulated dispatch box or re-enter.');
+      setErrorMsg('Incorrect code. Please check your email or enter it again.');
       return;
     }
 
@@ -313,7 +313,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                   Verify Your Identity
                 </h4>
                 <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-                  We've dispatched a 6-digit security code to:
+                  We've sent a 6-digit code to:
                   <br />
                   <span className="font-semibold text-stone-800">{email}</span>
                 </p>
@@ -326,12 +326,12 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 </button>
               </div>
 
-              {/* Simulated Email Inbox Dispatch Alert with 1-Click Autofill */}
+              {/* Email Notice Alert with 1-Click Autofill */}
               <div className="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs shadow-xs">
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <div className="flex items-center gap-1.5 font-bold text-[11px] uppercase tracking-wider text-amber-800">
                     <Mail className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Simulated Campus Mail Dispatch</span>
+                    <span>Campus Email Notice</span>
                   </div>
                   <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded-md font-mono">
                     Official Notice

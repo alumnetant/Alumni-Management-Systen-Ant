@@ -635,9 +635,9 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
               {resetSent ? (
                 <div className="p-4 bg-emerald-50 text-emerald-800 rounded-xl text-center">
                   <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
-                  <p className="font-bold">Password Reset Dispatched</p>
+                  <p className="font-bold">Password Reset Email Sent</p>
                   <p className="text-xs text-emerald-700 mt-1">
-                    Check your email inbox for instructions to reset your account credentials.
+                    Please check your email for a link to reset your password.
                   </p>
                 </div>
               ) : (

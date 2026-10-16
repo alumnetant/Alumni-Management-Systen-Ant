@@ -489,7 +489,7 @@ export const EventsView: React.FC = () => {
                   }}
                   className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
                 >
-                  <span>Program Dossier</span>
+                  <span>Event Details</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -735,7 +735,7 @@ export const EventsView: React.FC = () => {
                     }}
                     className="px-3.5 py-1.5 bg-stone-50 hover:bg-[#8B181B] hover:text-white text-stone-800 border border-stone-200/90 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                   >
-                    <span>View Dossier</span>
+                    <span>View Details</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>

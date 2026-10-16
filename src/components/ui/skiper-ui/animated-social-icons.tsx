@@ -88,8 +88,8 @@ export function AnimatedSocialIcons({
           )}
           whileTap={{ scale: 0.96 }}
           aria-expanded={active}
-          aria-label={triggerLabel || 'Toggle Cecilian directives'}
-          title={active ? 'Collapse Directives' : 'Expand Directives'}
+          aria-label={triggerLabel || 'Toggle Cecilian menu'}
+          title={active ? 'Collapse Menu' : 'Expand Menu'}
         >
           {/* Animated Plus Icon: Rotates 45 degrees into an X when active */}
           <motion.div

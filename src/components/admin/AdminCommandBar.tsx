@@ -632,7 +632,7 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
                   <span>Close</span>
                 </span>
               </div>
-              <span className="font-medium text-[#8B181B]">St. Cecilia Administration Omnibar</span>
+              <span className="font-medium text-[#8B181B]">St. Cecilia Admin Search</span>
             </div>
           </div>
         </div>

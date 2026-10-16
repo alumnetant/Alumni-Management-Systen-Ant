@@ -919,7 +919,7 @@ export const MessagesView: React.FC = () => {
                             ? 'bg-stone-200 border-stone-300 text-stone-900'
                             : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
                         }`}
-                        title={showDossierDrawer ? 'Hide Dossier Panel' : 'Show Dossier Panel'}
+                        title={showDossierDrawer ? 'Hide Profile Panel' : 'Show Profile Panel'}
                       >
                         {showDossierDrawer ? (
                           <PanelRightClose className="w-4 h-4" />
@@ -1255,10 +1255,10 @@ export const MessagesView: React.FC = () => {
                         onChange={(e) => setInputMessage(e.target.value)}
                         placeholder={
                           !isOnline
-                            ? 'Compose message (offline queue active)...'
+                            ? 'Type message (offline)...'
                             : activeChat.isGroupChat || activeChat.isEventChat
-                            ? `Dispatch message to ${activeChat.groupName || 'cohort'}...`
-                            : `Dispatch message to ${recipientUser?.name || 'alumnus'}...`
+                            ? `Message ${activeChat.groupName || 'group'}...`
+                            : `Message ${recipientUser?.name || 'alumnus'}...`
                         }
                         className="flex-1 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm bg-stone-50 border border-stone-200 rounded-xl focus:bg-white focus:outline-hidden focus:border-[#8B181B] transition-colors"
                       />
@@ -1266,14 +1266,14 @@ export const MessagesView: React.FC = () => {
                         type="submit"
                         disabled={!inputMessage.trim()}
                         className="min-w-[44px] min-h-[44px] p-2.5 bg-[#8B181B] hover:bg-[#721316] disabled:opacity-40 text-white rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center shrink-0"
-                        aria-label="Send dispatch"
+                        aria-label="Send message"
                       >
                         <Send className="w-4 h-4" />
                       </button>
                     </form>
                   </div>
 
-                  {/* Right Dossier Rail (Collapsible) */}
+                  {/* Right Profile Rail (Collapsible) */}
                   {showDossierDrawer && (
                     <div className="hidden lg:flex w-72 border-l border-stone-200/90 bg-[#FAF9F6]/80 flex-col p-4 space-y-4 overflow-y-auto shrink-0">
                       {activeChat.isGroupChat || activeChat.isEventChat ? (
@@ -1283,17 +1283,17 @@ export const MessagesView: React.FC = () => {
                               <CalendarCheck className="w-7 h-7 text-amber-200" />
                             </div>
                             <h3 className="text-xs font-bold text-stone-900">
-                              {activeChat.groupName || 'Event Cohort'}
+                              {activeChat.groupName || 'Event Group'}
                             </h3>
                             <span className="text-[10px] text-stone-500 font-mono">
-                              Institutional Group Dispatch
+                              Event Group Chat
                             </span>
                           </div>
 
                           {activeEvent && (
                             <div className="p-3 bg-white rounded-xl border border-stone-200 space-y-2 text-xs">
                               <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-                                Event Particulars
+                                Event Details
                               </div>
                               <div className="space-y-1 text-stone-700 text-[11px]">
                                 <div><strong>Date:</strong> {activeEvent.date}</div>
@@ -1591,7 +1591,7 @@ export const MessagesView: React.FC = () => {
                     <Users className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900">Event Cohort Roster</h3>
+                    <h3 className="text-sm font-bold text-stone-900">Event Attendee List</h3>
                     <p className="text-[11px] text-stone-500">{activeGroupMembers.length} verified attendees</p>
                   </div>
                 </div>

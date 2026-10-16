@@ -293,7 +293,7 @@ export const SettingsView: React.FC = () => {
   const handleChangeEmail = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEmail || !newEmail.includes('@')) return;
-    setEmailStatusMessage(`Verification email dispatched to ${newEmail}. Please confirm to finalize change.`);
+    setEmailStatusMessage(`Verification email sent to ${newEmail}. Please confirm to complete this change.`);
     setTimeout(() => {
       setShowEmailModal(false);
       setEmailStatusMessage('');
@@ -1292,8 +1292,8 @@ export const SettingsView: React.FC = () => {
             {/* Toggle 3: Messages */}
             <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 border border-stone-200/70">
               <div className="min-w-0 pr-4">
-                <p className="text-xs font-bold text-stone-900">Direct Messages & Peer Dispatches</p>
-                <p className="text-[11px] text-stone-500 mt-0.5">Notify instantly when another alumnus, staff member, or event cohort reaches out</p>
+                <p className="text-xs font-bold text-stone-900">Direct Messages</p>
+                <p className="text-[11px] text-stone-500 mt-0.5">Notify when another alumnus or staff member sends you a message</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
@@ -1309,8 +1309,8 @@ export const SettingsView: React.FC = () => {
             {/* Toggle 4: Events */}
             <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 border border-stone-200/70">
               <div className="min-w-0 pr-4">
-                <p className="text-xs font-bold text-stone-900">Campus Events & Reunion Cohorts</p>
-                <p className="text-[11px] text-stone-500 mt-0.5">Automated reminders for reunions you marked "Going" or "Interested"</p>
+                <p className="text-xs font-bold text-stone-900">Campus Events & Reunions</p>
+                <p className="text-[11px] text-stone-500 mt-0.5">Reminders for events you marked "Going" or "Interested"</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input

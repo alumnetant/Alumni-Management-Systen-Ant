@@ -65,29 +65,29 @@ export const CollegiateGreetingBanner: React.FC<CollegiateGreetingBannerProps> =
     }
 
     if (currentUser.role === 'admin' || currentUser.role === 'registrar' || currentUser.role === 'superadmin') {
-      return `Institutional governance session active. You have oversight over ${users.length} registered Cecilians across ${new Set(users.map((u) => u.course).filter(Boolean)).size} academic degree programs, with ${activeEventsCount} upcoming campus engagements.`;
+      return `Admin session active. You are managing ${users.length} registered alumni across ${new Set(users.map((u) => u.course).filter(Boolean)).size} courses, with ${activeEventsCount} upcoming campus events.`;
     }
 
     if (currentUser.role === 'employer') {
-      return `Partner portal active for ${currentUser.company || 'Partner Organization'}. Review verified student credentials, publish career openings, and coordinate recruitment drives with Cecilian talent.`;
+      return `Partner account active for ${currentUser.company || 'Partner Company'}. Review alumni profiles, post job openings, and connect with graduates.`;
     }
 
     // Default Alumni
     const batchText = currentUser.batch ? `Class of ${currentUser.batch}` : 'Cecilian Alumni';
-    return `Welcome to your lifelong Cecilian gateway. You are connected with ${users.length} alumni, with ${activeEventsCount} scheduled campus events and ${activeOpportunitiesCount} verified partner career postings available.`;
+    return `Welcome back! You can connect with ${users.length} alumni, join ${activeEventsCount} upcoming events, and explore ${activeOpportunitiesCount} job openings.`;
   }, [currentUser, users, activeEventsCount, activeOpportunitiesCount]);
 
   // Determine user title or academic degree display
   const academicAffiliation = useMemo(() => {
-    if (!currentUser) return 'Cecilian Community Member';
+    if (!currentUser) return 'Community Member';
     if (currentUser.role === 'admin' || currentUser.role === 'superadmin') {
-      return 'Office of Systems & Institutional Governance';
+      return 'System Administrator';
     }
     if (currentUser.role === 'registrar') {
-      return 'Office of the Registrar & Academic Masterlist';
+      return 'Registrar Office';
     }
     if (currentUser.role === 'employer') {
-      return currentUser.company ? `Corporate Liaison · ${currentUser.company}` : 'Industry Partner Representative';
+      return currentUser.company ? `Partner Company · ${currentUser.company}` : 'Company Representative';
     }
     if (currentUser.course) {
       return currentUser.course;

@@ -159,11 +159,11 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
     },
     {
       id: 'nav-profile',
-      title: 'My Alumni Dossier & Profile',
+      title: 'My Alumni Profile',
       subtitle: 'View credentials, work experience & digital degree card',
       category: 'Navigation',
       icon: UserIcon,
-      keywords: 'profile dossier me account card degree credentials my',
+      keywords: 'profile me account card degree credentials my',
       action: () => handleNavigate('profile')
     },
     {

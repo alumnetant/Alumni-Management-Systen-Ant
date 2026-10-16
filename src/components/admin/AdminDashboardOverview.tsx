@@ -236,7 +236,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
 
     if (activeFilterPill === 'announcements') {
       const catList = [
-        { label: 'Directives', match: 'Directive' },
+        { label: 'Notices', match: 'Directive' },
         { label: 'Academic', match: 'Academic' },
         { label: 'Alumni', match: 'Alumni' },
         { label: 'Events', match: 'Event' },

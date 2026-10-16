@@ -215,15 +215,15 @@ export const AnnouncementsView: React.FC = () => {
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-semibold tracking-wider text-stone-500 uppercase">
                 <span className="text-[#8B181B] font-bold">St. Cecilia's College - Cebu, Inc.</span>
                 <span aria-hidden="true" className="text-stone-300">·</span>
-                <span>Official Gazette & Bulletins</span>
+                <span>Campus Announcements</span>
                 <span aria-hidden="true" className="text-stone-300">·</span>
                 <span className="text-stone-400">Minglanilla Campus</span>
               </div>
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-stone-900 tracking-tight">
-                Campus Advisories & Official Circulars
+                Campus News & Announcements
               </h1>
               <p className="text-xs sm:text-sm text-stone-600 leading-relaxed max-w-2xl">
-                Administrative memoranda, registrar notices, reunion directives, and official institutional announcements published by college administration.
+                Notices, registrar updates, reunion news, and official announcements from the college.
               </p>
             </div>
 
@@ -234,7 +234,7 @@ export const AnnouncementsView: React.FC = () => {
                 className="flex items-center gap-2 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-98 cursor-pointer shrink-0"
               >
                 <Plus className="w-4 h-4 stroke-[2.2]" />
-                <span>Publish Institutional Directive</span>
+                <span>Post Announcement</span>
               </button>
             )}
           </div>
@@ -255,7 +255,7 @@ export const AnnouncementsView: React.FC = () => {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[11px] font-bold text-red-700 uppercase tracking-wider mb-1">
-                  <span>Urgent Institutional Directive</span>
+                  <span>Urgent Announcement</span>
                   <span aria-hidden="true">·</span>
                   <span>
                     {new Date(urgentLeadNotice.publishedAt || urgentLeadNotice.createdAt || '').toLocaleDateString([], {

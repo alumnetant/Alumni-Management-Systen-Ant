@@ -90,8 +90,8 @@ export const AdminAnnouncementsManager: React.FC = () => {
   // Channels with dynamic counts
   const channels = useMemo(() => {
     const list = [
-      { id: 'all', label: 'All Dispatches' },
-      { id: 'directive', label: 'Directives', match: ['directive', 'institutional', 'administration'] },
+      { id: 'all', label: 'All Announcements' },
+      { id: 'directive', label: 'Notices', match: ['directive', 'institutional', 'administration'] },
       { id: 'academic', label: 'Academic', match: ['academic', 'curriculum', 'registrar'] },
       { id: 'alumni', label: 'Alumni Affairs', match: ['alumni', 'reunion', 'chapter', 'general'] },
       { id: 'career', label: 'Career & Placement', match: ['career', 'job', 'internship'] }
@@ -209,7 +209,7 @@ export const AdminAnnouncementsManager: React.FC = () => {
         severity: 'info'
       });
 
-      showToast('Institutional dispatch published to live campus portal.', 'success');
+      showToast('Announcement posted successfully.', 'success');
       setShowAuthoringStudio(false);
 
       // Reset
@@ -263,10 +263,10 @@ export const AdminAnnouncementsManager: React.FC = () => {
               <span>Office of Communications · St. Cecilia's College Gazette</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-stone-900">
-              Campus Dispatches & Institutional Circulars
+              Campus News & Announcements
             </h1>
             <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-              <span>Total Dispatches: <strong className="text-stone-900 font-semibold">{totalCount}</strong></span>
+              <span>Total Announcements: <strong className="text-stone-900 font-semibold">{totalCount}</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
               <span>Urgent Alerts: <strong className={urgentCount > 0 ? 'text-rose-600 font-semibold' : 'text-stone-700'}>{urgentCount}</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
@@ -285,7 +285,7 @@ export const AdminAnnouncementsManager: React.FC = () => {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] shadow-sm transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Draft New Dispatch</span>
+              <span>New Announcement</span>
             </button>
           </div>
         </div>
@@ -327,20 +327,20 @@ export const AdminAnnouncementsManager: React.FC = () => {
             </div>
           ) : (
             <div className="py-6 text-center text-stone-400 text-xs">
-              No active announcements published yet. Click "Draft New Dispatch" above.
+              No active announcements yet. Click "New Announcement" above.
             </div>
           )}
         </div>
 
         {spotlightDispatch && (
           <div className="pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
-            <span className="text-stone-400">Broadcast ID: #{spotlightDispatch.id}</span>
+            <span className="text-stone-400">Announcement ID: #{spotlightDispatch.id}</span>
             <button
               type="button"
               onClick={() => setInspectingDispatch(spotlightDispatch)}
               className="inline-flex items-center gap-1.5 font-semibold text-[#8B181B] hover:text-[#721316] cursor-pointer"
             >
-              <span>Read Full Dispatch</span>
+              <span>Read Full Announcement</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -382,7 +382,7 @@ export const AdminAnnouncementsManager: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search dispatches..."
+                placeholder="Search announcements..."
                 className="pl-9 pr-7 py-1.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-[#8B181B]"
               />
               {searchQuery && (

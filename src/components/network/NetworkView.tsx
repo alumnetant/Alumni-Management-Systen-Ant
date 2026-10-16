@@ -296,8 +296,8 @@ export const NetworkView: React.FC = () => {
                 : activeSubTab === 'recommended'
                 ? 'Recommended'
                 : activeSubTab === 'connections'
-                ? 'My Network'
-                : 'Inquiries'}
+                ? 'My Connections'
+                : 'Requests'}
             </span>
             <span
               className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold tabular-nums ${
@@ -315,7 +315,7 @@ export const NetworkView: React.FC = () => {
                 : receivedRequests.length}
             </span>
             {receivedRequests.length > 0 && activeSubTab !== 'requests' && (
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title={`${receivedRequests.length} pending inquiries`} />
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title={`${receivedRequests.length} pending requests`} />
             )}
           </button>
 
@@ -361,7 +361,7 @@ export const NetworkView: React.FC = () => {
                       <div className="min-w-0">
                         <div className="text-xs font-bold leading-tight">Alumni Directory</div>
                         <div className={`text-[10px] truncate ${activeSubTab === 'directory' ? 'text-white/80' : 'text-stone-400'}`}>
-                          Browse all registered alumni
+                          Browse all alumni
                         </div>
                       </div>
                     </div>
@@ -392,9 +392,9 @@ export const NetworkView: React.FC = () => {
                         <Sparkles className="w-4 h-4 stroke-[1.75]" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-xs font-bold leading-tight">Recommended Cohorts</div>
+                        <div className="text-xs font-bold leading-tight">Recommended Alumni</div>
                         <div className={`text-[10px] truncate ${activeSubTab === 'recommended' ? 'text-white/80' : 'text-stone-400'}`}>
-                          Classmates & same disciplines
+                          Classmates and same course
                         </div>
                       </div>
                     </div>
@@ -405,7 +405,7 @@ export const NetworkView: React.FC = () => {
                     </span>
                   </button>
 
-                  {/* Option 3: My Network */}
+                  {/* Option 3: My Connections */}
                   <button
                     type="button"
                     onClick={() => {
@@ -425,9 +425,9 @@ export const NetworkView: React.FC = () => {
                         <UserCheck className="w-4 h-4 stroke-[1.75]" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-xs font-bold leading-tight">My Network</div>
+                        <div className="text-xs font-bold leading-tight">My Connections</div>
                         <div className={`text-[10px] truncate ${activeSubTab === 'connections' ? 'text-white/80' : 'text-stone-400'}`}>
-                          Connected Cecilians
+                          People you are connected with
                         </div>
                       </div>
                     </div>
@@ -438,7 +438,7 @@ export const NetworkView: React.FC = () => {
                     </span>
                   </button>
 
-                  {/* Option 4: Inquiries */}
+                  {/* Option 4: Connection Requests */}
                   <button
                     type="button"
                     onClick={() => {
@@ -458,9 +458,9 @@ export const NetworkView: React.FC = () => {
                         <Clock className="w-4 h-4 stroke-[1.75]" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-xs font-bold leading-tight">Inquiries & Requests</div>
+                        <div className="text-xs font-bold leading-tight">Connection Requests</div>
                         <div className={`text-[10px] truncate ${activeSubTab === 'requests' ? 'text-white/80' : 'text-stone-400'}`}>
-                          Pending peer connections
+                          Pending connection requests
                         </div>
                       </div>
                     </div>
@@ -494,7 +494,7 @@ export const NetworkView: React.FC = () => {
                       className="w-full py-1.5 px-3 text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                     >
                       <X className="w-3.5 h-3.5" />
-                      <span>Reset Active Directory Filters</span>
+                      <span>Clear All Filters</span>
                     </button>
                   </div>
                 )}
@@ -503,12 +503,12 @@ export const NetworkView: React.FC = () => {
           </AnimatePresence>
         </div>
 
-        {/* View Mode Switcher: Cards vs Table */}
-        <div className="inline-flex items-center p-1 bg-stone-100/90 dark:bg-stone-800 rounded-full border border-stone-200 dark:border-stone-700 shadow-2xs">
+        {/* View Mode Switcher: Cards vs Table (Desktop) */}
+        <div className="hidden lg:inline-flex items-center p-1 bg-stone-100/90 dark:bg-stone-800 rounded-full border border-stone-200 dark:border-stone-700 shadow-2xs">
           <button
             type="button"
             onClick={() => setViewMode('cards')}
-            title="Switch to High-Density Bento Cards"
+            title="Card View"
             className={`p-1.5 rounded-full transition-all cursor-pointer ${
               viewMode === 'cards'
                 ? 'bg-[#8B181B] text-white shadow-xs'
@@ -520,7 +520,7 @@ export const NetworkView: React.FC = () => {
           <button
             type="button"
             onClick={() => setViewMode('table')}
-            title="Switch to Command Roster Table"
+            title="Table View"
             className={`p-1.5 rounded-full transition-all cursor-pointer ${
               viewMode === 'table'
                 ? 'bg-[#8B181B] text-white shadow-xs'
@@ -531,14 +531,14 @@ export const NetworkView: React.FC = () => {
           </button>
         </div>
 
-        {/* Download Alumni Roster Masterlist CSV */}
+        {/* Download Alumni List CSV */}
         <button
           type="button"
           onClick={() => {
             exportAlumniRosterCsv(users, 'st_cecilia_alumni_directory');
-            showToast?.(`Exported ${users.length} alumni records to CSV!`, 'success');
+            showToast?.(`Exported ${users.length} alumni to CSV!`, 'success');
           }}
-          title="Export Roster Masterlist CSV"
+          title="Download Alumni CSV"
           className="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 flex items-center justify-center text-stone-700 dark:text-stone-300 transition-all cursor-pointer shrink-0"
         >
           <Download className="w-4 h-4" />
@@ -565,7 +565,7 @@ export const NetworkView: React.FC = () => {
                   setActiveSubTab('directory');
                 }
               }}
-              placeholder="Search roster by name, course, batch, company, or skills..."
+              placeholder="Search by name, course, year, company, or skills..."
               className="w-full pl-9 pr-14 py-2.5 text-xs sm:text-sm bg-stone-50/80 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] text-stone-900 dark:text-white placeholder:text-stone-400 transition-all font-sans cursor-text"
             />
             {searchQuery ? (
@@ -589,7 +589,7 @@ export const NetworkView: React.FC = () => {
             <select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
-              aria-label="Filter by Member Role"
+              aria-label="Filter by Role"
               className="w-full md:w-auto px-3 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 rounded-xl text-stone-700 dark:text-stone-300 focus:outline-hidden focus:border-[#8B181B] cursor-pointer"
             >
               <option value="all">All Roles</option>
@@ -602,7 +602,7 @@ export const NetworkView: React.FC = () => {
             <select
               value={selectedBatch}
               onChange={(e) => setSelectedBatch(e.target.value)}
-              aria-label="Filter by Graduation Batch"
+              aria-label="Filter by Graduation Year"
               className="w-full md:w-auto px-3 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 rounded-xl text-stone-700 dark:text-stone-300 focus:outline-hidden focus:border-[#8B181B] cursor-pointer"
             >
               <option value="all">All Batches</option>
@@ -616,10 +616,10 @@ export const NetworkView: React.FC = () => {
             <select
               value={selectedCourse}
               onChange={(e) => setSelectedCourse(e.target.value)}
-              aria-label="Filter by Academic Discipline"
+              aria-label="Filter by Course"
               className="w-full md:w-auto px-3 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 rounded-xl text-stone-700 dark:text-stone-300 focus:outline-hidden focus:border-[#8B181B] md:max-w-[170px] truncate cursor-pointer"
             >
-              <option value="all">All Disciplines</option>
+              <option value="all">All Courses</option>
               {allCourses.filter((c) => c !== 'all').map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -652,7 +652,7 @@ export const NetworkView: React.FC = () => {
                   setSelectedStatus('all');
                 }}
                 className="col-span-2 sm:col-span-4 md:col-span-1 px-3 py-2 text-xs font-semibold text-stone-600 hover:text-[#8B181B] bg-stone-100 dark:bg-stone-800 hover:bg-red-50 rounded-xl transition-colors cursor-pointer text-center"
-                title="Reset all active filters"
+                title="Clear all active filters"
               >
                 Clear Filters
               </button>
@@ -660,10 +660,10 @@ export const NetworkView: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Filter Tag Directives */}
+        {/* Quick Filter Tags */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none pt-1 border-t border-stone-100 dark:border-stone-800">
           <span className="text-stone-400 text-[11px] font-semibold shrink-0 flex items-center gap-1 pr-1">
-            <Filter className="w-3 h-3 stroke-[1.75]" /> Directives:
+            <Filter className="w-3 h-3 stroke-[1.75]" /> Quick Filters:
           </span>
           <button
             type="button"
@@ -766,10 +766,10 @@ export const NetworkView: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-red-50 dark:bg-red-950/40 text-[#8B181B] border border-red-200/70 dark:border-red-900/60">
                       <Award className="w-3.5 h-3.5 text-[#8B181B]" />
-                      Spotlight Cecilian
+                      Featured Alumnus
                     </span>
                     <span className="text-stone-300 dark:text-stone-700">·</span>
-                    <span className="text-xs text-stone-500 font-medium">Alumni Community Spotlight</span>
+                    <span className="text-xs text-stone-500 font-medium">Featured Member</span>
                   </div>
 
                   {spotlightAlumnus.quickStatus && (
@@ -795,7 +795,7 @@ export const NetworkView: React.FC = () => {
                     />
                     {spotlightAlumnus.isVerified && (
                       <span
-                        title="Verified Cecilian Graduate"
+                        title="Verified Alumnus"
                         className="absolute -bottom-1 -right-1 w-5 h-5 rounded-md bg-emerald-600 text-white flex items-center justify-center text-[10px] shadow-2xs font-bold"
                       >
                         ✓
@@ -842,7 +842,7 @@ export const NetworkView: React.FC = () => {
 
               <div className="mt-5 pt-3 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center justify-between gap-3">
                 <span className="text-xs text-stone-500">
-                  Recognized for active institutional participation and verified credentials
+                  Active and verified alumnus
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -850,7 +850,7 @@ export const NetworkView: React.FC = () => {
                     onClick={() => setSelectedUserIdForModal(spotlightAlumnus.uid)}
                     className="px-3 py-1.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                   >
-                    View Dossier
+                    View Profile
                   </button>
                   {isConnected(spotlightAlumnus.uid) ? (
                     <button
@@ -883,9 +883,9 @@ export const NetworkView: React.FC = () => {
           {filteredDirectory.length === 0 ? (
             <div className="bg-white dark:bg-stone-900 p-12 text-center rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
               <Users className="w-10 h-10 text-stone-300 dark:text-stone-600 mx-auto mb-2" />
-              <p className="text-sm font-bold text-stone-800 dark:text-stone-200">No alumni records match specified criteria</p>
+              <p className="text-sm font-bold text-stone-800 dark:text-stone-200">No alumni found</p>
               <p className="text-xs text-stone-500 mt-1 max-w-md mx-auto leading-relaxed">
-                Try searching with different keywords, resetting filters, or switching batches.
+                Try searching with different words or clear your filters.
               </p>
               <button
                 type="button"
@@ -898,153 +898,457 @@ export const NetworkView: React.FC = () => {
                 }}
                 className="mt-4 px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
               >
-                Reset All Filters
+                Clear Filters
               </button>
             </div>
-          ) : viewMode === 'table' ? (
-            /* ========================================================
-               COMMAND ROSTER TABLE VIEW (Dense, High-Precision Command Table)
-               ======================================================== */
-            <div className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-stone-200/80 dark:border-stone-800 bg-stone-50/80 dark:bg-stone-800/60 text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider">
-                      <th className="py-3 px-4 sm:px-6">Member Profile</th>
-                      <th className="py-3 px-4">Academic Program</th>
-                      <th className="py-3 px-3">Batch</th>
-                      <th className="py-3 px-4">Availability Status</th>
-                      <th className="py-3 px-4">Verification</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-100 dark:divide-stone-800 text-xs">
+          ) : (
+            <>
+              {/* ========================================================
+                 MOBILE & TABLET SIMPLE LIST LAYOUT
+                 Requirement 4: Display clean, easy-to-read rows with alumni name,
+                 profile picture, course, graduation year, and details.
+                 Each row is easy to tap without large cards or horizontal scrolling.
+                 ======================================================== */}
+              <div className="block lg:hidden">
+                <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] divide-y divide-stone-100 dark:divide-stone-800 overflow-hidden">
+                  {filteredDirectory.slice(0, visibleDirectoryCount).map((user) => {
+                    const connected = isConnected(user.uid);
+                    const reqState = hasPendingRequestWith(user.uid);
+                    const statusConfig = getStatusConfig(user.quickStatus);
+
+                    return (
+                      <div
+                        key={user.uid}
+                        onClick={() => setSelectedUserIdForModal(user.uid)}
+                        className="p-3.5 sm:p-4 hover:bg-stone-50/80 dark:hover:bg-stone-800/60 active:bg-stone-100 dark:active:bg-stone-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer group"
+                      >
+                        {/* Profile Picture + Information Column */}
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="relative shrink-0">
+                            <img
+                              src={getUserAvatar(user.profilePictureUrl)}
+                              alt={user.name}
+                              onError={handleUserAvatarError}
+                              className="w-12 h-12 rounded-xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 shadow-2xs"
+                            />
+                            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-white ring-2 ring-white">
+                              <span className={`block h-2 w-2 rounded-full ${statusConfig.dotColor}`} />
+                            </span>
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-sm text-stone-900 dark:text-white group-hover:text-[#8B181B] transition-colors truncate">
+                                {user.name}
+                              </span>
+                              {user.isVerified && (
+                                <span title="Verified Alumnus" className="text-emerald-600 shrink-0">
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                </span>
+                              )}
+                              <span className="text-[10px] font-bold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded shrink-0">
+                                Batch {user.batch || '2024'}
+                              </span>
+                            </div>
+
+                            <p className="text-xs font-semibold text-[#8B181B] truncate mt-0.5">
+                              {user.course || 'Degree Graduate'}
+                            </p>
+
+                            <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 mt-0.5 truncate">
+                              {(user.currentPosition || user.company || user.headline) && (
+                                <span className="truncate">
+                                  {user.currentPosition || user.company || user.headline}
+                                </span>
+                              )}
+                              {user.location && (
+                                <>
+                                  <span className="text-stone-300 dark:text-stone-700">·</span>
+                                  <span className="truncate flex items-center gap-0.5 shrink-0 text-[11px]">
+                                    <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
+                                    {user.location}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+
+                            {user.quickStatus && (
+                              <div className="mt-1">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${statusConfig.badgeBg} ${statusConfig.badgeBorder} ${statusConfig.badgeText}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dotColor}`} />
+                                  <span>{user.quickStatus}</span>
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Quick Action + Tap Indicator */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {connected ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                getOrCreateChat(user.uid);
+                                setActiveTab('messages');
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Message</span>
+                            </button>
+                          ) : reqState === 'sent' ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const req = friendRequests.find(
+                                  (r) => r.fromUid === currentUser?.uid && r.toUid === user.uid && r.status === 'pending'
+                                );
+                                if (req) {
+                                  cancelFriendRequest(req.id);
+                                  showToast(`Connection request cancelled`, 'info');
+                                }
+                              }}
+                              className="px-2.5 py-1.5 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl transition-colors cursor-pointer"
+                            >
+                              Pending
+                            </button>
+                          ) : reqState === 'received' ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const req = friendRequests.find(
+                                  (r) => r.fromUid === user.uid && r.toUid === currentUser?.uid && r.status === 'pending'
+                                );
+                                if (req) acceptFriendRequest(req.id);
+                              }}
+                              className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-2xs cursor-pointer"
+                            >
+                              Accept
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                sendFriendRequest(user.uid);
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl flex items-center gap-1 shadow-2xs transition-all cursor-pointer active:scale-95"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Connect</span>
+                            </button>
+                          )}
+
+                          <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-stone-600 group-hover:translate-x-0.5 transition-all" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ========================================================
+                 DESKTOP LAYOUT: High-Density Bento Cards or Table View
+                 (Preserved for Desktop screens lg and up)
+                 ======================================================== */}
+              <div className="hidden lg:block">
+                {viewMode === 'table' ? (
+                  <div className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-stone-200/80 dark:border-stone-800 bg-stone-50/80 dark:bg-stone-800/60 text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider">
+                            <th className="py-3 px-4 sm:px-6">Alumnus</th>
+                            <th className="py-3 px-4">Course</th>
+                            <th className="py-3 px-3">Batch</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4">Verification</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-stone-100 dark:divide-stone-800 text-xs">
+                          {filteredDirectory.slice(0, visibleDirectoryCount).map((user) => {
+                            const connected = isConnected(user.uid);
+                            const reqState = hasPendingRequestWith(user.uid);
+                            const statusConfig = getStatusConfig(user.quickStatus);
+
+                            return (
+                              <tr
+                                key={user.uid}
+                                className="hover:bg-stone-50/70 dark:hover:bg-stone-800/50 transition-colors group"
+                              >
+                                <td className="py-3.5 px-4 sm:px-6">
+                                  <div className="flex items-center gap-3">
+                                    <div className="relative shrink-0">
+                                      <img
+                                        src={getUserAvatar(user.profilePictureUrl)}
+                                        alt={user.name}
+                                        onError={handleUserAvatarError}
+                                        onClick={() => setSelectedUserIdForModal(user.uid)}
+                                        className="w-10 h-10 rounded-xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer shadow-2xs"
+                                      />
+                                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-white ring-2 ring-white">
+                                        <span className={`block h-2 w-2 rounded-full ${statusConfig.dotColor}`} />
+                                      </span>
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-1.5">
+                                        <span
+                                          onClick={() => setSelectedUserIdForModal(user.uid)}
+                                          className="font-bold text-stone-900 dark:text-white hover:text-[#8B181B] cursor-pointer truncate text-sm"
+                                        >
+                                          {user.name}
+                                        </span>
+                                        {user.isVerified && (
+                                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                        )}
+                                      </div>
+                                      <p className="text-[11px] text-stone-500 truncate max-w-xs">
+                                        {user.currentPosition || user.company || user.headline || 'Cecilian Alumnus'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  <div className="font-semibold text-stone-800 dark:text-stone-200 truncate max-w-xs">
+                                    {user.course || 'Degree Program'}
+                                  </div>
+                                  <div className="text-[10px] text-stone-400">
+                                    {user.department || 'Undergraduate Division'}
+                                  </div>
+                                </td>
+
+                                <td className="py-3.5 px-3">
+                                  <span className="font-mono font-bold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded-md text-[11px]">
+                                    {user.batch ? `'${user.batch.slice(-2)}` : '2024'}
+                                  </span>
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  {user.quickStatus ? (
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusConfig.badgeBg} ${statusConfig.badgeBorder} ${statusConfig.badgeText}`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dotColor}`} />
+                                      <span>{user.quickStatus}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-stone-400 text-[11px]">Inactive</span>
+                                  )}
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  {user.isVerified ? (
+                                    <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold text-[11px]">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>Verified</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-stone-400 text-[11px]">Unverified</span>
+                                  )}
+                                </td>
+
+                                <td className="py-3.5 px-4 text-right">
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedUserIdForModal(user.uid)}
+                                      className="px-2.5 py-1 text-[11px] font-semibold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      Profile
+                                    </button>
+
+                                    {connected ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          getOrCreateChat(user.uid);
+                                          setActiveTab('messages');
+                                        }}
+                                        className="px-3 py-1 text-[11px] font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                                      >
+                                        <MessageSquare className="w-3 h-3" />
+                                        <span>Chat</span>
+                                      </button>
+                                    ) : reqState === 'sent' ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const req = friendRequests.find(
+                                            (r) => r.fromUid === currentUser?.uid && r.toUid === user.uid && r.status === 'pending'
+                                          );
+                                          if (req) {
+                                            cancelFriendRequest(req.id);
+                                            showToast(`Connection request cancelled`, 'info');
+                                          }
+                                        }}
+                                        className="px-2.5 py-1 text-[11px] font-semibold text-amber-800 bg-amber-50 hover:bg-red-50 hover:text-red-700 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                                        title="Cancel request"
+                                      >
+                                        Pending
+                                      </button>
+                                    ) : reqState === 'received' ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const req = friendRequests.find(
+                                            (r) => r.fromUid === user.uid && r.toUid === currentUser?.uid && r.status === 'pending'
+                                          );
+                                          if (req) acceptFriendRequest(req.id);
+                                        }}
+                                        className="px-3 py-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs cursor-pointer"
+                                      >
+                                        Accept
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => sendFriendRequest(user.uid)}
+                                        className="px-3 py-1 text-[11px] font-bold text-white bg-[#8B181B] hover:bg-[#721316] rounded-lg shadow-2xs flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                                      >
+                                        <UserPlus className="w-3 h-3" />
+                                        <span>Connect</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <motion.div
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="show"
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                  >
                     {filteredDirectory.slice(0, visibleDirectoryCount).map((user) => {
                       const connected = isConnected(user.uid);
                       const reqState = hasPendingRequestWith(user.uid);
                       const statusConfig = getStatusConfig(user.quickStatus);
 
                       return (
-                        <tr
+                        <motion.div
                           key={user.uid}
-                          className="hover:bg-stone-50/70 dark:hover:bg-stone-800/50 transition-colors group"
+                          variants={itemVariants}
+                          whileHover={{ y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
+                          className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] hover:border-stone-300 dark:hover:border-stone-700 transition-all duration-200 overflow-hidden flex flex-col justify-between relative group"
                         >
-                          {/* Member Column */}
-                          <td className="py-3.5 px-4 sm:px-6">
-                            <div className="flex items-center gap-3">
+                          <div className="h-0.5 w-full bg-[#8B181B]/40 group-hover:bg-[#8B181B] transition-colors absolute top-0 left-0 right-0" />
+
+                          <div className="p-5">
+                            <div className="flex items-start justify-between gap-3">
                               <div className="relative shrink-0">
                                 <img
                                   src={getUserAvatar(user.profilePictureUrl)}
                                   alt={user.name}
                                   onError={handleUserAvatarError}
                                   onClick={() => setSelectedUserIdForModal(user.uid)}
-                                  className="w-10 h-10 rounded-xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer shadow-2xs"
+                                  className="w-13 h-13 rounded-2xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer hover:opacity-90 transition-opacity shadow-2xs"
                                 />
-                                <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-white ring-2 ring-white">
-                                  <span className={`block h-2 w-2 rounded-full ${statusConfig.dotColor}`} />
+                                <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white ring-2 ring-white shadow-2xs">
+                                  <span className={`block h-2.5 w-2.5 rounded-full ${statusConfig.dotColor}`} />
                                 </span>
                               </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span
-                                    onClick={() => setSelectedUserIdForModal(user.uid)}
-                                    className="font-bold text-stone-900 dark:text-white hover:text-[#8B181B] cursor-pointer truncate text-sm"
-                                  >
-                                    {user.name}
+
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-[11px] font-bold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 px-2 py-0.5 rounded-lg">
+                                  Class of {user.batch || '2024'}
+                                </span>
+                                {user.department && (
+                                  <span className="text-[10px] font-semibold text-[#8B181B] bg-red-50 dark:bg-red-950/40 border border-red-200/60 dark:border-red-900/60 px-2 py-0.5 rounded-md">
+                                    {user.department}
                                   </span>
-                                  {user.isVerified && (
-                                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                  )}
-                                </div>
-                                <p className="text-[11px] text-stone-500 truncate max-w-xs">
-                                  {user.currentPosition || user.company || user.headline || 'Cecilian Alumnus'}
-                                </p>
+                                )}
                               </div>
                             </div>
-                          </td>
 
-                          {/* Academic Program Column */}
-                          <td className="py-3.5 px-4">
-                            <div className="font-semibold text-stone-800 dark:text-stone-200 truncate max-w-xs">
-                              {user.course || 'Degree Program'}
+                            <div className="mt-3.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h3
+                                  onClick={() => setSelectedUserIdForModal(user.uid)}
+                                  className="font-bold text-sm text-stone-900 dark:text-white hover:text-[#8B181B] cursor-pointer transition-colors truncate"
+                                >
+                                  {user.name}
+                                </h3>
+                                {user.isVerified && (
+                                  <span title="Verified Alumnus" className="text-emerald-600 shrink-0">
+                                    <ShieldCheck className="w-3.5 h-3.5" />
+                                  </span>
+                                )}
+                              </div>
+
+                              <p className="text-xs font-semibold text-[#8B181B] mt-0.5 truncate">
+                                {user.course || 'Degree Program Graduate'}
+                              </p>
+
+                              <p className="text-xs text-stone-600 dark:text-stone-400 mt-1.5 line-clamp-2 leading-relaxed">
+                                {user.headline || user.currentPosition || (user.company ? `At ${user.company}` : 'St. Cecilia’s College Alumnus')}
+                              </p>
+
+                              <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-stone-400">
+                                <div className="flex items-center gap-1 truncate">
+                                  <MapPin className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                                  <span className="truncate">{user.location || 'Minglanilla, Cebu'}</span>
+                                </div>
+
+                                {user.quickStatus && (
+                                  <span className={`text-[10px] font-medium px-2 py-0.2 rounded-md border shrink-0 ${statusConfig.badgeBg} ${statusConfig.badgeBorder} ${statusConfig.badgeText}`}>
+                                    {user.quickStatus}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-[10px] text-stone-400">
-                              {user.department || 'Undergraduate Division'}
-                            </div>
-                          </td>
+                          </div>
 
-                          {/* Batch Column */}
-                          <td className="py-3.5 px-3">
-                            <span className="font-mono font-bold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded-md text-[11px]">
-                              {user.batch ? `'${user.batch.slice(-2)}` : '2024'}
-                            </span>
-                          </td>
+                          <div className="p-3 bg-stone-50/70 dark:bg-stone-800/50 border-t border-stone-100 dark:border-stone-800 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedUserIdForModal(user.uid)}
+                              className="flex-1 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:bg-stone-200/70 dark:hover:bg-stone-700 bg-white dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 rounded-xl text-center transition-colors cursor-pointer"
+                            >
+                              Profile
+                            </button>
 
-                          {/* Availability Status */}
-                          <td className="py-3.5 px-4">
-                            {user.quickStatus ? (
-                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${statusConfig.badgeBg} ${statusConfig.badgeBorder} ${statusConfig.badgeText}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dotColor}`} />
-                                <span>{user.quickStatus}</span>
-                              </span>
-                            ) : (
-                              <span className="text-stone-400 text-[11px]">Inactive</span>
-                            )}
-                          </td>
-
-                          {/* Verification Column */}
-                          <td className="py-3.5 px-4">
-                            {user.isVerified ? (
-                              <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold text-[11px]">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Verified</span>
-                              </span>
-                            ) : (
-                              <span className="text-stone-400 text-[11px]">Unverified</span>
-                            )}
-                          </td>
-
-                          {/* Action Buttons */}
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="inline-flex items-center gap-1.5">
+                            {connected ? (
                               <button
                                 type="button"
-                                onClick={() => setSelectedUserIdForModal(user.uid)}
-                                className="px-2.5 py-1 text-[11px] font-semibold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-lg transition-colors cursor-pointer"
+                                onClick={() => {
+                                  getOrCreateChat(user.uid);
+                                  setActiveTab('messages');
+                                }}
+                                className="flex-1 py-1.5 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
                               >
-                                Dossier
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Chat</span>
                               </button>
-
-                              {connected ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    getOrCreateChat(user.uid);
-                                    setActiveTab('messages');
-                                  }}
-                                  className="px-3 py-1 text-[11px] font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
-                                >
-                                  <MessageSquare className="w-3 h-3" />
-                                  <span>Chat</span>
-                                </button>
-                              ) : reqState === 'sent' ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const req = friendRequests.find(
-                                      (r) => r.fromUid === currentUser?.uid && r.toUid === user.uid && r.status === 'pending'
-                                    );
-                                    if (req) {
-                                      cancelFriendRequest(req.id);
-                                      showToast(`Connection request to ${user.name} cancelled`, 'info');
-                                    }
-                                  }}
-                                  className="px-2.5 py-1 text-[11px] font-semibold text-amber-800 bg-amber-50 hover:bg-red-50 hover:text-red-700 border border-amber-200 rounded-lg transition-colors cursor-pointer"
-                                  title="Click again to undo request"
-                                >
-                                  Pending (Undo)
-                                </button>
-                              ) : reqState === 'received' ? (
+                            ) : reqState === 'sent' ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const req = friendRequests.find(
+                                    (r) => r.fromUid === currentUser?.uid && r.toUid === user.uid && r.status === 'pending'
+                                  );
+                                  if (req) {
+                                    cancelFriendRequest(req.id);
+                                    showToast(`Connection request cancelled`, 'info');
+                                  }
+                                }}
+                                className="flex-1 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-red-50 hover:text-red-700 border border-amber-200/80 hover:border-red-200 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                title="Cancel connection request"
+                              >
+                                <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Sent</span>
+                              </button>
+                            ) : reqState === 'received' ? (
+                              <div className="flex-1 flex items-center gap-1">
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1053,212 +1357,52 @@ export const NetworkView: React.FC = () => {
                                     );
                                     if (req) acceptFriendRequest(req.id);
                                   }}
-                                  className="px-3 py-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-2xs cursor-pointer"
+                                  className="flex-1 py-1.5 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                  title="Accept connection request"
                                 >
-                                  Accept
+                                  <Check className="w-3 h-3" />
+                                  <span>Accept</span>
                                 </button>
-                              ) : (
                                 <button
                                   type="button"
-                                  onClick={() => sendFriendRequest(user.uid)}
-                                  className="px-3 py-1 text-[11px] font-bold text-white bg-[#8B181B] hover:bg-[#721316] rounded-lg shadow-2xs flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                                  onClick={() => {
+                                    const req = friendRequests.find(
+                                      (r) => r.fromUid === user.uid && r.toUid === currentUser?.uid && r.status === 'pending'
+                                    );
+                                    if (req) declineFriendRequest(req.id);
+                                  }}
+                                  className="p-1.5 text-[11px] font-semibold text-stone-500 hover:text-stone-800 hover:bg-stone-200 bg-stone-100 rounded-xl transition-colors cursor-pointer"
+                                  title="Decline request"
                                 >
-                                  <UserPlus className="w-3 h-3" />
-                                  <span>Connect</span>
+                                  <X className="w-3 h-3" />
                                 </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => sendFriendRequest(user.uid)}
+                                className="flex-1 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl flex items-center justify-center gap-1 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
+                              >
+                                <UserPlus className="w-3.5 h-3.5" />
+                                <span>Connect</span>
+                              </button>
+                            )}
+                          </div>
+                        </motion.div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            /* ========================================================
-               HIGH-DENSITY BENTO CARDS VIEW
-               ======================================================== */
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-            >
-              {filteredDirectory.slice(0, visibleDirectoryCount).map((user) => {
-                const connected = isConnected(user.uid);
-                const reqState = hasPendingRequestWith(user.uid);
-                const statusConfig = getStatusConfig(user.quickStatus);
-
-                return (
-                  <motion.div
-                    key={user.uid}
-                    variants={itemVariants}
-                    whileHover={{ y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
-                    className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] hover:border-stone-300 dark:hover:border-stone-700 transition-all duration-200 overflow-hidden flex flex-col justify-between relative group"
-                  >
-                    {/* St. Cecilia Crimson Top Trim */}
-                    <div className="h-0.5 w-full bg-[#8B181B]/40 group-hover:bg-[#8B181B] transition-colors absolute top-0 left-0 right-0" />
-
-                    <div className="p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="relative shrink-0">
-                          <img
-                            src={getUserAvatar(user.profilePictureUrl)}
-                            alt={user.name}
-                            onError={handleUserAvatarError}
-                            onClick={() => setSelectedUserIdForModal(user.uid)}
-                            className="w-13 h-13 rounded-2xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer hover:opacity-90 transition-opacity shadow-2xs"
-                          />
-                          <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white ring-2 ring-white shadow-2xs">
-                            <span className={`block h-2.5 w-2.5 rounded-full ${statusConfig.dotColor}`} />
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="text-[11px] font-bold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 px-2 py-0.5 rounded-lg">
-                            Class of {user.batch || '2024'}
-                          </span>
-                          {user.department && (
-                            <span className="text-[10px] font-semibold text-[#8B181B] bg-red-50 dark:bg-red-950/40 border border-red-200/60 dark:border-red-900/60 px-2 py-0.5 rounded-md">
-                              {user.department}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-3.5">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3
-                            onClick={() => setSelectedUserIdForModal(user.uid)}
-                            className="font-bold text-sm text-stone-900 dark:text-white hover:text-[#8B181B] cursor-pointer transition-colors truncate"
-                          >
-                            {user.name}
-                          </h3>
-                          {user.isVerified && (
-                            <span title="Verified Cecilian Record" className="text-emerald-600 shrink-0">
-                              <ShieldCheck className="w-3.5 h-3.5" />
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="text-xs font-semibold text-[#8B181B] mt-0.5 truncate">
-                          {user.course || 'Degree Program Graduate'}
-                        </p>
-
-                        <p className="text-xs text-stone-600 dark:text-stone-400 mt-1.5 line-clamp-2 leading-relaxed">
-                          {user.headline || user.currentPosition || (user.company ? `At ${user.company}` : 'St. Cecilia’s College Alumnus')}
-                        </p>
-
-                        <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-stone-400">
-                          <div className="flex items-center gap-1 truncate">
-                            <MapPin className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                            <span className="truncate">{user.location || 'Minglanilla, Cebu'}</span>
-                          </div>
-
-                          {user.quickStatus && (
-                            <span className={`text-[10px] font-medium px-2 py-0.2 rounded-md border shrink-0 ${statusConfig.badgeBg} ${statusConfig.badgeBorder} ${statusConfig.badgeText}`}>
-                              {user.quickStatus}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Action Bar Footer */}
-                    <div className="p-3 bg-stone-50/70 dark:bg-stone-800/50 border-t border-stone-100 dark:border-stone-800 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedUserIdForModal(user.uid)}
-                        className="flex-1 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:bg-stone-200/70 dark:hover:bg-stone-700 bg-white dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 rounded-xl text-center transition-colors cursor-pointer"
-                      >
-                        Dossier
-                      </button>
-
-                      {connected ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            getOrCreateChat(user.uid);
-                            setActiveTab('messages');
-                          }}
-                          className="flex-1 py-1.5 text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                        >
-                          <MessageSquare className="w-3.5 h-3.5" />
-                          <span>Chat</span>
-                        </button>
-                      ) : reqState === 'sent' ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const req = friendRequests.find(
-                              (r) => r.fromUid === currentUser?.uid && r.toUid === user.uid && r.status === 'pending'
-                            );
-                            if (req) {
-                              cancelFriendRequest(req.id);
-                              showToast(`Connection request to ${user.name} cancelled`, 'info');
-                            }
-                          }}
-                          className="flex-1 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-red-50 hover:text-red-700 border border-amber-200/80 hover:border-red-200 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                          title="Click again to undo connection request"
-                        >
-                          <Clock className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Sent (Undo)</span>
-                        </button>
-                      ) : reqState === 'received' ? (
-                        <div className="flex-1 flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const req = friendRequests.find(
-                                (r) => r.fromUid === user.uid && r.toUid === currentUser?.uid && r.status === 'pending'
-                              );
-                              if (req) acceptFriendRequest(req.id);
-                            }}
-                            className="flex-1 py-1.5 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                            title="Accept connection request"
-                          >
-                            <Check className="w-3 h-3" />
-                            <span>Accept</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const req = friendRequests.find(
-                                (r) => r.fromUid === user.uid && r.toUid === currentUser?.uid && r.status === 'pending'
-                              );
-                              if (req) declineFriendRequest(req.id);
-                            }}
-                            className="p-1.5 text-[11px] font-semibold text-stone-500 hover:text-stone-800 hover:bg-stone-200 bg-stone-100 rounded-xl transition-colors cursor-pointer"
-                            title="Decline request"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => sendFriendRequest(user.uid)}
-                          className="flex-1 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl flex items-center justify-center gap-1 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
-                        >
-                          <UserPlus className="w-3.5 h-3.5" />
-                          <span>Connect</span>
-                        </button>
-                      )}
-                    </div>
                   </motion.div>
-                );
-              })}
-            </motion.div>
+                )}
+              </div>
+            </>
           )}
 
-          {/* Progressive "See More" Controls */}
+          {/* Progressive "Show More" Controls */}
           {filteredDirectory.length > visibleDirectoryCount && (
             <div className="mt-8 pt-6 border-t border-stone-200/80 dark:border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-stone-900 p-5 rounded-[28px] border border-stone-200/90 shadow-2xs">
               <div className="text-xs text-stone-600 dark:text-stone-400 text-center sm:text-left">
                 Showing <strong className="text-stone-900 dark:text-white font-bold">{Math.min(visibleDirectoryCount, filteredDirectory.length)}</strong> of{' '}
-                <strong className="text-stone-900 dark:text-white font-bold">{filteredDirectory.length}</strong> Cecilians
+                <strong className="text-stone-900 dark:text-white font-bold">{filteredDirectory.length}</strong> alumni
                 <div className="w-48 sm:w-64 bg-stone-200 dark:bg-stone-700 rounded-full h-1.5 mt-1.5 overflow-hidden mx-auto sm:mx-0">
                   <div
                     className="bg-[#8B181B] h-full rounded-full transition-all duration-300"
@@ -1275,14 +1419,14 @@ export const NetworkView: React.FC = () => {
                   onClick={() => setVisibleDirectoryCount((prev) => prev + 12)}
                   className="px-5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer active:scale-95"
                 >
-                  Load Next 12 (+{Math.min(12, filteredDirectory.length - visibleDirectoryCount)})
+                  Show More (+{Math.min(12, filteredDirectory.length - visibleDirectoryCount)})
                 </button>
                 <button
                   type="button"
                   onClick={() => setVisibleDirectoryCount(filteredDirectory.length)}
                   className="px-4 py-2.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 font-semibold text-xs rounded-xl transition-all cursor-pointer"
                 >
-                  Display Complete Directory
+                  Show All
                 </button>
               </div>
             </div>
@@ -1291,17 +1435,17 @@ export const NetworkView: React.FC = () => {
       )}
 
       {/* ========================================================
-          SUB-TAB 2: RECOMMENDED PEERS
+          SUB-TAB 2: RECOMMENDED ALUMNI
           ======================================================== */}
       {activeSubTab === 'recommended' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-stone-900 p-5 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-2xs">
             <div>
               <h2 className="text-base font-bold text-stone-900 dark:text-white tracking-tight">
-                Recommended Batchmates & Peers ({recommendedUsers.length})
+                Recommended Alumni ({recommendedUsers.length})
               </h2>
               <p className="text-xs text-stone-500 mt-0.5">
-                Alumni matched based on shared graduation cohort, degree program, or regional chapter
+                Alumni from your graduation year, course, or location
               </p>
             </div>
             <button
@@ -1309,7 +1453,7 @@ export const NetworkView: React.FC = () => {
               onClick={() => setActiveSubTab('directory')}
               className="text-xs font-semibold text-[#8B181B] hover:text-[#721316] hover:underline flex items-center gap-1 cursor-pointer shrink-0"
             >
-              <span>Explore All Alumni</span>
+              <span>Browse All Alumni</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -1319,157 +1463,268 @@ export const NetworkView: React.FC = () => {
               <Sparkles className="w-10 h-10 text-stone-300 dark:text-stone-600 mx-auto mb-2" />
               <p className="text-sm font-bold text-stone-800 dark:text-stone-200">No new recommendations available</p>
               <p className="text-xs text-stone-500 mt-1 max-w-md mx-auto">
-                You are either linked with all batchmates or need to update your degree in your profile.
+                You are either connected with all batchmates or need to update your course in your profile.
               </p>
               <button
                 type="button"
                 onClick={() => setActiveSubTab('directory')}
                 className="mt-4 px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
               >
-                Browse Full Directory
+                Browse Directory
               </button>
             </div>
           ) : (
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-            >
-              {recommendedUsers.slice(0, visibleRecommendedCount).map((user) => {
-                const reqState = hasPendingRequestWith(user.uid);
-                const isSameBatch = user.batch && currentUser?.batch && user.batch === currentUser.batch;
-                const isSameCourse = user.course && currentUser?.course && user.course.toLowerCase() === currentUser.course.toLowerCase();
-                const statusConfig = getStatusConfig(user.quickStatus);
+            <>
+              {/* Mobile & Tablet Simple List Layout */}
+              <div className="block lg:hidden">
+                <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] divide-y divide-stone-100 dark:divide-stone-800 overflow-hidden">
+                  {recommendedUsers.slice(0, visibleRecommendedCount).map((user) => {
+                    const reqState = hasPendingRequestWith(user.uid);
+                    const isSameBatch = user.batch && currentUser?.batch && user.batch === currentUser.batch;
+                    const isSameCourse = user.course && currentUser?.course && user.course.toLowerCase() === currentUser.course.toLowerCase();
+                    const statusConfig = getStatusConfig(user.quickStatus);
 
-                return (
-                  <motion.div
-                    key={user.uid}
-                    variants={itemVariants}
-                    whileHover={{ y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
-                    className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-2xs hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] transition-all duration-200 flex flex-col justify-between overflow-hidden relative group"
-                  >
-                    <div className="h-0.5 w-full bg-amber-500/60 group-hover:bg-amber-600 transition-colors absolute top-0 left-0 right-0" />
-
-                    <div className="p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="relative shrink-0">
-                          <img
-                            src={getUserAvatar(user.profilePictureUrl)}
-                            alt={user.name}
-                            onError={handleUserAvatarError}
-                            onClick={() => setSelectedUserIdForModal(user.uid)}
-                            className="w-13 h-13 rounded-2xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer hover:opacity-90"
-                          />
-                          <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white ring-2 ring-white shadow-2xs">
-                            <span className={`block h-2.5 w-2.5 rounded-full ${statusConfig.dotColor}`} />
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col items-end gap-1">
-                          {isSameBatch && (
-                            <span className="text-[10px] font-bold text-[#8B181B] bg-red-50 dark:bg-red-950/40 border border-red-200/60 px-2 py-0.5 rounded-md">
-                              Batchmate ('{user.batch?.slice(-2) || '24'})
-                            </span>
-                          )}
-                          {isSameCourse && (
-                            <span className="text-[10px] font-bold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 px-2 py-0.5 rounded-md">
-                              Same Discipline
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="mt-3.5">
-                        <h4
-                          onClick={() => setSelectedUserIdForModal(user.uid)}
-                          className="text-sm font-bold text-stone-900 dark:text-white hover:text-[#8B181B] cursor-pointer truncate"
-                        >
-                          {user.name}
-                        </h4>
-                        <p className="text-xs font-semibold text-[#8B181B] mt-0.5 truncate">
-                          {user.course || 'Alumnus'}
-                        </p>
-                        <p className="text-xs text-stone-600 dark:text-stone-400 line-clamp-2 mt-1 leading-relaxed">
-                          {user.headline || user.currentPosition || 'St. Cecilia’s College Alumnus'}
-                        </p>
-                        {user.location && (
-                          <p className="text-[11px] text-stone-400 mt-2 flex items-center gap-1 truncate">
-                            <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
-                            <span>{user.location}</span>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-stone-50/70 dark:bg-stone-800/50 border-t border-stone-100 dark:border-stone-800 flex items-center gap-2">
-                      <button
-                        type="button"
+                    return (
+                      <div
+                        key={user.uid}
                         onClick={() => setSelectedUserIdForModal(user.uid)}
-                        className="flex-1 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 hover:bg-stone-100 border border-stone-200/80 dark:border-stone-700 rounded-xl text-center transition-colors cursor-pointer"
+                        className="p-3.5 sm:p-4 hover:bg-stone-50/80 dark:hover:bg-stone-800/60 active:bg-stone-100 dark:active:bg-stone-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer group"
                       >
-                        Dossier
-                      </button>
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="relative shrink-0">
+                            <img
+                              src={getUserAvatar(user.profilePictureUrl)}
+                              alt={user.name}
+                              onError={handleUserAvatarError}
+                              className="w-12 h-12 rounded-xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 shadow-2xs"
+                            />
+                            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-white ring-2 ring-white">
+                              <span className={`block h-2 w-2 rounded-full ${statusConfig.dotColor}`} />
+                            </span>
+                          </div>
 
-                      {reqState === 'sent' ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const req = friendRequests.find(
-                              (r) => r.fromUid === currentUser?.uid && r.toUid === user.uid && r.status === 'pending'
-                            );
-                            if (req) {
-                              setRequestToCancel({ id: req.id, name: user.name });
-                            }
-                          }}
-                          className="flex-1 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-red-50 hover:text-red-700 border border-amber-200/80 rounded-xl text-center cursor-pointer transition-colors"
-                          title="Click to cancel request"
-                        >
-                          Sent
-                        </button>
-                      ) : reqState === 'received' ? (
-                        <div className="flex-1 flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const req = friendRequests.find(
-                                (r) => r.fromUid === user.uid && r.toUid === currentUser?.uid && r.status === 'pending'
-                              );
-                              if (req) acceptFriendRequest(req.id);
-                            }}
-                            className="flex-1 py-1.5 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl text-center shadow-2xs cursor-pointer"
-                          >
-                            Accept
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const req = friendRequests.find(
-                                (r) => r.fromUid === user.uid && r.toUid === currentUser?.uid && r.status === 'pending'
-                              );
-                              if (req) declineFriendRequest(req.id);
-                            }}
-                            className="p-1.5 text-[11px] font-semibold text-stone-500 hover:text-stone-800 hover:bg-stone-200 bg-stone-100 rounded-xl cursor-pointer"
-                            title="Decline request"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-sm text-stone-900 dark:text-white group-hover:text-[#8B181B] transition-colors truncate">
+                                {user.name}
+                              </span>
+                              {isSameBatch && (
+                                <span className="text-[10px] font-bold text-[#8B181B] bg-red-50 dark:bg-red-950/40 px-1.5 py-0.5 rounded shrink-0">
+                                  Class of {user.batch}
+                                </span>
+                              )}
+                              {isSameCourse && !isSameBatch && (
+                                <span className="text-[10px] font-bold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded shrink-0">
+                                  Same Course
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-xs font-semibold text-[#8B181B] truncate mt-0.5">
+                              {user.course || 'Alumnus'}
+                            </p>
+
+                            <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
+                              {user.headline || user.currentPosition || user.company || 'Cecilian Alumnus'}
+                            </p>
+                          </div>
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => sendFriendRequest(user.uid)}
-                          className="flex-1 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl text-center shadow-2xs flex items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
-                        >
-                          <UserPlus className="w-3.5 h-3.5" />
-                          <span>Connect</span>
-                        </button>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {reqState === 'sent' ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const req = friendRequests.find(
+                                  (r) => r.fromUid === currentUser?.uid && r.toUid === user.uid && r.status === 'pending'
+                                );
+                                if (req) setRequestToCancel({ id: req.id, name: user.name });
+                              }}
+                              className="px-2.5 py-1.5 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl"
+                            >
+                              Sent
+                            </button>
+                          ) : reqState === 'received' ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const req = friendRequests.find(
+                                  (r) => r.fromUid === user.uid && r.toUid === currentUser?.uid && r.status === 'pending'
+                                );
+                                if (req) acceptFriendRequest(req.id);
+                              }}
+                              className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 rounded-xl"
+                            >
+                              Accept
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                sendFriendRequest(user.uid);
+                              }}
+                              className="px-3 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl flex items-center gap-1 shadow-2xs active:scale-95"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Connect</span>
+                            </button>
+                          )}
+
+                          <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-stone-600 transition-all" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Desktop Bento Cards Layout */}
+              <div className="hidden lg:block">
+                <motion.div
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="show"
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                >
+                  {recommendedUsers.slice(0, visibleRecommendedCount).map((user) => {
+                    const reqState = hasPendingRequestWith(user.uid);
+                    const isSameBatch = user.batch && currentUser?.batch && user.batch === currentUser.batch;
+                    const isSameCourse = user.course && currentUser?.course && user.course.toLowerCase() === currentUser.course.toLowerCase();
+                    const statusConfig = getStatusConfig(user.quickStatus);
+
+                    return (
+                      <motion.div
+                        key={user.uid}
+                        variants={itemVariants}
+                        whileHover={{ y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
+                        className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-2xs hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] transition-all duration-200 flex flex-col justify-between overflow-hidden relative group"
+                      >
+                        <div className="h-0.5 w-full bg-amber-500/60 group-hover:bg-amber-600 transition-colors absolute top-0 left-0 right-0" />
+
+                        <div className="p-5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="relative shrink-0">
+                              <img
+                                src={getUserAvatar(user.profilePictureUrl)}
+                                alt={user.name}
+                                onError={handleUserAvatarError}
+                                onClick={() => setSelectedUserIdForModal(user.uid)}
+                                className="w-13 h-13 rounded-2xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer hover:opacity-90"
+                              />
+                              <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white ring-2 ring-white shadow-2xs">
+                                <span className={`block h-2.5 w-2.5 rounded-full ${statusConfig.dotColor}`} />
+                              </span>
+                            </div>
+
+                            <div className="flex flex-col items-end gap-1">
+                              {isSameBatch && (
+                                <span className="text-[10px] font-bold text-[#8B181B] bg-red-50 dark:bg-red-950/40 border border-red-200/60 px-2 py-0.5 rounded-md">
+                                  Class of {user.batch}
+                                </span>
+                              )}
+                              {isSameCourse && (
+                                <span className="text-[10px] font-bold text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/60 px-2 py-0.5 rounded-md">
+                                  Same Course
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-3.5">
+                            <h4
+                              onClick={() => setSelectedUserIdForModal(user.uid)}
+                              className="text-sm font-bold text-stone-900 dark:text-white hover:text-[#8B181B] cursor-pointer truncate"
+                            >
+                              {user.name}
+                            </h4>
+                            <p className="text-xs font-semibold text-[#8B181B] mt-0.5 truncate">
+                              {user.course || 'Alumnus'}
+                            </p>
+                            <p className="text-xs text-stone-600 dark:text-stone-400 line-clamp-2 mt-1 leading-relaxed">
+                              {user.headline || user.currentPosition || 'St. Cecilia’s College Alumnus'}
+                            </p>
+                            {user.location && (
+                              <p className="text-[11px] text-stone-400 mt-2 flex items-center gap-1 truncate">
+                                <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
+                                <span>{user.location}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-stone-50/70 dark:bg-stone-800/50 border-t border-stone-100 dark:border-stone-800 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUserIdForModal(user.uid)}
+                            className="flex-1 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-800 hover:bg-stone-100 border border-stone-200/80 dark:border-stone-700 rounded-xl text-center transition-colors cursor-pointer"
+                          >
+                            Profile
+                          </button>
+
+                          {reqState === 'sent' ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const req = friendRequests.find(
+                                  (r) => r.fromUid === currentUser?.uid && r.toUid === user.uid && r.status === 'pending'
+                                );
+                                if (req) {
+                                  setRequestToCancel({ id: req.id, name: user.name });
+                                }
+                              }}
+                              className="flex-1 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-red-50 hover:text-red-700 border border-amber-200/80 rounded-xl text-center cursor-pointer transition-colors"
+                              title="Click to cancel request"
+                            >
+                              Sent
+                            </button>
+                          ) : reqState === 'received' ? (
+                            <div className="flex-1 flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const req = friendRequests.find(
+                                    (r) => r.fromUid === user.uid && r.toUid === currentUser?.uid && r.status === 'pending'
+                                  );
+                                  if (req) acceptFriendRequest(req.id);
+                                }}
+                                className="flex-1 py-1.5 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl text-center shadow-2xs cursor-pointer"
+                              >
+                                Accept
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const req = friendRequests.find(
+                                    (r) => r.fromUid === user.uid && r.toUid === currentUser?.uid && r.status === 'pending'
+                                  );
+                                  if (req) declineFriendRequest(req.id);
+                                }}
+                                className="p-1.5 text-[11px] font-semibold text-stone-500 hover:text-stone-800 hover:bg-stone-200 bg-stone-100 rounded-xl cursor-pointer"
+                                title="Decline request"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => sendFriendRequest(user.uid)}
+                              className="flex-1 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl text-center shadow-2xs flex items-center justify-center gap-1 transition-all cursor-pointer active:scale-95"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span>Connect</span>
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </motion.div>
+              </div>
+            </>
           )}
 
           {recommendedUsers.length > visibleRecommendedCount && (
@@ -1479,7 +1734,7 @@ export const NetworkView: React.FC = () => {
                 onClick={() => setVisibleRecommendedCount((prev) => prev + 8)}
                 className="px-5 py-2.5 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 hover:bg-stone-50 text-[#8B181B] font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer"
               >
-                See More Recommendations (+{Math.min(8, recommendedUsers.length - visibleRecommendedCount)})
+                Show More Recommendations (+{Math.min(8, recommendedUsers.length - visibleRecommendedCount)})
               </button>
             </div>
           )}
@@ -1487,17 +1742,17 @@ export const NetworkView: React.FC = () => {
       )}
 
       {/* ========================================================
-          SUB-TAB 3: MY NETWORK (CONFIRMED CONNECTIONS)
+          SUB-TAB 3: MY CONNECTIONS
           ======================================================== */}
       {activeSubTab === 'connections' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-stone-900 p-5 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-2xs">
             <div>
               <h2 className="text-base font-bold text-stone-900 dark:text-white tracking-tight">
-                Your Confirmed Alumni Network ({connectedUsers.length})
+                Your Connections ({connectedUsers.length})
               </h2>
               <p className="text-xs text-stone-500 mt-0.5">
-                Mutual collegiate links with direct messenger access and credentials transparency
+                Alumni you are connected with
               </p>
             </div>
             <button
@@ -1505,7 +1760,7 @@ export const NetworkView: React.FC = () => {
               onClick={() => setActiveSubTab('directory')}
               className="text-xs font-semibold text-[#8B181B] hover:text-[#721316] hover:underline flex items-center gap-1 cursor-pointer shrink-0"
             >
-              <span>Explore Alumni Directory</span>
+              <span>Browse Directory</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -1513,106 +1768,178 @@ export const NetworkView: React.FC = () => {
           {connectedUsers.length === 0 ? (
             <div className="bg-white dark:bg-stone-900 p-12 text-center rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-2xs">
               <UserCheck className="w-10 h-10 text-stone-300 dark:text-stone-600 mx-auto mb-2" />
-              <p className="text-sm font-bold text-stone-800 dark:text-stone-200">No confirmed connections yet</p>
+              <p className="text-sm font-bold text-stone-800 dark:text-stone-200">No connections yet</p>
               <p className="text-xs text-stone-500 mt-1 max-w-md mx-auto leading-relaxed">
-                Search alumni in the directory and dispatch connection invitations to your peers and fellow alumni.
+                Find alumni in the directory and send connection requests.
               </p>
               <button
                 type="button"
                 onClick={() => setActiveSubTab('directory')}
                 className="mt-4 px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
               >
-                Browse Alumni Directory
+                Browse Directory
               </button>
             </div>
           ) : (
-            <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-            >
-              {connectedUsers.map((user) => {
-                const statusConfig = getStatusConfig(user.quickStatus);
+            <>
+              {/* Mobile & Tablet Simple List Layout */}
+              <div className="block lg:hidden">
+                <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] divide-y divide-stone-100 dark:divide-stone-800 overflow-hidden">
+                  {connectedUsers.map((user) => {
+                    const statusConfig = getStatusConfig(user.quickStatus);
 
-                return (
-                  <motion.div
-                    key={user.uid}
-                    variants={itemVariants}
-                    whileHover={{ y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
-                    className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-2xs hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] transition-all duration-200 p-5 flex flex-col justify-between relative group overflow-hidden"
-                  >
-                    <div className="h-0.5 w-full bg-emerald-600/60 group-hover:bg-emerald-600 transition-colors absolute top-0 left-0 right-0" />
-
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <div className="relative shrink-0">
-                          <img
-                            src={getUserAvatar(user.profilePictureUrl)}
-                            alt={user.name}
-                            onError={handleUserAvatarError}
-                            onClick={() => setSelectedUserIdForModal(user.uid)}
-                            className="w-12 h-12 rounded-2xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer shadow-2xs"
-                          />
-                          <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white ring-2 ring-white shadow-2xs">
-                            <span className={`block h-2 w-2 rounded-full ${statusConfig.dotColor}`} />
-                          </span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-1">
-                            <h3
-                              onClick={() => setSelectedUserIdForModal(user.uid)}
-                              className="font-bold text-sm text-stone-900 dark:text-white hover:text-[#8B181B] cursor-pointer truncate"
-                            >
-                              {user.name}
-                            </h3>
-                            <span className="text-[10px] font-bold text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded shrink-0">
-                              '{user.batch?.slice(-2) || '24'}
+                    return (
+                      <div
+                        key={user.uid}
+                        onClick={() => setSelectedUserIdForModal(user.uid)}
+                        className="p-3.5 sm:p-4 hover:bg-stone-50/80 dark:hover:bg-stone-800/60 active:bg-stone-100 dark:active:bg-stone-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="relative shrink-0">
+                            <img
+                              src={getUserAvatar(user.profilePictureUrl)}
+                              alt={user.name}
+                              onError={handleUserAvatarError}
+                              className="w-12 h-12 rounded-xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 shadow-2xs"
+                            />
+                            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-white ring-2 ring-white">
+                              <span className={`block h-2 w-2 rounded-full ${statusConfig.dotColor}`} />
                             </span>
                           </div>
-                          <p className="text-xs text-[#8B181B] font-semibold truncate">{user.course}</p>
-                          <p className="text-[11px] text-stone-400 truncate flex items-center gap-1 mt-0.5">
-                            <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
-                            <span>{user.location || 'Minglanilla, Cebu'}</span>
-                          </p>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-sm text-stone-900 dark:text-white group-hover:text-[#8B181B] transition-colors truncate">
+                                {user.name}
+                              </span>
+                              <span className="text-[10px] font-bold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded shrink-0">
+                                Batch {user.batch || '2024'}
+                              </span>
+                            </div>
+
+                            <p className="text-xs font-semibold text-[#8B181B] truncate mt-0.5">
+                              {user.course}
+                            </p>
+
+                            <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
+                              {user.headline || user.currentPosition || user.company || 'Cecilian Alumnus'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              getOrCreateChat(user.uid);
+                              setActiveTab('messages');
+                            }}
+                            className="px-3 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">Message</span>
+                          </button>
+
+                          <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-stone-600 transition-all" />
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-                      <p className="text-xs text-stone-600 dark:text-stone-400 mt-2.5 line-clamp-2 leading-relaxed">
-                        {user.headline || user.currentPosition || 'Verified Cecilian Alumnus'}
-                      </p>
-                    </div>
+              {/* Desktop Cards Layout */}
+              <div className="hidden lg:block">
+                <motion.div
+                  variants={containerVariants}
+                  initial="hidden"
+                  animate="show"
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                >
+                  {connectedUsers.map((user) => {
+                    const statusConfig = getStatusConfig(user.quickStatus);
 
-                    <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          getOrCreateChat(user.uid);
-                          setActiveTab('messages');
-                        }}
-                        className="flex-1 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                    return (
+                      <motion.div
+                        key={user.uid}
+                        variants={itemVariants}
+                        whileHover={{ y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
+                        className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-2xs hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] transition-all duration-200 p-5 flex flex-col justify-between relative group overflow-hidden"
                       >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span>Message</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedUserIdForModal(user.uid)}
-                        className="px-3 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 rounded-xl transition-colors cursor-pointer"
-                      >
-                        Dossier
-                      </button>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
+                        <div className="h-0.5 w-full bg-emerald-600/60 group-hover:bg-emerald-600 transition-colors absolute top-0 left-0 right-0" />
+
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <div className="relative shrink-0">
+                              <img
+                                src={getUserAvatar(user.profilePictureUrl)}
+                                alt={user.name}
+                                onError={handleUserAvatarError}
+                                onClick={() => setSelectedUserIdForModal(user.uid)}
+                                className="w-12 h-12 rounded-2xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer shadow-2xs"
+                              />
+                              <span className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-white ring-2 ring-white shadow-2xs">
+                                <span className={`block h-2 w-2 rounded-full ${statusConfig.dotColor}`} />
+                              </span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <h3
+                                  onClick={() => setSelectedUserIdForModal(user.uid)}
+                                  className="font-bold text-sm text-stone-900 dark:text-white hover:text-[#8B181B] cursor-pointer truncate"
+                                >
+                                  {user.name}
+                                </h3>
+                                <span className="text-[10px] font-bold text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded shrink-0">
+                                  '{user.batch?.slice(-2) || '24'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-[#8B181B] font-semibold truncate">{user.course}</p>
+                              <p className="text-[11px] text-stone-400 truncate flex items-center gap-1 mt-0.5">
+                                <MapPin className="w-3 h-3 text-stone-400 shrink-0" />
+                                <span>{user.location || 'Minglanilla, Cebu'}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-stone-600 dark:text-stone-400 mt-2.5 line-clamp-2 leading-relaxed">
+                            {user.headline || user.currentPosition || 'Verified Cecilian Alumnus'}
+                          </p>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              getOrCreateChat(user.uid);
+                              setActiveTab('messages');
+                            }}
+                            className="flex-1 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Message</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUserIdForModal(user.uid)}
+                            className="px-3 py-1.5 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 rounded-xl transition-colors cursor-pointer"
+                          >
+                            Profile
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </motion.div>
+              </div>
+            </>
           )}
         </div>
       )}
 
       {/* ========================================================
-          SUB-TAB 4: INQUIRIES & CONNECTION REQUESTS
+          SUB-TAB 4: CONNECTION REQUESTS
           ======================================================== */}
       {activeSubTab === 'requests' && (
         <div className="space-y-6">
@@ -1624,13 +1951,13 @@ export const NetworkView: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-600" />
-                  <span>Received Connection Requests</span>
+                  <span>Received Requests</span>
                   <span className="px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-900 rounded-full font-mono">
                     {receivedRequests.length}
                   </span>
                 </h3>
                 <p className="text-xs text-stone-500 mt-0.5">
-                  Cecilians who have requested direct professional and peer links with your account
+                  People who sent you a connection request
                 </p>
               </div>
             </div>
@@ -1697,20 +2024,20 @@ export const NetworkView: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
                   <Send className="w-4 h-4 text-stone-500" />
-                  <span>Sent Invitations Pending Action</span>
+                  <span>Sent Requests</span>
                   <span className="px-2 py-0.5 text-xs font-bold bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-full font-mono">
                     {sentRequests.length}
                   </span>
                 </h3>
                 <p className="text-xs text-stone-500 mt-0.5">
-                  Connection invitations dispatched by you awaiting recipient confirmation
+                  Requests you have sent that are waiting for reply
                 </p>
               </div>
             </div>
 
             {sentRequests.length === 0 ? (
               <div className="py-10 text-center text-stone-400 text-xs">
-                No active sent requests pending review.
+                No active sent requests.
               </div>
             ) : (
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1757,16 +2084,16 @@ export const NetworkView: React.FC = () => {
       {/* Confirmation Modal for Canceling Sent Connection Requests */}
       <ConfirmationModal
         isOpen={Boolean(requestToCancel)}
-        title="Cancel Connection Invitation"
-        message={`Are you sure you want to withdraw your connection invitation to ${requestToCancel?.name || 'this Cecilian'}?`}
-        confirmLabel="Withdraw Request"
-        cancelLabel="Keep Invitation"
+        title="Cancel Connection Request"
+        message={`Are you sure you want to cancel your connection request to ${requestToCancel?.name || 'this alumnus'}?`}
+        confirmLabel="Cancel Request"
+        cancelLabel="Keep Request"
         variant="danger"
         onConfirm={() => {
           if (requestToCancel) {
             cancelFriendRequest(requestToCancel.id);
             setRequestToCancel(null);
-            showToast?.('Connection request withdrawn', 'info');
+            showToast?.('Connection request cancelled', 'info');
           }
         }}
         onClose={() => setRequestToCancel(null)}

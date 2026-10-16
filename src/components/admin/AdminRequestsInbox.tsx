@@ -426,7 +426,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                               onClick={() => setSelectedUserIdForModal(u.uid)}
                               className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                             >
-                              Dossier
+                              Profile
                             </button>
                           </div>
                         </div>

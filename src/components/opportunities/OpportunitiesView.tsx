@@ -491,7 +491,7 @@ export const OpportunitiesView: React.FC = () => {
                       onClick={() => setSelectedOpportunityForModal(spotlightJob)}
                       className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
                     >
-                      View Dossier
+                      View Details
                     </button>
                     <button
                       type="button"
@@ -952,7 +952,7 @@ export const OpportunitiesView: React.FC = () => {
                         onClick={() => setSelectedOpportunityForModal(opp)}
                         className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer active:scale-95"
                       >
-                        Dossier
+                        Details
                       </button>
 
                       <button

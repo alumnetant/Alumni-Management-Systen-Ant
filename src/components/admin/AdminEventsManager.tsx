@@ -375,7 +375,7 @@ export const AdminEventsManager: React.FC = () => {
                     onClick={() => setInspectingEvent(upcomingSpotlightEvent)}
                     className="font-semibold text-[#8B181B] hover:underline cursor-pointer flex items-center gap-1"
                   >
-                    <span>View Gathering Dossier</span>
+                    <span>View Gathering Details</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                   <span className="text-[10px] uppercase font-bold text-stone-400">
@@ -467,7 +467,7 @@ export const AdminEventsManager: React.FC = () => {
                   className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                     viewMode === 'dossier' ? 'bg-white text-stone-900 shadow-2xs' : 'text-stone-500 hover:text-stone-800'
                   }`}
-                  title="Timeline Dossiers"
+                  title="Event Cards"
                 >
                   <LayoutGrid className="w-4 h-4" />
                 </button>

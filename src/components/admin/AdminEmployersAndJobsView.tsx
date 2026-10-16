@@ -535,7 +535,7 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                   className={`p-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                     displayLayout === 'dossier' ? 'bg-white text-stone-900 shadow-2xs' : 'text-stone-500 hover:text-stone-800'
                   }`}
-                  title="Dossier Cards"
+                  title="Job Cards"
                 >
                   <Briefcase className="w-4 h-4" />
                 </button>
@@ -768,8 +768,8 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
               {filteredOpportunities.length === 0 ? (
                 <div className="bg-white border border-stone-200/80 rounded-2xl p-10 text-center space-y-2">
                   <Briefcase className="w-8 h-8 text-stone-400 mx-auto" />
-                  <p className="text-sm font-semibold text-stone-800">No opportunities match the criteria</p>
-                  <p className="text-xs text-stone-500">Try loosening your search query or sector filters.</p>
+                  <p className="text-sm font-semibold text-stone-800">No job listings found</p>
+                  <p className="text-xs text-stone-500">Try changing your search keywords or filters.</p>
                 </div>
               ) : (
                 filteredOpportunities.map((job) => {
