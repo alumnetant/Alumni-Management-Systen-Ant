@@ -168,6 +168,43 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     return (opportunities || []).filter((o) => o.status === 'active' || o.approvalStatus === 'approved').length;
   }, [opportunities]);
 
+  // Job Board notification badge dismissal tracking (Requirement 3: Clear on Visit)
+  const [hasDismissedJobsBadge, setHasDismissedJobsBadge] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('scc_jobs_badge_dismissed_v1') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Automatically clear and dismiss jobs notification badge as soon as the user navigates to the Job Board view
+  useEffect(() => {
+    if (currentModule === 'opportunities' || activeTab === 'opportunities') {
+      setHasDismissedJobsBadge(true);
+      try {
+        localStorage.setItem('scc_jobs_badge_dismissed_v1', 'true');
+      } catch {}
+    }
+  }, [currentModule, activeTab]);
+
+  useEffect(() => {
+    const handleJobsViewed = () => {
+      setHasDismissedJobsBadge(true);
+      try {
+        localStorage.setItem('scc_jobs_badge_dismissed_v1', 'true');
+      } catch {}
+    };
+    window.addEventListener('applet:jobs-viewed', handleJobsViewed);
+    return () => window.removeEventListener('applet:jobs-viewed', handleJobsViewed);
+  }, []);
+
+  const displayJobsBadgeCount = useMemo(() => {
+    if (hasDismissedJobsBadge || currentModule === 'opportunities' || activeTab === 'opportunities') {
+      return 0;
+    }
+    return activeJobsCount;
+  }, [hasDismissedJobsBadge, currentModule, activeTab, activeJobsCount]);
+
   // Upcoming events count
   const upcomingEventsCount = useMemo(() => {
     const now = new Date();
@@ -186,12 +223,18 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Clean, simple navigation items (Dedicated Notifications added, Alumni Directory & Messages indicator removed)
+  // Clean, responsive navigation items (Includes Alumni Directory & auto-dismissing Jobs badge)
   const mainNavItems = useMemo(() => [
     {
       id: 'dashboard' as AlumniModuleId,
       label: 'Home',
       icon: LayoutDashboard,
+      badge: null
+    },
+    {
+      id: 'network' as AlumniModuleId,
+      label: 'Alumni Directory',
+      icon: Users,
       badge: null
     },
     {
@@ -205,7 +248,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       id: 'messages' as AlumniModuleId,
       label: 'Messages',
       icon: MessageSquare,
-      badge: null
+      badge: unreadMessagesCount > 0 ? unreadMessagesCount : null
     },
     {
       id: 'events' as AlumniModuleId,
@@ -223,7 +266,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       id: 'opportunities' as AlumniModuleId,
       label: 'Job Board',
       icon: Briefcase,
-      badge: activeJobsCount > 0 ? activeJobsCount : null
+      badge: displayJobsBadgeCount > 0 ? displayJobsBadgeCount : null
     },
     {
       id: 'gallery' as AlumniModuleId,
@@ -231,7 +274,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       icon: ImageIcon,
       badge: null
     }
-  ], [unreadNotificationsCount, upcomingEventsCount, announcements.length, activeJobsCount]);
+  ], [unreadNotificationsCount, unreadMessagesCount, upcomingEventsCount, announcements.length, displayJobsBadgeCount]);
 
   const secondaryNavItems = useMemo(() => [
     {
@@ -290,31 +333,18 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
         <div className="w-full px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           {/* Zone 1: Institutional Brand Lockup */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Back to Home Button (Returns to Landing Page) */}
-            {onGoToLanding && (
-              <button
-                type="button"
-                onClick={onGoToLanding}
-                className="p-2 -ml-1 text-stone-600 dark:text-stone-300 hover:text-[#8B181B] dark:hover:text-rose-400 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-all cursor-pointer group shrink-0"
-                title="Back to Home"
-                aria-label="Back to Home"
-              >
-                <ArrowLeft className="w-5 h-5 stroke-[2] group-hover:-translate-x-0.5 transition-transform" />
-              </button>
-            )}
-
-            {/* Hamburger menu button: toggles mobile drawer on phones (< md), toggles sidebar expansion on tablet & desktop (>= md) */}
+            {/* Hamburger menu button: toggles mobile drawer on phones & tablets (< lg), toggles sidebar expansion on desktop (>= lg) */}
             <button
               type="button"
               onClick={() => {
-                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
                   setShowMobileNav((prev) => !prev);
                 } else {
                   setIsSidebarExpanded((prev) => !prev);
                 }
               }}
-              className="p-2 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
-              aria-label="Toggle navigation sidebar"
+              className="p-2 -ml-1 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+              aria-label="Toggle navigation"
               title={isSidebarExpanded ? 'Hide sidebar (⌘B)' : 'Show sidebar (⌘B)'}
             >
               <Menu className="w-5 h-5 stroke-[1.75]" />
@@ -508,7 +538,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
             DESKTOP & TABLET ALUMNI SIDEBAR (VISIBLE BY DEFAULT, TOGGLABLE)
             ====================================================== */}
         <aside
-          className={`hidden md:flex shrink-0 sticky top-16 h-[calc(100dvh-4rem)] flex-col bg-white dark:bg-[#181615] transition-all duration-200 ease-in-out select-none z-30 shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${
+          className={`hidden lg:flex shrink-0 sticky top-16 h-[calc(100dvh-4rem)] flex-col bg-white dark:bg-[#181615] transition-all duration-200 ease-in-out select-none z-30 shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${
             isSidebarExpanded
               ? 'w-60 border-r border-stone-200/80 dark:border-stone-800 opacity-100'
               : 'w-0 overflow-hidden border-r-0 opacity-0 pointer-events-none'
@@ -920,11 +950,14 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       </div>
 
       {/* ======================================================
-          CLEAN, MINIMAL MOBILE BOTTOM BAR NAVIGATION
+          CLEAN, BALANCED MOBILE & TABLET BOTTOM BAR NAVIGATION
+          - No "More" Button (Requirement 1)
+          - Centered "Events" Tab (Requirement 1)
+          - Jobs Notification Badge Clears on Visit (Requirement 3)
           ====================================================== */}
       <nav
         aria-label="Mobile Navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#181615]/95 backdrop-blur-md border-t border-stone-200/90 dark:border-stone-800 shadow-[0_-4px_20px_rgba(0,0,0,0.06),0_-1px_3px_rgba(0,0,0,0.02)] px-2 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-colors"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#181615]/95 backdrop-blur-md border-t border-stone-200/90 dark:border-stone-800 shadow-[0_-4px_20px_rgba(0,0,0,0.06),0_-1px_3px_rgba(0,0,0,0.02)] px-2 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-colors"
       >
         <div className="flex items-center justify-around max-w-lg mx-auto">
           {/* 1. Home */}
@@ -943,44 +976,23 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
             <span className="text-[10px] mt-0.5 tracking-tight font-medium">Home</span>
           </button>
 
-          {/* 2. Notifications */}
+          {/* 2. Alumni Directory */}
           <button
             type="button"
-            onClick={() => handleSelectModule('notifications')}
-            className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none relative ${
-              currentModule === 'notifications'
+            onClick={() => handleSelectModule('network')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none ${
+              currentModule === 'network'
                 ? 'text-[#8B181B] dark:text-rose-400 font-bold'
                 : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
             }`}
           >
-            <div className={`relative p-1 rounded-lg transition-colors ${currentModule === 'notifications' ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
-              <Bell className="w-5 h-5 stroke-[1.8]" />
-              {unreadNotificationsCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#8B181B] text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-[#181615]">
-                  {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
-                </span>
-              )}
+            <div className={`p-1 rounded-lg transition-colors ${currentModule === 'network' ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
+              <Users className="w-5 h-5 stroke-[1.8]" />
             </div>
-            <span className="text-[10px] mt-0.5 tracking-tight font-medium">Alerts</span>
+            <span className="text-[10px] mt-0.5 tracking-tight font-medium">Directory</span>
           </button>
 
-          {/* 3. Messages */}
-          <button
-            type="button"
-            onClick={() => handleSelectModule('messages')}
-            className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none relative ${
-              currentModule === 'messages'
-                ? 'text-[#8B181B] dark:text-rose-400 font-bold'
-                : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-            }`}
-          >
-            <div className={`relative p-1 rounded-lg transition-colors ${currentModule === 'messages' ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
-              <MessageSquare className="w-5 h-5 stroke-[1.8]" />
-            </div>
-            <span className="text-[10px] mt-0.5 tracking-tight font-medium">Messages</span>
-          </button>
-
-          {/* 3. Events */}
+          {/* 3. Events (CENTERED TAB IN PRIMARY NAVIGATION BAR) */}
           <button
             type="button"
             onClick={() => handleSelectModule('events')}
@@ -998,13 +1010,19 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 </span>
               )}
             </div>
-            <span className="text-[10px] mt-0.5 tracking-tight font-medium">Events</span>
+            <span className="text-[10px] mt-0.5 tracking-tight font-bold">Events</span>
           </button>
 
-          {/* 4. Jobs */}
+          {/* 4. Job Board (Notification badge automatically clears on visit) */}
           <button
             type="button"
-            onClick={() => handleSelectModule('opportunities')}
+            onClick={() => {
+              setHasDismissedJobsBadge(true);
+              try {
+                localStorage.setItem('scc_jobs_badge_dismissed_v1', 'true');
+              } catch {}
+              handleSelectModule('opportunities');
+            }}
             className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none relative ${
               currentModule === 'opportunities'
                 ? 'text-[#8B181B] dark:text-rose-400 font-bold'
@@ -1013,33 +1031,34 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
           >
             <div className={`relative p-1 rounded-lg transition-colors ${currentModule === 'opportunities' ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
               <Briefcase className="w-5 h-5 stroke-[1.8]" />
-              {activeJobsCount > 0 && (
+              {displayJobsBadgeCount > 0 && (
                 <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-emerald-600 text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-[#181615]">
-                  {activeJobsCount}
+                  {displayJobsBadgeCount}
                 </span>
               )}
             </div>
             <span className="text-[10px] mt-0.5 tracking-tight font-medium">Jobs</span>
           </button>
 
-          {/* 5. More (All Modules) */}
+          {/* 5. Messages */}
           <button
             type="button"
-            onClick={() => setShowMobileNav((prev) => !prev)}
-            aria-label="Open full modules navigation"
+            onClick={() => handleSelectModule('messages')}
             className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none relative ${
-              isSecondaryModuleActive || showMobileNav
+              currentModule === 'messages'
                 ? 'text-[#8B181B] dark:text-rose-400 font-bold'
                 : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
             }`}
           >
-            <div className={`relative p-1 rounded-lg transition-colors ${isSecondaryModuleActive || showMobileNav ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
-              <Grid className="w-5 h-5 stroke-[1.8]" />
-              {isSecondaryModuleActive && (
-                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#8B181B] dark:bg-rose-400 ring-2 ring-white dark:ring-[#181615]" />
+            <div className={`relative p-1 rounded-lg transition-colors ${currentModule === 'messages' ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
+              <MessageSquare className="w-5 h-5 stroke-[1.8]" />
+              {unreadMessagesCount > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#8B181B] text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-[#181615]">
+                  {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                </span>
               )}
             </div>
-            <span className="text-[10px] mt-0.5 tracking-tight font-medium">More</span>
+            <span className="text-[10px] mt-0.5 tracking-tight font-medium">Messages</span>
           </button>
         </div>
       </nav>

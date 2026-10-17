@@ -109,6 +109,8 @@ export const MessagesView: React.FC = () => {
   const [activeMessageMenuId, setActiveMessageMenuId] = useState<string | null>(null);
   const [messageToUnsend, setMessageToUnsend] = useState<ChatMessage | null>(null);
   const [messageToDelete, setMessageToDelete] = useState<ChatMessage | null>(null);
+  const [inspectingReactionsMessage, setInspectingReactionsMessage] = useState<ChatMessage | null>(null);
+  const [reactionDetailTab, setReactionDetailTab] = useState<string>('all');
   const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '👏', '🔥'];
 
   // Directory filter in zero-state
@@ -1039,20 +1041,29 @@ export const MessagesView: React.FC = () => {
                                     >
                                       {/* Reaction Bar */}
                                       <div className="flex items-center gap-1 p-1 bg-white dark:bg-stone-850 rounded-full shadow-lg border border-stone-200/90 dark:border-stone-700">
-                                        {QUICK_EMOJIS.map((emoji) => (
-                                          <button
-                                            key={emoji}
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              reactToMessage(activeChat.id, msg.id, emoji);
-                                            }}
-                                            className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-sm sm:text-xs hover:scale-125 active:scale-95 transition-transform rounded-full hover:bg-stone-100 dark:hover:bg-stone-750 cursor-pointer"
-                                            title={`React with ${emoji}`}
-                                          >
-                                            {emoji}
-                                          </button>
-                                        ))}
+                                        {QUICK_EMOJIS.map((emoji) => {
+                                          const isUserReaction = msg.reactions?.[emoji]?.includes(currentUser.uid);
+                                          return (
+                                            <button
+                                              key={emoji}
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                reactToMessage(activeChat.id, msg.id, emoji);
+                                                // Request 7: Automatically close or hide reaction selection DIV immediately
+                                                setActiveMessageMenuId(null);
+                                              }}
+                                              className={`w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-sm sm:text-xs hover:scale-125 active:scale-95 transition-transform rounded-full cursor-pointer relative ${
+                                                isUserReaction
+                                                  ? 'bg-rose-100 dark:bg-rose-950/80 ring-2 ring-[#8B181B] shadow-2xs'
+                                                  : 'hover:bg-stone-100 dark:hover:bg-stone-750'
+                                              }`}
+                                              title={isUserReaction ? `Remove ${emoji} reaction` : `React with ${emoji}`}
+                                            >
+                                              {emoji}
+                                            </button>
+                                          );
+                                        })}
 
                                         {/* More Actions Dropdown Toggle */}
                                         <div className="relative">
@@ -1112,35 +1123,46 @@ export const MessagesView: React.FC = () => {
                                 )}
                               </div>
 
-                              {/* Active Reactions Chips Display */}
-                              {!msg.isUnsent && msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                                <div
-                                  className={`flex flex-wrap gap-1 mt-1 px-1 ${
-                                    isMine ? 'justify-end' : 'justify-start'
-                                  }`}
-                                >
-                                  {Object.entries(msg.reactions).map(([emoji, uids]) => {
-                                    if (!uids || uids.length === 0) return null;
-                                    const hasReacted = uids.includes(currentUser.uid);
-                                    return (
-                                      <button
-                                        type="button"
-                                        key={emoji}
-                                        onClick={() => reactToMessage(activeChat.id, msg.id, emoji)}
-                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
-                                          hasReacted
-                                            ? 'bg-red-50 text-[#8B181B] border-red-300 font-bold shadow-2xs ring-1 ring-[#8B181B]/20'
-                                            : 'bg-white hover:bg-stone-50 text-stone-700 border-stone-200'
-                                        }`}
-                                        title={`${uids.length} reaction${uids.length > 1 ? 's' : ''}`}
-                                      >
-                                        <span>{emoji}</span>
-                                        <span className="text-[10px] tabular-nums font-mono">{uids.length}</span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
+                              {/* Messenger-Style Message Reactions Display Badge (Request 7) */}
+                              {!msg.isUnsent && msg.reactions && Object.keys(msg.reactions).length > 0 && (() => {
+                                const activeEntries = Object.entries(msg.reactions).filter(
+                                  ([_, uids]) => Array.isArray(uids) && uids.length > 0
+                                );
+                                if (activeEntries.length === 0) return null;
+                                const totalCount = activeEntries.reduce((sum, [_, uids]) => sum + uids.length, 0);
+                                const myReactionEntry = activeEntries.find(([_, uids]) => uids.includes(currentUser.uid));
+                                const hasMyReaction = !!myReactionEntry;
+
+                                return (
+                                  <div
+                                    className={`flex mt-1 px-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setInspectingReactionsMessage(msg);
+                                        setReactionDetailTab('all');
+                                      }}
+                                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all cursor-pointer shadow-2xs active:scale-95 select-none ${
+                                        hasMyReaction
+                                          ? 'bg-rose-50 dark:bg-rose-950/70 text-[#8B181B] dark:text-rose-300 border-rose-300 dark:border-rose-800 ring-1 ring-[#8B181B]/20'
+                                          : 'bg-white dark:bg-stone-850 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700'
+                                      }`}
+                                      title="View who reacted"
+                                    >
+                                      <span className="flex items-center -space-x-1">
+                                        {activeEntries.slice(0, 3).map(([em]) => (
+                                          <span key={em} className="text-xs leading-none">{em}</span>
+                                        ))}
+                                      </span>
+                                      <span className="text-[10px] font-mono tabular-nums font-bold">
+                                        {totalCount}
+                                      </span>
+                                    </button>
+                                  </div>
+                                );
+                              })()}
 
                               <div className="flex items-center gap-1.5 text-[10px] text-stone-400 mt-1 px-1 font-mono tabular-nums">
                                 <span>
@@ -1739,6 +1761,159 @@ export const MessagesView: React.FC = () => {
                   <Trash2 className="w-4 h-4" />
                   <span>Delete for Me</span>
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Messenger-Style Message Reactions Detail Breakdown Modal (Request 7) */}
+      <AnimatePresence>
+        {inspectingReactionsMessage && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/50 backdrop-blur-xs animate-in fade-in duration-150"
+            onClick={() => setInspectingReactionsMessage(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 320 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200/90 dark:border-stone-800 max-w-sm w-full p-4 sm:p-5 shadow-2xl space-y-3.5 max-h-[85vh] flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between pb-2.5 border-b border-stone-100 dark:border-stone-800">
+                <div>
+                  <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
+                    Message Reactions
+                  </h3>
+                  <p className="text-[11px] text-stone-500">
+                    {Object.values(inspectingReactionsMessage.reactions || {}).reduce(
+                      (acc, uids) => acc + (Array.isArray(uids) ? uids.length : 0),
+                      0
+                    )}{' '}
+                    total reaction{Object.values(inspectingReactionsMessage.reactions || {}).reduce((acc, uids) => acc + (Array.isArray(uids) ? uids.length : 0), 0) === 1 ? '' : 's'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInspectingReactionsMessage(null)}
+                  className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                  aria-label="Close reactions breakdown"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Reaction Filter Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setReactionDetailTab('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer shrink-0 transition-colors ${
+                    reactionDetailTab === 'all'
+                      ? 'bg-stone-900 text-white dark:bg-white dark:text-stone-900 shadow-2xs'
+                      : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-750'
+                  }`}
+                >
+                  All
+                </button>
+                {Object.entries(inspectingReactionsMessage.reactions || {}).map(([em, uids]) => {
+                  if (!uids || uids.length === 0) return null;
+                  return (
+                    <button
+                      key={em}
+                      type="button"
+                      onClick={() => setReactionDetailTab(em)}
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer shrink-0 flex items-center gap-1.5 transition-colors ${
+                        reactionDetailTab === em
+                          ? 'bg-[#8B181B] text-white shadow-2xs'
+                          : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-750'
+                      }`}
+                    >
+                      <span>{em}</span>
+                      <span className="text-[10px] tabular-nums font-mono font-bold">{uids.length}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Users List with Avatar, Name, and Reaction */}
+              <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 divide-y divide-stone-100 dark:divide-stone-800/60">
+                {(() => {
+                  const items: { uid: string; emoji: string }[] = [];
+                  for (const [em, uids] of Object.entries(inspectingReactionsMessage.reactions || {})) {
+                    if (reactionDetailTab === 'all' || reactionDetailTab === em) {
+                      (uids || []).forEach((uid) => items.push({ uid, emoji: em }));
+                    }
+                  }
+
+                  if (items.length === 0) {
+                    return (
+                      <div className="py-8 text-center text-xs text-stone-400">
+                        No reactions under this tab.
+                      </div>
+                    );
+                  }
+
+                  return items.map(({ uid, emoji }) => {
+                    const u = users.find((user) => user.uid === uid);
+                    const isMe = uid === currentUser.uid;
+
+                    return (
+                      <div
+                        key={`${uid}-${emoji}`}
+                        className="pt-2 pb-1 flex items-center justify-between gap-3 text-left"
+                      >
+                        <div
+                          onClick={() => {
+                            setInspectingReactionsMessage(null);
+                            setSelectedUserIdForModal(uid);
+                          }}
+                          className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer group"
+                        >
+                          <img
+                            src={getUserAvatar(u?.profilePictureUrl)}
+                            alt={u?.name || 'User'}
+                            onError={handleUserAvatarError}
+                            className="w-9 h-9 rounded-full object-cover border border-stone-200 dark:border-stone-700 shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-stone-900 dark:text-stone-100 group-hover:text-[#8B181B] transition-colors truncate flex items-center gap-1">
+                              <span>{u?.name || 'Cecilian Alumnus'}</span>
+                              {isMe && (
+                                <span className="text-[10px] font-semibold text-[#8B181B] dark:text-rose-400">
+                                  (You)
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-[10px] text-stone-400 truncate">
+                              {u?.course ? u.course : u?.batch ? `Batch ${u.batch}` : 'Alumni Member'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-lg leading-none select-none">{emoji}</span>
+                          {isMe && activeChat && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                reactToMessage(activeChat.id, inspectingReactionsMessage.id, emoji);
+                                setInspectingReactionsMessage(null);
+                              }}
+                              className="px-2 py-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 rounded-lg transition-colors cursor-pointer"
+                              title="Remove your reaction"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </motion.div>
           </div>

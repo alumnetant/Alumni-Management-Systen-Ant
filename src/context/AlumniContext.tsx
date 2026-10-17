@@ -4011,6 +4011,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               };
               setNotifications((prev) => [msgNotif, ...prev]);
               saveNotificationToFirestore(msgNotif).catch(() => {});
+
+              // Send real push notification to recipient device
+              fetch('/api/push/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  targetUserId: mId,
+                  title: `New message from ${currentUser.name}`,
+                  body: text.trim().slice(0, 90),
+                  category: 'message',
+                  data: {
+                    chatId,
+                    senderId: currentUser.uid,
+                    url: `/?tab=messages&chatId=${encodeURIComponent(chatId)}`
+                  }
+                })
+              }).catch(() => {});
             }
           });
           updatedChatObj = {
@@ -4123,49 +4140,89 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     [currentUser, messages, showToast]
   );
 
+  const activeReactionLocksRef = useRef<Set<string>>(new Set());
+
+  // Messenger-Style Message Reactions (Request 7)
+  // - Exactly ONE active reaction per user per message
+  // - Replaces previous reaction if another is clicked
+  // - Toggles off reaction if selected reaction is clicked again
+  // - Debounced / locked to prevent duplicate reactions from rapid taps
   const reactToMessage = useCallback(
     async (chatId: string, messageId: string, emoji: string) => {
       if (!currentUser) {
         showToast('Please sign in to react to messages.', 'info');
         return;
       }
-      const threadMsgs = messages[chatId] || [];
-      const targetMsg = threadMsgs.find((m) => m.id === messageId);
-      if (!targetMsg || targetMsg.isUnsent) return;
 
-      const currentReactions: Record<string, string[]> = { ...(targetMsg.reactions || {}) };
-      const currentUids: string[] = currentReactions[emoji] || [];
-
-      let nextUids: string[];
-      if (currentUids.includes(currentUser.uid)) {
-        // Toggle reaction off
-        nextUids = currentUids.filter((id) => id !== currentUser.uid);
-      } else {
-        // Toggle reaction on
-        nextUids = [...currentUids, currentUser.uid];
+      // Concurrency lock to prevent rapid repeated taps
+      if (activeReactionLocksRef.current.has(messageId)) {
+        return;
       }
+      activeReactionLocksRef.current.add(messageId);
 
-      if (nextUids.length > 0) {
-        currentReactions[emoji] = nextUids;
-      } else {
-        delete currentReactions[emoji];
-      }
-
-      // Optimistically update conversation interface immediately
-      setMessages((prev) => ({
-        ...prev,
-        [chatId]: (prev[chatId] || []).map((m) =>
-          m.id === messageId ? { ...m, reactions: currentReactions } : m
-        )
-      }));
-
-      // Synchronize reaction with Firestore
       try {
-        await updateChatMessageInFirestore(chatId, messageId, {
-          reactions: currentReactions
-        });
-      } catch (err) {
-        console.warn('Failed to synchronize message reaction:', err);
+        const threadMsgs = messages[chatId] || [];
+        const targetMsg = threadMsgs.find((m) => m.id === messageId);
+        if (!targetMsg || targetMsg.isUnsent) return;
+
+        // Build clean next reactions object ensuring single active reaction per user
+        const nextReactions: Record<string, string[]> = {};
+        let previousEmoji: string | null = null;
+
+        for (const [em, uids] of Object.entries(targetMsg.reactions || {})) {
+          if (Array.isArray(uids) && uids.includes(currentUser.uid)) {
+            previousEmoji = em;
+          }
+          // Filter out current user from all emojis first
+          const otherUids = (uids || []).filter((id) => id !== currentUser.uid);
+          if (otherUids.length > 0) {
+            nextReactions[em] = otherUids;
+          }
+        }
+
+        if (previousEmoji === emoji) {
+          // User tapped their current active reaction: toggle off (remove)
+          // Since they were already filtered out, doing nothing removes it
+        } else {
+          // User selected a different reaction: replace previous reaction with new emoji
+          const currentList = nextReactions[emoji] || [];
+          nextReactions[emoji] = [...currentList, currentUser.uid];
+        }
+
+        // 1. Optimistically update local conversation state immediately
+        setMessages((prev) => ({
+          ...prev,
+          [chatId]: (prev[chatId] || []).map((m) =>
+            m.id === messageId ? { ...m, reactions: nextReactions } : m
+          )
+        }));
+
+        // 2. Synchronize reaction with Firestore in real time
+        try {
+          await updateChatMessageInFirestore(chatId, messageId, {
+            reactions: nextReactions
+          });
+        } catch (err) {
+          console.warn('Firestore reaction sync warning:', err);
+        }
+
+        // 3. Synchronize with backend server endpoint enforcing server-side rule
+        try {
+          fetch('/api/messages/react', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chatId,
+              messageId,
+              emoji,
+              userId: currentUser.uid
+            })
+          }).catch(() => {});
+        } catch {}
+      } finally {
+        setTimeout(() => {
+          activeReactionLocksRef.current.delete(messageId);
+        }, 300);
       }
     },
     [currentUser, messages, showToast]

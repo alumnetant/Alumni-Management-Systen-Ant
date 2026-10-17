@@ -547,9 +547,9 @@ export const NetworkView: React.FC = () => {
 
       {/* ========================================================
           COMMAND OMNIBAR & FAST MULTI-FILTER CONTROL CONSOLE
-          Sticky/Floating Omnibar with keyboard shortcut ⌘K
+          Flows naturally with standard page scrolling (No sticky/fixed positioning)
           ======================================================== */}
-      <div className="sticky top-14 sm:top-16 md:top-24 z-20 bg-white/95 dark:bg-stone-900/95 backdrop-blur-md p-4 sm:p-5 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_2px_12px_rgba(0,0,0,0.06)] space-y-3.5">
+      <div className="relative z-10 bg-white dark:bg-stone-900 p-4 sm:p-5 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_2px_12px_rgba(0,0,0,0.06)] space-y-3.5">
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
           {/* Omnibar Input */}
           <div className="relative flex-1 w-full min-w-0">

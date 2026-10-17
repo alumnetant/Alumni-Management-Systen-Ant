@@ -161,7 +161,36 @@ export const Navigation: React.FC<NavigationProps> = ({ onOpenAuth }) => {
 
   const isDrawerActive = !['dashboard', 'network', 'events', 'opportunities'].includes(activeTab);
 
-  // Mobile Floating Glass Dock Items: Home, My network, Events, Jobs, Menu
+  // Job Board notification badge dismissal tracking (Requirement 3: Clear on Visit)
+  const [hasDismissedJobsBadge, setHasDismissedJobsBadge] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('scc_jobs_badge_dismissed_v1') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (activeTab === 'opportunities') {
+      setHasDismissedJobsBadge(true);
+      try {
+        localStorage.setItem('scc_jobs_badge_dismissed_v1', 'true');
+      } catch {}
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handleJobsViewed = () => {
+      setHasDismissedJobsBadge(true);
+      try {
+        localStorage.setItem('scc_jobs_badge_dismissed_v1', 'true');
+      } catch {}
+    };
+    window.addEventListener('applet:jobs-viewed', handleJobsViewed);
+    return () => window.removeEventListener('applet:jobs-viewed', handleJobsViewed);
+  }, []);
+
+  // Mobile Floating Glass Dock Items: Home, Directory, Events (Centered), Jobs, Messages (No More Button)
   const mobileDockItems: DockItem[] = [
     {
       id: 'dashboard',
@@ -176,7 +205,7 @@ export const Navigation: React.FC<NavigationProps> = ({ onOpenAuth }) => {
     },
     {
       id: 'network',
-      title: 'My network',
+      title: 'Directory',
       icon: Users,
       isActive: activeTab === 'network' && !showMobileMore,
       onClick: () => {
@@ -203,19 +232,24 @@ export const Navigation: React.FC<NavigationProps> = ({ onOpenAuth }) => {
       isActive: activeTab === 'opportunities' && !showMobileMore,
       onClick: () => {
         triggerHaptic('light');
+        setHasDismissedJobsBadge(true);
+        try {
+          localStorage.setItem('scc_jobs_badge_dismissed_v1', 'true');
+        } catch {}
         setActiveTab('opportunities');
         setShowMobileMore(false);
       }
     },
     {
-      id: 'menu',
-      title: 'Menu',
-      icon: Menu,
-      isActive: showMobileMore || isDrawerActive,
+      id: 'messages',
+      title: 'Messages',
+      icon: MessageSquare,
+      isActive: activeTab === 'messages' && !showMobileMore,
       badge: totalUnreadMessages > 0 ? (totalUnreadMessages > 9 ? '9+' : totalUnreadMessages) : null,
       onClick: () => {
-        triggerHaptic('selection');
-        setShowMobileMore((prev) => !prev);
+        triggerHaptic('light');
+        setActiveTab('messages');
+        setShowMobileMore(false);
       }
     }
   ];

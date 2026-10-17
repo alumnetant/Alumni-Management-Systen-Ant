@@ -300,16 +300,16 @@ function AppContent() {
     initMobileApp();
   }, []);
 
-  // Initialize Native Push Notification routing for Events, Messages & Announcements
+  // Initialize Push Notification routing for Events, Messages & Announcements
   React.useEffect(() => {
     const cleanup = initPushNotificationListeners((targetTab) => {
       setCurrentView('portal');
       setActiveTab(targetTab);
-    });
+    }, currentUser?.uid);
     return () => {
       cleanup();
     };
-  }, [setActiveTab]);
+  }, [setActiveTab, currentUser?.uid]);
 
   // Initialize scheduled event reminder supervisor loop & handle reminder triggers
   React.useEffect(() => {

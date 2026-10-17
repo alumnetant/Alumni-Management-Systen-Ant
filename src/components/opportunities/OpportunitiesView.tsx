@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Briefcase,
@@ -52,6 +52,14 @@ export const OpportunitiesView: React.FC = () => {
 
   // Navigation sub-tabs
   const [activeSubTab, setActiveSubTab] = useState<'explore' | 'my_applications' | 'employer_portal' | 'admin_moderation'>('explore');
+
+  // Automatically clear/dismiss Jobs notification badge on visit (Requirement 3)
+  useEffect(() => {
+    try {
+      localStorage.setItem('scc_jobs_badge_dismissed_v1', 'true');
+      window.dispatchEvent(new CustomEvent('applet:jobs-viewed'));
+    } catch {}
+  }, []);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');

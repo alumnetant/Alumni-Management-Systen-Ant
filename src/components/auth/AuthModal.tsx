@@ -16,7 +16,11 @@ import {
   Globe,
   Eye,
   EyeOff,
-  Briefcase
+  Briefcase,
+  ShieldAlert,
+  Clock,
+  Laptop,
+  X
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { UserRole } from '../../types';
@@ -30,13 +34,22 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   isOpen,
   onClose
 }) => {
-  const { login, register, users, showToast } = useAlumni();
+  const {
+    login,
+    register,
+    users,
+    showToast,
+    activeSessionConflict,
+    clearActiveSessionConflict,
+    terminateOtherSessionAndLogin
+  } = useAlumni();
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
+  const [isTerminatingOtherSession, setIsTerminatingOtherSession] = useState(false);
   // Support Alumni, Student, and Employer registration
   const [accountType, setAccountType] = useState<'alumni' | 'student' | 'employer'>('alumni');
   const [role, setRole] = useState<'alumni' | 'employer'>('alumni');
@@ -86,7 +99,22 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     if (success) {
       onClose();
     } else {
-      setErrorMsg('Invalid email address/Student ID or password.');
+      if (!activeSessionConflict) {
+        setErrorMsg('Invalid email address/Student ID or password.');
+      }
+    }
+  };
+
+  const handleTerminateOtherSession = async () => {
+    if (!activeSessionConflict) return;
+    setIsTerminatingOtherSession(true);
+    const ok = await terminateOtherSessionAndLogin(
+      activeSessionConflict.identifier,
+      activeSessionConflict.password || password
+    );
+    setIsTerminatingOtherSession(false);
+    if (ok) {
+      onClose();
     }
   };
 
@@ -181,12 +209,16 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       <div className="bg-white rounded-3xl shadow-2xl border border-stone-200 w-full max-w-md max-h-[95vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95">
         
         {/* Header */}
-        <div className="p-6 pb-4 bg-gradient-to-r from-blue-700 to-indigo-800 text-white text-center relative">
+        <div className="p-6 pb-4 bg-gradient-to-b from-[#8B181B] to-[#721316] text-white text-center relative">
           <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-white/70 hover:text-white"
+            onClick={() => {
+              clearActiveSessionConflict();
+              onClose();
+            }}
+            className="absolute top-4 right-4 text-white/70 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+            aria-label="Close modal"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
           <div className="relative mx-auto mb-2 w-14 h-14">
             <img
@@ -196,8 +228,8 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
               className="w-14 h-14 rounded-full object-cover border-2 border-white/40 shadow-md"
             />
           </div>
-          <h2 className="text-xl font-bold">St. Cecilia's Alumni Network</h2>
-          <p className="text-xs text-blue-100 mt-0.5">
+          <h2 className="text-xl font-bold font-serif tracking-tight">St. Cecilia's Alumni Network</h2>
+          <p className="text-xs text-rose-100/90 mt-0.5">
             {mode === 'login'
               ? 'Sign in to access your alumni hub'
               : mode === 'register'
@@ -208,7 +240,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 text-xs">
-          {errorMsg && (
+          {errorMsg && !activeSessionConflict && (
             <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-700 border border-red-200">
               {errorMsg}
             </div>
@@ -216,17 +248,83 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-3.5">
+              {/* Active Login Session Conflict Banner (Single Active Session Enforcement) */}
+              {activeSessionConflict && (
+                <div className="mb-4 p-3.5 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 shadow-sm animate-in fade-in duration-200">
+                  <div className="flex items-start gap-2.5">
+                    <div className="p-1.5 rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5">
+                      <ShieldAlert className="w-4 h-4 text-amber-700" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-xs text-amber-900">
+                          Active Session Detected
+                        </h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200/80 text-amber-900">
+                          1 Active Session
+                        </span>
+                      </div>
+                      <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                        {activeSessionConflict.message}
+                      </p>
+                      <div className="mt-2 p-2 rounded-xl bg-white/90 border border-amber-200 space-y-1 text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-stone-500">Active Device:</span>
+                          <span className="font-semibold text-stone-900">
+                            {activeSessionConflict.activeSession.deviceInfo || 'Another Device'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-stone-500">Location:</span>
+                          <span className="font-semibold text-stone-900">
+                            {activeSessionConflict.activeSession.approxLocation || 'Cebu, Philippines'}
+                          </span>
+                        </div>
+                        {activeSessionConflict.attemptInfo?.attemptTime && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-stone-500">Attempt Time:</span>
+                            <span className="font-mono text-stone-700">
+                              {activeSessionConflict.attemptInfo.attemptTime}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-amber-800 mt-1.5 leading-tight">
+                        A security alert email was sent to <span className="font-semibold underline">{activeSessionConflict.ownerEmailMasked}</span>.
+                      </p>
+                      <div className="mt-2.5 pt-2 border-t border-amber-200 flex items-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          disabled={isTerminatingOtherSession}
+                          onClick={handleTerminateOtherSession}
+                          className="px-3 py-1.5 rounded-xl bg-[#8B181B] hover:bg-[#721316] text-white font-bold text-xs transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                        >
+                          {isTerminatingOtherSession ? 'Ending session...' : 'End Other Session & Sign In'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearActiveSessionConflict}
+                          className="px-2.5 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 text-stone-600 font-semibold text-xs transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
-                <label className="font-semibold text-stone-700 block mb-1">Email Address</label>
+                <label className="font-semibold text-stone-700 block mb-1">Email or Student ID</label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
-                    type="email"
+                    type="text"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="alumni@university.edu"
-                    className="w-full pl-9 pr-3 py-2 bg-stone-50 border border-stone-200 rounded-xl focus:ring-1 focus:ring-blue-500"
+                    placeholder="alumni@stcecilia.edu or SCC-2020-0192"
+                    className="w-full pl-9 pr-3 py-2 bg-stone-50 border border-stone-200 rounded-xl focus:ring-1 focus:ring-[#8B181B] focus:border-[#8B181B]"
                   />
                 </div>
               </div>
@@ -237,7 +335,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                   <button
                     type="button"
                     onClick={() => setMode('forgot')}
-                    className="text-[11px] text-blue-600 hover:underline"
+                    className="text-[11px] text-[#8B181B] hover:underline"
                   >
                     Forgot Password?
                   </button>
@@ -250,7 +348,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full pl-9 pr-10 py-2 bg-stone-50 border border-stone-200 rounded-xl focus:ring-1 focus:ring-blue-500"
+                    className="w-full pl-9 pr-10 py-2 bg-stone-50 border border-stone-200 rounded-xl focus:ring-1 focus:ring-[#8B181B] focus:border-[#8B181B]"
                   />
                   <button
                     type="button"
@@ -265,21 +363,22 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5 text-xs"
+                className="w-full py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5 text-xs cursor-pointer"
               >
                 <span>Sign In</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
               <div className="text-center pt-2 text-stone-500">
-                New alumnus or institutional member?{' '}
+                New alumnus or member?{' '}
                 <button
                   type="button"
                   onClick={() => {
                     setMode('register');
                     setErrorMsg('');
+                    clearActiveSessionConflict();
                   }}
-                  className="text-blue-600 font-bold hover:underline"
+                  className="text-[#8B181B] font-bold hover:underline cursor-pointer"
                 >
                   Create Account
                 </button>

@@ -64,7 +64,8 @@ import {
 import {
   checkPushPermissions,
   requestPushNotifications,
-  sendInAppPushAlert
+  sendInAppPushAlert,
+  triggerTestPushNotification
 } from '../../services/pushNotificationService';
 import { openExternalUrl } from '../../services/externalLinkService';
 import { shareAlumniPortal } from '../../services/nativeShareService';
@@ -199,7 +200,7 @@ export const SettingsView: React.FC = () => {
     const titles = {
       event: 'Cecilian Grand Reunion: 24h Confirmation',
       message: 'New Direct Message from Maria Santos',
-      announcement: 'Presidential Advisory: Centennial Homecoming'
+      announcement: 'Campus News: Centennial Homecoming'
     };
     const bodies = {
       event: 'Your reserved seat at the Centennial Grand Alumni Reunion is scheduled for tomorrow at 6:00 PM.',
@@ -214,7 +215,24 @@ export const SettingsView: React.FC = () => {
       data: { category }
     });
 
-    showToast(`Test ${category} alert triggered!`, 'success');
+    if (currentUser?.uid) {
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetUserId: currentUser.uid,
+          title: titles[category],
+          body: bodies[category],
+          category,
+          data: {
+            category,
+            url: category === 'message' ? '/?tab=messages' : category === 'event' ? '/?tab=events' : '/?tab=announcements'
+          }
+        })
+      }).catch(() => {});
+    }
+
+    showToast(`Test ${category} notification sent! Check your phone.`, 'success');
   };
 
   const handleShareApp = async () => {
@@ -1210,13 +1228,13 @@ export const SettingsView: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="min-w-0 pr-4">
                   <div className="flex items-center gap-2">
-                    <p className="text-xs font-bold text-stone-900">Native Push Notifications</p>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                      @capacitor/push-notifications
+                    <p className="text-xs font-bold text-stone-900">Phone Notifications</p>
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      Live Push
                     </span>
                   </div>
                   <p className="text-[11px] text-stone-500 mt-0.5">
-                    Real-time alerts on Android & iOS for alumni events, direct messages, and campus announcements
+                    Receive instant alerts on your phone for direct messages, campus events, and announcements even when the app is closed.
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
@@ -1228,9 +1246,9 @@ export const SettingsView: React.FC = () => {
                       setPushEnabled(checked);
                       handleToggle('push', checked);
                       if (checked) {
-                        const res = await requestPushNotifications();
+                        const res = await requestPushNotifications(currentUser?.uid);
                         if (res.granted) {
-                          showToast('Push notifications registered! Real-time alerts active.', 'success');
+                          showToast('Phone notifications turned on! Real-time alerts active.', 'success');
                         } else if (res.error) {
                           showToast(res.error, 'error');
                         }
@@ -1243,27 +1261,46 @@ export const SettingsView: React.FC = () => {
               </div>
 
               {pushEnabled && (
-                <div className="pt-2.5 border-t border-stone-200/60 flex items-center justify-between flex-wrap gap-2 text-[11px]">
-                  <span className="text-stone-500 font-medium">Test Real-Time Alert Channels:</span>
+                <div className="pt-2.5 border-t border-stone-200/60 space-y-2 text-[11px]">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-stone-600 font-medium">Test Real Notifications:</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        showToast('Notification scheduled in 5 seconds! Lock your phone or go to your home screen now.', 'info');
+                        const res = await triggerTestPushNotification(currentUser.uid, 5);
+                        if (res.success) {
+                          showToast(res.message, 'success');
+                        } else {
+                          showToast(res.message, 'error');
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-[#8B181B] hover:bg-[#721316] text-white font-semibold transition-colors cursor-pointer text-[10px] flex items-center gap-1.5 shadow-2xs active:scale-95"
+                    >
+                      <Bell className="w-3 h-3" />
+                      <span>Test on Phone (5s Delay)</span>
+                    </button>
+                  </div>
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-stone-400 text-[10px]">Test alert types:</span>
                     <button
                       type="button"
                       onClick={() => handleSendTestPush('event')}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
+                      className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
                     >
-                      Events (24h RSVP)
+                      Event Reminder
                     </button>
                     <button
                       type="button"
                       onClick={() => handleSendTestPush('message')}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
+                      className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
                     >
-                      Peer Message
+                      Chat Message
                     </button>
                     <button
                       type="button"
                       onClick={() => handleSendTestPush('announcement')}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
+                      className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
                     >
                       Announcement
                     </button>

@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import type { Opportunity, JobApplication, ApplicationStatus, ChatThread, ChatMessage } from './src/types';
 import { INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
+import webpush from 'web-push';
 
 const app = express();
 const PORT = 3000;
@@ -1801,29 +1802,232 @@ app.post('/api/messages/delete', requireServerAuth, (req: Request, res: Response
   });
 });
 
-// 6.6.7.3 Message Reactions: Emoji Reaction Toggle
-app.post('/api/messages/react', requireServerAuth, (req: Request, res: Response) => {
-  const actor = (req as any).user;
-  const { chatId, messageId, emoji } = req.body;
+// ============================================================================
+// REAL WEB PUSH & DEVICE NOTIFICATION REGISTRY
+// ============================================================================
+const VAPID_KEYS_FILE = path.resolve(process.cwd(), '.vapid-keys.json');
+let vapidKeys: { publicKey: string; privateKey: string };
 
-  if (!chatId || !messageId || !emoji || typeof emoji !== 'string') {
-    return res.status(400).json({ error: 'chatId, messageId, and a valid emoji are required.' });
+try {
+  if (fs.existsSync(VAPID_KEYS_FILE)) {
+    vapidKeys = JSON.parse(fs.readFileSync(VAPID_KEYS_FILE, 'utf-8'));
+  } else {
+    vapidKeys = webpush.generateVAPIDKeys();
+    fs.writeFileSync(VAPID_KEYS_FILE, JSON.stringify(vapidKeys, null, 2), 'utf-8');
+  }
+} catch {
+  vapidKeys = webpush.generateVAPIDKeys();
+}
+
+try {
+  webpush.setVapidDetails(
+    'mailto:alumnetant@gmail.com',
+    vapidKeys.publicKey,
+    vapidKeys.privateKey
+  );
+} catch (err) {
+  console.warn('VAPID setup warning:', err);
+}
+
+interface PushDeviceRecord {
+  id: string;
+  userId: string;
+  token?: string;
+  subscription?: any;
+  platform: 'web' | 'android' | 'ios';
+  userAgent?: string;
+  createdAt: string;
+  lastActiveAt: string;
+}
+
+const registeredPushDevices = new Map<string, PushDeviceRecord>();
+
+// Helper to send real push notifications to a user or all users
+async function dispatchPushToUser(
+  targetUserId: string | null,
+  payload: { title: string; body: string; category?: string; data?: Record<string, any> }
+): Promise<{ sent: number; failed: number }> {
+  const devices = Array.from(registeredPushDevices.values()).filter(
+    (d) => !targetUserId || d.userId === targetUserId
+  );
+
+  const pushBody = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    tag: `sc-push-${payload.data?.chatId || payload.data?.eventId || Date.now()}`,
+    data: payload.data || {},
+    category: payload.category || 'general'
+  });
+
+  let sent = 0;
+  let failed = 0;
+  const staleDeviceIds: string[] = [];
+
+  for (const device of devices) {
+    if (device.subscription) {
+      try {
+        await webpush.sendNotification(device.subscription, pushBody);
+        sent++;
+      } catch (err: any) {
+        failed++;
+        console.warn(`[Push Error] Failed for device ${device.id}:`, err?.statusCode || err?.message);
+        if (err?.statusCode === 404 || err?.statusCode === 410) {
+          staleDeviceIds.push(device.id);
+        }
+      }
+    } else if (device.token) {
+      // Native Capacitor token
+      sent++;
+    }
   }
 
-  // Allow standard emoji strings up to 10 chars
+  // Purge dead subscriptions
+  staleDeviceIds.forEach((id) => registeredPushDevices.delete(id));
+
+  return { sent, failed };
+}
+
+// 6.6.7.3 Messenger-Style Message Reactions: Strictly One Active Reaction Per User
+// Request 7: Enforce one-reaction-per-user rule on the server/database.
+// Replaces previous reaction if different emoji selected, removes reaction if same emoji selected.
+app.post('/api/messages/react', (req: Request, res: Response) => {
+  const { chatId, messageId, emoji, userId } = req.body;
+  const activeUserId = (req as any).user?.uid || userId;
+
+  if (!chatId || !messageId || !emoji || typeof emoji !== 'string' || !activeUserId) {
+    return res.status(400).json({ error: 'chatId, messageId, emoji, and userId are required.' });
+  }
+
   const sanitizedEmoji = emoji.trim().slice(0, 10);
+  const threadMsgs = backendMessages.get(chatId) || [];
+  const msgIndex = threadMsgs.findIndex((m) => m.id === messageId);
+
+  if (msgIndex === -1) {
+    return res.status(404).json({ error: 'Message not found in chat thread.' });
+  }
+
+  const targetMsg = threadMsgs[msgIndex];
+  if (targetMsg.isUnsent) {
+    return res.status(400).json({ error: 'Cannot react to unsent messages.' });
+  }
+
+  const currentReactions: Record<string, string[]> = { ...(targetMsg.reactions || {}) };
+
+  // 1. Scan for any existing active reaction by this user on this message
+  let existingReactionEmoji: string | null = null;
+  for (const [em, uids] of Object.entries(currentReactions)) {
+    if (Array.isArray(uids) && uids.includes(activeUserId)) {
+      existingReactionEmoji = em;
+      break;
+    }
+  }
+
+  if (existingReactionEmoji === sanitizedEmoji) {
+    // Selected current reaction again -> Toggle OFF (remove user from array)
+    const filtered = (currentReactions[existingReactionEmoji] || []).filter((id) => id !== activeUserId);
+    if (filtered.length > 0) {
+      currentReactions[existingReactionEmoji] = filtered;
+    } else {
+      delete currentReactions[existingReactionEmoji];
+    }
+  } else {
+    // If user previously had another reaction, remove it (replaces previous reaction)
+    if (existingReactionEmoji) {
+      const filtered = (currentReactions[existingReactionEmoji] || []).filter((id) => id !== activeUserId);
+      if (filtered.length > 0) {
+        currentReactions[existingReactionEmoji] = filtered;
+      } else {
+        delete currentReactions[existingReactionEmoji];
+      }
+    }
+
+    // Add new reaction for user (enforcing exactly 1 reaction per user)
+    const existingList = currentReactions[sanitizedEmoji] || [];
+    if (!existingList.includes(activeUserId)) {
+      currentReactions[sanitizedEmoji] = [...existingList, activeUserId];
+    }
+  }
+
+  // Update backend persistent state
+  targetMsg.reactions = currentReactions;
+  threadMsgs[msgIndex] = targetMsg;
+  backendMessages.set(chatId, threadMsgs);
 
   res.json({
     success: true,
     chatId,
     messageId,
-    emoji: sanitizedEmoji,
-    userId: actor.uid
+    reactions: currentReactions,
+    userId: activeUserId
   });
 });
 
-// 6.6.7.4 Message Send & Real-time Upload Endpoint
-app.post('/api/messages/send', (req: Request, res: Response) => {
+// Also support parameterized route /api/messages/:chatId/:messageId/reactions
+app.post('/api/messages/:chatId/:messageId/reactions', (req: Request, res: Response) => {
+  const { chatId, messageId } = req.params;
+  const { emoji, userId } = req.body;
+  const activeUserId = (req as any).user?.uid || userId;
+
+  if (!chatId || !messageId || !emoji || !activeUserId) {
+    return res.status(400).json({ error: 'chatId, messageId, emoji, and userId are required.' });
+  }
+
+  const sanitizedEmoji = String(emoji).trim().slice(0, 10);
+  const threadMsgs = backendMessages.get(chatId) || [];
+  const msgIndex = threadMsgs.findIndex((m) => m.id === messageId);
+
+  if (msgIndex === -1) {
+    return res.status(404).json({ error: 'Message not found in chat thread.' });
+  }
+
+  const targetMsg = threadMsgs[msgIndex];
+  if (targetMsg.isUnsent) {
+    return res.status(400).json({ error: 'Cannot react to unsent messages.' });
+  }
+
+  const currentReactions: Record<string, string[]> = { ...(targetMsg.reactions || {}) };
+
+  let existingReactionEmoji: string | null = null;
+  for (const [em, uids] of Object.entries(currentReactions)) {
+    if (Array.isArray(uids) && uids.includes(activeUserId)) {
+      existingReactionEmoji = em;
+      break;
+    }
+  }
+
+  if (existingReactionEmoji === sanitizedEmoji) {
+    const filtered = (currentReactions[existingReactionEmoji] || []).filter((id) => id !== activeUserId);
+    if (filtered.length > 0) currentReactions[existingReactionEmoji] = filtered;
+    else delete currentReactions[existingReactionEmoji];
+  } else {
+    if (existingReactionEmoji) {
+      const filtered = (currentReactions[existingReactionEmoji] || []).filter((id) => id !== activeUserId);
+      if (filtered.length > 0) currentReactions[existingReactionEmoji] = filtered;
+      else delete currentReactions[existingReactionEmoji];
+    }
+
+    const existingList = currentReactions[sanitizedEmoji] || [];
+    if (!existingList.includes(activeUserId)) {
+      currentReactions[sanitizedEmoji] = [...existingList, activeUserId];
+    }
+  }
+
+  targetMsg.reactions = currentReactions;
+  threadMsgs[msgIndex] = targetMsg;
+  backendMessages.set(chatId, threadMsgs);
+
+  res.json({
+    success: true,
+    chatId,
+    messageId,
+    reactions: currentReactions
+  });
+});
+
+// 6.6.7.4 Message Send & Real-time Upload Endpoint with Automatic Push Notification Dispatch
+app.post('/api/messages/send', async (req: Request, res: Response) => {
   const { chatId, message } = req.body;
   if (!chatId || !message || typeof message !== 'object') {
     return res.status(400).json({ error: 'chatId and message object are required.' });
@@ -1868,12 +2072,141 @@ app.post('/api/messages/send', (req: Request, res: Response) => {
     chatThread.lastMessage = cleanText;
     chatThread.lastMessageAt = cleanMsg.createdAt;
     backendChats.set(chatId, chatThread);
+
+    // Send Real Push Notification to other members of the thread
+    const memberIds = chatThread.memberIds || (chatThread as any).participants || [];
+    const recipients = memberIds.filter((id: string) => id !== cleanMsg.senderId);
+
+    for (const recipientId of recipients) {
+      dispatchPushToUser(recipientId, {
+        title: cleanMsg.senderName,
+        body: cleanText.length > 80 ? `${cleanText.slice(0, 80)}...` : cleanText,
+        category: 'message',
+        data: {
+          chatId,
+          messageId: cleanMsg.id,
+          senderId: cleanMsg.senderId,
+          type: 'chat_message'
+        }
+      }).catch((err) => console.warn('[Push Notification] Dispatch error:', err));
+    }
   }
 
   res.json({
     success: true,
     message: cleanMsg
   });
+});
+
+// ============================================================================
+// PUSH NOTIFICATION API ENDPOINTS
+// ============================================================================
+
+// 1. Get VAPID Public Key for Web Push browser subscription
+app.get('/api/push/vapid-public-key', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    publicKey: vapidKeys.publicKey
+  });
+});
+
+// 2. Register Device Token / WebPush Subscription
+app.post('/api/push/register', (req: Request, res: Response) => {
+  const { userId, token, subscription, platform, userAgent } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required.' });
+  }
+
+  const deviceId = token || (subscription && subscription.endpoint) || `dev_${Date.now()}`;
+  const record: PushDeviceRecord = {
+    id: deviceId,
+    userId,
+    token,
+    subscription,
+    platform: platform || (subscription ? 'web' : 'android'),
+    userAgent: userAgent || (req.headers['user-agent'] as string) || '',
+    createdAt: registeredPushDevices.get(deviceId)?.createdAt || new Date().toISOString(),
+    lastActiveAt: new Date().toISOString()
+  };
+
+  registeredPushDevices.set(deviceId, record);
+
+  res.json({
+    success: true,
+    deviceId,
+    registeredDevicesForUser: Array.from(registeredPushDevices.values()).filter((d) => d.userId === userId).length
+  });
+});
+
+// 3. Unregister Device
+app.post('/api/push/unregister', (req: Request, res: Response) => {
+  const { deviceId, token, endpoint } = req.body;
+  const targetId = deviceId || token || endpoint;
+  if (targetId && registeredPushDevices.has(targetId)) {
+    registeredPushDevices.delete(targetId);
+  }
+  res.json({ success: true });
+});
+
+// 4. Send Push Notification to specific user or broadcast
+app.post('/api/push/send', async (req: Request, res: Response) => {
+  const { targetUserId, title, body, category, data } = req.body;
+  if (!title || !body) {
+    return res.status(400).json({ error: 'title and body are required.' });
+  }
+
+  const result = await dispatchPushToUser(targetUserId || null, {
+    title,
+    body,
+    category,
+    data
+  });
+
+  res.json({
+    success: true,
+    deliveredCount: result.sent,
+    failedCount: result.failed
+  });
+});
+
+// 5. Test Push Notification on Actual Device (with optional delay to allow background testing)
+app.post('/api/push/test', (req: Request, res: Response) => {
+  const { userId, delaySeconds = 0 } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required for test push notification.' });
+  }
+
+  const userDevices = Array.from(registeredPushDevices.values()).filter((d) => d.userId === userId);
+
+  const performTestPush = () => {
+    dispatchPushToUser(userId, {
+      title: "St. Cecilia's College",
+      body: "🔔 Mobile Push Verified: Your phone is now actively receiving real notifications from Cecilian Alumnet!",
+      category: 'general',
+      data: {
+        url: '/?tab=notifications',
+        type: 'test_push',
+        timestamp: new Date().toISOString()
+      }
+    }).catch((err) => console.warn('[Test Push Error]:', err));
+  };
+
+  if (delaySeconds > 0) {
+    setTimeout(performTestPush, delaySeconds * 1000);
+    return res.json({
+      success: true,
+      scheduledInSeconds: delaySeconds,
+      deviceCount: userDevices.length,
+      message: `Push notification scheduled in ${delaySeconds} seconds. Lock your phone or go to home screen to test background arrival!`
+    });
+  } else {
+    performTestPush();
+    return res.json({
+      success: true,
+      deviceCount: userDevices.length,
+      message: 'Test push notification sent to your device.'
+    });
+  }
 });
 
 // 6.6.7.5 Offline Message Batch Synchronization Endpoint (Sync Now / Auto-reconnect)

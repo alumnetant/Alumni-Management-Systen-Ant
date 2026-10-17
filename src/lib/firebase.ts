@@ -45,11 +45,11 @@ import {
   EventReservation
 } from '../types';
 
-// Authoritative Firestore Database ID (ai-studio-alumnet-c1f9166b-5db9-4770-bf10-8eba2ab51d7a)
+// Authoritative Firestore Database ID (ai-studio-alumnetant-92fb5716-8d56-4cfe-a603-629c0a70bf1a)
 export const FIRESTORE_DATABASE_ID =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_DATABASE_ID) ||
   rawFirebaseConfig.firestoreDatabaseId ||
-  'ai-studio-alumnet-c1f9166b-5db9-4770-bf10-8eba2ab51d7a';
+  'ai-studio-alumnetant-92fb5716-8d56-4cfe-a603-629c0a70bf1a';
 
 // Unified Firebase configuration supporting both local config file and Vercel/production environment variables
 export const firebaseConfig = {
