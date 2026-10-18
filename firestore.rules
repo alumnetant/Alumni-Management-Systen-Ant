@@ -24,9 +24,9 @@ service cloud.firestore {
         request.auth != null && (
           (request.auth.token.email != null &&
            request.auth.token.email in ['alumnetant@gmail.com', 'pocoravenlopez2024@gmail.com', 'rlopez@stcecilia.edu.ph', 'vincentbaloro002@gmail.com', 'vincentbaloro003@gmail.com', 'jamessvencanonigo@gmail.com', 'jamessvenansali@gmail.com', 'sheepyawa@gmail.com', 'just47969@gmail.com']) ||
-          (request.auth.token.role in ['admin', 'staff', 'registrar', 'moderator']) ||
+          (request.auth.token.role in ['superadmin', 'admin', 'staff', 'registrar', 'moderator']) ||
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'staff', 'registrar', 'moderator'])
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['superadmin', 'admin', 'staff', 'registrar', 'moderator'])
         )
       );
     }
@@ -36,9 +36,9 @@ service cloud.firestore {
         request.auth != null && (
           (request.auth.token.email != null &&
            request.auth.token.email in ['alumnetant@gmail.com', 'pocoravenlopez2024@gmail.com', 'rlopez@stcecilia.edu.ph', 'vincentbaloro002@gmail.com', 'vincentbaloro003@gmail.com', 'jamessvencanonigo@gmail.com', 'jamessvenansali@gmail.com', 'sheepyawa@gmail.com', 'just47969@gmail.com']) ||
-          (request.auth.token.role in ['admin', 'registrar']) ||
+          (request.auth.token.role in ['superadmin', 'admin', 'registrar', 'staff']) ||
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'registrar'])
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['superadmin', 'admin', 'registrar', 'staff'])
         )
       );
     }

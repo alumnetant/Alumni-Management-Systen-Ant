@@ -222,7 +222,8 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Clean, responsive navigation items (Includes Alumni Directory & auto-dismissing Jobs badge)
+  // Clean, responsive navigation items (Excludes Alumni Directory for employers per Section 2.5)
+  const isEmployer = currentUser?.role === 'employer';
   const mainNavItems = useMemo(() => [
     {
       id: 'dashboard' as AlumniModuleId,
@@ -230,12 +231,12 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       icon: LayoutDashboard,
       badge: null
     },
-    {
+    ...(!isEmployer ? [{
       id: 'network' as AlumniModuleId,
       label: 'Alumni Directory',
       icon: Users,
       badge: null
-    },
+    }] : []),
     {
       id: 'notifications' as AlumniModuleId,
       label: 'Notifications',

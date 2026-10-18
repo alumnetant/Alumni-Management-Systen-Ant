@@ -182,13 +182,22 @@ const webhookRateLimiter = createRateLimiter({
 // ============================================================================
 interface StoredUserCredential {
   uid: string;
+  name?: string;
   email: string;
   hash: string;
   salt: string;
   role: string;
   studentId?: string;
+  alumniId?: string;
   employeeId?: string;
+  company?: string;
   emailVerified: boolean;
+  isVerified?: boolean;
+  status?: string;
+  accountStatus?: string;
+  show_email?: boolean;
+  show_phone?: boolean;
+  show_current_employer?: boolean;
   verificationToken?: string;
   verificationTokenExpiry?: number;
 }
@@ -196,6 +205,61 @@ interface StoredUserCredential {
 // In-memory server-authoritative credentials store
 const credentialsDb = new Map<string, StoredUserCredential>();
 const revokedTokens = new Set<string>();
+
+/**
+ * Platform Detection Utility (Mobile/App vs. Web)
+ * Inspects explicit headers, body payload, and user-agent.
+ */
+function determinePlatform(req: Request): 'mobile' | 'web' {
+  // 1. Explicit Client Platform Header
+  const headerPlatform = String(req.headers['x-client-platform'] || '').toLowerCase().trim();
+  if (headerPlatform === 'mobile' || headerPlatform === 'tablet' || headerPlatform === 'android' || headerPlatform === 'ios') {
+    return 'mobile';
+  }
+  if (headerPlatform === 'web' || headerPlatform === 'desktop') {
+    return 'web';
+  }
+
+  // 2. Request body platform
+  if (req.body && typeof req.body.platform === 'string') {
+    const bodyPlatform = String(req.body.platform).toLowerCase().trim();
+    if (bodyPlatform === 'mobile' || bodyPlatform === 'tablet' || bodyPlatform === 'android' || bodyPlatform === 'ios') {
+      return 'mobile';
+    }
+    if (bodyPlatform === 'web' || bodyPlatform === 'desktop') {
+      return 'web';
+    }
+  }
+
+  // 3. User-Agent heuristic
+  const ua = String(req.headers['user-agent'] || '').toLowerCase();
+  if (ua.includes('capacitor') || ua.includes('mobile') || ua.includes('android') || ua.includes('iphone') || ua.includes('ipad')) {
+    return 'mobile';
+  }
+
+  return 'web';
+}
+
+/**
+ * Strict Moderator Quota Helper: MAX 3 ACTIVE ACCOUNTS
+ * Checks the count of currently active moderator records in the system.
+ */
+function getActiveModeratorCount(excludeUserId?: string): number {
+  let count = 0;
+  const countedUids = new Set<string>();
+  for (const cred of credentialsDb.values()) {
+    if (countedUids.has(cred.uid)) continue;
+    countedUids.add(cred.uid);
+    if (excludeUserId && cred.uid === excludeUserId) continue;
+
+    const role = (cred.role || '').toLowerCase().trim();
+    const status = (cred.accountStatus || cred.status || 'ACTIVE').toUpperCase().trim();
+    if (role === 'moderator' && (status === 'ACTIVE' || status === 'VERIFIED')) {
+      count++;
+    }
+  }
+  return count;
+}
 
 // ============================================================================
 // SINGLE ACTIVE SESSION & SECURITY NOTIFICATIONS (ONE ACCOUNT, ONE ACTIVE LOGIN)
@@ -962,6 +1026,55 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
     return res.status(401).json({ error: 'Invalid email address/Student ID or password.' });
   }
 
+  // ============================================================================
+  // DUAL GATE VERIFICATION (RBAC & PLATFORM GATE ARCHITECTURE)
+  // 1. Platform-Based Authentication Gate (Mobile/App vs. Web)
+  // 2. Account Lifecycle Status Gate (PENDING_VERIFICATION, ACTIVE, SUSPENDED)
+  // 3. Role Permissions Verification
+  // ============================================================================
+  const clientPlatform = determinePlatform(req);
+  const userRole = (user.role || 'alumni').toLowerCase().trim();
+
+  // GATE 1: Platform-Based Authentication Gate
+  if (clientPlatform === 'mobile') {
+    // Mobile App / Tablet / APK: ONLY alumni allowed
+    if (userRole !== 'alumni') {
+      return res.status(403).json({
+        error: 'Administrative and partner accounts must access the system via the Web Portal.',
+        code: 'PLATFORM_ACCESS_DENIED',
+        platform: 'mobile',
+        allowedPlatform: 'web',
+        role: user.role
+      });
+    }
+  } else {
+    // Web Browser / Desktop Portal: Alumni, Super Admin, Admin, Staff, Moderator, and Employer are all allowed.
+    const allowedWebRoles = ['alumni', 'superadmin', 'admin', 'staff', 'moderator', 'employer', 'registrar'];
+    if (!allowedWebRoles.includes(userRole)) {
+      return res.status(403).json({
+        error: 'Your role is not authorized to access the Web Portal.',
+        code: 'PLATFORM_ACCESS_DENIED',
+        platform: 'web',
+        role: user.role
+      });
+    }
+  }
+
+  // GATE 2: Account Lifecycle Status Gate
+  const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
+  if (accountStatus === 'SUSPENDED') {
+    return res.status(403).json({
+      error: 'This account has been suspended by administration. Please contact institutional support.',
+      code: 'ACCOUNT_SUSPENDED'
+    });
+  }
+  if (accountStatus === 'PENDING_VERIFICATION') {
+    return res.status(403).json({
+      error: 'Your account is pending registrar verification. You will be notified once your graduation credentials are confirmed.',
+      code: 'ACCOUNT_PENDING_VERIFICATION'
+    });
+  }
+
   const forceTerminate = !!req.body.forceTerminateOtherSession;
   const currentDevice = extractDeviceInfo(req);
 
@@ -1090,7 +1203,7 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
     userAgent: req.headers['user-agent'] || ''
   });
 
-  res.json({
+    res.json({
     message: 'Sign-in successful.',
     token,
     sessionId,
@@ -1112,6 +1225,30 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
   });
 });
 
+// Dedicated Platform Auth Route: Mobile App / Tablet
+app.post('/api/v1/auth/mobile/login', authRateLimiter, (req: Request, res: Response, next: NextFunction) => {
+  req.body.platform = 'mobile';
+  (req.headers as any)['x-client-platform'] = 'mobile';
+  const loginHandler = (app as any)._router.stack.find((r: any) => r.route && r.route.path === '/api/auth/login');
+  if (loginHandler && loginHandler.route && loginHandler.route.stack && loginHandler.route.stack.length > 0) {
+    const lastHandler = loginHandler.route.stack[loginHandler.route.stack.length - 1];
+    return lastHandler.handle(req, res, next);
+  }
+  next();
+});
+
+// Dedicated Platform Auth Route: Web Browser / Desktop Portal
+app.post('/api/v1/auth/web/login', authRateLimiter, (req: Request, res: Response, next: NextFunction) => {
+  req.body.platform = 'web';
+  (req.headers as any)['x-client-platform'] = 'web';
+  const loginHandler = (app as any)._router.stack.find((r: any) => r.route && r.route.path === '/api/auth/login');
+  if (loginHandler && loginHandler.route && loginHandler.route.stack && loginHandler.route.stack.length > 0) {
+    const lastHandler = loginHandler.route.stack[loginHandler.route.stack.length - 1];
+    return lastHandler.handle(req, res, next);
+  }
+  next();
+});
+
 // 6.2.1 Authentication: Active Session Verification & Recovery
 app.get('/api/auth/session', requireServerAuth, (req: Request, res: Response) => {
   const userPayload = (req as any).user;
@@ -1123,6 +1260,19 @@ app.get('/api/auth/session', requireServerAuth, (req: Request, res: Response) =>
   let matchedUser = credentialsDb.get(userPayload.uid);
   if (!matchedUser && userPayload.email) {
     matchedUser = credentialsDb.get(userPayload.email.toLowerCase());
+  }
+
+  // Dual Gate Verification on Session: Platform Access Check
+  const clientPlatform = determinePlatform(req);
+  const effectiveRole = (matchedUser?.role || userPayload.role || 'alumni').toLowerCase().trim();
+
+  if (clientPlatform === 'mobile' && effectiveRole !== 'alumni') {
+    return res.status(403).json({
+      error: 'Administrative and partner accounts must access the system via the Web Portal.',
+      code: 'PLATFORM_ACCESS_DENIED',
+      platform: 'mobile',
+      allowedPlatform: 'web'
+    });
   }
 
   const activeSess = activeSessions.get(userPayload.uid);
@@ -1399,18 +1549,32 @@ app.get('/api/auth/verify-email/status', (req: Request, res: Response) => {
 });
 
 // 6.6 Admin Route: Server-side Protected User Management
-app.get('/api/admin/users', requireServerAuth, requireRole(['admin', 'registrar']), (_req: Request, res: Response) => {
+app.get('/api/admin/users', requireServerAuth, requireRole(['admin', 'superadmin', 'staff', 'registrar']), (_req: Request, res: Response) => {
   const userList = Array.from(credentialsDb.values()).map((u) => ({
     uid: u.uid,
+    name: u.name,
     email: u.email,
     role: u.role,
+    status: u.accountStatus || u.status || 'ACTIVE',
+    accountStatus: u.accountStatus || u.status || 'ACTIVE',
     emailVerified: u.emailVerified
   }));
   res.json({ users: userList });
 });
 
-// 6.6.1 Admin Route: Role Assignment & Elevation (Strictly Admin only)
-app.post('/api/admin/promote-user', requireServerAuth, requireRole(['admin']), (req: Request, res: Response) => {
+// 6.6.0 Moderator Quota Status Route (Strict Max 3 Active Accounts)
+app.get('/api/moderators/quota', (_req: Request, res: Response) => {
+  const activeCount = getActiveModeratorCount();
+  res.json({
+    activeCount,
+    maxQuota: 3,
+    availableSlots: Math.max(0, 3 - activeCount),
+    canCreateModerator: activeCount < 3
+  });
+});
+
+// 6.6.1 Admin Route: Role Assignment & Elevation
+app.post('/api/admin/promote-user', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
   const adminActor = (req as any).user;
   const { targetEmail, newRole } = req.body;
 
@@ -1418,7 +1582,7 @@ app.post('/api/admin/promote-user', requireServerAuth, requireRole(['admin']), (
     return res.status(400).json({ error: 'Target email and new role are required.' });
   }
 
-  const ALLOWED_ROLES = ['superadmin', 'admin', 'registrar', 'staff', 'moderator', 'alumni', 'employer'];
+  const ALLOWED_ROLES = ['superadmin', 'admin', 'staff', 'moderator', 'employer', 'alumni', 'registrar'];
   if (!ALLOWED_ROLES.includes(newRole)) {
     return res.status(400).json({ error: `Invalid role '${newRole}'. Allowed: ${ALLOWED_ROLES.join(', ')}` });
   }
@@ -1427,6 +1591,27 @@ app.post('/api/admin/promote-user', requireServerAuth, requireRole(['admin']), (
   const targetUser = credentialsDb.get(normalized);
   if (!targetUser) {
     return res.status(404).json({ error: `User with email '${targetEmail}' not found.` });
+  }
+
+  // RBAC Constraint 2.1 & 2.2: Cannot edit infrastructure configs or assign/demote superadmin unless superadmin
+  if (adminActor.role !== 'superadmin' && (newRole === 'superadmin' || targetUser.role === 'superadmin')) {
+    return res.status(403).json({
+      error: 'Only Super Administrators can assign or modify the Super Admin role.',
+      code: 'SUPERADMIN_PRIVILEGE_REQUIRED'
+    });
+  }
+
+  // RBAC Constraint 2.4 & 3.2: Strict Moderator Quota Check (MAX 3 ACTIVE ACCOUNTS)
+  if (newRole === 'moderator' && targetUser.role !== 'moderator') {
+    const activeMods = getActiveModeratorCount(targetUser.uid);
+    if (activeMods >= 3) {
+      return res.status(422).json({
+        error: 'Moderator quota limit reached (maximum 3 active moderators allowed). Cannot create or promote another moderator.',
+        code: 'MODERATOR_QUOTA_EXCEEDED',
+        currentActive: activeMods,
+        maxQuota: 3
+      });
+    }
   }
 
   const oldRole = targetUser.role;
@@ -1452,7 +1637,7 @@ app.post('/api/admin/promote-user', requireServerAuth, requireRole(['admin']), (
   });
 });
 
-// 6.6.1.1 Admin Route: Provision New User with Role Assignment (Strictly Admin only)
+// 6.6.1.1 Admin Route: Provision New User with Role Assignment
 app.post('/api/admin/create-user', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
   const adminActor = (req as any).user;
   const { name, email, password, role = 'alumni', department, studentId, employeeId, batch, course } = req.body;
@@ -1464,9 +1649,30 @@ app.post('/api/admin/create-user', requireServerAuth, requireRole(['admin', 'sup
     return res.status(400).json({ error: 'User name is required.' });
   }
 
-  const ALLOWED_ROLES = ['admin', 'superadmin', 'registrar', 'staff', 'moderator', 'alumni', 'employer'];
+  const ALLOWED_ROLES = ['superadmin', 'admin', 'staff', 'moderator', 'employer', 'alumni', 'registrar'];
   if (!ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({ error: `Invalid role '${role}'. Allowed roles: ${ALLOWED_ROLES.join(', ')}` });
+  }
+
+  // Constraint: Only Super Admin can provision superadmin
+  if (role === 'superadmin' && adminActor.role !== 'superadmin') {
+    return res.status(403).json({
+      error: 'Only Super Administrators can provision new superadmin accounts.',
+      code: 'SUPERADMIN_PRIVILEGE_REQUIRED'
+    });
+  }
+
+  // RBAC Constraint 2.4 & 3.2: Strict Moderator Quota Check (MAX 3 ACTIVE ACCOUNTS)
+  if (role === 'moderator') {
+    const activeMods = getActiveModeratorCount();
+    if (activeMods >= 3) {
+      return res.status(422).json({
+        error: 'Moderator quota limit reached (maximum 3 active moderators allowed). Cannot create or promote another moderator.',
+        code: 'MODERATOR_QUOTA_EXCEEDED',
+        currentActive: activeMods,
+        maxQuota: 3
+      });
+    }
   }
 
   const normalized = email.toLowerCase().trim();
@@ -1480,10 +1686,13 @@ app.post('/api/admin/create-user', requireServerAuth, requireRole(['admin', 'sup
 
   const credRecord: StoredUserCredential = {
     uid,
+    name,
     email: normalized,
     hash,
     salt,
     role,
+    status: 'ACTIVE',
+    accountStatus: 'ACTIVE',
     studentId: studentId ? String(studentId).trim() : undefined,
     employeeId: employeeId ? String(employeeId).trim() : undefined,
     emailVerified: true
@@ -1518,6 +1727,104 @@ app.post('/api/admin/create-user', requireServerAuth, requireRole(['admin', 'sup
       role
     }
   });
+});
+
+// ============================================================================
+// 6.6.1.2 PROFILE MANAGEMENT WITH IDOR PROTECTION (Requirement 3.4)
+// Endpoints pull user ID directly from authenticated session, NOT request body
+// ============================================================================
+app.put('/api/profile', requireServerAuth, (req: Request, res: Response) => {
+  // CRITICAL IDOR PREVENTION: Pull user ID directly from authenticated session token
+  const authenticatedUid = (req as any).user.uid || (req as any).user.id;
+  if (!authenticatedUid) {
+    return res.status(401).json({ error: 'Unauthorized: Missing authenticated session context.' });
+  }
+
+  let userCred = credentialsDb.get(authenticatedUid);
+  if (!userCred && (req as any).user.email) {
+    userCred = credentialsDb.get((req as any).user.email.toLowerCase());
+  }
+
+  const { name, headline, about, phone, currentPosition, company, location } = req.body;
+  if (userCred) {
+    if (name) userCred.name = name;
+    if (company) userCred.company = company;
+  }
+
+  res.json({
+    success: true,
+    message: 'Profile updated securely.',
+    uid: authenticatedUid,
+    updatedFields: { name, headline, about, phone, currentPosition, company, location }
+  });
+});
+
+// Granular Alumni Profile Privacy Toggles (Requirement 2.6 & 3.5)
+app.put('/api/profile/privacy', requireServerAuth, (req: Request, res: Response) => {
+  // IDOR safe: authenticated user only
+  const authenticatedUid = (req as any).user.uid;
+  if (!authenticatedUid) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  let userCred = credentialsDb.get(authenticatedUid);
+  if (!userCred && (req as any).user.email) {
+    userCred = credentialsDb.get((req as any).user.email.toLowerCase());
+  }
+
+  const { show_email, show_phone, show_current_employer } = req.body;
+  if (userCred) {
+    if (typeof show_email === 'boolean') userCred.show_email = show_email;
+    if (typeof show_phone === 'boolean') userCred.show_phone = show_phone;
+    if (typeof show_current_employer === 'boolean') userCred.show_current_employer = show_current_employer;
+  }
+
+  res.json({
+    success: true,
+    message: 'Privacy settings updated successfully.',
+    privacy: {
+      show_email: typeof show_email === 'boolean' ? show_email : userCred?.show_email ?? true,
+      show_phone: typeof show_phone === 'boolean' ? show_phone : userCred?.show_phone ?? true,
+      show_current_employer: typeof show_current_employer === 'boolean' ? show_current_employer : userCred?.show_current_employer ?? true
+    }
+  });
+});
+
+// ============================================================================
+// 6.6.1.3 ALUMNI DIRECTORY WITH DATA MINIMIZATION & EMPLOYER BOUNDARY (Req 2.5 & 3.5)
+// ============================================================================
+app.get('/api/alumni/directory', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const actorRole = (actor.role || 'alumni').toLowerCase().trim();
+
+  // CRITICAL SECURITY BOUNDARY: Employers must NEVER be able to search, browse, or scrape the Alumni Directory
+  if (actorRole === 'employer') {
+    return res.status(403).json({
+      error: 'Employers are strictly restricted from browsing the Alumni Directory. You may only view applicants who have voluntarily applied to your job postings.',
+      code: 'EMPLOYER_DIRECTORY_RESTRICTED'
+    });
+  }
+
+  // Data Minimization: Return only public fields and respect individual privacy flags
+  const publicAlumni = Array.from(credentialsDb.values())
+    .filter((u) => u.role === 'alumni')
+    .map((u) => {
+      const showEmail = u.show_email !== false;
+      const showPhone = u.show_phone !== false;
+      const showCompany = u.show_current_employer !== false;
+
+      return {
+        uid: u.uid,
+        name: u.name || 'Cecilian Alumnus',
+        email: showEmail ? u.email : '[Private / Hidden by Alumnus]',
+        phone: showPhone ? 'Verified on File' : '[Private / Hidden by Alumnus]',
+        company: showCompany ? u.company || 'Private Sector' : '[Private / Hidden by Alumnus]',
+        role: 'alumni',
+        isVerified: u.isVerified ?? true
+      };
+    });
+
+  res.json({ alumni: publicAlumni });
 });
 
 // 6.6.2 Admin / Registrar Route: Student Verification Enforcement

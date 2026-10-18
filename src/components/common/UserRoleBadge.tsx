@@ -1,11 +1,11 @@
 import React from 'react';
 import {
+  KeyRound,
   ShieldCheck,
-  GraduationCap,
-  Briefcase,
   FileCheck2,
-  BookmarkCheck,
-  BookOpen
+  MessageSquareWarning,
+  Briefcase,
+  GraduationCap
 } from 'lucide-react';
 import { UserRole } from '../../types';
 
@@ -22,48 +22,44 @@ export const UserRoleBadge: React.FC<UserRoleBadgeProps> = ({
   className = '',
   showIcon = true
 }) => {
-  const normalizedRole = (role || 'alumni').toLowerCase();
+  const normalizedRole = (role || 'alumni').toLowerCase().trim();
 
-  let label = 'Alumni';
-  let colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
+  let label = 'Alumnus';
+  let colorClasses = 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800 font-semibold';
   let Icon = GraduationCap;
 
   switch (normalizedRole) {
     case 'superadmin':
       label = 'Super Admin';
-      colorClasses = 'bg-purple-100 text-purple-900 border-purple-300 font-bold';
-      Icon = ShieldCheck;
+      colorClasses = 'bg-purple-900/10 text-purple-900 dark:bg-purple-950/70 dark:text-purple-300 border-purple-300 dark:border-purple-800 font-bold';
+      Icon = KeyRound;
       break;
     case 'admin':
     case 'administrator':
       label = 'Administrator';
-      colorClasses = 'bg-rose-100 text-rose-900 border-rose-300 font-bold';
+      colorClasses = 'bg-rose-100 text-rose-900 dark:bg-rose-950/70 dark:text-rose-300 border-rose-300 dark:border-rose-800 font-bold';
       Icon = ShieldCheck;
+      break;
+    case 'staff':
+    case 'registrar':
+      label = 'Staff Officer';
+      colorClasses = 'bg-emerald-100 text-emerald-900 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 font-semibold';
+      Icon = FileCheck2;
       break;
     case 'moderator':
       label = 'Moderator';
-      colorClasses = 'bg-amber-100 text-amber-900 border-amber-300 font-bold';
-      Icon = ShieldCheck;
-      break;
-    case 'registrar':
-      label = 'Registrar';
-      colorClasses = 'bg-indigo-100 text-indigo-900 border-indigo-300 font-bold';
-      Icon = FileCheck2;
+      colorClasses = 'bg-amber-100 text-amber-900 dark:bg-amber-950/70 dark:text-amber-300 border-amber-300 dark:border-amber-800 font-bold';
+      Icon = MessageSquareWarning;
       break;
     case 'employer':
       label = 'Employer';
-      colorClasses = 'bg-sky-100 text-sky-900 border-sky-300 font-bold';
+      colorClasses = 'bg-sky-100 text-sky-900 dark:bg-sky-950/70 dark:text-sky-300 border-sky-300 dark:border-sky-800 font-bold';
       Icon = Briefcase;
-      break;
-    case 'staff':
-      label = 'Staff Officer';
-      colorClasses = 'bg-emerald-100 text-emerald-900 border-emerald-300 font-semibold';
-      Icon = BookmarkCheck;
       break;
     case 'alumni':
     default:
       label = 'Alumnus';
-      colorClasses = 'bg-blue-50 text-blue-700 border-blue-200 font-semibold';
+      colorClasses = 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800 font-semibold';
       Icon = GraduationCap;
       break;
   }

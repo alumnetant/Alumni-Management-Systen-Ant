@@ -1,10 +1,34 @@
-export type UserRole = 'alumni' | 'admin' | 'registrar' | 'staff' | 'moderator' | 'superadmin' | 'employer';
+export type OfficialSystemRole = 'superadmin' | 'admin' | 'staff' | 'moderator' | 'employer' | 'alumni';
+
+// UserRole includes the 6 core roles and legacy alias 'registrar' (merged into staff)
+export type UserRole = OfficialSystemRole | 'registrar';
+
+export type AccountLifecycleStatus = 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED';
+
+export type PlatformType = 'mobile' | 'web';
+
+/**
+ * Platform Access Policy:
+ * - Mobile App / Tablet / APK ('mobile'): ONLY 'alumni' allowed. Non-alumni administrative/partner accounts must access via Web.
+ * - Web Browser / Desktop Portal ('web'): Alumni, Super Admin, Admin, Staff, Moderator, and Employer accounts are all allowed.
+ */
+export function isRoleAllowedOnPlatform(role: string | undefined, platform: PlatformType): boolean {
+  if (!role) return false;
+  const normalized = role.toLowerCase().trim();
+  if (platform === 'mobile') {
+    return normalized === 'alumni';
+  }
+  if (platform === 'web') {
+    return ['alumni', 'superadmin', 'admin', 'staff', 'moderator', 'employer', 'registrar'].includes(normalized);
+  }
+  return false;
+}
 
 /**
  * Role-Based Categorization:
  * Determines if a user belongs to an administrative or staff management role
- * such as Admin, Registrar, Employer, Staff, Moderator, Super Admin, System Administrator.
- * Alumni and Student users return false.
+ * such as Admin, Staff, Moderator, Super Admin, Employer.
+ * Alumni users return false.
  */
 export function isAdministrativeOrStaffRole(role?: string): boolean {
   if (!role) return false;
@@ -147,6 +171,16 @@ export interface UserProfile {
   employerStatus?: 'active' | 'expired' | 'pending_renewal' | 'pending_verification';
   employerRenewalRequested?: boolean;
   employerRenewalNotes?: string;
+  // RBAC Lifecycle Status (Dual Gate Verification)
+  accountStatus?: AccountLifecycleStatus;
+  status?: AccountLifecycleStatus | string;
+  // Granular Alumni Profile Privacy Toggles (Security & Data Minimization)
+  show_email?: boolean;
+  show_phone?: boolean;
+  show_current_employer?: boolean;
+  showEmail?: boolean;
+  showPhone?: boolean;
+  showCurrentEmployer?: boolean;
 }
 
 export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';

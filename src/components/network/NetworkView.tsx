@@ -36,7 +36,8 @@ import {
   ArrowRight,
   Activity,
   Layers,
-  Send
+  Send,
+  ShieldAlert
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { UserProfile } from '../../types';
@@ -266,6 +267,31 @@ export const NetworkView: React.FC = () => {
     hidden: { opacity: 0, y: 8 },
     show: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const } }
   };
+
+  // HARD RESTRICTION (RBAC Section 2.5): Employers must NEVER be able to search, browse, or scrape the Alumni Directory
+  if (currentUser?.role === 'employer') {
+    return (
+      <div className="max-w-2xl mx-auto my-12 p-8 sm:p-10 bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 shadow-sm text-center">
+        <div className="w-16 h-16 rounded-full bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 mx-auto flex items-center justify-center mb-4">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-stone-100 tracking-tight mb-2">
+          Alumni Directory Access Restricted
+        </h2>
+        <p className="text-stone-600 dark:text-stone-400 text-xs sm:text-sm max-w-md mx-auto leading-relaxed mb-6">
+          Under institutional RBAC guidelines (Section 2.5), Employer accounts are strictly restricted from browsing, searching, or scraping the Alumni Directory. You may only view candidates who voluntarily submit applications to your job postings.
+        </p>
+        <button
+          type="button"
+          onClick={() => setActiveTab('opportunities')}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#8B181B] text-white font-semibold text-xs sm:text-sm hover:bg-[#721316] transition-colors cursor-pointer"
+        >
+          <Briefcase className="w-4 h-4" />
+          Manage Job Listings & Applicants
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-12 antialiased">

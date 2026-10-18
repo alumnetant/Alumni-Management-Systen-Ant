@@ -251,6 +251,13 @@ interface AlumniContextType {
   terminateOtherSessionAndLogin: (identifier: string, pass: string) => Promise<boolean>;
   register: (data: Partial<UserProfile> & { password?: string }) => boolean;
   createUserByAdmin: (data: Partial<UserProfile> & { password?: string; role: UserRole }) => boolean;
+  // Platform Gate & Testing Controls
+  clientPlatform: 'mobile' | 'web';
+  setClientPlatformOverride: (platform: 'mobile' | 'web' | null) => void;
+  loginPlatformError: string | null;
+  clearLoginPlatformError: () => void;
+  // Strict Moderator Quota (MAX 3 ACTIVE ACCOUNTS)
+  moderatorQuota: { activeCount: number; maxQuota: number; availableSlots: number; canCreateModerator: boolean };
   logout: () => void;
   switchUser: (uid: string) => void;
   resetPassword: (email: string) => boolean;
@@ -1186,6 +1193,59 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const clearActiveSessionConflict = useCallback(() => {
     setActiveSessionConflict(null);
   }, []);
+
+  // Platform Gate & Testing Controls (Mobile App / Tablet vs Web Portal)
+  const [clientPlatformOverride, setClientPlatformOverrideState] = useState<'mobile' | 'web' | null>(() => {
+    try {
+      const saved = localStorage.getItem('scc_client_platform_override');
+      return (saved === 'mobile' || saved === 'web') ? saved : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const clientPlatform: 'mobile' | 'web' = useMemo(() => {
+    if (clientPlatformOverride) return clientPlatformOverride;
+    if (typeof window === 'undefined') return 'web';
+    if (typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor.isNativePlatform?.()) {
+      return 'mobile';
+    }
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Silk/i.test(navigator.userAgent) ||
+      (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 1024);
+    return (window.innerWidth < 1024 || isMobileUA) ? 'mobile' : 'web';
+  }, [clientPlatformOverride]);
+
+  const setClientPlatformOverride = useCallback((platform: 'mobile' | 'web' | null) => {
+    setClientPlatformOverrideState(platform);
+    try {
+      if (platform) {
+        localStorage.setItem('scc_client_platform_override', platform);
+      } else {
+        localStorage.removeItem('scc_client_platform_override');
+      }
+    } catch {}
+  }, []);
+
+  const [loginPlatformError, setLoginPlatformError] = useState<string | null>(null);
+  const clearLoginPlatformError = useCallback(() => {
+    setLoginPlatformError(null);
+  }, []);
+
+  // Strict Moderator Quota State: MAX 3 ACTIVE ACCOUNTS
+  const moderatorQuota = useMemo(() => {
+    const activeMods = users.filter((u) => {
+      const role = (u.role || '').toLowerCase();
+      const status = (u.accountStatus || u.status || 'ACTIVE').toUpperCase();
+      return role === 'moderator' && status !== 'SUSPENDED';
+    });
+    const count = activeMods.length;
+    return {
+      activeCount: count,
+      maxQuota: 3,
+      availableSlots: Math.max(0, 3 - count),
+      canCreateModerator: count < 3
+    };
+  }, [users]);
 
   const getClientDeviceInfo = useCallback((): string => {
     if (typeof window === 'undefined') return 'Web Client';
@@ -2555,14 +2615,24 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const serverRes = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Client-Platform': clientPlatform
         },
         body: JSON.stringify({
           identifier: trimmed,
           password: pass,
+          platform: clientPlatform,
           deviceInfo: getClientDeviceInfo()
         })
       });
+
+      if (serverRes.status === 403) {
+        const errorData = await serverRes.json();
+        const errorMsg = errorData.error || 'Access denied on this platform.';
+        showToast(errorMsg, 'error');
+        setLoginPlatformError(errorMsg);
+        return false;
+      }
 
       if (serverRes.status === 409) {
         const conflictData = await serverRes.json();
@@ -2600,6 +2670,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           } catch {}
         }
         setActiveSessionConflict(null);
+        setLoginPlatformError(null);
       }
     } catch {
       // In offline / standalone preview mode, continue to local validation
@@ -2716,6 +2787,34 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     if (pass !== expectedPassword) {
       showToast('Invalid email, SCC ID, or password.', 'error');
+      return false;
+    }
+
+    // ========================================================================
+    // DUAL GATE VERIFICATION (PLATFORM GATE & ACCOUNT LIFECYCLE STATUS)
+    // 1. Platform Gate: Mobile allows ONLY alumni; Web allows Alumni, Admin, Staff, Mod, Employer, Superadmin
+    // 2. Lifecycle Status: PENDING_VERIFICATION, ACTIVE, SUSPENDED
+    // ========================================================================
+    const effectiveRole = (user.role || 'alumni').toLowerCase().trim();
+    if (clientPlatform === 'mobile') {
+      if (effectiveRole !== 'alumni') {
+        const errorMsg = 'Administrative and partner accounts must access the system via the Web Portal.';
+        showToast(errorMsg, 'error');
+        setLoginPlatformError(errorMsg);
+        return false;
+      }
+    } else {
+      // Web Portal allows Alumni as well as administrative and employer roles
+      setLoginPlatformError(null);
+    }
+
+    const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
+    if (accountStatus === 'SUSPENDED') {
+      showToast('This account has been suspended by administration. Please contact institutional support.', 'error');
+      return false;
+    }
+    if (accountStatus === 'PENDING_VERIFICATION') {
+      showToast('Your account is pending registrar verification. You will be notified once your graduation credentials are confirmed.', 'error');
       return false;
     }
 
@@ -3016,11 +3115,24 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Administrator-exclusive account creation (admin accounts created by admin only)
   const createUserByAdmin = (data: Partial<UserProfile> & { password?: string; role: UserRole }): boolean => {
     if (currentUser?.role !== 'admin' && currentUser?.role !== 'superadmin') {
-      showToast('Permission denied: Only system Administrators can provision staff and admin accounts.');
+      showToast('Permission denied: Only system Administrators can provision staff and admin accounts.', 'error');
       return false;
     }
-    const newUid = `user_admin_${Date.now()}`;
     const role = data.role || 'alumni';
+
+    // Super Admin provisioning restriction
+    if (role === 'superadmin' && currentUser?.role !== 'superadmin') {
+      showToast('Permission denied: Only Super Administrators can provision superadmin accounts.', 'error');
+      return false;
+    }
+
+    // Strict Moderator Quota Constraint: MAX 3 ACTIVE ACCOUNTS
+    if (role === 'moderator' && !moderatorQuota.canCreateModerator) {
+      showToast('Moderator quota limit reached (maximum 3 active moderators allowed). Cannot create or promote another moderator.', 'error');
+      return false;
+    }
+
+    const newUid = `user_admin_${Date.now()}`;
     const newUser: UserProfile = {
       uid: newUid,
       name: data.name || 'New University User',
@@ -7211,6 +7323,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         clearActiveSessionConflict,
         terminateOtherSessionAndLogin,
         register,
+        clientPlatform,
+        setClientPlatformOverride,
+        loginPlatformError,
+        clearLoginPlatformError,
+        moderatorQuota,
         logout,
         switchUser,
         resetPassword,

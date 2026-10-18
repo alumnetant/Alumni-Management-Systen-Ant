@@ -38,7 +38,8 @@ import {
   X,
   FileText,
   Send,
-  ScanFace
+  ScanFace,
+  Smartphone
 } from 'lucide-react';
 import {
   checkBiometricAvailability,
@@ -105,7 +106,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     showToast,
     activeSessionConflict,
     clearActiveSessionConflict,
-    terminateOtherSessionAndLogin
+    terminateOtherSessionAndLogin,
+    clientPlatform,
+    setClientPlatformOverride,
+    loginPlatformError,
+    clearLoginPlatformError,
+    moderatorQuota
   } = useAlumni();
   const { isDark, toggleTheme } = useTheme();
 
@@ -647,6 +653,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         onBackToApp();
       }
     } else {
+      // If failure was due to platform access gate or lifecycle restriction, display message directly
+      if (loginPlatformError) {
+        setLoginError(loginPlatformError);
+        return;
+      }
+
       // If failure was due to an active session conflict, do not increment failed password lockout
       if (activeSessionConflict) {
         return;
@@ -1259,6 +1271,65 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 </span>
               </div>
             ) : null}
+
+            {/* Platform Gateway Selector & Policy Indicator (Requirement 1) */}
+            <div className="mb-4 p-3 rounded-2xl bg-stone-50 dark:bg-stone-850 border border-stone-200 dark:border-stone-750">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
+                  Platform Access Gate
+                </span>
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                  clientPlatform === 'mobile'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
+                    : 'bg-rose-50 text-[#8B181B] border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800'
+                }`}>
+                  {clientPlatform === 'mobile' ? 'Alumni Mobile App (APK)' : 'Web Desktop Portal'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-200/60 dark:bg-stone-900/60 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClientPlatformOverride('mobile');
+                    clearLoginPlatformError();
+                    setLoginError('');
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    clientPlatform === 'mobile'
+                      ? 'bg-white dark:bg-stone-800 text-blue-700 dark:text-blue-300 shadow-xs'
+                      : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
+                  }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                  Alumni Mobile App
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClientPlatformOverride('web');
+                    clearLoginPlatformError();
+                    setLoginError('');
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    clientPlatform === 'web'
+                      ? 'bg-white dark:bg-stone-800 text-[#8B181B] dark:text-rose-400 shadow-xs'
+                      : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  Web Portal
+                </button>
+              </div>
+              <div className="mt-2 text-[10px] text-stone-500 dark:text-stone-400 leading-tight flex items-start gap-1">
+                <ShieldCheck className="w-3 h-3 text-stone-400 shrink-0 mt-0.5" />
+                <span>
+                  {clientPlatform === 'mobile'
+                    ? 'Mobile App Gate: ONLY verified Alumni accounts allowed. Administrative and partner accounts must access via the Web Portal.'
+                    : 'Web Portal Gate: Alumni, Admin, Super Admin, Staff, Moderator, & Employer accounts are all supported.'}
+                </span>
+              </div>
+            </div>
 
             {/* Sign In Form */}
             <form onSubmit={handleLoginSubmit} className="space-y-4">

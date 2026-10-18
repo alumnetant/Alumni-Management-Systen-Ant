@@ -85,6 +85,7 @@ export const AdminPanelView: React.FC = () => {
     events,
     syncAllDataToCloud,
     isFirestoreSyncing,
+    moderatorQuota,
     showToast
   } = useAlumni();
 
@@ -1146,20 +1147,33 @@ export const AdminPanelView: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-stone-700 block mb-1">Role *</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-stone-700 block text-xs">Role *</label>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${
+                      moderatorQuota.activeCount >= 3 ? 'bg-amber-100 text-amber-800' : 'bg-stone-100 text-stone-600'
+                    }`}>
+                      Mods: {moderatorQuota.activeCount}/3
+                    </span>
+                  </div>
                   <select
                     value={newUserRole}
                     onChange={(e) => setNewUserRole(e.target.value as UserRole)}
-                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg font-semibold text-stone-800"
+                    className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg font-semibold text-stone-800 text-xs"
                   >
-                    <option value="admin">Admin</option>
-                    <option value="superadmin">Super Admin</option>
-                    <option value="registrar">Registrar</option>
-                    <option value="staff">Staff</option>
-                    <option value="moderator">Moderator</option>
-                    <option value="employer">Employer</option>
-                    <option value="alumni">Alumni</option>
+                    <option value="admin">Administrator (Web Only)</option>
+                    <option value="superadmin">Super Admin (Web Only)</option>
+                    <option value="staff">Staff Officer (Web Only)</option>
+                    <option value="moderator" disabled={!moderatorQuota.canCreateModerator && newUserRole !== 'moderator'}>
+                      Moderator (Web Only - {moderatorQuota.activeCount}/3 {moderatorQuota.activeCount >= 3 ? 'FULL' : 'active'})
+                    </option>
+                    <option value="employer">Employer / Partner (Web Only)</option>
+                    <option value="alumni">Alumnus (Mobile App Only)</option>
                   </select>
+                  {newUserRole === 'moderator' && moderatorQuota.activeCount >= 3 && (
+                    <p className="text-[10px] text-amber-700 mt-1 font-semibold">
+                      Quota Limit: Maximum 3 active moderators permitted.
+                    </p>
+                  )}
                 </div>
 
                 <div>
