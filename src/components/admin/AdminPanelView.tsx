@@ -318,7 +318,7 @@ export const AdminPanelView: React.FC = () => {
     return (
       <div className="bg-white p-12 rounded-2xl border border-stone-200 text-center max-w-lg mx-auto shadow-2xs">
         <ShieldAlert className="w-12 h-12 text-amber-600 mx-auto mb-3" />
-        <h2 className="text-base font-bold text-stone-900 font-serif">Restricted Administration Portal</h2>
+        <h2 className="text-base font-bold text-stone-900 font-sans">Restricted Administration Portal</h2>
         <p className="text-xs text-stone-500 mt-2 leading-relaxed">
           Your current account role is <span className="font-bold text-stone-800 uppercase">{currentUser?.role}</span>.
           Access to this management console requires Admin, Registrar, Staff, or Moderator privileges.
@@ -659,7 +659,7 @@ export const AdminPanelView: React.FC = () => {
                 <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
                   <ShieldAlert className="w-6 h-6 text-amber-600" />
                 </div>
-                <h3 className="text-base font-bold text-stone-900 font-serif">Access Restricted</h3>
+                <h3 className="text-base font-bold text-stone-900 font-sans">Access Restricted</h3>
                 <p className="text-xs text-stone-600 leading-relaxed">
                   The Student Registry module is restricted to Registrar and System Administrator accounts.
                 </p>
@@ -686,7 +686,7 @@ export const AdminPanelView: React.FC = () => {
                 <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
                   <ShieldAlert className="w-6 h-6 text-amber-600" />
                 </div>
-                <h3 className="text-base font-bold text-stone-900 font-serif">Access Restricted</h3>
+                <h3 className="text-base font-bold text-stone-900 font-sans">Access Restricted</h3>
                 <p className="text-xs text-stone-600 leading-relaxed">
                   Career opportunities and employer accreditation management is restricted to authorized moderators and administrators.
                 </p>
@@ -703,7 +703,7 @@ export const AdminPanelView: React.FC = () => {
                 <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
                   <ShieldAlert className="w-6 h-6 text-amber-600" />
                 </div>
-                <h3 className="text-base font-bold text-stone-900 font-serif">Access Restricted</h3>
+                <h3 className="text-base font-bold text-stone-900 font-sans">Access Restricted</h3>
                 <p className="text-xs text-stone-600 leading-relaxed">
                   Audit logs and compliance trails are viewable by Administrators only.
                 </p>
@@ -727,7 +727,7 @@ export const AdminPanelView: React.FC = () => {
                       <span aria-hidden="true" className="text-stone-300">·</span>
                       <span>Alumni Hall of Fame</span>
                     </div>
-                    <h2 className="text-2xl sm:text-3xl font-bold font-serif text-stone-900 tracking-tight leading-tight">
+                    <h2 className="text-2xl sm:text-3xl font-bold font-sans text-stone-900 tracking-tight leading-tight">
                       Alumni Milestones & Honors Roster
                     </h2>
                     <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
@@ -814,7 +814,7 @@ export const AdminPanelView: React.FC = () => {
                       </div>
 
                       <div className="mt-3.5">
-                        <h3 className="text-base font-bold text-stone-900 font-serif leading-snug">
+                        <h3 className="text-base font-bold text-stone-900 font-sans leading-snug">
                           {m.title}
                         </h3>
                         <p className="text-xs text-stone-600 mt-2 leading-relaxed">
@@ -853,7 +853,7 @@ export const AdminPanelView: React.FC = () => {
                       <span aria-hidden="true" className="text-stone-300">·</span>
                       <span>Geographical Hubs</span>
                     </div>
-                    <h2 className="text-2xl sm:text-3xl font-bold font-serif text-stone-900 tracking-tight leading-tight">
+                    <h2 className="text-2xl sm:text-3xl font-bold font-sans text-stone-900 tracking-tight leading-tight">
                       Cecilian Chapters & Geographical Hubs
                     </h2>
                     <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
@@ -920,7 +920,7 @@ export const AdminPanelView: React.FC = () => {
                       </div>
 
                       <div className="mt-3.5">
-                        <h3 className="text-lg font-bold text-stone-900 font-serif group-hover:text-[#8B181B] transition-colors">
+                        <h3 className="text-lg font-bold text-stone-900 font-sans group-hover:text-[#8B181B] transition-colors">
                           {ch.name}
                         </h3>
                         <p className="text-xs text-stone-500 mt-1 leading-relaxed">
@@ -962,7 +962,7 @@ export const AdminPanelView: React.FC = () => {
                       <span aria-hidden="true" className="text-stone-300">·</span>
                       <span>Visual History</span>
                     </div>
-                    <h2 className="text-2xl sm:text-3xl font-bold font-serif text-stone-900 tracking-tight leading-tight">
+                    <h2 className="text-2xl sm:text-3xl font-bold font-sans text-stone-900 tracking-tight leading-tight">
                       Campus Visual Archive & Gallery
                     </h2>
                     <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
@@ -1040,7 +1040,7 @@ export const AdminPanelView: React.FC = () => {
                         </div>
 
                         <div className="absolute bottom-3 left-3 right-3 text-white">
-                          <h4 className="text-base sm:text-lg font-bold font-serif tracking-tight text-white drop-shadow-xs line-clamp-1">
+                          <h4 className="text-base sm:text-lg font-bold font-sans tracking-tight text-white drop-shadow-xs line-clamp-1">
                             {item.title}
                           </h4>
                           {item.description && (
@@ -1090,7 +1090,7 @@ export const AdminPanelView: React.FC = () => {
                   <UserPlus className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-stone-900 font-serif">Provision University Account</h3>
+                  <h3 className="text-sm font-bold text-stone-900 font-sans">Provision University Account</h3>
                   <p className="text-[11px] text-stone-500">Official Institutional Setup</p>
                 </div>
               </div>
@@ -1210,7 +1210,7 @@ export const AdminPanelView: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-stone-200 w-full max-w-md p-5 text-xs">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h3 className="text-sm font-bold font-serif text-stone-900">Publish Alumni Milestone</h3>
+              <h3 className="text-sm font-bold font-sans text-stone-900">Publish Alumni Milestone</h3>
               <button onClick={() => setShowMilestoneModal(false)} className="text-stone-400 hover:text-stone-600">
                 ✕
               </button>
@@ -1308,7 +1308,7 @@ export const AdminPanelView: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl border border-stone-200 w-full max-w-md p-5 text-xs">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h3 className="text-sm font-bold font-serif text-stone-900">Charter Regional Chapter</h3>
+              <h3 className="text-sm font-bold font-sans text-stone-900">Charter Regional Chapter</h3>
               <button onClick={() => setShowChapterModal(false)} className="text-stone-400 hover:text-stone-600">
                 ✕
               </button>
@@ -1392,7 +1392,7 @@ export const AdminPanelView: React.FC = () => {
                   <Upload className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-stone-900 font-serif">Upload Archival Photo</h3>
+                  <h3 className="text-sm font-bold text-stone-900 font-sans">Upload Archival Photo</h3>
                   <p className="text-[11px] text-stone-500">Curated Campus Collection</p>
                 </div>
               </div>

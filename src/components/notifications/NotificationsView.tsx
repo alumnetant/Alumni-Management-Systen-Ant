@@ -175,7 +175,7 @@ export const NotificationsView: React.FC = () => {
           </div>
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="font-serif text-xl sm:text-2xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">
+              <h1 className="font-sans text-xl sm:text-2xl font-bold text-stone-900 dark:text-stone-100 tracking-tight">
                 Notifications & Activity
               </h1>
               {unreadNotificationsCount > 0 ? (

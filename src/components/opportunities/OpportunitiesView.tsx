@@ -112,6 +112,14 @@ export const OpportunitiesView: React.FC = () => {
     setExpandedJobIds((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // Requirement 3: Automatically clear/dismiss Jobs notification badge on visit
+  useEffect(() => {
+    try {
+      localStorage.setItem('scc_jobs_badge_dismissed_v1', 'true');
+    } catch {}
+    window.dispatchEvent(new CustomEvent('applet:jobs-viewed'));
+  }, []);
+
   // Post Job Form State
   const [title, setTitle] = useState('');
   const [company, setCompany] = useState(currentUser?.role === 'employer' && currentUser?.companyName ? currentUser.companyName : '');

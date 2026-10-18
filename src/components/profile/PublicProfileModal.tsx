@@ -212,7 +212,7 @@ export const PublicProfileModal: React.FC = () => {
               {/* User Details */}
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="font-serif text-xl sm:text-2xl font-bold text-stone-900 dark:text-white">
+                  <h2 className="font-sans text-xl sm:text-2xl font-bold text-stone-900 dark:text-white tracking-tight">
                     {targetUser.name}
                   </h2>
                   {targetUser.isVerified && (
@@ -268,7 +268,7 @@ export const PublicProfileModal: React.FC = () => {
 
               {/* About Section */}
               <div className="mt-5">
-                <h3 className="font-serif text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-1.5">
+                <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-1.5">
                   About
                 </h3>
                 <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 leading-relaxed whitespace-pre-line bg-stone-50/60 dark:bg-stone-800/40 p-3.5 rounded-xl border border-stone-200/60 dark:border-stone-700/50">
@@ -279,7 +279,7 @@ export const PublicProfileModal: React.FC = () => {
               {/* Experience Timeline */}
               {(targetUser.experience || []).length > 0 && (
                 <div className="mt-6">
-                  <h3 className="font-serif text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-3 flex items-center gap-1.5">
+                  <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-3 flex items-center gap-1.5">
                     <Briefcase className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
                     <span>Professional Experience</span>
                   </h3>
@@ -306,7 +306,7 @@ export const PublicProfileModal: React.FC = () => {
               {/* Education Timeline */}
               {(targetUser.education || []).length > 0 && (
                 <div className="mt-6">
-                  <h3 className="font-serif text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-3 flex items-center gap-1.5">
+                  <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-3 flex items-center gap-1.5">
                     <GraduationCap className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
                     <span>Education & Academics</span>
                   </h3>

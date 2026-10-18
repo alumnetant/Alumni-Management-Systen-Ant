@@ -1188,7 +1188,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                         <span aria-hidden="true" className="text-stone-300">·</span>
                         <span>Alumni Hall of Fame</span>
                       </div>
-                      <h2 className="text-2xl sm:text-3xl font-bold font-serif text-stone-900 tracking-tight leading-tight">
+                      <h2 className="text-2xl sm:text-3xl font-bold font-sans text-stone-900 tracking-tight leading-tight">
                         Alumni Milestones & Honors Roster
                       </h2>
                       <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
@@ -1283,7 +1283,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                           </div>
 
                           <div className="mt-3.5">
-                            <h3 className="text-base font-bold text-stone-900 font-serif leading-snug">
+                            <h3 className="text-base font-bold text-stone-900 font-sans leading-snug">
                               {m.title}
                             </h3>
                             <p className="text-xs text-stone-600 mt-2 leading-relaxed">
@@ -1321,7 +1321,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                         <span aria-hidden="true" className="text-stone-300">·</span>
                         <span>Geographical Hubs</span>
                       </div>
-                      <h2 className="text-2xl sm:text-3xl font-bold font-serif text-stone-900 tracking-tight leading-tight">
+                      <h2 className="text-2xl sm:text-3xl font-bold font-sans text-stone-900 tracking-tight leading-tight">
                         Cecilian Chapters & Geographical Hubs
                       </h2>
                       <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
@@ -1394,7 +1394,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                           </div>
 
                           <div className="mt-3.5">
-                            <h3 className="text-lg font-bold text-stone-900 font-serif group-hover:text-[#8B181B] transition-colors">
+                            <h3 className="text-lg font-bold text-stone-900 font-sans group-hover:text-[#8B181B] transition-colors">
                               {ch.name}
                             </h3>
                             <p className="text-xs text-stone-500 mt-1 leading-relaxed">

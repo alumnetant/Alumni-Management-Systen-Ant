@@ -1799,7 +1799,7 @@ export const SettingsView: React.FC = () => {
                 className="w-16 h-16 rounded-full object-cover mx-auto border-2 border-[#8B181B] shadow-md"
               />
               <div>
-                <h3 className="text-base font-extrabold text-stone-900 font-serif">St. Cecilia's College Alumni Network</h3>
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-sans tracking-tight">St. Cecilia's College Alumni Network</h3>
                 <p className="text-[11px] text-stone-400 mt-0.5">Version 2.4.0 (Production Release)</p>
               </div>
               <p className="text-stone-600 leading-relaxed text-xs">

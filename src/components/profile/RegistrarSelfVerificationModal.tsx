@@ -72,7 +72,7 @@ const RegistrarSelfVerificationModalContent: React.FC<{ onClose: () => void }> =
               <GraduationCap className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-serif text-lg font-bold text-stone-900 dark:text-white leading-tight">
+              <h3 className="font-sans text-lg font-bold text-stone-900 dark:text-white leading-tight">
                 Registrar Degree Verification
               </h3>
               <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">

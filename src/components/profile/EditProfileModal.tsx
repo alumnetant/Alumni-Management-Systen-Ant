@@ -214,7 +214,7 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
           <div>
-            <h2 className="font-serif text-lg sm:text-xl font-bold text-stone-900 dark:text-white tracking-tight">
+            <h2 className="font-sans text-lg sm:text-xl font-bold text-stone-900 dark:text-white tracking-tight">
               Edit Your Alumni Profile
             </h2>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">

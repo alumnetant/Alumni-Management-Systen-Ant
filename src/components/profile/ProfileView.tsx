@@ -365,7 +365,7 @@ export const ProfileView: React.FC = () => {
           {/* User Bio Details */}
           <div className="mt-2">
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl font-bold text-stone-900 dark:text-white tracking-tight">
+              <h1 className="font-sans text-2xl sm:text-3xl lg:text-4xl font-bold text-stone-900 dark:text-white tracking-tight">
                 {currentUser.name}
               </h1>
 
@@ -516,7 +516,7 @@ export const ProfileView: React.FC = () => {
               
               {/* About Section */}
               <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
-                <h2 className="font-serif text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center justify-between mb-3">
+                <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center justify-between mb-3">
                   <span>Biography & About</span>
                   <button
                     type="button"
@@ -533,7 +533,7 @@ export const ProfileView: React.FC = () => {
 
               {/* Cecilian Academic Credentials Invariants */}
               <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
-                <h2 className="font-serif text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2 mb-4">
+                <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2 mb-4">
                   <ShieldCheck className="w-5 h-5 text-[#8B181B] dark:text-red-400" />
                   <span>Institutional Credentials</span>
                 </h2>
@@ -577,7 +577,7 @@ export const ProfileView: React.FC = () => {
               {/* Professional Experience Section */}
               <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-serif text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
                     <Briefcase className="w-5 h-5 text-[#8B181B] dark:text-red-400" />
                     <span>Career Experience ({(currentUser.experience || []).length})</span>
                   </h2>
@@ -623,7 +623,7 @@ export const ProfileView: React.FC = () => {
               {/* Education Section */}
               <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-serif text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
                     <GraduationCap className="w-5 h-5 text-[#8B181B] dark:text-red-400" />
                     <span>Education & Degrees ({(currentUser.education || []).length})</span>
                   </h2>

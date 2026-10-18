@@ -591,7 +591,7 @@ export const MessagesView: React.FC = () => {
               {/* Search Bar & Stream Header */}
               <div className="p-3.5 border-b border-stone-200/80 space-y-2.5 bg-white">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold font-serif tracking-tight text-stone-900 uppercase">
+                  <span className="text-xs font-bold font-sans tracking-tight text-stone-900 uppercase">
                     Dispatch Channels
                   </span>
                   <span className="text-[11px] font-mono text-stone-400 tabular-nums">

@@ -17,7 +17,6 @@ import {
   User as UserIcon,
   Search,
   Menu,
-  ArrowLeft,
   X,
   QrCode,
   ShieldCheck,

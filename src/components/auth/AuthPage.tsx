@@ -971,7 +971,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           </div>
 
           {/* Large Serif Heading */}
-          <h1 className="font-serif text-5xl xl:text-6xl font-normal text-white tracking-tight leading-[1.1] mb-5">
+          <h1 className="font-sans text-4xl sm:text-5xl xl:text-6xl font-bold text-white tracking-tight leading-[1.1] mb-5">
             {mode === 'login'
               ? 'Welcome Back.'
               : registrationType === 'employer'
@@ -1124,7 +1124,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         {mode === 'login' && (
           <div className="max-w-md w-full mx-auto">
             {/* Form Title & Subtitle */}
-            <h2 className="font-serif text-3xl sm:text-4xl text-stone-900 dark:text-stone-100 font-normal tracking-tight mb-2">
+            <h2 className="font-sans text-2xl sm:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight mb-2">
               Sign In
             </h2>
             <p className="text-sm text-stone-500 dark:text-stone-400 font-normal mb-6">
@@ -1442,7 +1442,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             {registrationComplete ? (
               <div className="text-center py-12">
                 <CheckCircle2 className="w-16 h-16 text-emerald-600 mx-auto mb-4" />
-                <h3 className="font-serif text-2xl font-bold text-stone-900">
+                <h3 className="font-sans text-xl sm:text-2xl font-bold text-stone-900 tracking-tight">
                   {registrationType === 'employer'
                     ? 'Registration Received — Pending Review'
                     : (studentVerificationStatus === 'verified' || isRegistryMatched)
@@ -1496,7 +1496,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       <Building2 className="w-3 h-3" />
                       Corporate Accreditation & Recruitment Partner
                     </div>
-                    <h2 className="font-serif text-3xl sm:text-4xl text-stone-900 font-normal tracking-tight mb-1">
+                    <h2 className="font-sans text-2xl sm:text-3xl text-stone-900 font-bold tracking-tight mb-1">
                       Register Organization
                     </h2>
                     <p className="text-sm text-stone-500 font-normal mb-4">
@@ -1894,7 +1894,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         <ShieldCheck className="w-3.5 h-3.5" />
                         Official Alumni Verification
                       </div>
-                      <h2 className="font-serif text-3xl sm:text-4xl text-stone-900 font-normal tracking-tight mb-1">
+                      <h2 className="font-sans text-2xl sm:text-3xl text-stone-900 font-bold tracking-tight mb-1">
                         Verify Student ID
                       </h2>
                       <p className="text-sm text-stone-500 font-normal leading-relaxed">
@@ -2135,7 +2135,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         <UserCheck className="w-3.5 h-3.5" />
                         Step 2 of 3 • Account Setup
                       </div>
-                      <h2 className="font-serif text-3xl sm:text-4xl text-stone-900 font-normal tracking-tight mb-1">
+                      <h2 className="font-sans text-2xl sm:text-3xl text-stone-900 font-bold tracking-tight mb-1">
                         Account Credentials
                       </h2>
                       <p className="text-sm text-stone-500 font-normal leading-relaxed">
@@ -2581,7 +2581,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       <ShieldCheck className="w-3.5 h-3.5" />
                       <span>Step 3 of 3 · Final Verification & Covenants</span>
                     </div>
-                    <h2 className="font-serif text-3xl sm:text-4xl text-stone-900 font-normal tracking-tight mb-1">
+                    <h2 className="font-sans text-2xl sm:text-3xl text-stone-900 font-bold tracking-tight mb-1">
                       Review & Honor Pledge
                     </h2>
                     <p className="text-sm text-stone-500 font-normal mb-5">
@@ -2936,7 +2936,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300">
                     Conflict Case Flagged: #{disputeReferenceId}
                   </span>
-                  <h3 className="text-xl font-bold font-serif text-stone-900 mt-2">
+                  <h3 className="text-xl font-bold font-sans text-stone-900 mt-2">
                     ID Dispute Submitted to Registrar
                   </h3>
                   <p className="text-xs text-stone-500 leading-relaxed max-w-sm mx-auto mt-2">
@@ -3116,7 +3116,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300">
                     Appeal Reference: #{manualReferenceId}
                   </span>
-                  <h3 className="text-xl font-bold font-serif text-stone-900 mt-2">
+                  <h3 className="text-xl font-bold font-sans text-stone-900 mt-2">
                     Verification Appeal Received
                   </h3>
                   <p className="text-xs text-stone-500 leading-relaxed max-w-sm mx-auto mt-2">

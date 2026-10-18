@@ -171,7 +171,7 @@ const FirstTimeProfileSetupModalContent: React.FC<{ onClose: () => void }> = ({ 
             <Sparkles className="w-6 h-6 text-amber-300" />
           </div>
 
-          <h2 className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-white">
+          <h2 className="font-sans text-xl sm:text-2xl font-bold tracking-tight text-white">
             Welcome, {currentUser.name}!
           </h2>
           <p className="text-xs text-white/85 mt-1 max-w-md mx-auto leading-relaxed">
