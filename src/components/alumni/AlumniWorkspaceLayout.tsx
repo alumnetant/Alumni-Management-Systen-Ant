@@ -31,7 +31,8 @@ import {
   BookOpen,
   ScanFace,
   Grid,
-  MoreHorizontal
+  MoreHorizontal,
+  WifiOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
@@ -46,11 +47,15 @@ import { ProfileView } from '../profile/ProfileView';
 import { SettingsView } from '../settings/SettingsView';
 import { CampusGalleryModal } from '../gallery/CampusGalleryModal';
 import { DigitalAlumniCard } from '../profile/DigitalAlumniCard';
+import { WebDigitalPassCard } from '../profile/WebDigitalPassCard';
+import { PlatformOnly } from '../common/PlatformOnly';
 import { VerificationGate } from '../common/VerificationGate';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
 import { GlobalCommandPalette } from '../common/GlobalCommandPalette';
 import { NotificationsView } from '../notifications/NotificationsView';
+import { registerBackAction, triggerHaptic } from '../../services/mobileAppService';
+import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 
 export type AlumniModuleId =
   | 'dashboard'
@@ -113,7 +118,10 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     return 'dashboard';
   }, [activeTab]);
 
+  const { isOnline } = useNetworkStatus();
+
   const handleSelectModule = (mod: AlumniModuleId) => {
+    triggerHaptic('light');
     setActiveTab(mod as any);
   };
 
@@ -152,6 +160,61 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
+
+  // Hardware Back Button action stack: Closes topmost modals/drawers first, then navigates back to dashboard
+  useEffect(() => {
+    if (showDigitalPassModal) {
+      return registerBackAction(() => {
+        setShowDigitalPassModal(false);
+        return true;
+      });
+    }
+  }, [showDigitalPassModal]);
+
+  useEffect(() => {
+    if (showMobileNav) {
+      return registerBackAction(() => {
+        setShowMobileNav(false);
+        return true;
+      });
+    }
+  }, [showMobileNav]);
+
+  useEffect(() => {
+    if (showGalleryModal) {
+      return registerBackAction(() => {
+        setShowGalleryModal(false);
+        return true;
+      });
+    }
+  }, [showGalleryModal]);
+
+  useEffect(() => {
+    if (showCommandPalette) {
+      return registerBackAction(() => {
+        setShowCommandPalette(false);
+        return true;
+      });
+    }
+  }, [showCommandPalette]);
+
+  useEffect(() => {
+    if (showProfileMenu) {
+      return registerBackAction(() => {
+        setShowProfileMenu(false);
+        return true;
+      });
+    }
+  }, [showProfileMenu]);
+
+  useEffect(() => {
+    if (currentModule !== 'dashboard') {
+      return registerBackAction(() => {
+        setActiveTab('dashboard' as any);
+        return true;
+      });
+    }
+  }, [currentModule, setActiveTab]);
 
   // Unread messages count
   const unreadMessagesCount = useMemo(() => {
@@ -894,6 +957,14 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
           )}
         </AnimatePresence>
 
+        {/* Offline Cache Status Pill */}
+        {!isOnline && (
+          <div className="bg-amber-600/95 text-white text-[11px] font-semibold px-4 py-1.5 flex items-center justify-center gap-2 shadow-xs sticky top-16 z-30 backdrop-blur-xs">
+            <WifiOff className="w-3.5 h-3.5 shrink-0" />
+            <span>Offline Mode • Viewing Cached Alumni Pass, Directory & Events</span>
+          </div>
+        )}
+
         {/* ======================================================
             PRIMARY ALUMNI CONTENT VIEWPORT
             ====================================================== */}
@@ -1070,7 +1141,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
           onClick={() => setShowDigitalPassModal(false)}
         >
           <div
-            className="max-w-md w-full"
+            className="max-w-2xl w-full"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-end mb-2">
@@ -1082,7 +1153,12 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <DigitalAlumniCard />
+            <PlatformOnly
+              client="mobile"
+              fallback={<WebDigitalPassCard user={currentUser} />}
+            >
+              <DigitalAlumniCard />
+            </PlatformOnly>
           </div>
         </div>
       )}

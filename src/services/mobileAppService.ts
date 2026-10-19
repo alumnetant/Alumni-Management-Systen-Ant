@@ -7,13 +7,86 @@
  * - Native Keyboard visibility and intelligent input auto-scroll
  * - Safe area & orientation change coordination
  * - Device notch, status bar, and home indicator ergonomics
+ * - Android Hardware Back Button navigation stack & exit handling
+ * - Tactile Haptic Feedback integration (Capacitor & Web Vibration)
  */
 
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Keyboard } from '@capacitor/keyboard';
+import { App as CapApp } from '@capacitor/app';
+import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 
 let isMobileServiceInitialized = false;
+
+// Hardware back button action stack (LIFO: topmost modal/drawer handles first)
+type BackActionHandler = () => boolean; // returns true if action was consumed
+const backActionStack: BackActionHandler[] = [];
+let lastBackPressTime = 0;
+
+/**
+ * Registers a dismiss action onto the mobile back button stack (e.g., when a modal opens).
+ * Returns an unregister cleanup function.
+ */
+export function registerBackAction(handler: BackActionHandler): () => void {
+  backActionStack.push(handler);
+  return () => {
+    const idx = backActionStack.lastIndexOf(handler);
+    if (idx !== -1) {
+      backActionStack.splice(idx, 1);
+    }
+  };
+}
+
+import { triggerHaptic } from './hapticsService';
+export { triggerHaptic };
+
+/**
+ * Sets up the Android Hardware Back Button listener
+ */
+export function initHardwareBackButton(
+  onNavigateHome?: () => boolean | void,
+  onShowToast?: (msg: string, type: 'info' | 'success' | 'error') => void
+): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  const backListenerPromise = CapApp.addListener('backButton', () => {
+    // 1. Check if an active modal or drawer registered a back action
+    if (backActionStack.length > 0) {
+      const topAction = backActionStack[backActionStack.length - 1];
+      const consumed = topAction();
+      if (consumed) {
+        triggerHaptic('light');
+        return;
+      }
+    }
+
+    // 2. If no modal is open, attempt to navigate back to dashboard/home if provided
+    if (onNavigateHome) {
+      const consumed = onNavigateHome();
+      if (consumed) {
+        triggerHaptic('light');
+        return;
+      }
+    }
+
+    // 3. At root view: prevent accidental exit, require double-tap within 2.2 seconds
+    const now = Date.now();
+    if (now - lastBackPressTime < 2200) {
+      CapApp.exitApp();
+    } else {
+      lastBackPressTime = now;
+      triggerHaptic('medium');
+      if (onShowToast) {
+        onShowToast('Press back again to exit Cecilian Alumnet', 'info');
+      }
+    }
+  });
+
+  return () => {
+    backListenerPromise.then((handle) => handle.remove()).catch(() => {});
+  };
+}
 
 /**
  * Initializes mobile native plugins, keyboard management, and status bar

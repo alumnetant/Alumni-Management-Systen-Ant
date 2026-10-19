@@ -178,8 +178,17 @@ export default defineConfig(() => {
             if (id.includes('node_modules/three')) {
               return 'vendor-three';
             }
-            if (id.includes('node_modules/firebase')) {
+            if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
               return 'vendor-firebase';
+            }
+            if (id.includes('node_modules/framer-motion')) {
+              return 'vendor-motion';
+            }
+            if (id.includes('node_modules/lucide-react')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('node_modules/@capacitor')) {
+              return 'vendor-capacitor';
             }
             if (id.includes('node_modules/recharts') || id.includes('node_modules/d3')) {
               return 'vendor-charts';

@@ -244,7 +244,7 @@ export const LandingPWAInstallPrompt: React.FC<LandingPWAInstallPromptProps> = (
                     />
                   </div>
                   <div>
-                    <h3 className="font-serif font-bold text-base sm:text-lg tracking-tight">
+                    <h3 className="font-sans font-bold text-base sm:text-lg tracking-tight">
                       Install Cecilian Alumnet
                     </h3>
                     <p className="text-[11px] text-amber-200/90 font-medium">

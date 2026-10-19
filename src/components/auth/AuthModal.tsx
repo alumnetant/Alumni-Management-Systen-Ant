@@ -228,7 +228,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
               className="w-14 h-14 rounded-full object-cover border-2 border-white/40 shadow-md"
             />
           </div>
-          <h2 className="text-xl font-bold font-serif tracking-tight">St. Cecilia's Alumni Network</h2>
+          <h2 className="text-xl font-bold font-sans tracking-tight">St. Cecilia's Alumni Network</h2>
           <p className="text-xs text-rose-100/90 mt-0.5">
             {mode === 'login'
               ? 'Sign in to access your alumni hub'

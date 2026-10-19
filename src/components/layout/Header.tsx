@@ -267,7 +267,7 @@ export const Header: React.FC<{
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="font-serif font-bold text-sm sm:text-lg text-stone-900 dark:text-stone-100 tracking-tight truncate">
+                <span className="font-sans font-bold text-sm sm:text-lg text-stone-900 dark:text-stone-100 tracking-tight truncate">
                   Cecilian Alumnet
                 </span>
                 <span className="hidden sm:inline-block px-2 py-0.5 text-xs font-bold rounded-full bg-red-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 border border-red-200 dark:border-rose-900/60">

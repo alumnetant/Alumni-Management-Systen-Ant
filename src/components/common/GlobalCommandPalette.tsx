@@ -481,7 +481,7 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
             <span>Use <kbd className="px-1 py-0.5 bg-white dark:bg-stone-800 rounded border border-stone-200 dark:border-stone-700">↑</kbd> <kbd className="px-1 py-0.5 bg-white dark:bg-stone-800 rounded border border-stone-200 dark:border-stone-700">↓</kbd> to navigate</span>
             <span><kbd className="px-1 py-0.5 bg-white dark:bg-stone-800 rounded border border-stone-200 dark:border-stone-700">Enter</kbd> to select</span>
           </div>
-          <span className="hidden sm:inline font-serif italic text-stone-400">Cecilian Alumnet • Speed Navigation</span>
+          <span className="hidden sm:inline font-sans italic text-stone-400">Cecilian Alumnet • Speed Navigation</span>
         </div>
       </div>
     </div>

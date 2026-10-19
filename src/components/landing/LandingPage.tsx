@@ -811,7 +811,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </span>
                   <span aria-hidden="true" className="text-stone-500">·</span>
                   <div className="flex items-center min-h-[22px]">
-                    <span className="font-serif italic text-xs sm:text-[14px] text-white tracking-wide">
+                    <span className="font-sans italic text-xs sm:text-[14px] text-white tracking-wide">
                       {displayedWelcomeText}
                     </span>
                     <motion.span

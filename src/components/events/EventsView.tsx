@@ -54,6 +54,7 @@ import { InteractiveHeartReaction } from '../common/InteractiveHeartReaction';
 import { EventReminderToggle } from './EventReminderToggle';
 import { getEventLifecycleStatus } from '../../services/eventReservationService';
 import { shareEventViaCapacitor } from '../../services/nativeShareService';
+import { EventCheckInModal } from './EventCheckInModal';
 
 export const EventsView: React.FC = () => {
   const {
@@ -68,6 +69,7 @@ export const EventsView: React.FC = () => {
     addCommentToEvent,
     rsvpEvent,
     updateEventAttendance,
+    manualCheckInAttendee,
     permissions,
     setSelectedUserIdForModal,
     getOrCreateChat,
@@ -83,6 +85,7 @@ export const EventsView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
   const [selectedEventForDetail, setSelectedEventForDetail] = useState<AlumniEvent | null>(null);
+  const [checkInModalEvent, setCheckInModalEvent] = useState<AlumniEvent | null>(null);
 
   const handleShareEventWithCapacitor = async (evt: AlumniEvent) => {
     const result = await shareEventViaCapacitor(evt);
@@ -1326,7 +1329,18 @@ export const EventsView: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    {((currentUser?.role && ['admin', 'superadmin', 'staff', 'moderator'].includes(currentUser.role)) || activeEvent.createdBy === currentUser?.uid) && (
+                      <button
+                        type="button"
+                        onClick={() => setCheckInModalEvent(activeEvent)}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs"
+                        title="Open Event Check-In Console"
+                      >
+                        <UserCheck className="w-3.5 h-3.5 text-white" />
+                        <span>Check-In Console</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleShareEventWithCapacitor(activeEvent)}
@@ -1470,6 +1484,13 @@ export const EventsView: React.FC = () => {
                           </div>
 
                           <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                            {att.checkInStatus === 'checked_in' && (
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                <span>Attended</span>
+                              </span>
+                            )}
+
                             <span
                               className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 ${
                                 att.status === 'going'
@@ -1489,6 +1510,30 @@ export const EventsView: React.FC = () => {
                                 </>
                               )}
                             </span>
+
+                            {/* Staff / Admin Quick Check-In Toggle */}
+                            {currentUser?.role && ['admin', 'superadmin', 'staff', 'moderator'].includes(currentUser.role) && (
+                              att.checkInStatus === 'checked_in' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => manualCheckInAttendee(activeEvent.id, att.uid || att.id, false)}
+                                  className="px-2 py-1 bg-stone-100 hover:bg-stone-200 text-stone-600 rounded-lg text-[10px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                                  title="Undo check-in"
+                                >
+                                  <span>Undo</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => manualCheckInAttendee(activeEvent.id, att.uid || att.id, true)}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
+                                  title="Check-in attendee"
+                                >
+                                  <UserCheck className="w-3 h-3 text-white" />
+                                  <span>Check In</span>
+                                </button>
+                              )
+                            )}
 
                             {!isMe && (
                               <div className="flex items-center gap-1">
@@ -1946,6 +1991,15 @@ export const EventsView: React.FC = () => {
         cancelLabel={eventActionConfirm?.type === 'cancel_rsvp' ? 'Keep RSVP' : 'Cancel'}
         variant={eventActionConfirm?.type === 'cancel_rsvp' ? 'warning' : 'danger'}
       />
+
+      {/* ================= MODAL: ATTENDEE CHECK-IN CONSOLE ================= */}
+      {checkInModalEvent && (
+        <EventCheckInModal
+          event={checkInModalEvent}
+          isOpen={!!checkInModalEvent}
+          onClose={() => setCheckInModalEvent(null)}
+        />
+      )}
     </div>
   );
 };

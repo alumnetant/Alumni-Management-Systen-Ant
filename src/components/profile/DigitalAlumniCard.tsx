@@ -16,6 +16,7 @@ import { UserProfile } from '../../types';
 import { useAlumni } from '../../context/AlumniContext';
 import { generateAlumniId } from '../../services/studentVerificationService';
 import { triggerHaptic } from '../../services/hapticsService';
+import { Capacitor } from '@capacitor/core';
 
 interface DigitalAlumniCardProps {
   user?: UserProfile;
@@ -62,6 +63,42 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   };
 
   const formattedId = getFormattedId(user);
+
+  // Cache digital pass credentials to localStorage so it is 100% accessible offline
+  React.useEffect(() => {
+    if (user?.uid) {
+      try {
+        const passCacheKey = `scc_offline_pass_${user.uid}`;
+        const passData = {
+          uid: user.uid,
+          name: user.name,
+          formattedId,
+          role: user.role,
+          batch: user.batch,
+          course: user.course,
+          studentId: user.studentId,
+          alumniId: user.alumniId,
+          cachedAt: new Date().toISOString()
+        };
+        localStorage.setItem(passCacheKey, JSON.stringify(passData));
+
+        // When in mobile environment, request signed offline validation token hash
+        if (Capacitor.isNativePlatform() || localStorage.getItem('client_platform_override') === 'mobile') {
+          fetch('/api/pass/offline-token', { method: 'POST' })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (data?.offlineSignature) {
+                localStorage.setItem(
+                  passCacheKey,
+                  JSON.stringify({ ...passData, ...data })
+                );
+              }
+            })
+            .catch(() => {});
+        }
+      } catch {}
+    }
+  }, [user, formattedId]);
 
   const getRolePassTitle = (role?: string) => {
     switch (role) {
@@ -217,7 +254,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
       <div className="pt-7 sm:pt-10 space-y-1 sm:space-y-2">
         {/* Signature Strip */}
         <div className="bg-white/95 rounded px-2.5 sm:px-3 py-1 sm:py-1.5 flex items-center justify-between text-stone-900">
-          <span className="font-serif italic text-[11px] sm:text-xs tracking-wider text-stone-700 truncate pr-2">
+          <span className="font-sans italic text-[11px] sm:text-xs tracking-wider text-stone-700 truncate pr-2">
             {user.name}
           </span>
           <span className="font-mono text-[9px] sm:text-[10px] font-bold text-stone-500 shrink-0">

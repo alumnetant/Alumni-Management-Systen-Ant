@@ -130,7 +130,7 @@ export const Landing3DPass: React.FC<Landing3DPassProps> = ({ onRegisterClick })
               <span className="text-[9px] font-mono uppercase tracking-[0.24em] text-stone-400 block mb-0.5">
                 CLASS OF 2024 • BSIT
               </span>
-              <h4 className="text-lg sm:text-xl font-bold tracking-tight text-white font-serif">
+              <h4 className="text-lg sm:text-xl font-bold tracking-tight text-white font-sans">
                 Alexandria M. Santos
               </h4>
               <p className="text-[11px] text-amber-200/90 font-medium mt-0.5">
@@ -172,7 +172,7 @@ export const Landing3DPass: React.FC<Landing3DPassProps> = ({ onRegisterClick })
 
           {/* Reverse Details */}
           <div className="space-y-2 text-center my-auto px-4" style={{ transform: 'translateZ(30px)' }}>
-            <p className="text-[11px] sm:text-xs text-stone-300 font-serif italic leading-relaxed">
+            <p className="text-[11px] sm:text-xs text-stone-300 font-sans italic leading-relaxed">
               "This official digital credential identifies a proud alumnus of St. Cecilia's College - Cebu, Inc. entitled to all institutional privileges, alumni convocations, and library access."
             </p>
             <span className="text-[9px] font-mono tracking-[0.2em] text-amber-400 uppercase block">

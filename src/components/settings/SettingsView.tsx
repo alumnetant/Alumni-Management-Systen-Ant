@@ -49,6 +49,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
 import { ThemeMode, applyTheme, getStoredTheme } from '../../lib/theme';
 import { UserRoleBadge } from '../common/UserRoleBadge';
+import { PlatformOnly } from '../common/PlatformOnly';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import {
   checkBiometricAvailability,
@@ -133,6 +134,7 @@ export const SettingsView: React.FC = () => {
   const [jobsEnabled, setJobsEnabled] = useState(
     currentUser?.settings?.notificationsJobs ?? notificationSettings?.jobOpportunities ?? true
   );
+  const [smsEnabled, setSmsEnabled] = useState(true);
 
   // Biometric state (Face Detection)
   const [biometricAvail, setBiometricAvail] = useState<BiometricAvailability>({
@@ -1040,8 +1042,9 @@ export const SettingsView: React.FC = () => {
             </div>
 
             {/* ========================================================================= */}
-            {/* SUB-SECTION: BIOMETRIC PREFERENCES & SECONDARY APP LOCK                   */}
+            {/* SUB-SECTION: BIOMETRIC PREFERENCES & SECONDARY APP LOCK (MOBILE ONLY)     */}
             {/* ========================================================================= */}
+            <PlatformOnly client="mobile">
             <div className="mt-6 pt-5 border-t border-stone-100">
               <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-stone-100">
                 <div className="flex items-center gap-2.5">
@@ -1200,6 +1203,7 @@ export const SettingsView: React.FC = () => {
                 </div>
               </div>
             </div>
+            </PlatformOnly>
           </div>
         </div>
       )}
@@ -1223,90 +1227,119 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {/* Toggle 1: Push */}
-            <div className="p-3.5 rounded-2xl bg-stone-50/70 border border-stone-200/70 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0 pr-4">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-bold text-stone-900">Phone Notifications</p>
-                    <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                      Live Push
-                    </span>
+            {/* Toggle 1: Push (Mobile Only) */}
+            <PlatformOnly client="mobile">
+              <div className="p-3.5 rounded-2xl bg-stone-50/70 border border-stone-200/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 pr-4">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-bold text-stone-900">Phone Notifications</p>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                        Live Push
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-stone-500 mt-0.5">
+                      Receive instant alerts on your phone for direct messages, campus events, and announcements even when the app is closed.
+                    </p>
                   </div>
-                  <p className="text-[11px] text-stone-500 mt-0.5">
-                    Receive instant alerts on your phone for direct messages, campus events, and announcements even when the app is closed.
-                  </p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={pushEnabled}
-                    onChange={async (e) => {
-                      const checked = e.target.checked;
-                      setPushEnabled(checked);
-                      handleToggle('push', checked);
-                      if (checked) {
-                        const res = await requestPushNotifications(currentUser?.uid);
-                        if (res.granted) {
-                          showToast('Phone notifications turned on! Real-time alerts active.', 'success');
-                        } else if (res.error) {
-                          showToast(res.error, 'error');
-                        }
-                      }
-                    }}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
-                </label>
-              </div>
-
-              {pushEnabled && (
-                <div className="pt-2.5 border-t border-stone-200/60 space-y-2 text-[11px]">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <span className="text-stone-600 font-medium">Test Real Notifications:</span>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        showToast('Notification scheduled in 5 seconds! Lock your phone or go to your home screen now.', 'info');
-                        const res = await triggerTestPushNotification(currentUser.uid, 5);
-                        if (res.success) {
-                          showToast(res.message, 'success');
-                        } else {
-                          showToast(res.message, 'error');
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={pushEnabled}
+                      onChange={async (e) => {
+                        const checked = e.target.checked;
+                        setPushEnabled(checked);
+                        handleToggle('push', checked);
+                        if (checked) {
+                          const res = await requestPushNotifications(currentUser?.uid);
+                          if (res.granted) {
+                            showToast('Phone notifications turned on! Real-time alerts active.', 'success');
+                          } else if (res.error) {
+                            showToast(res.error, 'error');
+                          }
                         }
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-[#8B181B] hover:bg-[#721316] text-white font-semibold transition-colors cursor-pointer text-[10px] flex items-center gap-1.5 shadow-2xs active:scale-95"
-                    >
-                      <Bell className="w-3 h-3" />
-                      <span>Test on Phone (5s Delay)</span>
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-stone-400 text-[10px]">Test alert types:</span>
-                    <button
-                      type="button"
-                      onClick={() => handleSendTestPush('event')}
-                      className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
-                    >
-                      Event Reminder
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSendTestPush('message')}
-                      className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
-                    >
-                      Chat Message
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSendTestPush('announcement')}
-                      className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
-                    >
-                      Announcement
-                    </button>
-                  </div>
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
+                  </label>
                 </div>
-              )}
+
+                {pushEnabled && (
+                  <div className="pt-2.5 border-t border-stone-200/60 space-y-2 text-[11px]">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-stone-600 font-medium">Test Real Notifications:</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          showToast('Notification scheduled in 5 seconds! Lock your phone or go to your home screen now.', 'info');
+                          const res = await triggerTestPushNotification(currentUser.uid, 5);
+                          if (res.success) {
+                            showToast(res.message, 'success');
+                          } else {
+                            showToast(res.message, 'error');
+                          }
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-[#8B181B] hover:bg-[#721316] text-white font-semibold transition-colors cursor-pointer text-[10px] flex items-center gap-1.5 shadow-2xs active:scale-95"
+                      >
+                        <Bell className="w-3 h-3" />
+                        <span>Test on Phone (5s Delay)</span>
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-stone-400 text-[10px]">Test alert types:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSendTestPush('event')}
+                        className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
+                      >
+                        Event Reminder
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendTestPush('message')}
+                        className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
+                      >
+                        Chat Message
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSendTestPush('announcement')}
+                        className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
+                      >
+                        Announcement
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </PlatformOnly>
+
+            {/* Toggle: SMS Urgent Notifications (Web & Mobile) */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-stone-50/70 border border-stone-200/70">
+              <div className="min-w-0 pr-4">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold text-stone-900">SMS Urgent & Turnstile Gate Alerts</p>
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                    Cellular SMS
+                  </span>
+                </div>
+                <p className="text-[11px] text-stone-500 mt-0.5">
+                  Receive critical account recovery codes, security traces, and campus gate notices via cellular SMS.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={smsEnabled}
+                  onChange={(e) => {
+                    setSmsEnabled(e.target.checked);
+                    showToast(e.target.checked ? 'SMS urgent alerts enabled.' : 'SMS alerts disabled.', 'info');
+                  }}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
+              </label>
             </div>
 
             {/* Toggle 2: Email */}

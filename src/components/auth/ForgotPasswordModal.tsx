@@ -190,7 +190,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
               <div className="text-[10px] font-bold tracking-widest text-white/70 uppercase">
                 St. Cecilia’s College Portal
               </div>
-              <h3 className="font-serif font-bold text-base text-white">
+              <h3 className="font-sans font-bold text-base text-white">
                 Account Recovery
               </h3>
             </div>
@@ -255,7 +255,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 <div className="w-12 h-12 rounded-full bg-red-50 text-[#8B181B] flex items-center justify-center mx-auto mb-2 border border-red-100">
                   <Mail className="w-6 h-6" />
                 </div>
-                <h4 className="font-serif font-bold text-lg text-stone-900">
+                <h4 className="font-sans font-bold text-lg text-stone-900">
                   Forgot Your Password?
                 </h4>
                 <p className="text-xs text-stone-500 mt-1 max-w-xs mx-auto leading-relaxed">
@@ -309,7 +309,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 <div className="w-12 h-12 rounded-full bg-red-50 text-[#8B181B] flex items-center justify-center mx-auto mb-2 border border-red-100">
                   <KeyRound className="w-6 h-6" />
                 </div>
-                <h4 className="font-serif font-bold text-lg text-stone-900">
+                <h4 className="font-sans font-bold text-lg text-stone-900">
                   Verify Your Identity
                 </h4>
                 <p className="text-xs text-stone-500 mt-1 leading-relaxed">
@@ -425,7 +425,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto mb-2 border border-emerald-100">
                   <Lock className="w-6 h-6" />
                 </div>
-                <h4 className="font-serif font-bold text-lg text-stone-900">
+                <h4 className="font-sans font-bold text-lg text-stone-900">
                   Create New Password
                 </h4>
                 <p className="text-xs text-stone-500 mt-1 leading-relaxed">
@@ -541,7 +541,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 <CheckCircle2 className="w-10 h-10" />
               </div>
 
-              <h4 className="font-serif font-bold text-xl text-stone-900">
+              <h4 className="font-sans font-bold text-xl text-stone-900">
                 Password Reset Complete!
               </h4>
 

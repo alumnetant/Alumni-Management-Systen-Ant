@@ -64,7 +64,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
               )}
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-stone-900 font-serif tracking-tight">
+              <h3 className="text-sm sm:text-base font-bold text-stone-900 font-sans tracking-tight">
                 {title}
               </h3>
               <p className="text-xs text-stone-600 mt-1.5 leading-relaxed">

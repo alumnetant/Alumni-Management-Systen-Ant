@@ -44,7 +44,7 @@ export const AnimatedStat: React.FC<AnimatedStatProps> = ({
 
   return (
     <div ref={ref} className="text-center py-5 md:py-3 px-4 select-none">
-      <div className="font-display text-4xl sm:text-5xl lg:text-6xl font-normal tracking-tight text-white mb-1.5 flex items-center justify-center font-serif">
+      <div className="font-display text-4xl sm:text-5xl lg:text-6xl font-normal tracking-tight text-white mb-1.5 flex items-center justify-center">
         <span>{displayValue.toLocaleString()}</span>
         <span className="text-amber-300 font-light ml-0.5">{suffix}</span>
       </div>

@@ -248,7 +248,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                 ARCHIVAL COLLECTION
               </span>
             </div>
-            <h3 id="campus-gallery-title" className="font-serif text-2xl sm:text-3xl text-stone-900 font-normal tracking-tight mt-0.5">
+            <h3 id="campus-gallery-title" className="font-sans text-2xl sm:text-3xl text-stone-900 font-normal tracking-tight mt-0.5">
               Campus & Heritage Gallery
             </h3>
           </div>

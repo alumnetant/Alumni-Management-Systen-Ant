@@ -217,7 +217,7 @@ export const AuditLogView: React.FC = () => {
         <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
           <ShieldAlert className="w-6 h-6 text-amber-600" />
         </div>
-        <h3 className="text-base font-bold text-stone-900 font-serif">Administrative Desk Restricted</h3>
+        <h3 className="text-base font-bold text-stone-900 font-sans">Administrative Desk Restricted</h3>
         <p className="text-xs text-stone-600 leading-relaxed">
           Forensic audit logs and cryptographic ledgers are restricted to authorized System Administrators.
         </p>

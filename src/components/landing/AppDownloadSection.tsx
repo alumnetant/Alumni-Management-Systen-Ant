@@ -61,7 +61,7 @@ export const AppDownloadSection: React.FC = () => {
               <span>Native Android Application</span>
             </div>
 
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-serif font-bold text-stone-900 dark:text-white tracking-tight leading-tight mb-4">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-sans font-bold text-stone-900 dark:text-white tracking-tight leading-tight mb-4">
               Stay Connected to St. Cecilia's from Your Smartphone
             </h2>
 
@@ -121,7 +121,7 @@ export const AppDownloadSection: React.FC = () => {
                   alt="Seal"
                   className="w-6 h-6 rounded-full object-cover"
                 />
-                <span className="text-xs font-bold font-serif text-stone-900 tracking-tight">
+                <span className="text-xs font-bold font-sans text-stone-900 tracking-tight">
                   Cecilian Alumnet
                 </span>
               </div>

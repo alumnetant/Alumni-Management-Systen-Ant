@@ -276,6 +276,8 @@ export interface EventAttendee {
   name: string;
   email?: string;
   phone?: string;
+  studentId?: string;
+  alumniId?: string;
   avatar: string;
   avatarUrl?: string;
   batch?: string;

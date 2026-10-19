@@ -613,7 +613,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
         <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
           <ShieldAlert className="w-7 h-7 text-[#8B181B]" />
         </div>
-        <h3 className="text-lg font-bold text-stone-900 font-serif">Administrative Clearance Required</h3>
+        <h3 className="text-lg font-bold text-stone-900 font-sans">Administrative Clearance Required</h3>
         <p className="text-xs text-stone-600 leading-relaxed">
           The Requests & Conflict Resolution Tribunal is restricted to authorized St. Cecilia's College System Administrators and University Registrar Officers.
         </p>

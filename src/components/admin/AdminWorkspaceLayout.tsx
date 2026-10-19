@@ -79,6 +79,7 @@ import { MessagesView } from '../messages/MessagesView';
 import { NotificationsView } from '../notifications/NotificationsView';
 import { SettingsView } from '../settings/SettingsView';
 import { ProfileView } from '../profile/ProfileView';
+import { PlatformOnly } from '../common/PlatformOnly';
 import { AdminCommandBar } from './AdminCommandBar';
 import { AdminQuickActionBar } from './AdminQuickActionBar';
 import { getRegistrationConflicts } from '../../services/studentVerificationService';
@@ -139,7 +140,8 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
     activeTab,
     setActiveTab,
     chats,
-    unreadNotificationsCount
+    unreadNotificationsCount,
+    clientPlatform
   } = useAlumni();
 
   // Internal workspace sub-module navigation
@@ -487,7 +489,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             shortLabel: 'Registry',
             icon: GraduationCap,
             badge: null,
-            visible: permissions.canAccessRegistry
+            visible: clientPlatform === 'web' && permissions.canAccessRegistry
           },
           {
             id: 'conflicts' as WorkspaceModuleId,
@@ -576,7 +578,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             shortLabel: 'Audit',
             icon: FileText,
             badge: null,
-            visible: permissions.canAccessAuditTrails || currentUser?.role === 'admin' || currentUser?.role === 'superadmin'
+            visible: clientPlatform === 'web' && (permissions.canAccessAuditTrails || currentUser?.role === 'admin' || currentUser?.role === 'superadmin')
           },
           {
             id: 'settings' as WorkspaceModuleId,
@@ -596,7 +598,8 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
     pendingJobsCount,
     pendingEmployersCount,
     unreadMessagesCount,
-    unreadNotificationsCount
+    unreadNotificationsCount,
+    clientPlatform
   ]);
 
   // Current section title for breadcrumbs
@@ -1124,28 +1127,50 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               <AdminUsersTable onOpenCreateUser={() => setShowCreateUserModal(true)} />
             )}
 
-            {/* MODULE: Registrar Registry Matcher */}
+            {/* MODULE: Registrar Registry Matcher (Web Portal Exclusive) */}
             {currentModule === 'registry' && (
-              permissions.canAccessRegistry ? (
-                <RegistrarRegistryMatcher />
-              ) : (
-                <div className="bg-white rounded-3xl p-10 text-center border border-stone-200/90 shadow-2xs max-w-xl mx-auto my-8 space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
-                    <ShieldAlert className="w-6 h-6 stroke-[2]" />
+              <PlatformOnly
+                client="web"
+                fallback={
+                  <div className="bg-white rounded-3xl p-10 text-center border border-stone-200/90 shadow-2xs max-w-xl mx-auto my-8 space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+                      <GraduationCap className="w-6 h-6 stroke-[2]" />
+                    </div>
+                    <h3 className="text-lg font-bold text-stone-900">Academic Registry Restricted to Web</h3>
+                    <p className="text-xs text-stone-500 leading-relaxed">
+                      The Academic Batch Registry & Bulk CSV Ingestion tool requires desktop screen space and drag-and-drop CSV processing. Please access this feature via the Web Portal.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentModule('dashboard')}
+                      className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Return to Overview
+                    </button>
                   </div>
-                  <h3 className="text-lg font-bold text-stone-900">Registrar Masterlist Access Restricted</h3>
-                  <p className="text-xs text-stone-500 leading-relaxed">
-                    Your account role does not have authorization to inspect or modify the official Registrar Graduate Masterlist. Please contact the University Registrar or Super Administrator for elevated credentials.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentModule('dashboard')}
-                    className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    Return to Overview
-                  </button>
-                </div>
-              )
+                }
+              >
+                {permissions.canAccessRegistry ? (
+                  <RegistrarRegistryMatcher />
+                ) : (
+                  <div className="bg-white rounded-3xl p-10 text-center border border-stone-200/90 shadow-2xs max-w-xl mx-auto my-8 space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+                      <ShieldAlert className="w-6 h-6 stroke-[2]" />
+                    </div>
+                    <h3 className="text-lg font-bold text-stone-900">Registrar Masterlist Access Restricted</h3>
+                    <p className="text-xs text-stone-500 leading-relaxed">
+                      Your account role does not have authorization to inspect or modify the official Registrar Graduate Masterlist. Please contact the University Registrar or Super Administrator for elevated credentials.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentModule('dashboard')}
+                      className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Return to Overview
+                    </button>
+                  </div>
+                )}
+              </PlatformOnly>
             )}
 
             {/* MODULE: Requests & Conflicts Inbox */}
@@ -1426,9 +1451,31 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               <AdminGovernancePoliciesView />
             )}
 
-            {/* MODULE: Audit Logs */}
+            {/* MODULE: Audit Logs (Web Portal Exclusive) */}
             {currentModule === 'audit' && (
-              <AuditLogView />
+              <PlatformOnly
+                client="web"
+                fallback={
+                  <div className="bg-white rounded-3xl p-10 text-center border border-stone-200/90 shadow-2xs max-w-xl mx-auto my-8 space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center mx-auto border border-purple-200">
+                      <FileText className="w-6 h-6 stroke-[2]" />
+                    </div>
+                    <h3 className="text-lg font-bold text-stone-900">System Audit Logs Restricted to Web</h3>
+                    <p className="text-xs text-stone-500 leading-relaxed">
+                      System Audit Logs, raw security traces, database backups, and API key management require desktop screen space and are exclusive to the Web Portal.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentModule('dashboard')}
+                      className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Return to Overview
+                    </button>
+                  </div>
+                }
+              >
+                <AuditLogView />
+              </PlatformOnly>
             )}
 
             {/* MODULE: Messages */}

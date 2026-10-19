@@ -301,7 +301,7 @@ export const CollegiateGreetingBanner: React.FC<CollegiateGreetingBannerProps> =
 
             {/* Subtle Institutional Motto Badge */}
             <div className="mt-2.5 pt-2 border-t border-stone-100 hidden lg:block text-right">
-              <p className="italic font-serif text-xs text-stone-600">
+              <p className="italic font-sans text-xs text-stone-600">
                 "Virtus, Scientia, Charitas"
               </p>
               <p className="text-[9px] text-stone-400 tracking-wider uppercase font-medium mt-0.5">

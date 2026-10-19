@@ -524,7 +524,7 @@ export const CollegeHistorySection: React.FC = () => {
               </div>
 
               {/* Transcript Text Body */}
-              <div className="p-6 sm:p-8 overflow-y-auto space-y-6 text-stone-700 text-sm sm:text-base leading-relaxed font-serif">
+              <div className="p-6 sm:p-8 overflow-y-auto space-y-6 text-stone-700 text-sm sm:text-base leading-relaxed font-sans">
                 <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200/60 text-xs font-sans text-amber-900 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-amber-700 shrink-0" />
                   <span>
@@ -552,7 +552,7 @@ export const CollegeHistorySection: React.FC = () => {
                           <span>—</span>
                           <span>{m.title}</span>
                         </div>
-                        <p className="text-stone-600 text-xs leading-relaxed mb-2 font-serif">
+                        <p className="text-stone-600 text-xs leading-relaxed mb-2 font-sans">
                           {m.summary}
                         </p>
                         <ul className="list-disc list-inside text-xs text-stone-600 space-y-1">

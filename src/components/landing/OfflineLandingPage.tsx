@@ -169,7 +169,7 @@ export const OfflineLandingPage: React.FC<OfflineLandingPageProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-serif font-bold text-lg sm:text-xl text-stone-900 dark:text-white tracking-tight">
+                <h1 className="font-sans font-bold text-lg sm:text-xl text-stone-900 dark:text-white tracking-tight">
                   Cecilian Alumnet
                 </h1>
                 <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-bold rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
@@ -236,7 +236,7 @@ export const OfflineLandingPage: React.FC<OfflineLandingPageProps> = ({
                 <span className="text-xs font-bold uppercase tracking-wider text-[#8B181B] dark:text-rose-400">
                   Local Service Worker Active
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-serif font-bold text-stone-900 dark:text-white mt-1 mb-3">
+                <h2 className="text-2xl sm:text-3xl font-sans font-bold text-stone-900 dark:text-white mt-1 mb-3">
                   Always Connected to St. Cecilia's Heritage
                 </h2>
                 <p className="text-stone-600 dark:text-stone-300 text-sm sm:text-base leading-relaxed mb-6">
@@ -346,7 +346,7 @@ export const OfflineLandingPage: React.FC<OfflineLandingPageProps> = ({
         {activeTab === 'contacts' && (
           <div className="space-y-6">
             <div className="bg-white dark:bg-stone-900 rounded-2xl p-6 sm:p-8 border border-stone-200/80 dark:border-stone-800 shadow-xs">
-              <h2 className="text-xl sm:text-2xl font-serif font-bold text-stone-900 dark:text-white mb-2">
+              <h2 className="text-xl sm:text-2xl font-sans font-bold text-stone-900 dark:text-white mb-2">
                 St. Cecilia's College Campus Directory
               </h2>
               <p className="text-sm text-stone-600 dark:text-stone-400 mb-6">
@@ -453,7 +453,7 @@ export const OfflineLandingPage: React.FC<OfflineLandingPageProps> = ({
               <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#8B181B] dark:text-rose-400">
                 St. Cecilia's College - Cebu, Inc.
               </span>
-              <h2 className="text-2xl sm:text-3xl font-serif font-bold text-stone-900 dark:text-white mt-1">
+              <h2 className="text-2xl sm:text-3xl font-sans font-bold text-stone-900 dark:text-white mt-1">
                 The Cecilian Alma Mater Hymn
               </h2>
               <p className="text-xs text-stone-500 italic mt-1">
@@ -461,7 +461,7 @@ export const OfflineLandingPage: React.FC<OfflineLandingPageProps> = ({
               </p>
             </div>
 
-            <div className="bg-stone-50 dark:bg-stone-800/50 p-6 sm:p-8 rounded-xl border border-stone-200/80 dark:border-stone-700/60 font-serif text-stone-800 dark:text-stone-200 text-center space-y-4 text-sm sm:text-base leading-relaxed">
+            <div className="bg-stone-50 dark:bg-stone-800/50 p-6 sm:p-8 rounded-xl border border-stone-200/80 dark:border-stone-700/60 font-sans text-stone-800 dark:text-stone-200 text-center space-y-4 text-sm sm:text-base leading-relaxed">
               <p>
                 Hail to thee, our Alma Mater,<br />
                 Beacon light upon our way.<br />
@@ -521,7 +521,7 @@ export const OfflineLandingPage: React.FC<OfflineLandingPageProps> = ({
                     <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
                       Offline Verified Credential
                     </span>
-                    <h3 className="font-serif font-bold text-base text-white">
+                    <h3 className="font-sans font-bold text-base text-white">
                       Cecilian Alumnet Pass
                     </h3>
                   </div>
@@ -575,7 +575,7 @@ export const OfflineLandingPage: React.FC<OfflineLandingPageProps> = ({
               <span>Android Release APK</span>
             </div>
 
-            <h3 className="font-serif font-bold text-xl text-stone-900 dark:text-white mb-2">
+            <h3 className="font-sans font-bold text-xl text-stone-900 dark:text-white mb-2">
               Scan to Download APK
             </h3>
             <p className="text-xs text-stone-500 dark:text-stone-400 mb-6 leading-relaxed">

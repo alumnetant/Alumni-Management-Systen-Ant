@@ -114,7 +114,7 @@ export const LandingHeritage3D: React.FC = () => {
               {selectedEra.title}
             </h4>
 
-            <p className="text-amber-200/90 font-serif italic text-sm sm:text-base">
+            <p className="text-amber-200/90 font-sans italic text-sm sm:text-base">
               "{selectedEra.subtitle}"
             </p>
 

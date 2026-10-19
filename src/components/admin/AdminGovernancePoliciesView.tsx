@@ -67,7 +67,7 @@ export const AdminGovernancePoliciesView: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold font-serif">
+                <h2 className="text-base font-bold font-sans">
                   Institutional Security & Integrity Rules Engine
                 </h2>
                 {isSaved && (

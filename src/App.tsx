@@ -6,38 +6,38 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlumniProvider, useAlumni, STORAGE_KEYS } from './context/AlumniContext';
-import { Navigation } from './components/layout/Navigation';
-import { DashboardView } from './components/dashboard/DashboardView';
-import { NetworkView } from './components/network/NetworkView';
-import { MessagesView } from './components/messages/MessagesView';
-import { EventsView } from './components/events/EventsView';
-import { AnnouncementsView } from './components/announcements/AnnouncementsView';
-import { OpportunitiesView } from './components/opportunities/OpportunitiesView';
-import { ProfileView } from './components/profile/ProfileView';
-import { SettingsView } from './components/settings/SettingsView';
-import { AdminPanelView } from './components/admin/AdminPanelView';
-import { EmployerDashboardView } from './components/opportunities/EmployerDashboardView';
-import { AdminWorkspaceLayout } from './components/admin/AdminWorkspaceLayout';
-import { AlumniWorkspaceLayout } from './components/alumni/AlumniWorkspaceLayout';
 import { isAdministrativeOrStaffRole } from './types';
-import { PublicProfileModal } from './components/profile/PublicProfileModal';
-import { FirstTimeProfileSetupModal } from './components/profile/FirstTimeProfileSetupModal';
-import { EditProfileModal } from './components/profile/EditProfileModal';
 import { AuthPage } from './components/auth/AuthPage';
 import { LandingPage } from './components/landing/LandingPage';
 import { ToastContainer } from './components/common/ToastContainer';
-import { VerificationGate } from './components/common/VerificationGate';
 import { CecilianLoader } from './components/common/CecilianLoader';
-import { CampusGalleryModal } from './components/gallery/CampusGalleryModal';
-import { GraduationCap, LogIn, UserPlus, Globe } from 'lucide-react';
+
+// Conservative Performance Optimization: Lazy-load heavy workspace layouts and modals
+const AdminWorkspaceLayout = React.lazy(() =>
+  import('./components/admin/AdminWorkspaceLayout').then((m) => ({ default: m.AdminWorkspaceLayout }))
+);
+const AlumniWorkspaceLayout = React.lazy(() =>
+  import('./components/alumni/AlumniWorkspaceLayout').then((m) => ({ default: m.AlumniWorkspaceLayout }))
+);
+const PublicProfileModal = React.lazy(() =>
+  import('./components/profile/PublicProfileModal').then((m) => ({ default: m.PublicProfileModal }))
+);
+const FirstTimeProfileSetupModal = React.lazy(() =>
+  import('./components/profile/FirstTimeProfileSetupModal').then((m) => ({ default: m.FirstTimeProfileSetupModal }))
+);
+const EditProfileModal = React.lazy(() =>
+  import('./components/profile/EditProfileModal').then((m) => ({ default: m.EditProfileModal }))
+);
+const BiometricAppLockModal = React.lazy(() =>
+  import('./components/auth/BiometricAppLockModal').then((m) => ({ default: m.BiometricAppLockModal }))
+);
 import { SplashScreen } from '@capacitor/splash-screen';
 import { initPushNotificationListeners } from './services/pushNotificationService';
 import { Network } from '@capacitor/network';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { BiometricAppLockModal } from './components/auth/BiometricAppLockModal';
 import { isBiometricAppLockEnabled } from './services/biometricAuthService';
-import { initMobileApp } from './services/mobileAppService';
+import { initMobileApp, triggerHaptic } from './services/mobileAppService';
 import { initEventReminderScheduler } from './services/eventReminderService';
 
 // Requirement 3: Mobile and Tablet Layout / Device Detection
@@ -96,6 +96,7 @@ function AppContent() {
   const [authViewMode, setAuthViewMode] = useState<'login' | 'register'>('login');
   const [authRole, setAuthRole] = useState<'alumni' | 'employer'>('alumni');
   const [showProfileSetupModal, setShowProfileSetupModal] = useState(false);
+  const lastBackPressRef = React.useRef<number>(0);
 
   // Secondary Face Detection Biometric Authentication Layer (Face ID App Lock)
   const [isAppBiometricallyLocked, setIsAppBiometricallyLocked] = useState<boolean>(() => {
@@ -229,14 +230,32 @@ function AppContent() {
           return;
         }
 
-        // If already on dashboard at root, exit app on native Android
-        CapApp.exitApp();
+        // If already on dashboard at root, require double-tap within 2.2s to exit
+        const now = Date.now();
+        if (now - lastBackPressRef.current < 2200) {
+          CapApp.exitApp();
+        } else {
+          lastBackPressRef.current = now;
+          triggerHaptic('medium');
+          if (showToast) {
+            showToast('Press back again to exit Cecilian Alumnet', 'info');
+          }
+        }
         return;
       }
 
       // 5. If in landing view:
       if (currentView === 'landing') {
-        CapApp.exitApp();
+        const now = Date.now();
+        if (now - lastBackPressRef.current < 2200) {
+          CapApp.exitApp();
+        } else {
+          lastBackPressRef.current = now;
+          triggerHaptic('medium');
+          if (showToast) {
+            showToast('Press back again to exit Cecilian Alumnet', 'info');
+          }
+        }
         return;
       }
     });
@@ -554,16 +573,18 @@ function AppContent() {
           transition={{ duration: 0.25, ease: 'easeOut' }}
           className="min-h-screen bg-stone-950 flex flex-col font-sans"
         >
-          <BiometricAppLockModal
-            currentUser={currentUser}
-            isOpen={isAppBiometricallyLocked}
-            onUnlocked={() => setIsAppBiometricallyLocked(false)}
-            onSignOut={() => {
-              setIsAppBiometricallyLocked(false);
-              logout();
-              setCurrentView('landing');
-            }}
-          />
+          <React.Suspense fallback={<CecilianLoader />}>
+            <BiometricAppLockModal
+              currentUser={currentUser}
+              isOpen={isAppBiometricallyLocked}
+              onUnlocked={() => setIsAppBiometricallyLocked(false)}
+              onSignOut={() => {
+                setIsAppBiometricallyLocked(false);
+                logout();
+                setCurrentView('landing');
+              }}
+            />
+          </React.Suspense>
         </motion.div>
       ) : isAdministrativeOrStaffRole(currentUser.role) ? (
         /* Reference-Inspired Administrative Management & Dashboard Workspace (Admin, Registrar, Employer, Staff, Moderator, Super Admin) */
@@ -575,32 +596,34 @@ function AppContent() {
           transition={{ duration: 0.25, ease: 'easeOut' }}
           className="min-h-screen bg-[#F9FAFB] dark:bg-[#121316] flex flex-col font-sans text-stone-900 dark:text-stone-100 antialiased selection:bg-[#8B181B] selection:text-white"
         >
-          <AdminWorkspaceLayout
-            onOpenAuth={(mode) => {
-              setAuthViewMode(mode);
-              setCurrentView('auth');
-            }}
-            onGoToLanding={() => {
-              if (isMobileOrTabletDevice()) {
-                if (currentUser) {
-                  setActiveTab('dashboard');
+          <React.Suspense fallback={<CecilianLoader />}>
+            <AdminWorkspaceLayout
+              onOpenAuth={(mode) => {
+                setAuthViewMode(mode);
+                setCurrentView('auth');
+              }}
+              onGoToLanding={() => {
+                if (isMobileOrTabletDevice()) {
+                  if (currentUser) {
+                    setActiveTab('dashboard');
+                  } else {
+                    setCurrentView('auth');
+                  }
                 } else {
-                  setCurrentView('auth');
+                  setCurrentView('landing');
                 }
-              } else {
-                setCurrentView('landing');
-              }
-            }}
-          />
+              }}
+            />
 
-          {/* Public Profile Modal (Available anywhere in the app) */}
-          <PublicProfileModal />
+            {/* Public Profile Modal (Available anywhere in the app) */}
+            <PublicProfileModal />
 
-          {/* Global Edit Profile Modal */}
-          <EditProfileModal
-            isOpen={isEditProfileModalOpen}
-            onClose={closeEditProfile}
-          />
+            {/* Global Edit Profile Modal */}
+            <EditProfileModal
+              isOpen={isEditProfileModalOpen}
+              onClose={closeEditProfile}
+            />
+          </React.Suspense>
         </motion.div>
       ) : (
         /* Redesigned Alumni Workspace - Matches Admin Workspace Specification */
@@ -612,46 +635,48 @@ function AppContent() {
           transition={{ duration: 0.25, ease: 'easeOut' }}
           className="min-h-screen bg-[#F9FAFB] dark:bg-[#121316] flex flex-col font-sans text-stone-900 dark:text-stone-100 antialiased selection:bg-[#8B181B] selection:text-white"
         >
-          <AlumniWorkspaceLayout
-            onOpenAuth={(mode) => {
-              setAuthViewMode(mode);
-              setCurrentView('auth');
-            }}
-            onGoToLanding={() => {
-              if (isMobileOrTabletDevice()) {
-                if (currentUser) {
-                  setActiveTab('dashboard');
+          <React.Suspense fallback={<CecilianLoader />}>
+            <AlumniWorkspaceLayout
+              onOpenAuth={(mode) => {
+                setAuthViewMode(mode);
+                setCurrentView('auth');
+              }}
+              onGoToLanding={() => {
+                if (isMobileOrTabletDevice()) {
+                  if (currentUser) {
+                    setActiveTab('dashboard');
+                  } else {
+                    setCurrentView('auth');
+                  }
                 } else {
-                  setCurrentView('auth');
+                  setCurrentView('landing');
                 }
-              } else {
-                setCurrentView('landing');
-              }
-            }}
-          />
+              }}
+            />
 
-          {/* Public Profile Modal (Available anywhere in the app) */}
-          <PublicProfileModal />
+            {/* Public Profile Modal (Available anywhere in the app) */}
+            <PublicProfileModal />
 
-          {/* Global Edit Profile Modal */}
-          <EditProfileModal
-            isOpen={isEditProfileModalOpen}
-            onClose={closeEditProfile}
-          />
+            {/* Global Edit Profile Modal */}
+            <EditProfileModal
+              isOpen={isEditProfileModalOpen}
+              onClose={closeEditProfile}
+            />
 
-          {/* Priority First-Time Profile Setup Modal */}
-          <FirstTimeProfileSetupModal
-            isOpen={showProfileSetupModal}
-            onClose={() => {
-              setShowProfileSetupModal(false);
-              if (currentUser) {
-                try {
-                  localStorage.setItem(`dismissed_setup_${currentUser.uid}`, 'true');
-                  sessionStorage.setItem(`dismissed_setup_${currentUser.uid}`, 'true');
-                } catch {}
-              }
-            }}
-          />
+            {/* Priority First-Time Profile Setup Modal */}
+            <FirstTimeProfileSetupModal
+              isOpen={showProfileSetupModal}
+              onClose={() => {
+                setShowProfileSetupModal(false);
+                if (currentUser) {
+                  try {
+                    localStorage.setItem(`dismissed_setup_${currentUser.uid}`, 'true');
+                    sessionStorage.setItem(`dismissed_setup_${currentUser.uid}`, 'true');
+                  } catch {}
+                }
+              }}
+            />
+          </React.Suspense>
         </motion.div>
       ))}
     </AnimatePresence>

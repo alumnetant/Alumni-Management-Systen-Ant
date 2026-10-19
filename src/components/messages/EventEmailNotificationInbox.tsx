@@ -542,7 +542,7 @@ export const EventEmailNotificationInbox: React.FC = () => {
                   <span className="text-[10px] font-mono uppercase tracking-widest text-amber-300 block">
                     St. Cecilia's College - Cebu Global Alumni Portal
                   </span>
-                  <h2 className="font-serif text-lg sm:text-xl font-semibold tracking-wide">
+                  <h2 className="font-sans text-lg sm:text-xl font-semibold tracking-wide">
                     OFFICE OF ALUMNI RELATIONS & HERITAGE ADVANCEMENT
                   </h2>
                   <p className="text-xs text-white/80 font-light">
