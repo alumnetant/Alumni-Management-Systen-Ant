@@ -1,6 +1,6 @@
 {
-  "summary": "Revised Typography Plan for Unified Website and Mobile APK/App Consistency. Bundles local Plus Jakarta Sans font assets directly via @fontsource/plus-jakarta-sans for offline rendering parity across the Android APK and desktop website. Purges all discordant serif classes and applies mobile touch legibility and anti-aliasing optimizations.",
-  "updatedAt": "2026-10-19T11:36:00.170654272Z",
-  "requestFeedback": true,
-  "userFacing": true
+  "summary":  "Implementation plan to make the 'Matched For Me' job board algorithm mathematically precise and transparent. Replaces arbitrary base scores with a multi-factor weighted scoring model (45% skills, 30% academic program, 15% experience/seniority, 10% location), enforces a strict 65% qualification threshold, and synchronizes scoring across the candidate view and employer applicant tracker.",
+  "updatedAt":  "2026-10-20T15:34:49.200110214Z",
+  "requestFeedback":  true,
+  "userFacing":  true
 }

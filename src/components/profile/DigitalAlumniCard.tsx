@@ -82,20 +82,18 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
         };
         localStorage.setItem(passCacheKey, JSON.stringify(passData));
 
-        // When in mobile environment, request signed offline validation token hash
-        if (Capacitor.isNativePlatform() || localStorage.getItem('client_platform_override') === 'mobile') {
-          fetch('/api/pass/offline-token', { method: 'POST' })
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-              if (data?.offlineSignature) {
-                localStorage.setItem(
-                  passCacheKey,
-                  JSON.stringify({ ...passData, ...data })
-                );
-              }
-            })
-            .catch(() => {});
-        }
+        // Request signed offline turnstile validation token hash for local offline presentation
+        fetch('/api/pass/offline-token', { method: 'POST' })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => {
+            if (data?.offlineSignature) {
+              localStorage.setItem(
+                passCacheKey,
+                JSON.stringify({ ...passData, ...data })
+              );
+            }
+          })
+          .catch(() => {});
       } catch {}
     }
   }, [user, formattedId]);

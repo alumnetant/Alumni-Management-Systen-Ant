@@ -263,6 +263,18 @@ export function initPushNotificationListeners(
               detail: notification
             })
           );
+          window.dispatchEvent(
+            new CustomEvent('applet:collegiate-popup', {
+              detail: {
+                id: notification.id || `notif_${Date.now()}`,
+                title: notification.title || "St. Cecilia's College Notice",
+                body: notification.body || '',
+                category: notification.data?.category || 'general',
+                data: notification.data || {},
+                timestamp: new Date().toISOString()
+              }
+            })
+          );
         }
 
         receivedHandlers.forEach((handler) => handler(notification));
@@ -331,6 +343,93 @@ export function initPushNotificationListeners(
     }
     isInitialized = false;
   };
+}
+
+let activeLiveStream: EventSource | null = null;
+
+/**
+ * Connects to the server-sent events stream for real-time foreground pop-ups
+ * Whenever an admin posts an announcement, event, or milestone, this receives it instantly.
+ */
+export function startLivePushStream(
+  userId?: string,
+  onNotification?: (notif: any) => void
+): () => void {
+  if (typeof window === 'undefined' || typeof EventSource === 'undefined') {
+    return () => {};
+  }
+
+  if (activeLiveStream) {
+    try {
+      activeLiveStream.close();
+    } catch {}
+  }
+
+  const streamUrl = `/api/push/live-stream${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`;
+  const es = new EventSource(streamUrl);
+  activeLiveStream = es;
+
+  es.onmessage = (event) => {
+    try {
+      if (!event.data) return;
+      const parsed = JSON.parse(event.data);
+      if (parsed.type === 'connected') return;
+
+      playCollegiateChime();
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('applet:collegiate-popup', {
+            detail: parsed
+          })
+        );
+      }
+
+      if (onNotification) {
+        onNotification(parsed);
+      }
+    } catch (e) {
+      console.warn('[Push Live Stream] Parse error:', e);
+    }
+  };
+
+  es.onerror = () => {
+    // Browser auto-reconnects
+  };
+
+  return () => {
+    try {
+      es.close();
+    } catch {}
+    if (activeLiveStream === es) {
+      activeLiveStream = null;
+    }
+  };
+}
+
+/**
+ * Broadcasts a push notification to all registered devices and live clients
+ */
+export async function sendPushBroadcast(payload: {
+  title: string;
+  body: string;
+  category: 'announcement' | 'event' | 'milestone' | 'message' | 'general';
+  data?: Record<string, any>;
+}): Promise<boolean> {
+  try {
+    const res = await fetch('/api/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        targetUserId: 'all',
+        ...payload
+      })
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('[Push Service] Broadcast dispatch error:', err);
+    return false;
+  }
 }
 
 /**

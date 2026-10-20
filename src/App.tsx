@@ -32,7 +32,12 @@ const BiometricAppLockModal = React.lazy(() =>
   import('./components/auth/BiometricAppLockModal').then((m) => ({ default: m.BiometricAppLockModal }))
 );
 import { SplashScreen } from '@capacitor/splash-screen';
-import { initPushNotificationListeners } from './services/pushNotificationService';
+import {
+  initPushNotificationListeners,
+  startLivePushStream,
+  requestPushNotifications
+} from './services/pushNotificationService';
+import { CollegiatePushBanner } from './components/common/CollegiatePushBanner';
 import { Network } from '@capacitor/network';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -325,8 +330,18 @@ function AppContent() {
       setCurrentView('portal');
       setActiveTab(targetTab);
     }, currentUser?.uid);
+
+    // Real-time live push stream for immediate foreground popups
+    const cleanupLiveStream = startLivePushStream(currentUser?.uid);
+
+    // Auto-enroll push notifications on device when authenticated
+    if (currentUser?.uid) {
+      requestPushNotifications(currentUser.uid).catch(() => {});
+    }
+
     return () => {
       cleanup();
+      cleanupLiveStream();
     };
   }, [setActiveTab, currentUser?.uid]);
 
@@ -479,8 +494,15 @@ function AppContent() {
 
   // Animate view transitions (landing, auth, portal)
   return (
-    <AnimatePresence mode="wait">
-      {/* Landing page view (Only displayed on desktop; skipped on mobile and tablet) */}
+    <>
+      <CollegiatePushBanner
+        onNavigateTab={(tab) => {
+          setCurrentView('portal');
+          setActiveTab(tab);
+        }}
+      />
+      <AnimatePresence mode="wait">
+        {/* Landing page view (Only displayed on desktop; skipped on mobile and tablet) */}
       {currentView === 'landing' && !isMobileOrTabletDevice() && (
         <motion.div
           key="view-landing"
@@ -680,6 +702,7 @@ function AppContent() {
         </motion.div>
       ))}
     </AnimatePresence>
+    </>
   );
 }
 

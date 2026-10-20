@@ -150,6 +150,8 @@ import {
   generate24HourReservationAlert,
   PushPermissionState
 } from '../services/eventPushNotificationService';
+import { sendPushBroadcast } from '../services/pushNotificationService';
+import { computePreciseJobMatch } from '../services/jobMatchingService';
 import {
   enqueueOfflineMessage,
   getOfflineMessageQueue,
@@ -2615,8 +2617,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const serverRes = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Client-Platform': clientPlatform
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           identifier: trimmed,
@@ -2791,22 +2792,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     // ========================================================================
-    // DUAL GATE VERIFICATION (PLATFORM GATE & ACCOUNT LIFECYCLE STATUS)
-    // 1. Platform Gate: Mobile allows ONLY alumni; Web allows Alumni, Admin, Staff, Mod, Employer, Superadmin
-    // 2. Lifecycle Status: PENDING_VERIFICATION, ACTIVE, SUSPENDED
+    // ACCOUNT LIFECYCLE & STATUS VERIFICATION
     // ========================================================================
-    const effectiveRole = (user.role || 'alumni').toLowerCase().trim();
-    if (clientPlatform === 'mobile') {
-      if (effectiveRole !== 'alumni') {
-        const errorMsg = 'Administrative and partner accounts must access the system via the Web Portal.';
-        showToast(errorMsg, 'error');
-        setLoginPlatformError(errorMsg);
-        return false;
-      }
-    } else {
-      // Web Portal allows Alumni as well as administrative and employer roles
-      setLoginPlatformError(null);
-    }
+    setLoginPlatformError(null);
 
     const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
     if (accountStatus === 'SUSPENDED') {
@@ -4493,6 +4481,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
     setNotifications((prev) => [broadcastNotif, ...prev]);
     saveNotificationToFirestore(broadcastNotif).catch(() => {});
+
+    // Broadcast push notification to devices with the APK or web app
+    sendPushBroadcast({
+      title: `🎓 Campus Event: ${newEvt.title}`,
+      body: `${newEvt.isVirtual ? 'Virtual Event' : newEvt.location || 'Main Campus'} • ${newEvt.date}. RSVP now!`,
+      category: 'event',
+      data: {
+        eventId: newEvt.id,
+        category: 'event',
+        url: '/?tab=events'
+      }
+    }).catch(() => {});
+
     showToast(`Event published and group chat "${eventGroupChat.groupName}" created!`);
   };
 
@@ -5735,6 +5736,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setNotifications((prev) => [notif, ...prev]);
     saveNotificationToFirestore(notif).catch(() => {});
 
+    // Broadcast push notification to devices with the APK or web app
+    sendPushBroadcast({
+      title: notif.title,
+      body: newAnn.content.slice(0, 140) + '...',
+      category: 'announcement',
+      data: {
+        announcementId: newAnn.id,
+        category: 'announcement',
+        urgent: !!newAnn.urgent,
+        url: '/?tab=announcements'
+      }
+    }).catch(() => {});
+
     addAuditLog({
       action: 'Announcement Published',
       actorId: currentUser.uid,
@@ -6031,28 +6045,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const job = opportunities.find((o) => o.id === data.jobId);
     
-    // Calculate Match Score
-    const reqCourse = (job?.requiredCourse || '').toLowerCase();
-    const applicantCourse = (data.applicantCourse || currentUser.course || '').toLowerCase();
-    const courseMatch = reqCourse ? applicantCourse.includes(reqCourse) || reqCourse.includes(applicantCourse) || reqCourse.includes('all') : true;
-
-    const jobSkills = job?.skills || [];
-    const applicantSkills = data.applicantSkills || currentUser.skills || [];
-    const matchedSkillsCount = jobSkills.filter((js) =>
-      applicantSkills.some((as) => as.toLowerCase().includes(js.toLowerCase()) || js.toLowerCase().includes(as.toLowerCase()))
-    ).length;
-
-    let score = 50; // base score
-    if (courseMatch) score += 25;
-    if (jobSkills.length > 0) {
-      score += Math.round((matchedSkillsCount / jobSkills.length) * 20);
-    } else {
-      score += 20;
-    }
-    if (data.applicantLocation && job?.location && (job.location.toLowerCase().includes('remote') || data.applicantLocation.toLowerCase().includes('cebu'))) {
-      score += 5;
-    }
-    const finalScore = Math.min(Math.max(score, 45), 98);
+    // Calculate Precision Multi-Factor Match Score
+    const matchResult = job ? computePreciseJobMatch(currentUser, job) : null;
+    const finalScore = matchResult?.score || 60;
 
     const newApp: JobApplication = {
       ...data,
@@ -6067,10 +6062,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       statusNotes: '',
       matchScore: finalScore,
       matchBreakdown: {
-        courseMatch,
-        skillsMatchCount: matchedSkillsCount,
-        totalSkillsCount: jobSkills.length,
-        locationMatch: true
+        courseMatch:
+          matchResult?.programMatchStatus === 'exact' ||
+          matchResult?.programMatchStatus === 'cluster' ||
+          matchResult?.programMatchStatus === 'open',
+        skillsMatchCount: matchResult?.matchedSkills.length || 0,
+        totalSkillsCount: matchResult?.totalOppSkills || (job?.skills?.length || 0),
+        locationMatch: matchResult?.locationFit ?? true
       }
     };
 
@@ -6651,6 +6649,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       createdAt: new Date().toISOString()
     };
     setNotifications((prev) => [notif, ...prev]);
+
+    // Broadcast push notification to devices with the APK or web app
+    sendPushBroadcast({
+      title: notif.title,
+      body: `${newM.authorName} achieved: "${newM.title}" (${newM.category || 'Career'}). View on dashboard!`,
+      category: 'milestone',
+      data: {
+        milestoneId: newM.id,
+        category: 'milestone',
+        url: '/?tab=dashboard'
+      }
+    }).catch(() => {});
+
     showToast('Milestone & gallery post published to dashboard feed!');
   };
 

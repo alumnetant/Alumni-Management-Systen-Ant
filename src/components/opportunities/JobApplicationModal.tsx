@@ -14,6 +14,7 @@ import {
 import { Opportunity } from '../../types';
 import { useAlumni } from '../../context/AlumniContext';
 import { validateUploadedFile, sanitizeFileName } from '../../lib/security';
+import { computePreciseJobMatch } from '../../services/jobMatchingService';
 
 interface JobApplicationModalProps {
   opportunity: Opportunity;
@@ -46,41 +47,34 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Compute live match score preview
+  // Compute live match score preview via precision engine
   const matchInfo = useMemo(() => {
-    const jobCourse = (opportunity.requiredCourse || '').toLowerCase();
-    const myCourse = applicantCourse.toLowerCase();
-    const courseMatch = jobCourse ? myCourse.includes(jobCourse) || jobCourse.includes(myCourse) || jobCourse.includes('all') : true;
-
-    const jobSkills = opportunity.skills || [];
     const mySkillsList = skillsInput
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
 
-    const matchedSkills = jobSkills.filter((js) =>
-      mySkillsList.some((ms) => ms.toLowerCase().includes(js.toLowerCase()) || js.toLowerCase().includes(ms.toLowerCase()))
-    );
+    const dynamicCandidate = {
+      ...currentUser,
+      course: applicantCourse || currentUser?.course,
+      skills: mySkillsList,
+      location: applicantLocation || currentUser?.location,
+      batch: applicantBatch || currentUser?.batch
+    };
 
-    let score = 50;
-    if (courseMatch) score += 25;
-    if (jobSkills.length > 0) {
-      score += Math.round((matchedSkills.length / jobSkills.length) * 20);
-    } else {
-      score += 20;
-    }
-    if ((opportunity.location || '').toLowerCase().includes('cebu') || (opportunity.location || '').toLowerCase().includes('remote')) {
-      score += 5;
-    }
-    const finalScore = Math.min(Math.max(score, 45), 98);
+    const matchResult = computePreciseJobMatch(dynamicCandidate as any, opportunity);
 
     return {
-      score: finalScore,
-      courseMatch,
-      matchedSkills,
-      totalSkills: jobSkills.length
+      score: matchResult?.score || 50,
+      courseMatch:
+        matchResult?.programMatchStatus === 'exact' ||
+        matchResult?.programMatchStatus === 'cluster' ||
+        matchResult?.programMatchStatus === 'open',
+      matchedSkills: matchResult?.matchedSkills || [],
+      totalSkills: matchResult?.totalOppSkills || (opportunity.skills?.length || 0),
+      summaryReason: matchResult?.summaryReason || ''
     };
-  }, [opportunity, applicantCourse, skillsInput]);
+  }, [opportunity, applicantCourse, applicantBatch, applicantLocation, skillsInput, currentUser]);
 
   if (!isOpen) return null;
 

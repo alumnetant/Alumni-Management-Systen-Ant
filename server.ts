@@ -206,42 +206,8 @@ interface StoredUserCredential {
 const credentialsDb = new Map<string, StoredUserCredential>();
 const revokedTokens = new Set<string>();
 
-/**
- * Platform Detection Utility (Mobile/App vs. Web)
- * Inspects explicit headers, body payload, and user-agent.
- */
-function determinePlatform(req: Request): 'mobile' | 'web' {
-  // 1. Explicit Client Platform Header
-  const headerPlatform = String(req.headers['x-client-platform'] || '').toLowerCase().trim();
-  if (headerPlatform === 'mobile' || headerPlatform === 'tablet' || headerPlatform === 'android' || headerPlatform === 'ios') {
-    return 'mobile';
-  }
-  if (headerPlatform === 'web' || headerPlatform === 'desktop') {
-    return 'web';
-  }
-
-  // 2. Request body platform
-  if (req.body && typeof req.body.platform === 'string') {
-    const bodyPlatform = String(req.body.platform).toLowerCase().trim();
-    if (bodyPlatform === 'mobile' || bodyPlatform === 'tablet' || bodyPlatform === 'android' || bodyPlatform === 'ios') {
-      return 'mobile';
-    }
-    if (bodyPlatform === 'web' || bodyPlatform === 'desktop') {
-      return 'web';
-    }
-  }
-
-  // 3. User-Agent heuristic
-  const ua = String(req.headers['user-agent'] || '').toLowerCase();
-  if (ua.includes('capacitor') || ua.includes('mobile') || ua.includes('android') || ua.includes('iphone') || ua.includes('ipad')) {
-    return 'mobile';
-  }
-
-  return 'web';
-}
-
 // ============================================================================
-// CRYPTOGRAPHIC PLATFORM & AUTHENTICATION TOKEN SERVICE
+// CRYPTOGRAPHIC AUTHENTICATION TOKEN SERVICE
 // ============================================================================
 const SERVER_AUTH_SECRET =
   process.env.SERVER_AUTH_SECRET || 'scc_alumnet_secret_key_8b181b_sec_v1_tamperproof_institutional';
@@ -252,7 +218,7 @@ interface SignedSessionPayload {
   name?: string;
   email: string;
   role: string;
-  platform: 'web' | 'mobile';
+  platform?: string;
   studentId?: string;
   alumniId?: string;
   employeeId?: string;
@@ -862,7 +828,6 @@ function requireServerAuth(req: Request, res: Response, next: NextFunction) {
       uid: userUid,
       email: payload.email || 'user@stcecilia.edu',
       role: payload.role || 'alumni',
-      platform: (payload.platform === 'mobile' ? 'mobile' : 'web') as 'mobile' | 'web',
       emailVerified: !!(payload.emailVerified || payload.email_verified),
       sessionId: payload.sessionId,
       ...payload
@@ -881,51 +846,6 @@ function requireRole(allowedRoles: string[]) {
         error: 'Forbidden: You do not possess the required institutional permissions for this action.'
       });
     }
-    next();
-  };
-}
-
-/**
- * Enforces that an endpoint is strictly accessible ONLY by authorized client platforms.
- * Validates the cryptographically certified platform claim inside the session token,
- * not merely an easily spoofable HTTP request header.
- */
-function enforcePlatform(requiredPlatform: 'mobile' | 'web') {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const user = (req as any).user;
-    if (!user) {
-      return res.status(401).json({
-        error: 'Unauthorized: Authentication required to verify client platform.',
-        code: 'AUTH_REQUIRED'
-      });
-    }
-
-    // 1. Authoritative check: Token's cryptographically certified platform claim
-    const tokenPlatform: 'mobile' | 'web' = user.platform === 'mobile' ? 'mobile' : 'web';
-    if (tokenPlatform !== requiredPlatform) {
-      return res.status(403).json({
-        error: `Endpoint restricted to ${requiredPlatform} client environment. Authenticated session token is scoped for '${tokenPlatform}'.`,
-        code: 'PLATFORM_ACCESS_DENIED',
-        requiredPlatform,
-        tokenPlatform
-      });
-    }
-
-    // 2. Auxiliary header verification: If client passed X-Client-Platform, ensure it doesn't conflict
-    const rawHeader = String(req.headers['x-client-platform'] || '').toLowerCase().trim();
-    if (rawHeader) {
-      const headerPlatform =
-        rawHeader === 'mobile' || rawHeader === 'tablet' || rawHeader === 'android' || rawHeader === 'ios'
-          ? 'mobile'
-          : 'web';
-      if (headerPlatform !== tokenPlatform) {
-        return res.status(403).json({
-          error: `Security violation: X-Client-Platform header ('${headerPlatform}') conflicts with cryptographically bound session token platform ('${tokenPlatform}').`,
-          code: 'PLATFORM_TAMPERING_DETECTED'
-        });
-      }
-    }
-
     next();
   };
 }
@@ -1182,38 +1102,9 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
   }
 
   // ============================================================================
-  // DUAL GATE VERIFICATION (RBAC & PLATFORM GATE ARCHITECTURE)
-  // 1. Platform-Based Authentication Gate (Mobile/App vs. Web)
-  // 2. Account Lifecycle Status Gate (PENDING_VERIFICATION, ACTIVE, SUSPENDED)
-  // 3. Role Permissions Verification
+  // ACCOUNT LIFECYCLE & STATUS VERIFICATION
   // ============================================================================
-  const clientPlatform = determinePlatform(req);
   const userRole = (user.role || 'alumni').toLowerCase().trim();
-
-  // GATE 1: Platform-Based Authentication Gate
-  if (clientPlatform === 'mobile') {
-    // Mobile App / Tablet / APK: ONLY alumni allowed
-    if (userRole !== 'alumni') {
-      return res.status(403).json({
-        error: 'Administrative and partner accounts must access the system via the Web Portal.',
-        code: 'PLATFORM_ACCESS_DENIED',
-        platform: 'mobile',
-        allowedPlatform: 'web',
-        role: user.role
-      });
-    }
-  } else {
-    // Web Browser / Desktop Portal: Alumni, Super Admin, Admin, Staff, Moderator, and Employer are all allowed.
-    const allowedWebRoles = ['alumni', 'superadmin', 'admin', 'staff', 'moderator', 'employer', 'registrar'];
-    if (!allowedWebRoles.includes(userRole)) {
-      return res.status(403).json({
-        error: 'Your role is not authorized to access the Web Portal.',
-        code: 'PLATFORM_ACCESS_DENIED',
-        platform: 'web',
-        role: user.role
-      });
-    }
-  }
 
   // GATE 2: Account Lifecycle Status Gate
   const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
@@ -1326,7 +1217,7 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
     }
   }
 
-  // Issue cryptographically signed session token with 7-day persistent validity, unique sessionId & platform scope
+  // Issue cryptographically signed session token with 7-day persistent validity & unique sessionId
   const sessionId = `sess_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
   const tokenPayload: SignedSessionPayload = {
     sessionId,
@@ -1334,7 +1225,6 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
     name: user.name,
     email: user.email,
     role: user.role,
-    platform: clientPlatform, // Immutable cryptographically bound platform scope
     studentId: user.studentId,
     alumniId: user.alumniId,
     employeeId: user.employeeId,
@@ -1382,10 +1272,8 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
   });
 });
 
-// Dedicated Platform Auth Route: Mobile App / Tablet
+// Dedicated Route Alias: Mobile App / Tablet
 app.post('/api/v1/auth/mobile/login', authRateLimiter, (req: Request, res: Response, next: NextFunction) => {
-  req.body.platform = 'mobile';
-  (req.headers as any)['x-client-platform'] = 'mobile';
   const loginHandler = (app as any)._router.stack.find((r: any) => r.route && r.route.path === '/api/auth/login');
   if (loginHandler && loginHandler.route && loginHandler.route.stack && loginHandler.route.stack.length > 0) {
     const lastHandler = loginHandler.route.stack[loginHandler.route.stack.length - 1];
@@ -1394,10 +1282,8 @@ app.post('/api/v1/auth/mobile/login', authRateLimiter, (req: Request, res: Respo
   next();
 });
 
-// Dedicated Platform Auth Route: Web Browser / Desktop Portal
+// Dedicated Route Alias: Web Browser / Desktop Portal
 app.post('/api/v1/auth/web/login', authRateLimiter, (req: Request, res: Response, next: NextFunction) => {
-  req.body.platform = 'web';
-  (req.headers as any)['x-client-platform'] = 'web';
   const loginHandler = (app as any)._router.stack.find((r: any) => r.route && r.route.path === '/api/auth/login');
   if (loginHandler && loginHandler.route && loginHandler.route.stack && loginHandler.route.stack.length > 0) {
     const lastHandler = loginHandler.route.stack[loginHandler.route.stack.length - 1];
@@ -1417,19 +1303,6 @@ app.get('/api/auth/session', requireServerAuth, (req: Request, res: Response) =>
   let matchedUser = credentialsDb.get(userPayload.uid);
   if (!matchedUser && userPayload.email) {
     matchedUser = credentialsDb.get(userPayload.email.toLowerCase());
-  }
-
-  // Dual Gate Verification on Session: Platform Access Check
-  const clientPlatform = determinePlatform(req);
-  const effectiveRole = (matchedUser?.role || userPayload.role || 'alumni').toLowerCase().trim();
-
-  if (clientPlatform === 'mobile' && effectiveRole !== 'alumni') {
-    return res.status(403).json({
-      error: 'Administrative and partner accounts must access the system via the Web Portal.',
-      code: 'PLATFORM_ACCESS_DENIED',
-      platform: 'mobile',
-      allowedPlatform: 'web'
-    });
   }
 
   const activeSess = activeSessions.get(userPayload.uid);
@@ -2018,24 +1891,23 @@ app.post('/api/admin/verify-student', requireServerAuth, requireRole(['admin', '
   });
 });
 
-// 6.6.3 Admin Route: Tamper-Proof Audit Trail Retrieval (Strictly Web & Admins Only)
-app.get('/api/admin/audit-logs', requireServerAuth, enforcePlatform('web'), requireRole(['admin']), (_req: Request, res: Response) => {
+// 6.6.3 Admin Route: Tamper-Proof Audit Trail Retrieval (RBAC Protected: Admins Only)
+app.get('/api/admin/audit-logs', requireServerAuth, requireRole(['admin']), (_req: Request, res: Response) => {
   res.json({
     logs: serverAuditLogs.slice(-100).reverse()
   });
 });
 
-app.get('/api/admin/audit', requireServerAuth, enforcePlatform('web'), requireRole(['admin']), (_req: Request, res: Response) => {
+app.get('/api/admin/audit', requireServerAuth, requireRole(['admin']), (_req: Request, res: Response) => {
   res.json({
     logs: serverAuditLogs.slice(-100).reverse()
   });
 });
 
-// 6.6.3.1 Web-Exclusive Admin Route: Audit Log CSV/JSON Export (Step-Up Clearance)
+// 6.6.3.1 Admin Route: Audit Log CSV/JSON Export (Step-Up Clearance)
 app.post(
   '/api/admin/audit-logs/export',
   requireServerAuth,
-  enforcePlatform('web'),
   requireStepUpAdmin,
   (req: Request, res: Response) => {
     const actor = (req as any).user;
@@ -2053,18 +1925,16 @@ app.post(
       success: true,
       exportedAt: new Date().toISOString(),
       exportedBy: actor.email,
-      platform: 'web',
       totalRecords: serverAuditLogs.length,
       logs: serverAuditLogs
     });
   }
 );
 
-// 6.6.3.2 Web-Exclusive Registrar Route: Bulk CSV Master List Ingestion
+// 6.6.3.2 Registrar Route: Bulk CSV Master List Ingestion (Registrar & Admin Only)
 app.post(
   '/api/registrar/bulk-import',
   requireServerAuth,
-  enforcePlatform('web'),
   requireRole(['admin', 'registrar', 'staff']),
   (req: Request, res: Response) => {
     const actor = (req as any).user;
@@ -2094,11 +1964,10 @@ app.post(
   }
 );
 
-// 6.6.3.3 Web-Exclusive Super Admin Route: System Infrastructure & DB Backup
+// 6.6.3.3 Super Admin Route: System Infrastructure & DB Backup
 app.post(
   '/api/admin/system-backup',
   requireServerAuth,
-  enforcePlatform('web'),
   requireStepUpAdmin,
   (req: Request, res: Response) => {
     const actor = (req as any).user;
@@ -2126,11 +1995,10 @@ app.post(
   }
 );
 
-// 6.6.3.4 Mobile-Exclusive Route: Digital Pass Offline Token Generation
+// 6.6.3.4 Route: Digital Pass Offline Token Generation (Universally Accessible)
 app.post(
   '/api/pass/offline-token',
   requireServerAuth,
-  enforcePlatform('mobile'),
   (req: Request, res: Response) => {
     const actor = (req as any).user;
     const offlinePayload = {
@@ -2433,14 +2301,55 @@ interface PushDeviceRecord {
 
 const registeredPushDevices = new Map<string, PushDeviceRecord>();
 
+// Real-Time Notification Broadcast Queue & SSE Streaming Hub
+interface BroadcastNotificationRecord {
+  id: string;
+  targetUserId: string | null;
+  title: string;
+  body: string;
+  category: string;
+  data?: Record<string, any>;
+  timestamp: string;
+}
+
+const recentBroadcasts: BroadcastNotificationRecord[] = [];
+const sseClients = new Map<string, { res: Response; userId?: string }>();
+
 // Helper to send real push notifications to a user or all users
 async function dispatchPushToUser(
   targetUserId: string | null,
   payload: { title: string; body: string; category?: string; data?: Record<string, any> }
 ): Promise<{ sent: number; failed: number }> {
   const devices = Array.from(registeredPushDevices.values()).filter(
-    (d) => !targetUserId || d.userId === targetUserId
+    (d) => !targetUserId || targetUserId === 'all' || d.userId === targetUserId
   );
+
+  const broadcastRecord: BroadcastNotificationRecord = {
+    id: `bc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    targetUserId,
+    title: payload.title,
+    body: payload.body,
+    category: payload.category || 'general',
+    data: payload.data || {},
+    timestamp: new Date().toISOString()
+  };
+
+  recentBroadcasts.unshift(broadcastRecord);
+  if (recentBroadcasts.length > 50) {
+    recentBroadcasts.pop();
+  }
+
+  // 1. Immediately dispatch to active SSE listeners (open APK or web windows)
+  const ssePayload = JSON.stringify(broadcastRecord);
+  for (const [clientId, client] of sseClients.entries()) {
+    if (!targetUserId || targetUserId === 'all' || client.userId === targetUserId) {
+      try {
+        client.res.write(`data: ${ssePayload}\n\n`);
+      } catch {
+        sseClients.delete(clientId);
+      }
+    }
+  }
 
   const pushBody = JSON.stringify({
     title: payload.title,
@@ -2701,22 +2610,11 @@ app.get('/api/push/vapid-public-key', (_req: Request, res: Response) => {
   });
 });
 
-// 2. Register Device Token / WebPush Subscription (Enforces platform boundary on native tokens)
+// 2. Register Device Token / WebPush Subscription (Universally accessible across web and native APK)
 app.post('/api/push/register', requireServerAuth, (req: Request, res: Response) => {
   const { userId, token, subscription, platform, userAgent } = req.body;
   if (!userId) {
     return res.status(400).json({ error: 'userId is required.' });
-  }
-
-  const user = (req as any).user;
-  // Native mobile push device tokens (FCM/APNS) are restricted to mobile client environment
-  if (token && user.platform !== 'mobile') {
-    return res.status(403).json({
-      error: 'Endpoint restricted to mobile client environment. Native hardware push device tokens cannot be registered by web clients.',
-      code: 'PLATFORM_ACCESS_DENIED',
-      requiredPlatform: 'mobile',
-      tokenPlatform: user.platform
-    });
   }
 
   const deviceId = token || (subscription && subscription.endpoint) || `dev_${Date.now()}`;
@@ -2809,6 +2707,45 @@ app.post('/api/push/test', (req: Request, res: Response) => {
       message: 'Test push notification sent to your device.'
     });
   }
+});
+
+// 6. Live Push Notification SSE Stream (Foreground Device Pop-up Receiver)
+app.get('/api/push/live-stream', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+
+  const clientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
+
+  sseClients.set(clientId, { res, userId });
+
+  // Initial connection heartbeat
+  res.write(`data: ${JSON.stringify({ type: 'connected', clientId, timestamp: new Date().toISOString() })}\n\n`);
+
+  const heartbeatInterval = setInterval(() => {
+    try {
+      res.write(': keep-alive\n\n');
+    } catch {
+      clearInterval(heartbeatInterval);
+      sseClients.delete(clientId);
+    }
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(heartbeatInterval);
+    sseClients.delete(clientId);
+  });
+});
+
+// 7. Recent Broadcasts Retrieval (For App Sync upon Re-opening)
+app.get('/api/push/recent-broadcasts', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    broadcasts: recentBroadcasts.slice(0, 20)
+  });
 });
 
 // 6.6.7.5 Offline Message Batch Synchronization Endpoint (Sync Now / Auto-reconnect)

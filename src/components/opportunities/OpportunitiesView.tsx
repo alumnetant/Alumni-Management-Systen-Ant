@@ -36,6 +36,11 @@ import { JobApplicantsTrackerModal } from './JobApplicantsTrackerModal';
 import { JobModerationQueue } from './JobModerationQueue';
 import { ShareModal, ShareItem } from '../common/ShareModal';
 import { ConfirmationModal } from '../common/ConfirmationModal';
+import {
+  computePreciseJobMatch,
+  isSkillMatch,
+  JobMatchResult
+} from '../../services/jobMatchingService';
 
 export const OpportunitiesView: React.FC = () => {
   const {
@@ -94,7 +99,7 @@ export const OpportunitiesView: React.FC = () => {
       const lower = skill.toLowerCase();
       counts[skill] = opportunities.filter((o) => {
         if (o.approvalStatus && o.approvalStatus !== 'approved') return false;
-        return (o.skills || []).some((s) => s.toLowerCase().includes(lower) || lower.includes(s.toLowerCase()));
+        return (o.skills || []).some((s) => isSkillMatch(skill, s));
       }).length;
     });
     return counts;
@@ -161,43 +166,14 @@ export const OpportunitiesView: React.FC = () => {
     });
   }, [opportunities, currentUser]);
 
-  // Helper to compute match score between logged-in user & an opportunity
-  const computeUserMatch = (opp: Opportunity) => {
-    if (!currentUser) return null;
-    const reqCourse = (opp.requiredCourse || '').toLowerCase();
-    const userCourse = (currentUser.course || '').toLowerCase();
-    const courseMatched = reqCourse ? userCourse.includes(reqCourse) || reqCourse.includes(userCourse) || reqCourse.includes('all') : true;
-
-    const oppSkills = opp.skills || [];
-    const userSkills = currentUser.skills || [];
-    const matchedSkills = oppSkills.filter((s) =>
-      userSkills.some((us) => us.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(us.toLowerCase()))
-    );
-
-    let score = 50;
-    if (courseMatched) score += 25;
-    if (oppSkills.length > 0) {
-      score += Math.round((matchedSkills.length / oppSkills.length) * 20);
-    } else {
-      score += 20;
-    }
-    if ((opp.location || '').toLowerCase().includes('cebu') || (opp.location || '').toLowerCase().includes('remote')) {
-      score += 5;
-    }
-    const finalScore = Math.min(Math.max(score, 45), 98);
-
-    return {
-      score: finalScore,
-      courseMatched,
-      matchedSkillsCount: matchedSkills.length,
-      totalSkills: oppSkills.length,
-      isHighMatch: finalScore >= 80
-    };
+  // Precision Multi-Factor Match Computation
+  const computeUserMatch = (opp: Opportunity): JobMatchResult | null => {
+    return computePreciseJobMatch(currentUser, opp);
   };
 
   // Filtered approved opportunities for public Explore tab
   const publishedOpportunities = useMemo(() => {
-    return opportunities.filter((opp) => {
+    const filtered = opportunities.filter((opp) => {
       // Must be approved to appear in explore
       if (opp.approvalStatus && opp.approvalStatus !== 'approved') return false;
       // Must be active (not closed)
@@ -222,9 +198,7 @@ export const OpportunitiesView: React.FC = () => {
         if (userVerifiedSkills.length > 0) {
           const oppSkills = opp.skills || [];
           const hasMatchingSkill = oppSkills.some((os) =>
-            userVerifiedSkills.some(
-              (us) => us.toLowerCase().includes(os.toLowerCase()) || os.toLowerCase().includes(us.toLowerCase())
-            )
+            userVerifiedSkills.some((us) => isSkillMatch(us, os))
           );
           if (!hasMatchingSkill) return false;
         }
@@ -240,13 +214,25 @@ export const OpportunitiesView: React.FC = () => {
         if (!matchesTag) return false;
       }
 
+      // Precision "Matched For Me" Filter (strict qualification threshold: >= 65% with legitimate qualification)
       if (matchOnly) {
         const match = computeUserMatch(opp);
-        if (!match || match.score < 75) return false;
+        if (!match || !match.isQualified) return false;
       }
 
       return matchesSearch && matchesType && matchesCourse;
     });
+
+    // When "Matched For Me" is active, sort by highest qualification score first
+    if (matchOnly) {
+      return [...filtered].sort((a, b) => {
+        const sa = computeUserMatch(a)?.score || 0;
+        const sb = computeUserMatch(b)?.score || 0;
+        return sb - sa;
+      });
+    }
+
+    return filtered;
   }, [
     opportunities,
     searchQuery,
@@ -821,15 +807,25 @@ export const OpportunitiesView: React.FC = () => {
 
                       {match && (
                         <div
-                          className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold border shrink-0 ${
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border shrink-0 transition-all ${
                             match.score >= 80
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              : 'bg-stone-50 text-stone-700 border-stone-200'
+                              ? 'bg-emerald-50 text-emerald-900 border-emerald-300 shadow-2xs'
+                              : match.score >= 65
+                              ? 'bg-amber-50 text-amber-900 border-amber-300'
+                              : 'bg-stone-50 text-stone-600 border-stone-200'
                           }`}
-                          title={`Automated Profile Compatibility Score: ${match.score}%`}
+                          title={`Precision Compatibility: ${match.score}%\n• Skills: ${match.breakdown.skillsScore}/45\n• Program: ${match.breakdown.programScore}/30\n• Seniority: ${match.breakdown.experienceScore}/15\n• Location: ${match.breakdown.locationScore}/10`}
                         >
-                          <Sparkles className="w-3 h-3 text-emerald-600" />
-                          <span>{match.score}%</span>
+                          <Sparkles
+                            className={`w-3 h-3 ${
+                              match.score >= 80
+                                ? 'text-emerald-600'
+                                : match.score >= 65
+                                ? 'text-amber-600'
+                                : 'text-stone-400'
+                            }`}
+                          />
+                          <span>{match.score}% Match</span>
                         </div>
                       )}
                     </div>
@@ -858,22 +854,35 @@ export const OpportunitiesView: React.FC = () => {
                       {opp.description}
                     </p>
 
-                    {/* Required Skills Chips */}
+                    {/* Required Skills Chips & Match Breakdown */}
                     {opp.skills && opp.skills.length > 0 && (
                       <div className="mt-3.5 space-y-1.5">
-                        {match && match.matchedSkillsCount > 0 && (
-                          <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-bold">
-                            <ShieldCheck className="w-3 h-3 text-emerald-600" />
-                            <span>
-                              {match.matchedSkillsCount} of {opp.skills.length} verified skill{match.matchedSkillsCount === 1 ? '' : 's'} match your profile
-                            </span>
+                        {match && (
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] text-stone-600">
+                            {match.matchedSkills.length > 0 && (
+                              <div className="flex items-center gap-1 text-emerald-700 font-bold">
+                                <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                <span>
+                                  {match.matchedSkills.length} of {opp.skills.length} verified skill
+                                  {match.matchedSkills.length === 1 ? '' : 's'} matched
+                                </span>
+                              </div>
+                            )}
+                            {match.programMatchStatus === 'exact' && (
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                                {match.programMatchLabel}
+                              </span>
+                            )}
+                            {match.programMatchStatus === 'cluster' && (
+                              <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 font-medium">
+                                Related Program
+                              </span>
+                            )}
                           </div>
                         )}
                         <div className="flex flex-wrap gap-1.5">
                           {(opp.skills || []).map((s, idx) => {
-                            const isSkillMatched = userVerifiedSkills.some(
-                              (us) => us.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(us.toLowerCase())
-                            );
+                            const isSkillMatched = userVerifiedSkills.some((us) => isSkillMatch(us, s));
                             const isCurrentlySelected = selectedSkillTag.toLowerCase() === s.toLowerCase();
                             return (
                               <button
