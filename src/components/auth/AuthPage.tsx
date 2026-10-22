@@ -108,7 +108,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     terminateOtherSessionAndLogin,
     loginPlatformError,
     clearLoginPlatformError,
-    moderatorQuota
+    moderatorQuota,
+    clientPlatform
   } = useAlumni();
   const { isDark, toggleTheme } = useTheme();
 
@@ -122,6 +123,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [staySignedIn, setStaySignedIn] = useState(true);
   const [loginError, setLoginError] = useState('');
+
+  // Synchronize platform-specific access restriction notifications immediately
+  useEffect(() => {
+    if (loginPlatformError) {
+      setLoginError(loginPlatformError);
+    }
+  }, [loginPlatformError]);
 
   // Biometric Authentication State (Face Detection)
   const [biometricAvail, setBiometricAvail] = useState<BiometricAvailability>({
@@ -650,6 +658,32 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         onBackToApp();
       }
     } else {
+      // Check if user is an administrative/staff account attempting to log in on mobile APK
+      const trimmed = loginIdentifier.trim().toLowerCase();
+      const rawClean = trimmed.replace(/^scc-?/i, '').replace(/^alum-?/i, '');
+      const normalizedInputId = trimmed.replace(/[^a-zA-Z0-9]/g, '');
+
+      const potentialUser = users.find((u) => {
+        if (u.email && u.email.toLowerCase() === trimmed) return true;
+        if (u.studentId) {
+          const uLower = u.studentId.toLowerCase();
+          const uClean = uLower.replace(/^scc-?/i, '');
+          const uDigits = u.studentId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          if (uLower === trimmed || uClean === rawClean || uDigits === normalizedInputId) return true;
+        }
+        if (u.employeeId) {
+          const eLower = u.employeeId.toLowerCase();
+          const eClean = eLower.replace(/^scc-?/i, '');
+          if (eLower === trimmed || eLower === `scc-${trimmed}` || eClean === rawClean) return true;
+        }
+        return false;
+      });
+
+      if (clientPlatform === 'mobile' && potentialUser && (potentialUser.role || 'alumni').toLowerCase() !== 'alumni') {
+        setLoginError('Administrative access is restricted to the web portal.');
+        return;
+      }
+
       // If failure was due to platform access gate or lifecycle restriction, display message directly
       if (loginPlatformError) {
         setLoginError(loginPlatformError);
@@ -1254,12 +1288,41 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 </div>
               </div>
             ) : loginError ? (
-              <div className="mb-4 p-3.5 rounded-xl bg-red-50 text-red-800 text-xs border border-red-200 flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-medium leading-relaxed">{loginError}</p>
+              loginError.includes('Administrative access is restricted to the web portal') ? (
+                <div className="mb-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-900 dark:text-amber-100 shadow-xs">
+                  <div className="flex items-start gap-3">
+                    <ShieldAlert className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-1.5">
+                      <h4 className="font-bold text-xs uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                        Institutional Access Policy
+                      </h4>
+                      <p className="text-xs font-semibold leading-relaxed text-amber-950 dark:text-amber-100">
+                        Administrative access is restricted to the web portal.
+                      </p>
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300/80 leading-relaxed">
+                        Administrators, Registrars, Staff, and Employers must log in via the official web portal. Alumni members can sign in on both mobile APK and web.
+                      </p>
+                      <div className="pt-2 flex items-center gap-2">
+                        <a
+                          href={typeof window !== 'undefined' ? window.location.origin : '/'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-semibold shadow-xs transition-colors"
+                        >
+                          Launch Web Portal
+                        </a>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="mb-4 p-3.5 rounded-xl bg-red-50 text-red-800 text-xs border border-red-200 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-medium leading-relaxed">{loginError}</p>
+                  </div>
+                </div>
+              )
             ) : failedAttempts > 0 ? (
               <div className="mb-4 p-3 rounded-xl bg-amber-50 text-amber-800 text-xs border border-amber-200 flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
