@@ -1,6 +1,6 @@
-# Platform-Based Role Access Control: Universal Alumni Access & Web-Only Admin Portal
+# Cross-Platform Security, Directory Segregation & Institutional Experience Plan
 
-This plan establishes platform-specific authentication and runtime access boundaries for the St. Cecilia's College Alumni Network. It enables alumni members to use both the Web Portal and the native Android APK mobile application, while strictly restricting administrators, super administrators, and institutional staff (Registrar, Staff, Moderator, Employer) to the Web Portal.
+This implementation plan addresses the comprehensive update request across the St. Cecilia's College Alumni Network (Web and Mobile builds). It establishes the reusable `PlatformRestrictedGuard`, introduces email-based Two-Step Verification, separates Alumni and Employer onboarding with a pre-submission review step and approval notices, segregates the Directory into Alumni and Partnered Companies, removes feed IDs and landing redirect arrows, resolves chat ordering and delivery status indicators, integrates an institutional User Satisfaction Survey, and mandates confirmation dialogs on all sensitive administrative actions.
 
 ---
 
@@ -8,127 +8,164 @@ This plan establishes platform-specific authentication and runtime access bounda
 
 > [!IMPORTANT]
 > **Confirmed Specifications from Clarification Phase**:
-> 1. **Alumni Universal Clearance**: Alumni accounts (`role === 'alumni'`) can sign in and access the platform from **both** the Web Portal (desktop, tablet, mobile web browsers) and the native APK mobile application.
-> 2. **Administrative Web-Only Restriction**: Administrators (`admin`, `superadmin`) and all institutional staff roles (`registrar`, `staff`, `moderator`, `employer`) can **only** access the Web Portal. They are blocked from signing in on the native mobile APK package.
-> 3. **Native APK Environment Detection**: The mobile application environment is distinguished strictly by native runtime detection (`Capacitor.isNativePlatform()`), eliminating the previous viewport width check (`< 1024px`) that inadvertently treated mobile web browsers as the mobile APK.
-> 4. **User Guidance Notice**: When an administrator or non-alumni account attempts to log in on the mobile APK package, authentication is blocked with the exact institutional advisory: `"Administrative access is restricted to the web portal"`.
+> 1. **Two-Step Verification (2FA)**: Delivers a secure 6-digit one-time security code to the user's registered institutional email, complete with countdown expiration and a "Resend Code" control.
+> 2. **Pending Approval Window**: Registration completion notices explicitly inform new registrants that their credentials and documents are undergoing verification by the Registrar/Administration and will be reviewed within **24 to 48 business hours**.
+> 3. **User Satisfaction Survey Placement**: Accessible via a prominent, dignified institutional banner and modal within the user profile menu and header, allowing Cecilian alumni and staff to evaluate their experience without interrupting primary workflows.
+> 4. **Administrative Web-Only Guard**: A reusable `PlatformRestrictedGuard` component programmatically intercepts administrative dashboard routes when accessed via native APK environments, rendering an institutional restriction message with a web launcher.
 
 ---
 
-## 1. Overview & Core Concept
-
-- **What It Does**: Enforces platform-specific security boundaries between collegiate stakeholders. Mobile alumni members access dedicated features (digital alumni ID pass, real-time push alerts, messaging, and networking) on both their phones and web browsers, while administration, registrar records verification, user role assignment, and management desks are secured strictly within the full-featured Web Portal.
-- **Target Audience**:
-  - Alumni accessing the network via the downloaded Android APK or any web browser.
-  - School Administrators, Superadmins, Registrars, and Staff accessing console desks via web browsers on desktop, laptop, tablet, or mobile.
-- **Key Value**: Prevents unauthorized administrative access attempts on personal mobile devices via the APK binary, guarantees a stable full-screen workstation experience for administrative tasks, and delivers universal access for alumni.
-
----
-
-## 2. User Experience & Visual Design
-
-- **Alumni Login Flow (Web & Mobile APK)**:
-  - An alumnus enters their Student ID, Alumni ID, or email and password.
-  - Authentication succeeds seamlessly across both platforms.
-  - On the mobile APK, the alumnus experiences the touch-optimized mobile interface with bottom glass dock, push notifications, and campus pass.
-  - On the Web Portal, the alumnus enjoys the spacious desktop dashboard.
-
-- **Administrator Login Flow on Web Portal**:
-  - An administrator signs in via any standard web browser (Chrome, Safari, Firefox, Edge on desktop, tablet, or mobile).
-  - The Web Portal validates the administrative credentials and loads the console dashboard with full management capabilities.
-
-- **Administrator Login Attempt on Mobile APK**:
-  - If an administrator enters administrative credentials into the native Android APK package:
-    - Login is halted immediately before creating an active session.
-    - A crisp, styled modal or inline banner in St. Cecilia's deep crimson (`#8B181B`) displays:
-      `"Administrative access is restricted to the web portal"`.
-    - An action button provides a direct browser launch option (`"Open Web Portal"`), seamlessly directing the administrator to the web URL.
-    - No administrative data or tokens are stored in the mobile APK storage.
-
----
-
-## 3. Key Product Decisions & Trade-Offs
-
-- **Decision 1: Native Runtime Inspection Over Viewport Width**
-  - *Chosen Approach*: Identify the APK strictly through `Capacitor.isNativePlatform()` and native Capacitor bridge headers.
-  - *Why*: Viewport width detection (`innerWidth < 1024px`) previously misidentified mobile web browsers as APK binaries, erroneously blocking administrators inspecting the portal on smartphones or responsive displays.
-  - *Alternatives Considered*: User-Agent sniffing (fragile and easily spoofed); Screen size checks (blocks mobile web testing).
-
-- **Decision 2: Dual Client & Server Enforcement**
-  - *Chosen Approach*: Enforce platform clearance both in the client authentication state and inside the backend Express API (`/api/auth/login`).
-  - *Why*: Client validation gives instant, responsive feedback, while server-side validation guarantees that requests directly sent to the API cannot bypass the platform check.
-
-- **Decision 3: Non-Alumni Institutional Roles Alignment**
-  - *Chosen Approach*: Align Registrars, Staff, Moderators, and Employers with Administrators (Web Portal only).
-  - *Why*: Maintains high security across all privileged institutional roles and avoids exposing departmental tools in consumer mobile packages.
-
----
-
-## 4. Technical Architecture & Data Strategy
-
-### Authentication & Platform Gate Architecture
+## 1. Architecture & Component Blueprint
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        CLIENT RUNTIME DETECTION                        │
+│                      PLATFORMRESTRICTEDGUARD                           │
 │                                                                        │
-│   ┌────────────────────────────────┐  ┌────────────────────────────┐   │
-│   │   Native Android APK Package   │  │   Web Portal (Any Browser) │   │
-│   │   Capacitor.isNativePlatform() │  │   Desktop / Tablet / Phone │   │
-│   │   platform: "native_apk"       │  │   platform: "web"          │   │
-│   └───────────────┬────────────────┘  └─────────────┬──────────────┘   │
-└───────────────────┼─────────────────────────────────┼──────────────────┘
-                    │                                 │
-                    ▼                                 ▼
+│   Detects: Capacitor.isNativePlatform() === true                       │
+│   ├─ If Native APK & Admin Route:                                      │
+│   │  Renders "Web-Only Access" Notice + "Launch Official Web Portal"   │
+│   └─ If Web Browser (Desktop / Mobile / Tablet):                       │
+│      Renders full administrative children (AdminPanelView, etc.)       │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│                      AUTHENTICATION PLATFORM GATE                      │
+│                        AUTHENTICATION & ACCESS                         │
 │                                                                        │
-│   • Alumni (role === 'alumni'):                                        │
-│     Allowed on "native_apk" AND "web"                                  │
+│  [Two-Step Verification]       [Separate Registration Hub]             │
+│  • 6-digit email OTP modal      • Choice: Alumni vs. Partner Employer   │
+│  • Expiration timer & resend   • Back button to re-select path         │
+│  • Cloud-synced 2FA state      • Step 3: Information Review & Edit     │
+│                                • Employer completes -> Sign In route   │
+│                                • 24–48hr Pending Notice Banner         │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                         DIRECTORY SEGREGATION                          │
 │                                                                        │
-│   • Administrators & Staff (admin, superadmin, registrar, staff...):   │
-│     Allowed ONLY on "web"                                              │
-│     Blocked on "native_apk" with:                                      │
-│     "Administrative access is restricted to the web portal"            │
-└───────────────────┬─────────────────────────────────┬──────────────────┘
-                    │                                 │
-                    ▼                                 ▼
-┌───────────────────────────────────────┐ ┌──────────────────────────────┐
-│ Express API /api/auth/login           │ │ Client Auth State            │
-│ Verify platform & role constraints    │ │ Display advisory modal &     │
-│ Return HTTP 403 on APK admin attempt  │ │ "Open Web Portal" link       │
-└───────────────────────────────────────┘ └──────────────────────────────┘
+│  Sidebar: "Directory" (renamed from "Alumni Directory")                │
+│  Main View Tabs:                                                       │
+│  ┌───────────────────────────────────┬───────────────────────────────┐ │
+│  │ 🎓 Alumni Directory               │ 🏢 Partnered Companies        │ │
+│  │ • Unapproved/pending hidden       │ • Approved active partners    │ │
+│  │ • Verified Cecilian roster        │ • Real-time available slots   │ │
+│  │ • Batch/Course/Industry filters   │ • Declined companies removed  │ │
+│  └───────────────────────────────────┴───────────────────────────────┘ │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                   UX, CHAT & ADMINISTRATIVE SAFETY                     │
+│                                                                        │
+│  • Social Feed: ID numbers stripped from post cards and avatars        │
+│  • Landing Page: Redirection arrow button removed                      │
+│  • Messaging: Latest active chat floats to top; message states "Sent"  │
+│  • Survey: User Satisfaction Survey in profile menu (ratings + notes)  │
+│  • Admin Safety: ConfirmationModal on role changes, deletions & bans   │
+└────────────────────────────────────────────────────────────────────────┘
 ```
-
-### Component & State Mapping
-
-- **Platform State (`AlumniContext.tsx`)**:
-  - `isNativeApk`: Boolean flag checking `Capacitor.isNativePlatform()`.
-  - `clientPlatform`: Evaluates to `'native_apk'` when running within the compiled Capacitor binary; otherwise evaluates to `'web'`.
-  - `setClientPlatformOverride`: Retains developer debugging capability for testing native APK posture in preview environments.
-- **Login Validation (`AlumniContext.tsx` & `server.ts`)**:
-  - In `login(identifier, password)`:
-    - Sends `{ identifier, password, platform: clientPlatform }` to `/api/auth/login`.
-    - If `platform === 'native_apk'` and `user.role !== 'alumni'`:
-      - Abort session creation.
-      - Return `{ success: false, error: 'Administrative access is restricted to the web portal' }`.
-  - In `server.ts` line 1105 (`/api/auth/login`):
-    - Replace the unconditional non-alumni block with platform-aware validation:
-      `if (platform === 'native_apk' && userRole !== 'alumni')` -> return 403 with `Administrative access is restricted to the web portal`.
-      `if (platform !== 'native_apk')` -> permit both alumni and administrators to log in!
 
 ---
 
-## 5. Verification Plan
+## 2. Detailed Work Breakdown by Section
 
-1. **Automated Verification**:
-   - Run `lint_applet` and `compile_applet` to confirm zero TypeScript compilation errors.
-2. **Alumni Login Verification**:
-   - Web Browser: Sign in as `alumni@stcecilia.edu.ph` -> Expect successful login.
-   - Native APK simulation: Set platform to APK -> Sign in as `alumni@stcecilia.edu.ph` -> Expect successful login.
-3. **Administrator Login Verification**:
-   - Web Browser: Sign in as `admin@stcecilia.edu.ph` or `superadmin@stcecilia.edu.ph` -> Expect successful login and access to administrative desks.
-   - Native APK simulation: Set platform to APK -> Attempt sign in as `admin@stcecilia.edu.ph` -> Expect blocked login with notice: `"Administrative access is restricted to the web portal"`.
-4. **Staff Roles Verification**:
-   - Web Browser: Sign in as `registrar@stcecilia.edu.ph` or `employer@stcecilia.edu.ph` -> Expect successful login.
-   - Native APK simulation: Attempt sign in -> Expect blocked login with the same web-only advisory.
+### Phase 1: PlatformRestrictedGuard Component
+- **Location**: `src/components/common/PlatformRestrictedGuard.tsx`
+- **Behavior**:
+  - Checks `clientPlatform === 'mobile'` or `Capacitor.isNativePlatform()`.
+  - If user is in an administrative role (`admin`, `superadmin`, `staff`, `moderator`, `registrar`) and running within the native APK environment, displays a full-card institutional notice:
+    - Title: **Administrative Access Restricted**
+    - Message: *"Administrative access is restricted to the web portal. To manage registry records, verification queues, and institutional settings, please log in through your desktop or mobile web browser."*
+    - Actions: **"Launch Web Portal"** (`window.location.origin`) and **"Return to Alumni Dashboard"**.
+  - If in web browser, renders children normally without interference.
+- **Integration**: Wraps `AdminPanelView`, `AdminWorkspaceLayout`, `EmployerManagementModule`, and privileged sub-dashboards in `App.tsx`.
+
+### Phase 2: Two-Step Verification (2FA) & Security
+- **Location**: `src/components/auth/TwoFactorVerificationModal.tsx`, `src/context/AlumniContext.tsx`, `server.ts`
+- **Features**:
+  - Generates secure 6-digit numeric OTP linked to the authenticating user session.
+  - Simulates/dispatches code to the user's registered institutional email (with demo preview toast/code display for friction-free testing).
+  - 10-minute expiration countdown with one-click **"Resend Security Code"**.
+  - Secure entry input with automated auto-focus and clipboard paste support.
+  - Verification succeeds -> establishes persistent active session.
+
+### Phase 3: Registration Redesign, Pre-Submission Review & Pending Notices
+- **Location**: `src/components/auth/AuthPage.tsx`
+- **Updates**:
+  1. **Dual Registration Entry**:
+     - Top navigation segment or card selection allowing users to pick between **Alumni Registration** and **Employer / Industry Partner Registration**.
+     - Clear **"Back to Role Selection"** and **"Back to Sign In"** navigation buttons on all registration sub-steps.
+  2. **Information Validation / Review Step**:
+     - Before final registration commit, insert a dedicated **"Review & Confirm Details"** summary step.
+     - Displays formatted cards of all input details (Full Name, Student ID / Company Name, Degree / Industry, Contact Email, Employment Status).
+     - Allows quick inline editing before final submission to eliminate typing mistakes.
+  3. **Employer Flow Redirection**:
+     - Once employer registration is submitted, smoothly transitions the view to the **Sign In tab** with a success message (instead of looping back to Alumni registration).
+  4. **Pending Approval Notification**:
+     - Prominent status card informing the newly registered user:
+       *"Your account has been submitted successfully and is currently pending institutional verification. Account credentials and student/company records are reviewed within **24 to 48 business hours**. You will receive an email confirmation once approved."*
+
+### Phase 4: Directory Segregation & Visibility Restrictions
+- **Location**: `src/components/layout/Navigation.tsx`, `src/components/network/NetworkView.tsx`, `src/components/network/PartneredCompaniesView.tsx`
+- **Updates**:
+  1. **Navigation Rename**: Rename sidebar and mobile drawer item from "Alumni Directory" / "Alumni Network" to **"Directory"**.
+  2. **Strict Visibility Filter**: Filter out any user with `accountStatus === 'PENDING_VERIFICATION'` or `accountStatus === 'SUSPENDED'` or unverified employers (`employerVerificationStatus !== 'approved'`).
+  3. **Segregated Sub-Views**:
+     - Tab 1: **Alumni Directory**: Verified alumni cards, batch filters, course search.
+     - Tab 2: **Partnered Companies**: Dedicated grid/list of approved industry partner organizations.
+  4. **Available Slots & Opportunities Display**:
+     - Each company card shows their active job/internship counts and slots available (e.g., *"3 Active Openings · 8 Available Slots"*).
+  5. **Auto-Removal of Declined Partners**:
+     - If an employer/company partnership is rejected or declined in administrative management, they are automatically purged from the directory display.
+
+### Phase 5: Social Feed, Landing Page & Responsive Web Polish
+- **Location**: `src/components/dashboard/InstitutionalSocialFeed.tsx`, `src/components/landing/LandingPage.tsx`
+- **Updates**:
+  1. **Feed Cleanup**: Remove student ID / user ID displays from feed post author headers and badges, showing only verified full names, degree, and graduation batch.
+  2. **Landing Page Arrow Removal**: Remove the redirection arrow button from hero CTAs and redirection link triggers.
+  3. **Responsive Web UI Audit**: Verify layouts across mobile (<640px), tablet (640-1024px), desktop (1024-1440px), and ultrawide (>1440px), ensuring no horizontal overflow and adhering to standard padding/radius formulas.
+
+### Phase 6: Messaging & Chat Order Fixes
+- **Location**: `src/components/messages/MessagesView.tsx`, `src/context/AlumniContext.tsx`
+- **Updates**:
+  1. **Recent Chat Float-to-Top**: Ensure `chats` array is strictly sorted by `lastMessageAt` timestamp descending, so sending or receiving a message immediately bubbles that conversation to index 0.
+  2. **Message Status Indicator**: Fix message bubble ticks so sent/delivered messages display **"Sent"** (or double checkmark) with timestamp, resolving any stuck "Sending..." status on rendered messages.
+
+### Phase 7: User Satisfaction Survey & Admin Confirmation Dialogs
+- **Location**: `src/components/survey/UserSatisfactionModal.tsx`, `src/components/layout/Header.tsx`, `src/components/admin/AdminPanelView.tsx`
+- **Updates**:
+  1. **Satisfaction Survey**:
+     - Institutional survey evaluating: Platform Usability (1-5 stars), Directory Relevance, Networking & Chat, Event Management, and open qualitative feedback.
+     - Accessible via profile dropdown menu ("Rate Portal Experience") and a non-intrusive survey banner in settings/profile.
+     - Submissions saved to Firestore (`surveys` collection) and local storage with feedback confirmation.
+  2. **Mandatory Administrative Confirmation Dialogs**:
+     - Ensure every critical admin action triggers `ConfirmationModal`:
+       - User role promotion / demotion.
+       - Account suspension / ban / unban.
+       - Employer partnership approval / decline.
+       - Announcement / event deletions.
+       - Database purge / synchronization actions.
+
+---
+
+## 3. Verification & Testing Strategy
+
+1. **Guard Test**:
+   - Access admin panel on native APK override -> Verify `PlatformRestrictedGuard` halts page and provides Web Portal launcher.
+   - Access admin panel on standard web -> Verify smooth dashboard load.
+2. **2FA Test**:
+   - Initiate login -> Verify 6-digit OTP prompt appears, test code submission and resend timer.
+3. **Registration Flow Test**:
+   - Select Employer -> Fill details -> Check Review Step -> Submit -> Verify immediate redirect to Sign In page with 24-48hr review banner.
+4. **Directory Segregation Test**:
+   - Verify sidebar says "Directory". Switch between Alumni and Partnered Companies tabs. Check slots badge on companies. Verify unapproved users/employers do not appear.
+5. **Feed & Landing Polish**:
+   - Verify zero user IDs visible in feed cards. Verify landing page has no redirect arrow button.
+6. **Chat Test**:
+   - Send message -> Confirm chat moves to the very top and displays "Sent" status.
+7. **Confirmation Dialogs & Survey Test**:
+   - Perform admin role change -> Verify confirmation modal intercepts before committing.
+   - Open User Satisfaction Survey from header menu -> Fill answers -> Submit -> Verify success confirmation.
+8. **TypeScript & Build**:
+   - Run `lint_applet` (`tsc --noEmit`) and `compile_applet`. Ensure 0 errors.

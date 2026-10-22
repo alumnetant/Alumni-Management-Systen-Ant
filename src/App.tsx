@@ -11,6 +11,7 @@ import { AuthPage } from './components/auth/AuthPage';
 import { LandingPage } from './components/landing/LandingPage';
 import { ToastContainer } from './components/common/ToastContainer';
 import { CecilianLoader } from './components/common/CecilianLoader';
+import { PlatformRestrictedGuard } from './components/common/PlatformRestrictedGuard';
 
 // Conservative Performance Optimization: Lazy-load heavy workspace layouts and modals
 const AdminWorkspaceLayout = React.lazy(() =>
@@ -619,23 +620,31 @@ function AppContent() {
           className="min-h-screen bg-[#F9FAFB] dark:bg-[#121316] flex flex-col font-sans text-stone-900 dark:text-stone-100 antialiased selection:bg-[#8B181B] selection:text-white"
         >
           <React.Suspense fallback={<CecilianLoader />}>
-            <AdminWorkspaceLayout
-              onOpenAuth={(mode) => {
-                setAuthViewMode(mode);
-                setCurrentView('auth');
+            <PlatformRestrictedGuard
+              title="Web-Only Administrative Access"
+              message="Administrative access is restricted to the web portal."
+              onReturnToDashboard={() => {
+                setActiveTab('dashboard');
               }}
-              onGoToLanding={() => {
-                if (isMobileOrTabletDevice()) {
-                  if (currentUser) {
-                    setActiveTab('dashboard');
+            >
+              <AdminWorkspaceLayout
+                onOpenAuth={(mode) => {
+                  setAuthViewMode(mode);
+                  setCurrentView('auth');
+                }}
+                onGoToLanding={() => {
+                  if (isMobileOrTabletDevice()) {
+                    if (currentUser) {
+                      setActiveTab('dashboard');
+                    } else {
+                      setCurrentView('auth');
+                    }
                   } else {
-                    setCurrentView('auth');
+                    setCurrentView('landing');
                   }
-                } else {
-                  setCurrentView('landing');
-                }
-              }}
-            />
+                }}
+              />
+            </PlatformRestrictedGuard>
 
             {/* Public Profile Modal (Available anywhere in the app) */}
             <PublicProfileModal />

@@ -258,6 +258,11 @@ export const MessagesView: React.FC = () => {
         other.name.toLowerCase().includes(q) ||
         (c.lastMessage && c.lastMessage.toLowerCase().includes(q))
       );
+    }).sort((a, b) => {
+      // Requirement 14: Ensure the most recent chat automatically moves to the top of the chat list
+      const timeA = new Date(a.lastMessageAt || 0).getTime();
+      const timeB = new Date(b.lastMessageAt || 0).getTime();
+      return timeB - timeA;
     });
   }, [chats, users, currentUser, activeFilterPill, chatSearch]);
 
@@ -1219,7 +1224,7 @@ export const MessagesView: React.FC = () => {
                                         <Clock className="w-3 h-3 text-amber-500 animate-pulse" />
                                         <span>{!isOnline ? 'Queued offline' : 'Pending'}</span>
                                       </span>
-                                    ) : msg.status === 'sending' ? (
+                                    ) : msg.status === 'sending' && (Date.now() - new Date(msg.createdAt).getTime() < 1800) ? (
                                       <span className="inline-flex items-center gap-1 text-stone-400 font-sans text-[10px]">
                                         <Clock className="w-3 h-3 animate-spin text-stone-400" />
                                         <span>Sending...</span>

@@ -163,9 +163,16 @@ export const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({
       });
     });
 
-    // 3. New Alumni Registrations
+    // 3. New Alumni Registrations (Only verified/approved accounts)
     const registeredAlumni = users
-      .filter((u) => u.role === 'alumni' && u.uid !== currentUser?.uid)
+      .filter((u) => 
+        u.role === 'alumni' && 
+        u.uid !== currentUser?.uid &&
+        (u.isVerified || u.verified || u.verificationStatus === 'verified') &&
+        u.status !== 'unverified' &&
+        u.accountStatus !== 'SUSPENDED' &&
+        u.accountStatus !== 'PENDING_VERIFICATION'
+      )
       .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
     registeredAlumni.forEach((alum) => {

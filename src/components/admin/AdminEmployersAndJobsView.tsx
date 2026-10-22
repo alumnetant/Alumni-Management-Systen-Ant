@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { Opportunity, UserProfile } from '../../types';
+import { ConfirmationModal } from '../common/ConfirmationModal';
 
 interface AdminEmployersAndJobsViewProps {
   initialSubTab?: 'jobs' | 'employers';
@@ -89,6 +90,9 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
   const [rejectReason, setRejectReason] = useState('Incomplete position qualifications or compensation rate.');
   const [inspectingJob, setInspectingJob] = useState<Opportunity | null>(null);
   const [inspectingEmployer, setInspectingEmployer] = useState<UserProfile | null>(null);
+  const [employerToAccredit, setEmployerToAccredit] = useState<{ uid: string; name: string } | null>(null);
+  const [employerToDecline, setEmployerToDecline] = useState<{ uid: string; name: string } | null>(null);
+  const [jobToApprove, setJobToApprove] = useState<{ id: string; title: string; company: string } | null>(null);
 
   // New Job Form State
   const [newTitle, setNewTitle] = useState('');
@@ -249,6 +253,7 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
         severity: 'success'
       });
       showToast('Career opportunity approved and dispatched to alumni network.', 'success');
+      setJobToApprove(null);
     },
     [approveOpportunity, addAuditLog, currentUser, showToast]
   );
@@ -282,6 +287,25 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
         severity: 'success'
       });
       showToast(`Accredited corporate partner: ${companyName}`, 'success');
+      setEmployerToAccredit(null);
+    },
+    [verifyEmployer, addAuditLog, currentUser, showToast]
+  );
+
+  const handleDeclineEmployer = useCallback(
+    (employerUid: string, companyName: string) => {
+      verifyEmployer(employerUid, 'rejected', 'Partnership request declined by St. Cecilia Administration');
+      addAuditLog({
+        action: 'REJECT_EMPLOYER',
+        actorId: currentUser?.uid || 'career_officer',
+        actorName: currentUser?.name || 'Career Placement Officer',
+        actorRole: currentUser?.role || 'admin',
+        category: 'career',
+        details: `Declined corporate partner application: ${companyName} (${employerUid})`,
+        severity: 'warning'
+      });
+      showToast(`Corporate partnership for ${companyName} declined and removed from directory.`, 'info');
+      setEmployerToDecline(null);
     },
     [verifyEmployer, addAuditLog, currentUser, showToast]
   );
@@ -651,13 +675,31 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                           </div>
 
                           <div className="flex items-center gap-1.5">
-                            {!isVerified && (
+                            {!isVerified ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setEmployerToDecline({ uid: emp.uid, name: emp.company || emp.name })}
+                                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer"
+                                >
+                                  Decline
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEmployerToAccredit({ uid: emp.uid, name: emp.company || emp.name })}
+                                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 transition-colors cursor-pointer"
+                                >
+                                  Accredit
+                                </button>
+                              </>
+                            ) : (
                               <button
                                 type="button"
-                                onClick={() => handleAccreditEmployer(emp.uid, emp.company || emp.name)}
-                                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 transition-colors cursor-pointer"
+                                onClick={() => setEmployerToDecline({ uid: emp.uid, name: emp.company || emp.name })}
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer"
+                                title="Revoke accreditation and remove from directory"
                               >
-                                Accredit
+                                Revoke
                               </button>
                             )}
                             <button
@@ -729,7 +771,7 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                                 <div className="flex items-center justify-end gap-1.5">
                                   <button
                                     type="button"
-                                    onClick={() => handleApproveJob(job.id)}
+                                    onClick={() => setJobToApprove({ id: job.id, title: job.title, company: job.company })}
                                     className="p-1 rounded-md text-emerald-700 hover:bg-emerald-50 cursor-pointer"
                                     title="Approve"
                                   >
@@ -861,7 +903,7 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleApproveJob(job.id)}
+                                onClick={() => setJobToApprove({ id: job.id, title: job.title, company: job.company })}
                                 className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 shadow-2xs transition-colors cursor-pointer"
                               >
                                 Approve Listing
@@ -914,7 +956,14 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                     <div className="flex items-center justify-end gap-1.5 pt-1">
                       <button
                         type="button"
-                        onClick={() => handleAccreditEmployer(emp.uid, emp.company || emp.name)}
+                        onClick={() => setEmployerToDecline({ uid: emp.uid, name: emp.company || emp.name })}
+                        className="px-2 py-1 rounded-md text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer"
+                      >
+                        Decline
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEmployerToAccredit({ uid: emp.uid, name: emp.company || emp.name })}
                         className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-white bg-emerald-700 hover:bg-emerald-800 transition-colors cursor-pointer"
                       >
                         Accredit
@@ -1213,6 +1262,48 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
           </div>
         </div>
       )}
+      {/* Confirmation Modals for Sensitive Administrative Actions */}
+      <ConfirmationModal
+        isOpen={!!employerToAccredit}
+        onClose={() => setEmployerToAccredit(null)}
+        onConfirm={() => {
+          if (employerToAccredit) {
+            handleAccreditEmployer(employerToAccredit.uid, employerToAccredit.name);
+          }
+        }}
+        title="Accredit Corporate Partner"
+        message={`Are you sure you want to accredit "${employerToAccredit?.name}" as an official partner company? This firm will appear in the public Partnered Companies directory and receive verified job posting privileges.`}
+        confirmLabel="Confirm Accreditation"
+        variant="info"
+      />
+
+      <ConfirmationModal
+        isOpen={!!employerToDecline}
+        onClose={() => setEmployerToDecline(null)}
+        onConfirm={() => {
+          if (employerToDecline) {
+            handleDeclineEmployer(employerToDecline.uid, employerToDecline.name);
+          }
+        }}
+        title="Decline Corporate Partnership"
+        message={`Are you sure you want to decline the partnership application for "${employerToDecline?.name}"? The company will be immediately removed from the public directory and job posting privileges will be revoked.`}
+        confirmLabel="Decline Partnership"
+        variant="danger"
+      />
+
+      <ConfirmationModal
+        isOpen={!!jobToApprove}
+        onClose={() => setJobToApprove(null)}
+        onConfirm={() => {
+          if (jobToApprove) {
+            handleApproveJob(jobToApprove.id);
+          }
+        }}
+        title="Approve Career Opportunity"
+        message={`Are you sure you want to approve "${jobToApprove?.title}" at ${jobToApprove?.company}? It will be published immediately to all alumni across the network.`}
+        confirmLabel="Approve Listing"
+        variant="info"
+      />
     </div>
   );
 };

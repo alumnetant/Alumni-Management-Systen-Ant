@@ -139,7 +139,7 @@ export const Navigation: React.FC<NavigationProps> = ({ onOpenAuth }) => {
     ...(currentUser?.role === 'employer'
       ? [{ id: 'employer_portal', label: 'Employer Dashboard', icon: Building2 }]
       : []),
-    { id: 'network', label: 'My Network', icon: Users },
+    { id: 'network', label: 'Directory', icon: Users },
     {
       id: 'messages',
       label: 'Direct Messages',
@@ -262,9 +262,9 @@ export const Navigation: React.FC<NavigationProps> = ({ onOpenAuth }) => {
     },
     {
       id: 'network',
-      label: 'Alumni Network',
+      label: 'Directory',
       icon: Users,
-      desc: 'Batch directory & verified Cecilian graduates'
+      desc: 'Cecilian alumni & partnered companies'
     },
     {
       id: 'messages',

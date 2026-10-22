@@ -50,6 +50,7 @@ import { useAlumni } from '../../context/AlumniContext';
 import { useTheme } from '../../lib/theme';
 import { UserRole, UserProfile, StudentVerificationRecord, OFFICIAL_DEGREE_PROGRAMS } from '../../types';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
+import { TwoFactorVerificationModal } from './TwoFactorVerificationModal';
 import {
   verifyStudentRecord,
   findRegistryMatch,
@@ -123,6 +124,22 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [staySignedIn, setStaySignedIn] = useState(true);
   const [loginError, setLoginError] = useState('');
+
+  // Two-Step Verification State
+  const [showTwoFactorModal, setShowTwoFactorModal] = useState(false);
+  const [pendingTwoFactorUser, setPendingTwoFactorUser] = useState<{
+    email: string;
+    name: string;
+    role: string;
+  } | null>(null);
+
+  // Pending Account Approval Notification (Explicit 24 to 48 business hours)
+  const [pendingApprovalNotice, setPendingApprovalNotice] = useState<{
+    show: boolean;
+    role: 'alumni' | 'employer';
+    email: string;
+    message: string;
+  } | null>(null);
 
   // Synchronize platform-specific access restriction notifications immediately
   useEffect(() => {
@@ -301,6 +318,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [showEmployerConfirmPassword, setShowEmployerConfirmPassword] = useState(false);
   const [employerError, setEmployerError] = useState('');
   const [isSubmittingEmployer, setIsSubmittingEmployer] = useState(false);
+  const [employerStep, setEmployerStep] = useState<1 | 2>(1);
 
   // Step 1: Initial Student ID Screening
   const [studentId, setStudentId] = useState('');
@@ -652,11 +670,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       });
 
       const userRole = matchedUser?.role || 'alumni';
-      if (onLoginSuccess) {
-        onLoginSuccess(userRole);
-      } else if (onBackToApp) {
-        onBackToApp();
-      }
+      const userEmail = matchedUser?.email || (trimmed.includes('@') ? trimmed : `${trimmed}@alumni.stcecilia.edu`);
+      const userName = matchedUser?.name || 'Cecilian Member';
+
+      // Enhanced Account Security: Trigger Two-Step Verification before establishing session
+      setPendingTwoFactorUser({
+        email: userEmail,
+        name: userName,
+        role: userRole
+      });
+      setShowTwoFactorModal(true);
     } else {
       // Check if user is an administrative/staff account attempting to log in on mobile APK
       const trimmed = loginIdentifier.trim().toLowerCase();
@@ -886,8 +909,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
   };
 
-  // Employer Registration Form Handler
-  const handleEmployerRegister = (e: React.FormEvent) => {
+  // Step 1: Employer Details Validation -> Proceed to Step 2 Review
+  const handleProceedEmployerToReview = (e: React.FormEvent) => {
     e.preventDefault();
     setEmployerError('');
 
@@ -919,7 +942,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       return;
     }
 
+    // Advance to Step 2: Information Validation & Review Step
+    setEmployerStep(2);
+  };
+
+  // Step 2: Employer Final Submission -> Redirects straight to Sign In page
+  const handleConfirmEmployerSubmit = () => {
     setIsSubmittingEmployer(true);
+
+    const formattedWebsite = companyWebsite.trim()
+      ? companyWebsite.startsWith('http')
+        ? companyWebsite.trim()
+        : `https://${companyWebsite.trim()}`
+      : '';
 
     const registered = register({
       role: 'employer',
@@ -928,7 +963,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       password: employerPassword,
       companyName: companyName.trim(),
       companyIndustry: companyIndustry.trim(),
-      companyWebsite: companyWebsite.trim() ? (companyWebsite.startsWith('http') ? companyWebsite.trim() : `https://${companyWebsite.trim()}`) : '',
+      companyWebsite: formattedWebsite,
       companyAddress: companyAddress.trim() || 'Cebu City, Philippines',
       location: companyAddress.trim() || 'Cebu City, Philippines',
       phone: employerPhone.trim() || '+63 917 123 4567',
@@ -936,11 +971,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       contactPerson: employerContactPerson.trim(),
       headline: `Hiring Partner • ${companyName.trim()}`,
       isVerified: false,
-      verified: false
+      verified: false,
+      employerVerificationStatus: 'pending_verification'
     });
 
+    setIsSubmittingEmployer(false);
     if (!registered) {
-      setIsSubmittingEmployer(false);
       setEmployerError('Registration could not be completed. Please review your details.');
       return;
     }
@@ -951,18 +987,29 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       actorName: employerContactPerson.trim(),
       actorRole: 'employer',
       category: 'user_management',
-      details: `Employer partner registered: "${companyName.trim()}" by ${employerContactPerson.trim()} (${employerEmail.trim()}). Account provisioned for employer portal access, pending accreditation verification.`,
+      details: `Employer partner registered: "${companyName.trim()}" by ${employerContactPerson.trim()} (${employerEmail.trim()}). Account provisioned, pending accreditation review (24-48 business hours).`,
       severity: 'info'
     });
 
-    setRegistrationComplete(true);
-    setTimeout(() => {
-      if (onLoginSuccess) {
-        onLoginSuccess('employer');
-      } else if (onBackToApp) {
-        onBackToApp();
-      }
-    }, 1200);
+    const registeredEmail = employerEmail.trim().toLowerCase();
+
+    // Reset employer state
+    setEmployerStep(1);
+    setEmployerPassword('');
+    setEmployerConfirmPassword('');
+
+    // Requirement 4 & 5: Redirect straight to Sign In page (not looping back to Alumni Registration)
+    // with clear pending approval notification (24 to 48 business hours)
+    setLoginIdentifier(registeredEmail);
+    setLoginMethod('email');
+    setPendingApprovalNotice({
+      show: true,
+      role: 'employer',
+      email: registeredEmail,
+      message: `Your corporate employer account for "${companyName.trim()}" has been submitted for institutional accreditation. Account verification typically completes within 24 to 48 business hours. You will be able to sign in once approved by the Directorate of Corporate Alliances.`
+    });
+    setMode('login');
+    showToast('Employer registration submitted! Account pending review (24-48 business hours).', 'success');
   };
 
   return (
@@ -1247,6 +1294,41 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         className="px-3 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 text-xs font-medium transition-colors cursor-pointer"
                       >
                         Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pending Account Approval Notification Banner (Requirement 5) */}
+            {pendingApprovalNotice?.show && (
+              <div className="mb-5 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-950 dark:text-amber-100 shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 shrink-0 mt-0.5">
+                    <Clock className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h4 className="font-bold text-xs uppercase tracking-wider text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        Registration Received • Pending Review
+                      </h4>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100">
+                        24 to 48 Business Hours
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+                      {pendingApprovalNotice.message}
+                    </p>
+                    <div className="pt-2 flex items-center justify-between text-[11px] text-amber-800 dark:text-amber-300 border-t border-amber-200/60 dark:border-amber-800/40 mt-2">
+                      <span>Registered Email: <strong className="font-semibold">{pendingApprovalNotice.email}</strong></span>
+                      <button
+                        type="button"
+                        onClick={() => setPendingApprovalNotice(null)}
+                        className="font-bold underline hover:text-amber-950 dark:hover:text-amber-100 cursor-pointer"
+                      >
+                        Dismiss
                       </button>
                     </div>
                   </div>
@@ -1545,22 +1627,72 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </div>
             ) : (
               <>
-                {/* If user navigated to Employer Registration, provide clean back link to Alumni Registration */}
-                {registrationType === 'employer' && (
-                  <div className="mb-4">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRegistrationType('alumni');
-                        setEmployerError('');
-                      }}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-stone-900 transition-colors cursor-pointer"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Back to Alumni Registration</span>
-                    </button>
-                  </div>
-                )}
+                {/* Universal Back to Sign In & Registration Flow Navigation */}
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (registrationType === 'employer' && employerStep === 2) {
+                        setEmployerStep(1);
+                      } else if (registrationType === 'alumni' && step > 1) {
+                        setStep((prev) => (prev - 1) as any);
+                      } else {
+                        setMode('login');
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-stone-900 transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>
+                      {registrationType === 'employer' && employerStep === 2
+                        ? 'Back to Organization Details'
+                        : registrationType === 'alumni' && step > 1
+                        ? `Back to Step ${step - 1}`
+                        : 'Back to Sign In'}
+                    </span>
+                  </button>
+
+                  <span className="text-[11px] font-semibold text-stone-400">
+                    {registrationType === 'employer'
+                      ? `Step ${employerStep} of 2`
+                      : `Step ${step} of 3`}
+                  </span>
+                </div>
+
+                {/* Separate, Distinct Registration Role Selector Tabs (Requirement 2) */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 rounded-xl mb-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegistrationType('alumni');
+                      setEmployerError('');
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      registrationType === 'alumni'
+                        ? 'bg-white text-[#8B181B] shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <GraduationCap className="w-3.5 h-3.5" />
+                    <span>Alumni Registration</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegistrationType('employer');
+                      setScreeningError('');
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      registrationType === 'employer'
+                        ? 'bg-white text-[#8B181B] shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900'
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>Employer Registration</span>
+                  </button>
+                </div>
 
                 {registrationType === 'employer' ? (
                   <div>
@@ -1569,19 +1701,21 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       Corporate Accreditation & Recruitment Partner
                     </div>
                     <h2 className="font-sans text-2xl sm:text-3xl text-stone-900 font-bold tracking-tight mb-1">
-                      Register Organization
+                      {employerStep === 1 ? 'Register Organization' : 'Validate Information'}
                     </h2>
                     <p className="text-sm text-stone-500 font-normal mb-4">
-                      Create an employer account to post career opportunities, browse candidate profiles, and hire certified Cecilian graduates.
+                      {employerStep === 1
+                        ? 'Create an employer account to post career opportunities and hire certified Cecilian graduates.'
+                        : 'Please double-check and verify that all entered company details are accurate before submitting for accreditation.'}
                     </p>
 
-                    {/* Notice Banner */}
+                    {/* Pending Approval Notice Banner */}
                     <div className="mb-5 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
-                      <Briefcase className="w-4 h-4 text-[#8B181B] shrink-0 mt-0.5" />
+                      <Clock className="w-4 h-4 text-[#8B181B] shrink-0 mt-0.5" />
                       <div className="leading-snug">
-                        <span className="font-bold">Employer Placement Accreditation:</span>{' '}
+                        <span className="font-bold">Accreditation Review Timeframe:</span>{' '}
                         <span>
-                          Account credentials allow instant access to candidate listings. The Alumni & Placement Office verifies company details before job posts are published to alumni.
+                          Newly submitted corporate registrations are reviewed by the Directorate of Corporate Alliances & Placement within <strong>24 to 48 business hours</strong>.
                         </span>
                       </div>
                     </div>
@@ -1593,262 +1727,297 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       </div>
                     )}
 
-                    <form onSubmit={handleEmployerRegister} className="space-y-4">
-                      {/* Company Name */}
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                          Company / Organization Name <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <Building className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="text"
-                            required
-                            value={companyName}
-                            onChange={(e) => setCompanyName(e.target.value)}
-                            placeholder="e.g., TechSolutions Philippines Inc."
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Industry & Website */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {employerStep === 1 ? (
+                      /* STEP 1: ORGANIZATION DETAILS INPUT FORM */
+                      <form onSubmit={handleProceedEmployerToReview} className="space-y-4">
+                        {/* Company Name */}
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                            Industry Sector <span className="text-red-500">*</span>
-                          </label>
-                          <select
-                            value={companyIndustry}
-                            onChange={(e) => setCompanyIndustry(e.target.value)}
-                            className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
-                          >
-                            <option value="Information Technology & Software">Information Technology & Software</option>
-                            <option value="BPO & Shared Services">BPO & Shared Services</option>
-                            <option value="Healthcare & Nursing">Healthcare & Nursing</option>
-                            <option value="Education & Academics">Education & Academics</option>
-                            <option value="Engineering & Construction">Engineering & Construction</option>
-                            <option value="Hospitality & Tourism">Hospitality & Tourism</option>
-                            <option value="Banking & Financial Services">Banking & Financial Services</option>
-                            <option value="Retail & E-Commerce">Retail & E-Commerce</option>
-                            <option value="Manufacturing & Logistics">Manufacturing & Logistics</option>
-                            <option value="Government & Public Sector">Government & Public Sector</option>
-                            <option value="Other Industry">Other Industry</option>
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                            Company Website <span className="text-stone-400 font-normal">(optional)</span>
+                            Company / Organization Name <span className="text-red-500">*</span>
                           </label>
                           <div className="relative">
-                            <Globe className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                            <input
-                              type="text"
-                              value={companyWebsite}
-                              onChange={(e) => setCompanyWebsite(e.target.value)}
-                              placeholder="https://company.com"
-                              className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Office Address / Location */}
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                          Office / Headquarters Location <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <MapPin className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="text"
-                            required
-                            value={companyAddress}
-                            onChange={(e) => setCompanyAddress(e.target.value)}
-                            placeholder="e.g., Cebu IT Park, Apas, Cebu City"
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Contact Person Name & Phone */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                            Contact Person <span className="text-red-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <User className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <Building className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input
                               type="text"
                               required
-                              value={employerContactPerson}
-                              onChange={(e) => setEmployerContactPerson(e.target.value)}
-                              placeholder="e.g., Juan Dela Cruz (HR)"
+                              value={companyName}
+                              onChange={(e) => setCompanyName(e.target.value)}
+                              placeholder="e.g., TechSolutions Philippines Inc."
                               className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
                             />
                           </div>
                         </div>
 
+                        {/* Industry & Website */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                              Industry Sector <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                              value={companyIndustry}
+                              onChange={(e) => setCompanyIndustry(e.target.value)}
+                              className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
+                            >
+                              <option value="Information Technology & Software">Information Technology & Software</option>
+                              <option value="BPO & Shared Services">BPO & Shared Services</option>
+                              <option value="Healthcare & Nursing">Healthcare & Nursing</option>
+                              <option value="Education & Academics">Education & Academics</option>
+                              <option value="Engineering & Construction">Engineering & Construction</option>
+                              <option value="Hospitality & Tourism">Hospitality & Tourism</option>
+                              <option value="Banking & Financial Services">Banking & Financial Services</option>
+                              <option value="Retail & E-Commerce">Retail & E-Commerce</option>
+                              <option value="Manufacturing & Logistics">Manufacturing & Logistics</option>
+                              <option value="Government & Public Sector">Government & Public Sector</option>
+                              <option value="Other Industry">Other Industry</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                              Company Website <span className="text-stone-400 font-normal">(optional)</span>
+                            </label>
+                            <div className="relative">
+                              <Globe className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="text"
+                                value={companyWebsite}
+                                onChange={(e) => setCompanyWebsite(e.target.value)}
+                                placeholder="https://company.com"
+                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Office Address / Location */}
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                            Phone / Mobile Number <span className="text-red-500">*</span>
+                            Office / Headquarters Location <span className="text-red-500">*</span>
                           </label>
                           <div className="relative">
-                            <Phone className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <MapPin className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input
-                              type="tel"
+                              type="text"
                               required
-                              value={employerPhone}
-                              onChange={(e) => setEmployerPhone(e.target.value)}
-                              placeholder="+63 917 123 4567"
+                              value={companyAddress}
+                              onChange={(e) => setCompanyAddress(e.target.value)}
+                              placeholder="e.g., Cebu IT Park, Apas, Cebu City"
                               className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
                             />
                           </div>
                         </div>
-                      </div>
 
-                      {/* Work Email */}
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                          Official Corporate Email <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="email"
-                            required
-                            value={employerEmail}
-                            onChange={(e) => setEmployerEmail(e.target.value)}
-                            placeholder="careers@company.com or hr@company.com"
-                            className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
-                          />
-                        </div>
-                        <p className="text-[11px] text-stone-400 mt-1">This email will be used for applicant notifications and corporate login.</p>
-                      </div>
+                        {/* Contact Person Name & Phone */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                              Contact Person <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <User className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="text"
+                                required
+                                value={employerContactPerson}
+                                onChange={(e) => setEmployerContactPerson(e.target.value)}
+                                placeholder="e.g., Juan Dela Cruz (HR)"
+                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
+                              />
+                            </div>
+                          </div>
 
-                      {/* Passwords */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                            Password <span className="text-red-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                            <input
-                              type={showEmployerPassword ? 'text' : 'password'}
-                              required
-                              value={employerPassword}
-                              onChange={(e) => setEmployerPassword(e.target.value)}
-                              placeholder="Min. 6 chars"
-                              className="w-full pl-10 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowEmployerPassword(!showEmployerPassword)}
-                              style={{
-                                position: 'absolute',
-                                top: 0,
-                                bottom: 0,
-                                right: '10px',
-                                marginTop: 'auto',
-                                marginBottom: 'auto',
-                                height: '32px',
-                                width: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transform: 'none',
-                                translate: 'none'
-                              }}
-                              className="no-gooey text-stone-400 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 cursor-pointer z-10"
-                              aria-label={showEmployerPassword ? 'Hide password' : 'Show password'}
-                            >
-                              {showEmployerPassword ? <EyeOff className="w-4.5 h-4.5" strokeWidth={1.75} /> : <Eye className="w-4.5 h-4.5" strokeWidth={1.75} />}
-                            </button>
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                              Phone / Mobile Number <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <Phone className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="tel"
+                                required
+                                value={employerPhone}
+                                onChange={(e) => setEmployerPhone(e.target.value)}
+                                placeholder="+63 917 123 4567"
+                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
+                              />
+                            </div>
                           </div>
                         </div>
 
+                        {/* Work Email */}
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
-                            Confirm Password <span className="text-red-500">*</span>
+                            Official Corporate Email <span className="text-red-500">*</span>
                           </label>
                           <div className="relative">
-                            <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                            <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input
-                              type={showEmployerConfirmPassword ? 'text' : 'password'}
+                              type="email"
                               required
-                              value={employerConfirmPassword}
-                              onChange={(e) => setEmployerConfirmPassword(e.target.value)}
-                              placeholder="Re-enter password"
-                              className="w-full pl-10 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
+                              value={employerEmail}
+                              onChange={(e) => setEmployerEmail(e.target.value)}
+                              placeholder="careers@company.com or hr@company.com"
+                              className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
                             />
-                            <button
-                              type="button"
-                              onClick={() => setShowEmployerConfirmPassword(!showEmployerConfirmPassword)}
-                              style={{
-                                position: 'absolute',
-                                top: 0,
-                                bottom: 0,
-                                right: '10px',
-                                marginTop: 'auto',
-                                marginBottom: 'auto',
-                                height: '32px',
-                                width: '32px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transform: 'none',
-                                translate: 'none'
-                              }}
-                              className="no-gooey text-stone-400 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 cursor-pointer z-10"
-                              aria-label={showEmployerConfirmPassword ? 'Hide password' : 'Show password'}
-                            >
-                              {showEmployerConfirmPassword ? <EyeOff className="w-4.5 h-4.5" strokeWidth={1.75} /> : <Eye className="w-4.5 h-4.5" strokeWidth={1.75} />}
-                            </button>
+                          </div>
+                          <p className="text-[11px] text-stone-400 mt-1">This email will be used for applicant notifications and corporate login.</p>
+                        </div>
+
+                        {/* Passwords */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                              Password <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                              <input
+                                type={showEmployerPassword ? 'text' : 'password'}
+                                required
+                                value={employerPassword}
+                                onChange={(e) => setEmployerPassword(e.target.value)}
+                                placeholder="Min. 6 chars"
+                                className="w-full pl-10 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowEmployerPassword(!showEmployerPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 cursor-pointer"
+                                aria-label={showEmployerPassword ? 'Hide password' : 'Show password'}
+                              >
+                                {showEmployerPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 mb-1.5">
+                              Confirm Password <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                              <input
+                                type={showEmployerConfirmPassword ? 'text' : 'password'}
+                                required
+                                value={employerConfirmPassword}
+                                onChange={(e) => setEmployerConfirmPassword(e.target.value)}
+                                placeholder="Re-enter password"
+                                className="w-full pl-10 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowEmployerConfirmPassword(!showEmployerConfirmPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 cursor-pointer"
+                                aria-label={showEmployerConfirmPassword ? 'Hide password' : 'Show password'}
+                              >
+                                {showEmployerConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Policy acknowledgement */}
-                      <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-[11px] text-stone-600 flex items-start gap-2">
-                        <ShieldCheck className="w-4 h-4 text-[#8B181B] shrink-0 mt-0.5" />
-                        <span>
-                          By registering, you certify that you are an authorized representative of this organization and agree to maintain ethical recruitment standards and Cecilian student privacy.
-                        </span>
-                      </div>
-
-                      {/* Action Button */}
-                      <button
-                        type="submit"
-                        disabled={isSubmittingEmployer}
-                        className="w-full py-3.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold tracking-widest uppercase transition-all shadow-md shadow-red-950/20 hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                      >
-                        {isSubmittingEmployer ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <>
-                            <Building2 className="w-4 h-4" />
-                            <span>REGISTER COMPANY ACCOUNT</span>
-                          </>
-                        )}
-                      </button>
-
-                      {/* Switch to login */}
-                      <div className="text-center pt-2 text-xs text-stone-500">
-                        Already have an employer account?{' '}
+                        {/* Step 1 Action Button -> Proceeds to Step 2 Review */}
                         <button
-                          type="button"
-                          onClick={() => {
-                            setMode('login');
-                          }}
-                          className="text-[#8B181B] font-bold hover:underline cursor-pointer"
+                          type="submit"
+                          className="w-full py-3.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold tracking-widest uppercase transition-all shadow-md shadow-red-950/20 hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                         >
-                          Sign In
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>REVIEW & VERIFY DETAILS</span>
                         </button>
+                      </form>
+                    ) : (
+                      /* STEP 2: INFORMATION VALIDATION & REVIEW STEP (Requirement 3) */
+                      <div className="space-y-4">
+                        <div className="p-4 bg-stone-50 border border-stone-200 rounded-2xl space-y-3 text-xs">
+                          <div className="flex items-center gap-2 pb-2 border-b border-stone-200 text-[#8B181B] font-bold uppercase tracking-wider">
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>Employer Profile Validation Summary</span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <span className="text-stone-400 block text-[10px] uppercase font-bold">Company Name</span>
+                              <span className="font-bold text-stone-900 text-sm">{companyName}</span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[10px] uppercase font-bold">Industry Sector</span>
+                              <span className="font-semibold text-stone-800">{companyIndustry}</span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[10px] uppercase font-bold">Website</span>
+                              <span className="text-stone-700">{companyWebsite || 'None specified'}</span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[10px] uppercase font-bold">Headquarters</span>
+                              <span className="text-stone-700">{companyAddress}</span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[10px] uppercase font-bold">HR Representative</span>
+                              <span className="font-semibold text-stone-900">{employerContactPerson}</span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[10px] uppercase font-bold">Corporate Email</span>
+                              <span className="font-semibold text-stone-900">{employerEmail}</span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[10px] uppercase font-bold">Contact Phone</span>
+                              <span className="text-stone-700">{employerPhone}</span>
+                            </div>
+                            <div>
+                              <span className="text-stone-400 block text-[10px] uppercase font-bold">Target Access</span>
+                              <span className="font-bold text-emerald-800">Employer Placement Hub</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Affirmation Checklist */}
+                        <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-[11px] text-stone-600 flex items-start gap-2">
+                          <ShieldCheck className="w-4 h-4 text-[#8B181B] shrink-0 mt-0.5" />
+                          <span>
+                            I certify that all registered information is accurate and authorized by {companyName}. I understand accreditation takes 24 to 48 business hours.
+                          </span>
+                        </div>
+
+                        {/* Step 2 Buttons: Edit or Confirm & Submit */}
+                        <div className="flex items-center gap-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setEmployerStep(1)}
+                            className="flex-1 py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold tracking-wider uppercase transition-colors cursor-pointer"
+                          >
+                            Edit Details
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSubmittingEmployer}
+                            onClick={handleConfirmEmployerSubmit}
+                            className="flex-1 py-3 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold tracking-wider uppercase transition-all shadow-md shadow-red-950/20 hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                          >
+                            {isSubmittingEmployer ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>CONFIRM & SUBMIT</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </form>
+                    )}
+
+                    {/* Switch to sign in */}
+                    <div className="text-center pt-4 text-xs text-stone-500">
+                      Already registered?{' '}
+                      <button
+                        type="button"
+                        onClick={() => setMode('login')}
+                        className="text-[#8B181B] font-bold hover:underline cursor-pointer"
+                      >
+                        Sign In Here
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -2656,9 +2825,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     <h2 className="font-sans text-2xl sm:text-3xl text-stone-900 font-bold tracking-tight mb-1">
                       Review & Honor Pledge
                     </h2>
-                    <p className="text-sm text-stone-500 font-normal mb-5">
+                    <p className="text-sm text-stone-500 font-normal mb-4">
                       Verify your alumni credentials before submitting to St. Cecilia’s College alumni portal.
                     </p>
+
+                    {/* Pending Review Timeframe Notice (Requirement 5) */}
+                    <div className="mb-4 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+                      <Clock className="w-4 h-4 text-[#8B181B] shrink-0 mt-0.5" />
+                      <div className="leading-snug">
+                        <span className="font-bold">Registrar Review Timeframe:</span>{' '}
+                        <span>
+                          Account verification against official college archives is processed within <strong>24 to 48 business hours</strong>.
+                        </span>
+                      </div>
+                    </div>
 
                     <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-3 text-xs mb-5">
                       <div className="flex justify-between border-b border-stone-200 pb-2">
@@ -3390,6 +3570,30 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             )}
           </div>
         </div>
+      )}
+
+      {/* Two-Step Verification Security Modal */}
+      {showTwoFactorModal && pendingTwoFactorUser && (
+        <TwoFactorVerificationModal
+          isOpen={showTwoFactorModal}
+          userEmail={pendingTwoFactorUser.email}
+          userName={pendingTwoFactorUser.name}
+          onVerifySuccess={() => {
+            const role = pendingTwoFactorUser.role || 'alumni';
+            setShowTwoFactorModal(false);
+            setPendingTwoFactorUser(null);
+            showToast('Two-step verification completed successfully!', 'success');
+            if (onLoginSuccess) {
+              onLoginSuccess(role);
+            } else if (onBackToApp) {
+              onBackToApp();
+            }
+          }}
+          onCancel={() => {
+            setShowTwoFactorModal(false);
+            setPendingTwoFactorUser(null);
+          }}
+        />
       )}
     </div>
   );

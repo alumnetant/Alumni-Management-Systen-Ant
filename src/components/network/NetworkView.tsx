@@ -46,6 +46,7 @@ import { ConfirmationModal } from '../common/ConfirmationModal';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
 import { getUserOnlineStatus } from '../../lib/userStatus';
+import { PartneredCompaniesView } from './PartneredCompaniesView';
 
 export const NetworkView: React.FC = () => {
   const {
@@ -66,6 +67,7 @@ export const NetworkView: React.FC = () => {
   } = useAlumni();
 
   const [activeSubTab, setActiveSubTab] = useState<'directory' | 'recommended' | 'connections' | 'requests'>('directory');
+  const [directorySection, setDirectorySection] = useState<'alumni' | 'companies'>('alumni');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBatch, setSelectedBatch] = useState<string>('all');
@@ -208,6 +210,30 @@ export const NetworkView: React.FC = () => {
     return users.filter((u) => {
       if (currentUser?.uid && u.uid === currentUser.uid) return false;
 
+      // Strict Directory Visibility (Requirement 7 & 10):
+      // Unapproved, suspended, or pending verification accounts must NEVER appear in public directories
+      const accountStatus = (u.accountStatus || u.status || 'ACTIVE').toUpperCase().trim();
+      if (accountStatus === 'PENDING_VERIFICATION' || accountStatus === 'SUSPENDED') {
+        return false;
+      }
+
+      // If user is an employer, they must be approved and active
+      if (u.role === 'employer') {
+        if (!u.isVerified || u.employerVerificationStatus !== 'verified') {
+          return false;
+        }
+      }
+
+      // If user is an alumni, must be verified/approved
+      if (u.role === 'alumni') {
+        if (!u.isVerified && !u.verified && u.verificationStatus !== 'verified') {
+          return false;
+        }
+        if (u.verificationStatus === 'rejected') {
+          return false;
+        }
+      }
+
       const q = searchQuery.toLowerCase().trim();
       const isAllAlumniQuery =
         q === 'all' ||
@@ -308,12 +334,60 @@ export const NetworkView: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12 antialiased">
-      {/* ========================================================
-          COMMAND CENTER TOP HEADER SECTION
-          Exact parity with Institutional Command Center layout:
-          Alumni Directory Header + Subtab Navigation + View Switcher + CSV Download
-          ======================================================== */}
-      <div className="flex items-center justify-end gap-3 pb-2 flex-wrap">
+      {/* Requirement 8: Segregated Directory Sections (Companies and Alumni) */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white dark:bg-stone-900 p-2 sm:p-2.5 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-2xs">
+        <div className="flex items-center gap-1.5 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl">
+          <button
+            type="button"
+            onClick={() => {
+              setDirectorySection('alumni');
+              setActiveSubTab('directory');
+            }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              directorySection === 'alumni'
+                ? 'bg-[#8B181B] text-white shadow-xs'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+            }`}
+          >
+            <GraduationCap className="w-4 h-4" />
+            <span>Alumni Directory</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDirectorySection('companies')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              directorySection === 'companies'
+                ? 'bg-[#8B181B] text-white shadow-xs'
+                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+            }`}
+          >
+            <Building2 className="w-4 h-4" />
+            <span>Partnered Companies</span>
+          </button>
+        </div>
+
+        {directorySection === 'alumni' && (
+          <div className="flex items-center gap-2 px-2 text-xs text-stone-500 dark:text-stone-400">
+            <span>Verified Cecilian Roster</span>
+            <span>•</span>
+            <span className="font-mono font-bold text-stone-700 dark:text-stone-300">
+              {filteredDirectory.length} Graduates
+            </span>
+          </div>
+        )}
+      </div>
+
+      {directorySection === 'companies' ? (
+        <PartneredCompaniesView />
+      ) : (
+        <>
+          {/* ========================================================
+              COMMAND CENTER TOP HEADER SECTION
+              Exact parity with Institutional Command Center layout:
+              Alumni Directory Header + Subtab Navigation + View Switcher + CSV Download
+              ======================================================== */}
+          <div className="flex items-center justify-end gap-3 pb-2 flex-wrap">
         {/* Filter Navigation Icon & Dropdown Menu */}
         <div className="relative" ref={filterDropdownRef}>
           <button
@@ -2132,6 +2206,8 @@ export const NetworkView: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
 
       {/* Confirmation Modal for Canceling Sent Connection Requests */}

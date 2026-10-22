@@ -412,10 +412,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigateToAuth('login')}
-                  className="bg-[#8B181B] hover:bg-[#721316] text-white px-4 sm:px-5 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-xs transition-all hover:scale-102 active:scale-98 cursor-pointer flex items-center gap-1.5"
+                  className="bg-[#8B181B] hover:bg-[#721316] text-white px-4 sm:px-5 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-xs transition-all hover:scale-102 active:scale-98 cursor-pointer"
                 >
-                  <span>Return to Portal</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  Return to Portal
                 </button>
               ) : (
                 <>
@@ -656,10 +655,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         setIsMobileNavOpen(false);
                         onNavigateToAuth('login');
                       }}
-                      className="w-full py-2.5 px-4 rounded-xl bg-[#8B181B] text-white font-bold text-xs uppercase tracking-wider text-center shadow-xs hover:bg-[#721316] transition-colors cursor-pointer flex items-center justify-center gap-2"
+                      className="w-full py-2.5 px-4 rounded-xl bg-[#8B181B] text-white font-bold text-xs uppercase tracking-wider text-center shadow-xs hover:bg-[#721316] transition-colors cursor-pointer"
                     >
-                      <span>Return to Member Portal</span>
-                      <ArrowRight className="w-4 h-4" />
+                      Return to Member Portal
                     </button>
                   ) : (
                     <>
@@ -925,10 +923,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   whileHover={{ scale: 1.03, backgroundColor: '#7f1616' }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => onNavigateToAuth('register', 'alumni')}
-                  className="bg-[#991B1B] text-white px-9 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-[0.18em] uppercase shadow-lg shadow-red-950/50 hover:shadow-red-900/60 transition-all cursor-pointer flex items-center gap-2.5"
+                  className="bg-[#991B1B] text-white px-9 py-4 rounded-xl font-bold text-xs sm:text-sm tracking-[0.18em] uppercase shadow-lg shadow-red-950/50 hover:shadow-red-900/60 transition-all cursor-pointer flex items-center justify-center"
                 >
                   <span>APPLY FOR ALUMNI ID</span>
-                  <ArrowRight className="w-4 h-4" />
                 </motion.button>
 
                 <motion.button
@@ -1311,7 +1308,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>Verified Match Records</span>
-                <span className="text-[#8B181B] group-hover:translate-x-1 transition-transform">Explore →</span>
+                <span className="text-[#8B181B] font-semibold">Explore</span>
               </div>
             </TiltCard>
 
@@ -1335,7 +1332,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>Instant QR Verification</span>
-                <span className="text-[#B45309] group-hover:translate-x-1 transition-transform">Preview Pass →</span>
+                <span className="text-[#B45309] font-semibold">Preview Pass</span>
               </div>
             </TiltCard>
 
@@ -1359,7 +1356,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>For Employers & Alumni</span>
-                <span className="text-emerald-800 group-hover:translate-x-1 transition-transform">Browse Jobs →</span>
+                <span className="text-emerald-800 font-semibold">Browse Jobs</span>
               </div>
             </TiltCard>
 
@@ -1383,7 +1380,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>Admin Broadcasts</span>
-                <span className="text-stone-700 group-hover:translate-x-1 transition-transform">Read Feed →</span>
+                <span className="text-stone-700 font-semibold">Read Feed</span>
               </div>
             </TiltCard>
 
@@ -1407,7 +1404,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>12 Active Hubs</span>
-                <span className="text-[#8B181B] group-hover:translate-x-1 transition-transform">Find Chapter →</span>
+                <span className="text-[#8B181B] font-semibold">Find Chapter</span>
               </div>
             </TiltCard>
 
@@ -1431,7 +1428,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>Cecilian Pride</span>
-                <span className="text-[#B45309] group-hover:translate-x-1 transition-transform">View Hall of Fame →</span>
+                <span className="text-[#B45309] font-semibold">View Hall of Fame</span>
               </div>
             </TiltCard>
           </motion.div>

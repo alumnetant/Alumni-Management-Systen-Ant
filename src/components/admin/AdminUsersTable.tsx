@@ -43,6 +43,7 @@ import { useAlumni } from '../../context/AlumniContext';
 import { UserProfile, UserRole, isAdministrativeOrStaffRole } from '../../types';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
+import { ConfirmationModal } from '../common/ConfirmationModal';
 
 interface AdminUsersTableProps {
   onOpenCreateUser: () => void;
@@ -71,6 +72,21 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
   const [updatingRoleUid, setUpdatingRoleUid] = useState<string | null>(null);
+
+  // Mandatory Administrator Confirmation Dialog States (Requirement 15)
+  const [roleChangeTarget, setRoleChangeTarget] = useState<{
+    uid: string;
+    name: string;
+    currentRole: UserRole;
+    newRole: UserRole;
+  } | null>(null);
+
+  const [verifyTarget, setVerifyTarget] = useState<{
+    uid: string;
+    name: string;
+  } | null>(null);
+
+  const [showBulkVerifyConfirm, setShowBulkVerifyConfirm] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -249,16 +265,50 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
 
   const handleBulkVerify = () => {
     if (selectedUids.length === 0) return;
+    setShowBulkVerifyConfirm(true);
+  };
+
+  const executeBulkVerify = () => {
+    if (selectedUids.length === 0) return;
     selectedUids.forEach((uid) => {
       setUserVerified(uid, true);
     });
     showToast(`Successfully verified ${selectedUids.length} selected users!`, 'success');
     setSelectedUids([]);
+    setShowBulkVerifyConfirm(false);
+  };
+
+  const handleInitiateRoleChange = (uid: string, name: string, currentRole: UserRole, newRole: UserRole) => {
+    setRoleChangeTarget({ uid, name, currentRole, newRole });
+  };
+
+  const executeRoleChange = async () => {
+    if (!roleChangeTarget) return;
+    setUpdatingRoleUid(roleChangeTarget.uid);
+    try {
+      await updateUserRole(roleChangeTarget.uid, roleChangeTarget.newRole);
+      showToast(`Role updated to ${roleChangeTarget.newRole} for ${roleChangeTarget.name}`, 'success');
+    } finally {
+      setUpdatingRoleUid(null);
+      setRoleChangeTarget(null);
+    }
+  };
+
+  const handleInitiateVerify = (uid: string, name: string) => {
+    setVerifyTarget({ uid, name });
+  };
+
+  const executeVerify = () => {
+    if (!verifyTarget) return;
+    setUserVerified(verifyTarget.uid, true);
+    showToast(`${verifyTarget.name} has been verified and cleared for directory access!`, 'success');
+    setVerifyTarget(null);
   };
 
   const confirmDelete = async () => {
     if (!userToDelete) return;
     await deleteAlumni(userToDelete.uid);
+    showToast(`Member record for ${userToDelete.name} deleted.`, 'info');
     setUserToDelete(null);
   };
 
@@ -540,14 +590,8 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                           <select
                             value={u.role}
                             disabled={updatingRoleUid === u.uid}
-                            onChange={async (e) => {
-                              const newRole = e.target.value as UserRole;
-                              setUpdatingRoleUid(u.uid);
-                              try {
-                                await updateUserRole(u.uid, newRole);
-                              } finally {
-                                setUpdatingRoleUid(null);
-                              }
+                            onChange={(e) => {
+                              handleInitiateRoleChange(u.uid, u.name, u.role, e.target.value as UserRole);
                             }}
                             className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-200 hover:border-stone-400 focus:outline-hidden cursor-pointer disabled:opacity-60"
                           >
@@ -616,10 +660,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                   ) : (
                     <button
                       type="button"
-                      onClick={() => {
-                        setUserVerified(u.uid, true);
-                        showToast(`${u.name} has been verified!`, 'success');
-                      }}
+                      onClick={() => handleInitiateVerify(u.uid, u.name)}
                       className="px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-emerald-50 hover:text-emerald-800 border border-amber-200 hover:border-emerald-200"
                       title="Verify academic or institutional clearance"
                     >
@@ -762,10 +803,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                         ) : (
                           <button
                             type="button"
-                            onClick={() => {
-                              setUserVerified(u.uid, true);
-                              showToast(`${u.name} has been verified!`, 'success');
-                            }}
+                            onClick={() => handleInitiateVerify(u.uid, u.name)}
                             className="px-2.5 py-1 rounded-full text-[11px] font-bold border border-amber-200 bg-amber-50 text-amber-800 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-200 transition-colors cursor-pointer flex items-center gap-1"
                             title="Verify member clearance"
                           >
@@ -785,14 +823,8 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                             <select
                               value={u.role}
                               disabled={updatingRoleUid === u.uid}
-                              onChange={async (e) => {
-                                const newRole = e.target.value as UserRole;
-                                setUpdatingRoleUid(u.uid);
-                                try {
-                                  await updateUserRole(u.uid, newRole);
-                                } finally {
-                                  setUpdatingRoleUid(null);
-                                }
+                              onChange={(e) => {
+                                handleInitiateRoleChange(u.uid, u.name, u.role, e.target.value as UserRole);
                               }}
                               className="px-2 py-1 rounded-lg text-[11px] font-bold uppercase bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-stone-700 hover:border-stone-400 focus:outline-hidden cursor-pointer disabled:opacity-60"
                             >
@@ -896,39 +928,56 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
       )}
 
       {/* ========================================================
-          DELETE CONFIRMATION MODAL
+          MANDATORY CONFIRMATION DIALOGS (Requirement 15)
           ======================================================== */}
-      {userToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-100">
-          <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl border border-stone-200 dark:border-stone-800 max-w-sm w-full p-5 space-y-4">
-            <div className="flex items-center gap-3 text-[#8B181B]">
-              <div className="p-2 bg-red-50 dark:bg-red-950/40 rounded-xl">
-                <Trash2 className="w-5 h-5 text-[#8B181B]" />
-              </div>
-              <h3 className="text-sm font-bold text-stone-900 dark:text-white font-sans">Delete Member Record</h3>
-            </div>
-            <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
-              Are you sure you want to permanently remove <span className="font-bold text-stone-900 dark:text-white">{userToDelete.name}</span>? This action cannot be undone.
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setUserToDelete(null)}
-                className="px-3 py-1.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 rounded-lg text-xs font-semibold cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg text-xs font-bold cursor-pointer"
-              >
-                Confirm Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 1. Delete Member Confirmation */}
+      <ConfirmationModal
+        isOpen={!!userToDelete}
+        title="Delete Member Record"
+        message={`Are you sure you want to permanently remove "${userToDelete?.name}"? All associated graduation credentials, profile history, and portal records will be permanently erased. This action cannot be undone.`}
+        confirmLabel="Confirm Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onClose={() => setUserToDelete(null)}
+      />
+
+      {/* 2. Institutional Role Change Confirmation */}
+      <ConfirmationModal
+        isOpen={!!roleChangeTarget}
+        title="Confirm Institutional Role Change"
+        message={`Are you sure you want to change the access role for ${roleChangeTarget?.name} from "${roleChangeTarget?.currentRole}" to "${roleChangeTarget?.newRole}"? This modifies portal permissions and administrative access immediately.`}
+        confirmLabel="Confirm Role Change"
+        cancelLabel="Cancel"
+        variant="warning"
+        isProcessing={!!updatingRoleUid}
+        onConfirm={executeRoleChange}
+        onClose={() => setRoleChangeTarget(null)}
+      />
+
+      {/* 3. Member Clearance Verification Confirmation */}
+      <ConfirmationModal
+        isOpen={!!verifyTarget}
+        title="Confirm Member Verification"
+        message={`Are you sure you want to verify ${verifyTarget?.name}? This marks their academic credentials as officially screened and publishes their profile to the active Alumni Directory.`}
+        confirmLabel="Confirm & Verify"
+        cancelLabel="Cancel"
+        variant="info"
+        onConfirm={executeVerify}
+        onClose={() => setVerifyTarget(null)}
+      />
+
+      {/* 4. Bulk Member Verification Confirmation */}
+      <ConfirmationModal
+        isOpen={showBulkVerifyConfirm}
+        title="Confirm Bulk Member Verification"
+        message={`Are you sure you want to verify all ${selectedUids.length} selected member accounts? All selected records will receive verified alumni clearance.`}
+        confirmLabel={`Verify ${selectedUids.length} Members`}
+        cancelLabel="Cancel"
+        variant="info"
+        onConfirm={executeBulkVerify}
+        onClose={() => setShowBulkVerifyConfirm(false)}
+      />
     </div>
   );
 };

@@ -46,6 +46,7 @@ import { UserRole } from '../../types';
 import { CampusGalleryModal } from '../gallery/CampusGalleryModal';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { ConfirmationModal } from '../common/ConfirmationModal';
+import { UserSatisfactionModal } from '../survey/UserSatisfactionModal';
 
 export const Header: React.FC<{
   onOpenSearch?: () => void;
@@ -87,6 +88,7 @@ export const Header: React.FC<{
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showSatisfactionSurvey, setShowSatisfactionSurvey] = useState(false);
 
   // Smooth horizontal scroll progress for reading long content pages (flutter-free 1:1 tracking)
   const { scrollYProgress } = useScroll();
@@ -1025,6 +1027,19 @@ export const Header: React.FC<{
                         type="button"
                         onClick={() => {
                           setShowProfileMenu(false);
+                          setShowSatisfactionSurvey(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl cursor-pointer min-h-[38px] transition-colors"
+                        title="Submit portal experience feedback"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                        <span>Satisfaction Survey</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowProfileMenu(false);
                           setShowLogoutConfirm(true);
                         }}
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-red-600 dark:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 rounded-xl border-t border-stone-100 dark:border-stone-800 mt-1 pt-2 cursor-pointer min-h-[38px] transition-colors"
@@ -1309,6 +1324,12 @@ export const Header: React.FC<{
       message="Are you sure you want to end your current Cecilian Alumni session? You can sign back in anytime."
       confirmLabel="Log Out"
       variant="danger"
+    />
+
+    {/* User Satisfaction Survey Modal */}
+    <UserSatisfactionModal
+      isOpen={showSatisfactionSurvey}
+      onClose={() => setShowSatisfactionSurvey(false)}
     />
   </>
 );
