@@ -459,14 +459,14 @@ export const MessagesView: React.FC = () => {
           } ${
             activeFilterPill !== 'all'
               ? 'bg-[#8B181B] hover:bg-[#721316] text-white border border-[#8B181B]'
-              : 'bg-red-50/80 hover:bg-red-100 text-[#8B181B] border border-red-200'
+              : 'bg-red-50/80 hover:bg-red-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-[#8B181B] dark:text-rose-300 border border-red-200 dark:border-rose-900/60'
           }`}
           aria-label="Filter channels"
           title={`Filter channels: currently ${currentItem.label}`}
         >
           <Filter
             className={`w-3.5 h-3.5 stroke-[2.25] ${
-              activeFilterPill !== 'all' ? 'text-white' : 'text-[#8B181B]'
+              activeFilterPill !== 'all' ? 'text-white' : 'text-[#8B181B] dark:text-rose-400'
             }`}
           />
           {!compact && (
@@ -478,7 +478,7 @@ export const MessagesView: React.FC = () => {
             <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
           ) : (
             <ChevronDown
-              className={`w-3 h-3 text-[#8B181B]/70 group-hover:text-[#8B181B] transition-transform ${
+              className={`w-3 h-3 text-[#8B181B]/70 dark:text-rose-400/80 group-hover:text-[#8B181B] dark:group-hover:text-rose-300 transition-transform ${
                 isOpen ? 'rotate-180' : ''
               }`}
             />
@@ -492,17 +492,17 @@ export const MessagesView: React.FC = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 4, scale: 0.96 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className={`absolute top-full mt-2 w-72 bg-white rounded-2xl shadow-xl border border-stone-200/90 py-2 z-50 overflow-hidden divide-y divide-stone-100 ${
+              className={`absolute top-full mt-2 w-72 bg-white dark:bg-stone-900 rounded-2xl shadow-xl border border-stone-200/90 dark:border-stone-800 py-2 z-50 overflow-hidden divide-y divide-stone-100 dark:divide-stone-800 ${
                 align === 'right' ? 'right-0' : 'left-0'
               }`}
             >
               {/* Header */}
-              <div className="px-3.5 py-2 bg-stone-50/70 flex items-center justify-between">
+              <div className="px-3.5 py-2 bg-stone-50/70 dark:bg-stone-800/80 flex items-center justify-between">
                 <div>
-                  <span className="text-[11px] font-bold text-stone-900 uppercase tracking-wider block font-sans">
+                  <span className="text-[11px] font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider block font-sans">
                     Filter Conversations
                   </span>
-                  <span className="text-[10px] text-stone-400">
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500">
                     Showing {filteredChats.length} of {chatCounts.all} threads
                   </span>
                 </div>
@@ -510,7 +510,7 @@ export const MessagesView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleSelect('all')}
-                    className="text-[11px] font-bold text-[#8B181B] hover:underline cursor-pointer"
+                    className="text-[11px] font-bold text-[#8B181B] dark:text-rose-400 hover:underline cursor-pointer"
                   >
                     Reset
                   </button>
@@ -529,8 +529,8 @@ export const MessagesView: React.FC = () => {
                       onClick={() => handleSelect(opt.id)}
                       className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between gap-3 transition-colors cursor-pointer ${
                         isSelected
-                          ? 'bg-rose-50 text-[#8B181B] font-semibold'
-                          : 'text-stone-700 hover:bg-stone-50'
+                          ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-300 font-semibold'
+                          : 'text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -538,14 +538,14 @@ export const MessagesView: React.FC = () => {
                           className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                             isSelected
                               ? 'bg-[#8B181B] text-white'
-                              : 'bg-stone-100 text-stone-500'
+                              : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
                           }`}
                         >
                           <Icon className="w-3.5 h-3.5" />
                         </div>
                         <div className="min-w-0">
-                          <span className="block truncate font-bold">{opt.label}</span>
-                          <span className="block text-[10px] text-stone-400 truncate">{opt.desc}</span>
+                          <span className="block truncate font-bold text-stone-900 dark:text-stone-100">{opt.label}</span>
+                          <span className="block text-[10px] text-stone-400 dark:text-stone-500 truncate">{opt.desc}</span>
                         </div>
                       </div>
 
@@ -554,12 +554,12 @@ export const MessagesView: React.FC = () => {
                           className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${
                             isSelected
                               ? 'bg-[#8B181B] text-white'
-                              : 'bg-stone-100 text-stone-600'
+                              : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
                           }`}
                         >
                           {opt.count}
                         </span>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-[#8B181B] stroke-[2.5]" />}
+                        {isSelected && <Check className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400 stroke-[2.5]" />}
                       </div>
                     </button>
                   );
@@ -578,7 +578,7 @@ export const MessagesView: React.FC = () => {
       {/* MODE 1: EVENT EMAIL BULLETINS                                             */}
       {/* ========================================================================= */}
       {messageViewMode === 'event_emails' ? (
-        <div className="bg-white rounded-[32px] border border-stone-200 shadow-2xs overflow-hidden p-6">
+        <div className="bg-white dark:bg-stone-900 rounded-[32px] border border-stone-200 dark:border-stone-800 shadow-2xs overflow-hidden p-6">
           <EventEmailNotificationInbox />
         </div>
       ) : (
@@ -586,40 +586,40 @@ export const MessagesView: React.FC = () => {
           {/* ===================================================================== */}
           {/* MAIN COMMUNICATIONS DECK (3-COLUMN SPLIT CANVAS)                      */}
           {/* ===================================================================== */}
-          <div className="bg-white rounded-[32px] border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col md:flex-row h-[760px] lg:h-[calc(100dvh-130px)] min-h-[700px]">
+          <div className="bg-white dark:bg-stone-900 rounded-[32px] border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col md:flex-row h-[760px] lg:h-[calc(100dvh-130px)] min-h-[700px]">
             
             {/* LEFT RAIL: CHANNELS STREAM (~340px) */}
             <div
-              className={`w-full md:w-80 lg:w-96 border-r border-stone-200/90 flex flex-col shrink-0 bg-[#FAF9F6]/60 ${
+              className={`w-full md:w-80 lg:w-96 border-r border-stone-200/90 dark:border-stone-800 flex flex-col shrink-0 bg-[#FAF9F6]/60 dark:bg-stone-900/95 ${
                 activeChatId ? 'hidden md:flex' : 'flex'
               }`}
             >
               {/* Search Bar & Stream Header */}
-              <div className="p-3.5 border-b border-stone-200/80 space-y-2.5 bg-white">
+              <div className="p-3.5 border-b border-stone-200/80 dark:border-stone-800 space-y-2.5 bg-white dark:bg-stone-900">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold font-sans tracking-tight text-stone-900 uppercase">
+                  <span className="text-xs font-bold font-sans tracking-tight text-stone-900 dark:text-stone-100 uppercase">
                     Dispatch Channels
                   </span>
-                  <span className="text-[11px] font-mono text-stone-400 tabular-nums">
+                  <span className="text-[11px] font-mono text-stone-400 dark:text-stone-500 tabular-nums">
                     {filteredChats.length} showing
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
-                    <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={chatSearch}
                       onChange={(e) => setChatSearch(e.target.value)}
                       placeholder="Search alumni or event cohort..."
-                      className="w-full pl-8 pr-7 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:bg-white focus:outline-hidden focus:border-[#8B181B] transition-colors"
+                      className="w-full pl-8 pr-7 py-2 text-xs bg-stone-50 dark:bg-stone-800/90 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B] dark:focus:border-rose-500 transition-colors"
                     />
                     {chatSearch && (
                       <button
                         type="button"
                         onClick={() => setChatSearch('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -630,9 +630,9 @@ export const MessagesView: React.FC = () => {
 
                 {/* Active Filter Indicator Pill */}
                 {activeFilterPill !== 'all' && (
-                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-rose-50 border border-rose-200/80 rounded-xl text-xs text-[#8B181B] animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/60 rounded-xl text-xs text-[#8B181B] dark:text-rose-300 animate-in fade-in duration-150">
                     <div className="flex items-center gap-1.5 font-medium truncate">
-                      <Filter className="w-3 h-3 text-[#8B181B] shrink-0" />
+                      <Filter className="w-3 h-3 text-[#8B181B] dark:text-rose-400 shrink-0" />
                       <span className="truncate">
                         Filter:{' '}
                         <strong className="font-bold">
@@ -655,7 +655,7 @@ export const MessagesView: React.FC = () => {
                         setActiveFilterPill('all');
                         setActiveChatId(null);
                       }}
-                      className="p-0.5 hover:bg-rose-100 rounded text-rose-700 cursor-pointer transition-colors shrink-0 ml-1"
+                      className="p-0.5 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded text-rose-700 dark:text-rose-400 cursor-pointer transition-colors shrink-0 ml-1"
                       title="Clear filter and show all"
                     >
                       <X className="w-3 h-3" />
@@ -665,13 +665,13 @@ export const MessagesView: React.FC = () => {
               </div>
 
               {/* Feed of Chats */}
-              <div ref={chatListScrollRef} className="flex-1 overflow-y-auto divide-y divide-stone-100/90">
+              <div ref={chatListScrollRef} className="flex-1 overflow-y-auto divide-y divide-stone-100/90 dark:divide-stone-800/80">
                 {filteredChats.length === 0 ? (
                   <div className="p-8 text-center space-y-3">
-                    <div className="w-10 h-10 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+                    <div className="w-10 h-10 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500 flex items-center justify-center mx-auto">
                       <MessageSquare className="w-5 h-5" />
                     </div>
-                    <p className="text-xs text-stone-500 leading-relaxed">
+                    <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
                       No matching conversations found for this filter.
                     </p>
                     <button
@@ -698,8 +698,8 @@ export const MessagesView: React.FC = () => {
                           }}
                           className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all ${
                             isSelected
-                              ? 'bg-[#FAF6EC] border-l-[3px] border-l-[#8B181B]'
-                              : 'hover:bg-white'
+                              ? 'bg-[#FAF6EC] dark:bg-stone-800/90 border-l-[3px] border-l-[#8B181B]'
+                              : 'hover:bg-stone-50/80 dark:hover:bg-stone-800/50'
                           }`}
                         >
                           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#8B181B] via-[#991B1B] to-amber-700 text-white flex items-center justify-center shadow-2xs shrink-0">
@@ -708,10 +708,10 @@ export const MessagesView: React.FC = () => {
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
-                              <h3 className="text-xs font-bold text-stone-900 truncate">
+                              <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
                                 {chat.groupName || 'Event Cohort Lounge'}
                               </h3>
-                              <span className="text-[10px] font-mono text-stone-400 tabular-nums shrink-0">
+                              <span className="text-[10px] font-mono text-stone-400 dark:text-stone-500 tabular-nums shrink-0">
                                 {new Date(chat.lastMessageAt).toLocaleTimeString([], {
                                   hour: '2-digit',
                                   minute: '2-digit'
@@ -719,12 +719,12 @@ export const MessagesView: React.FC = () => {
                               </span>
                             </div>
 
-                            <p className="text-xs text-stone-500 truncate mt-0.5">
+                            <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
                               {chat.lastMessage || 'Channel established.'}
                             </p>
 
                             <div className="flex items-center justify-between mt-1.5">
-                              <span className="text-[10px] text-[#8B181B] font-semibold flex items-center gap-1">
+                              <span className="text-[10px] text-[#8B181B] dark:text-rose-400 font-semibold flex items-center gap-1">
                                 <Users className="w-3 h-3" />
                                 <span>{(chat.memberIds || (chat as any).participants || []).length} Attendees</span>
                               </span>
@@ -754,7 +754,7 @@ export const MessagesView: React.FC = () => {
                         className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all ${
                           isSelected
                             ? 'bg-stone-100/90 dark:bg-stone-800/90 border-l-[3px] border-l-[#8B181B]'
-                            : 'hover:bg-white dark:hover:bg-stone-800/50'
+                            : 'hover:bg-stone-50/80 dark:hover:bg-stone-800/50'
                         }`}
                       >
                         <div className="relative shrink-0">
@@ -813,7 +813,7 @@ export const MessagesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowNewChatModal(true)}
-                  className="w-full py-2 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-750 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="w-full py-2 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Users className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
                   <span>Browse Alumni Directory</span>
@@ -826,12 +826,12 @@ export const MessagesView: React.FC = () => {
               {activeChat ? (
                 <>
                   {/* Active Header */}
-                  <div className="p-3.5 sm:p-4 bg-[#FAF9F5] dark:bg-stone-850 border-b border-stone-200/90 dark:border-stone-800 flex items-center justify-between gap-3 pt-[max(0.875rem,env(safe-area-inset-top))]">
+                  <div className="p-3.5 sm:p-4 bg-[#FAF9F5] dark:bg-stone-900 border-b border-stone-200/90 dark:border-stone-800 flex items-center justify-between gap-3 pt-[max(0.875rem,env(safe-area-inset-top))]">
                     <div className="flex items-center gap-3 min-w-0">
                       <button
                         type="button"
                         onClick={() => setActiveChatId(null)}
-                        className="md:hidden min-w-[44px] min-h-[44px] p-2.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-750 active:bg-stone-300 transition-colors cursor-pointer shrink-0 flex items-center justify-center"
+                        className="md:hidden min-w-[44px] min-h-[44px] p-2.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 active:bg-stone-300 transition-colors cursor-pointer shrink-0 flex items-center justify-center"
                         aria-label="Back to conversations list"
                       >
                         <ArrowLeft className="w-5 h-5" />
@@ -913,16 +913,16 @@ export const MessagesView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setShowMembersModal(true)}
-                            className="px-2.5 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-medium text-stone-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            className="px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700 rounded-xl text-xs font-medium text-stone-700 dark:text-stone-200 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                           >
-                            <Users className="w-3.5 h-3.5 text-[#8B181B]" />
+                            <Users className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
                             <span className="hidden sm:inline">Roster</span>
                           </button>
                           {activeEvent && (
                             <button
                               type="button"
                               onClick={() => setActiveTab('events')}
-                              className="px-2.5 py-1.5 bg-[#8B181B]/10 hover:bg-[#8B181B]/20 text-[#8B181B] rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                              className="px-2.5 py-1.5 bg-[#8B181B]/10 hover:bg-[#8B181B]/20 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 text-[#8B181B] dark:text-rose-300 rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
                               <span className="hidden sm:inline">Event Hub</span>
@@ -934,9 +934,9 @@ export const MessagesView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setSelectedUserIdForModal(recipientUser.uid)}
-                            className="px-2.5 py-1.5 bg-white border border-stone-200 hover:bg-stone-50 rounded-xl text-xs font-medium text-stone-700 flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                            className="px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700 rounded-xl text-xs font-medium text-stone-700 dark:text-stone-200 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                           >
-                            <User className="w-3.5 h-3.5 text-stone-500" />
+                            <User className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
                             <span className="hidden sm:inline">Profile</span>
                           </button>
                         )
@@ -947,8 +947,8 @@ export const MessagesView: React.FC = () => {
                         onClick={() => setShowDossierDrawer(!showDossierDrawer)}
                         className={`p-2 rounded-xl border transition-colors cursor-pointer ${
                           showDossierDrawer
-                            ? 'bg-stone-200 dark:bg-stone-750 border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100'
-                            : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-750'
+                            ? 'bg-stone-200 dark:bg-stone-700 border-stone-300 dark:border-stone-600 text-stone-900 dark:text-stone-100'
+                            : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700'
                         }`}
                         title={showDossierDrawer ? 'Hide Profile Panel' : 'Show Profile Panel'}
                       >
@@ -976,14 +976,14 @@ export const MessagesView: React.FC = () => {
 
                         {activeChatMessages.length === 0 ? (
                           <div className="text-center py-16 space-y-3">
-                            <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-400 flex items-center justify-center mx-auto">
+                            <div className="w-12 h-12 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500 flex items-center justify-center mx-auto">
                               <Sparkles className="w-6 h-6 text-amber-500" />
                             </div>
                             <div className="max-w-xs mx-auto space-y-1">
-                              <h3 className="text-xs font-bold text-stone-900">
+                              <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100">
                                 No messages recorded yet
                               </h3>
-                              <p className="text-[11px] text-stone-500">
+                              <p className="text-[11px] text-stone-500 dark:text-stone-400">
                                 Send an institutional greeting or inquiry to initiate exchange.
                               </p>
                             </div>
@@ -993,360 +993,360 @@ export const MessagesView: React.FC = () => {
                             if (msg.isSystemMessage) {
                               return (
                                 <div key={msg.id} className="flex justify-center my-2">
-                                  <div className="px-3.5 py-1.5 rounded-xl bg-amber-50/90 border border-amber-200/80 text-[11px] text-amber-950 flex items-center gap-1.5 shadow-2xs max-w-md text-center">
+                                  <div className="px-3.5 py-1.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-[11px] text-amber-950 dark:text-amber-200 flex items-center gap-1.5 shadow-2xs max-w-md text-center">
                                     <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                                     <span>{msg.text}</span>
-                                </div>
-                              </div>
-                            );
-                          }
-
-                          const isMine = msg.senderId === currentUser?.uid;
-                          const sender = !isMine ? users.find((u) => u.uid === msg.senderId) : null;
-
-                          return (
-                            <div
-                              key={msg.id}
-                              className={`group relative flex flex-col ${isMine ? 'items-end' : 'items-start'} mb-3`}
-                              onMouseLeave={() => {
-                                if (activeMessageMenuId === msg.id) setActiveMessageMenuId(null);
-                              }}
-                            >
-                              {!isMine && (
-                                <div className="flex items-center gap-1.5 mb-1 px-1">
-                                  {(activeChat.isGroupChat || activeChat.isEventChat) && (
-                                    <>
-                                      <img
-                                        src={getUserAvatar(msg.senderAvatar || sender?.profilePictureUrl)}
-                                        alt={msg.senderName || sender?.name}
-                                        onError={handleUserAvatarError}
-                                        onClick={() => sender && setSelectedUserIdForModal(sender.uid)}
-                                        className="w-4 h-4 rounded-full object-cover cursor-pointer"
-                                      />
-                                      <span
-                                        onClick={() => sender && setSelectedUserIdForModal(sender.uid)}
-                                        className="text-[11px] font-bold text-stone-800 hover:text-[#8B181B] cursor-pointer"
-                                      >
-                                        {msg.senderName || sender?.name || 'Attendee'}
-                                      </span>
-                                    </>
-                                  )}
-                                  <UserRoleBadge role={msg.senderRole || sender?.role} size="xs" />
-                                </div>
-                              )}
-
-                              <div className="relative max-w-[85%] sm:max-w-[70%] group/bubble">
-                                {msg.isUnsent ? (
-                                  <div
-                                    className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm leading-relaxed italic border border-stone-200/90 bg-stone-100/80 text-stone-500 flex items-center gap-2 ${
-                                      isMine ? 'rounded-br-xs' : 'rounded-bl-xs'
-                                    }`}
-                                  >
-                                    <Undo2 className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                                    <span>This message was unsent</span>
                                   </div>
-                                ) : (
-                                  <>
-                                    <div
-                                      onClick={() => setActiveMessageMenuId(activeMessageMenuId === msg.id ? null : msg.id)}
-                                      className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm leading-relaxed cursor-pointer select-none transition-all ${
-                                        isMine
-                                          ? 'bg-[#8B181B] text-white rounded-br-xs shadow-[0_2px_8px_rgba(139,24,27,0.2)]'
-                                          : 'bg-white border border-stone-200/90 text-stone-900 rounded-bl-xs shadow-2xs'
-                                      }`}
-                                    >
-                                      {msg.text}
-                                    </div>
+                                </div>
+                              );
+                            }
 
-                                    {/* Floating Actions on Hover / Menu for mobile */}
+                            const isMine = msg.senderId === currentUser?.uid;
+                            const sender = !isMine ? users.find((u) => u.uid === msg.senderId) : null;
+
+                            return (
+                              <div
+                                key={msg.id}
+                                className={`group relative flex flex-col ${isMine ? 'items-end' : 'items-start'} mb-3`}
+                                onMouseLeave={() => {
+                                  if (activeMessageMenuId === msg.id) setActiveMessageMenuId(null);
+                                }}
+                              >
+                                {!isMine && (
+                                  <div className="flex items-center gap-1.5 mb-1 px-1">
+                                    {(activeChat.isGroupChat || activeChat.isEventChat) && (
+                                      <>
+                                        <img
+                                          src={getUserAvatar(msg.senderAvatar || sender?.profilePictureUrl)}
+                                          alt={msg.senderName || sender?.name}
+                                          onError={handleUserAvatarError}
+                                          onClick={() => sender && setSelectedUserIdForModal(sender.uid)}
+                                          className="w-4 h-4 rounded-full object-cover cursor-pointer"
+                                        />
+                                        <span
+                                          onClick={() => sender && setSelectedUserIdForModal(sender.uid)}
+                                          className="text-[11px] font-bold text-stone-800 dark:text-stone-200 hover:text-[#8B181B] dark:hover:text-rose-400 cursor-pointer"
+                                        >
+                                          {msg.senderName || sender?.name || 'Attendee'}
+                                        </span>
+                                      </>
+                                    )}
+                                    <UserRoleBadge role={msg.senderRole || sender?.role} size="xs" />
+                                  </div>
+                                )}
+
+                                <div className="relative max-w-[85%] sm:max-w-[70%] group/bubble">
+                                  {msg.isUnsent ? (
                                     <div
-                                      className={`absolute -top-4 flex items-center gap-1 z-20 transition-all duration-150 ${
-                                        isMine ? 'right-1' : 'left-1'
-                                      } ${
-                                        activeMessageMenuId === msg.id
-                                          ? 'opacity-100 visible pointer-events-auto'
-                                          : 'opacity-0 invisible pointer-events-none group-hover/bubble:opacity-100 group-hover/bubble:visible group-hover/bubble:pointer-events-auto'
+                                      className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm leading-relaxed italic border border-stone-200/90 dark:border-stone-700 bg-stone-100/80 dark:bg-stone-800/80 text-stone-500 dark:text-stone-400 flex items-center gap-2 ${
+                                        isMine ? 'rounded-br-xs' : 'rounded-bl-xs'
                                       }`}
                                     >
-                                      {/* Reaction Bar */}
-                                      <div className="flex items-center gap-1 p-1 bg-white dark:bg-stone-850 rounded-full shadow-lg border border-stone-200/90 dark:border-stone-700">
-                                        {QUICK_EMOJIS.map((emoji) => {
-                                          const isUserReaction = msg.reactions?.[emoji]?.includes(currentUser.uid);
-                                          return (
+                                      <Undo2 className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                                      <span>This message was unsent</span>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div
+                                        onClick={() => setActiveMessageMenuId(activeMessageMenuId === msg.id ? null : msg.id)}
+                                        className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm leading-relaxed cursor-pointer select-none transition-all ${
+                                          isMine
+                                            ? 'bg-[#8B181B] dark:bg-[#721316] text-white rounded-br-xs shadow-[0_2px_8px_rgba(139,24,27,0.25)] border border-rose-900/40'
+                                            : 'bg-white dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700/80 text-stone-900 dark:text-stone-100 rounded-bl-xs shadow-2xs'
+                                        }`}
+                                      >
+                                        {msg.text}
+                                      </div>
+
+                                      {/* Floating Actions on Hover / Menu for mobile */}
+                                      <div
+                                        className={`absolute -top-4 flex items-center gap-1 z-20 transition-all duration-150 ${
+                                          isMine ? 'right-1' : 'left-1'
+                                        } ${
+                                          activeMessageMenuId === msg.id
+                                            ? 'opacity-100 visible pointer-events-auto'
+                                            : 'opacity-0 invisible pointer-events-none group-hover/bubble:opacity-100 group-hover/bubble:visible group-hover/bubble:pointer-events-auto'
+                                        }`}
+                                      >
+                                        {/* Reaction Bar */}
+                                        <div className="flex items-center gap-1 p-1 bg-white dark:bg-stone-800 rounded-full shadow-lg border border-stone-200/90 dark:border-stone-700">
+                                          {QUICK_EMOJIS.map((emoji) => {
+                                            const isUserReaction = msg.reactions?.[emoji]?.includes(currentUser.uid);
+                                            return (
+                                              <button
+                                                key={emoji}
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  reactToMessage(activeChat.id, msg.id, emoji);
+                                                  // Request 7: Automatically close or hide reaction selection DIV immediately
+                                                  setActiveMessageMenuId(null);
+                                                }}
+                                                className={`w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-sm sm:text-xs hover:scale-125 active:scale-95 transition-transform rounded-full cursor-pointer relative ${
+                                                  isUserReaction
+                                                    ? 'bg-rose-100 dark:bg-rose-950/80 ring-2 ring-[#8B181B] shadow-2xs'
+                                                    : 'hover:bg-stone-100 dark:hover:bg-stone-700'
+                                                }`}
+                                                title={isUserReaction ? `Remove ${emoji} reaction` : `React with ${emoji}`}
+                                              >
+                                                {emoji}
+                                              </button>
+                                            );
+                                          })}
+
+                                          {/* More Actions Dropdown Toggle */}
+                                          <div className="relative">
                                             <button
-                                              key={emoji}
                                               type="button"
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                reactToMessage(activeChat.id, msg.id, emoji);
-                                                // Request 7: Automatically close or hide reaction selection DIV immediately
-                                                setActiveMessageMenuId(null);
+                                                setActiveMessageMenuId(
+                                                  activeMessageMenuId === msg.id ? null : msg.id
+                                                );
                                               }}
-                                              className={`w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-sm sm:text-xs hover:scale-125 active:scale-95 transition-transform rounded-full cursor-pointer relative ${
-                                                isUserReaction
-                                                  ? 'bg-rose-100 dark:bg-rose-950/80 ring-2 ring-[#8B181B] shadow-2xs'
-                                                  : 'hover:bg-stone-100 dark:hover:bg-stone-750'
-                                              }`}
-                                              title={isUserReaction ? `Remove ${emoji} reaction` : `React with ${emoji}`}
+                                              className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 rounded-full hover:bg-stone-100 dark:hover:bg-stone-700 cursor-pointer"
+                                              title="Message options"
                                             >
-                                              {emoji}
+                                              <MoreVertical className="w-3.5 h-3.5" />
                                             </button>
-                                          );
-                                        })}
 
-                                        {/* More Actions Dropdown Toggle */}
-                                        <div className="relative">
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setActiveMessageMenuId(
-                                                activeMessageMenuId === msg.id ? null : msg.id
-                                              );
-                                            }}
-                                            className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-stone-500 hover:text-stone-900 rounded-full hover:bg-stone-100 dark:hover:bg-stone-750 cursor-pointer"
-                                            title="Message options"
-                                          >
-                                            <MoreVertical className="w-3.5 h-3.5" />
-                                          </button>
-
-                                          {activeMessageMenuId === msg.id && (
-                                            <div
-                                              className={`absolute bottom-full mb-1 ${
-                                                isMine ? 'right-0' : 'left-0'
-                                              } w-44 bg-white dark:bg-stone-900 rounded-xl shadow-xl border border-stone-200 dark:border-stone-800 py-1 z-30 text-xs`}
-                                            >
-                                              {(isMine ||
-                                                ['admin', 'superadmin', 'moderator'].includes(
-                                                  currentUser?.role || ''
-                                                )) && (
+                                            {activeMessageMenuId === msg.id && (
+                                              <div
+                                                className={`absolute bottom-full mb-1 ${
+                                                  isMine ? 'right-0' : 'left-0'
+                                                } w-44 bg-white dark:bg-stone-900 rounded-xl shadow-xl border border-stone-200 dark:border-stone-800 py-1 z-30 text-xs`}
+                                              >
+                                                {(isMine ||
+                                                  ['admin', 'superadmin', 'moderator'].includes(
+                                                    currentUser?.role || ''
+                                                  )) && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setMessageToUnsend(msg);
+                                                      setActiveMessageMenuId(null);
+                                                    }}
+                                                    className="w-full px-3 py-2 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2 font-semibold cursor-pointer"
+                                                  >
+                                                    <Undo2 className="w-3.5 h-3.5" />
+                                                    <span>Unsend for everyone</span>
+                                                  </button>
+                                                )}
                                                 <button
                                                   type="button"
                                                   onClick={() => {
-                                                    setMessageToUnsend(msg);
+                                                    setMessageToDelete(msg);
                                                     setActiveMessageMenuId(null);
                                                   }}
-                                                  className="w-full px-3 py-2 text-left text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2 font-semibold cursor-pointer"
+                                                  className="w-full px-3 py-2 text-left text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center gap-2 font-medium cursor-pointer"
                                                 >
-                                                  <Undo2 className="w-3.5 h-3.5" />
-                                                  <span>Unsend for everyone</span>
+                                                  <Trash2 className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
+                                                  <span>Delete for me</span>
                                                 </button>
-                                              )}
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setMessageToDelete(msg);
-                                                  setActiveMessageMenuId(null);
-                                                }}
-                                                className="w-full px-3 py-2 text-left text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center gap-2 font-medium cursor-pointer"
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5 text-stone-500" />
-                                                <span>Delete for me</span>
-                                              </button>
-                                            </div>
-                                          )}
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
                                       </div>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
+                                    </>
+                                  )}
+                                </div>
 
-                              {/* Messenger-Style Message Reactions Display Badge (Request 7) */}
-                              {!msg.isUnsent && msg.reactions && Object.keys(msg.reactions).length > 0 && (() => {
-                                const activeEntries = Object.entries(msg.reactions).filter(
-                                  ([_, uids]) => Array.isArray(uids) && uids.length > 0
-                                );
-                                if (activeEntries.length === 0) return null;
-                                const totalCount = activeEntries.reduce((sum, [_, uids]) => sum + uids.length, 0);
-                                const myReactionEntry = activeEntries.find(([_, uids]) => uids.includes(currentUser.uid));
-                                const hasMyReaction = !!myReactionEntry;
+                                {/* Messenger-Style Message Reactions Display Badge (Request 7) */}
+                                {!msg.isUnsent && msg.reactions && Object.keys(msg.reactions).length > 0 && (() => {
+                                  const activeEntries = Object.entries(msg.reactions).filter(
+                                    ([_, uids]) => Array.isArray(uids) && uids.length > 0
+                                  );
+                                  if (activeEntries.length === 0) return null;
+                                  const totalCount = activeEntries.reduce((sum, [_, uids]) => sum + uids.length, 0);
+                                  const myReactionEntry = activeEntries.find(([_, uids]) => uids.includes(currentUser.uid));
+                                  const hasMyReaction = !!myReactionEntry;
 
-                                return (
-                                  <div
-                                    className={`flex mt-1 px-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setInspectingReactionsMessage(msg);
-                                        setReactionDetailTab('all');
-                                      }}
-                                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all cursor-pointer shadow-2xs active:scale-95 select-none ${
-                                        hasMyReaction
-                                          ? 'bg-rose-50 dark:bg-rose-950/70 text-[#8B181B] dark:text-rose-300 border-rose-300 dark:border-rose-800 ring-1 ring-[#8B181B]/20'
-                                          : 'bg-white dark:bg-stone-850 hover:bg-stone-50 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700'
-                                      }`}
-                                      title="View who reacted"
+                                  return (
+                                    <div
+                                      className={`flex mt-1 px-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}
                                     >
-                                      <span className="flex items-center -space-x-1">
-                                        {activeEntries.slice(0, 3).map(([em]) => (
-                                          <span key={em} className="text-xs leading-none">{em}</span>
-                                        ))}
-                                      </span>
-                                      <span className="text-[10px] font-mono tabular-nums font-bold">
-                                        {totalCount}
-                                      </span>
-                                    </button>
-                                  </div>
-                                );
-                              })()}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setInspectingReactionsMessage(msg);
+                                          setReactionDetailTab('all');
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all cursor-pointer shadow-2xs active:scale-95 select-none ${
+                                          hasMyReaction
+                                            ? 'bg-rose-50 dark:bg-rose-950/70 text-[#8B181B] dark:text-rose-300 border-rose-300 dark:border-rose-800 ring-1 ring-[#8B181B]/20'
+                                            : 'bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700'
+                                        }`}
+                                        title="View who reacted"
+                                      >
+                                        <span className="flex items-center -space-x-1">
+                                          {activeEntries.slice(0, 3).map(([em]) => (
+                                            <span key={em} className="text-xs leading-none">{em}</span>
+                                          ))}
+                                        </span>
+                                        <span className="text-[10px] font-mono tabular-nums font-bold">
+                                          {totalCount}
+                                        </span>
+                                      </button>
+                                    </div>
+                                  );
+                                })()}
 
-                              <div className="flex items-center gap-1.5 text-[10px] text-stone-400 mt-1 px-1 font-mono tabular-nums">
-                                <span>
-                                  {new Date(msg.createdAt).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
-                                {isMine && !msg.isUnsent && (
-                                  <>
-                                    {msg.status === 'syncing' ? (
-                                      <span className="inline-flex items-center gap-1 text-sky-600 font-sans font-medium text-[10px]">
-                                        <RefreshCw className="w-3 h-3 animate-spin text-sky-500" />
-                                        <span>Syncing...</span>
-                                      </span>
-                                    ) : msg.status === 'failed' ? (
-                                      <span className="inline-flex items-center gap-1 text-red-600 font-sans font-medium text-[10px]">
-                                        <AlertCircle className="w-3 h-3 text-red-500" />
-                                        <span>Failed</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => retryOfflineMessage(msg.id)}
-                                          className="underline ml-0.5 hover:text-red-700 font-semibold cursor-pointer"
-                                        >
-                                          Retry
-                                        </button>
-                                      </span>
-                                    ) : msg.status === 'pending' || msg.status === 'queued' || (msg as any).offlineQueued ? (
-                                      <span className="inline-flex items-center gap-1 text-amber-600 font-sans font-medium text-[10px]">
-                                        <Clock className="w-3 h-3 text-amber-500 animate-pulse" />
-                                        <span>{!isOnline ? 'Queued offline' : 'Pending'}</span>
-                                      </span>
-                                    ) : msg.status === 'sending' && (Date.now() - new Date(msg.createdAt).getTime() < 1800) ? (
-                                      <span className="inline-flex items-center gap-1 text-stone-400 font-sans text-[10px]">
-                                        <Clock className="w-3 h-3 animate-spin text-stone-400" />
-                                        <span>Sending...</span>
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 text-stone-400 font-sans text-[10px]">
-                                        <CheckCheck className="w-3.5 h-3.5 text-stone-400" />
-                                        <span>Sent</span>
-                                      </span>
-                                    )}
-                                  </>
-                                )}
+                                <div className="flex items-center gap-1.5 text-[10px] text-stone-400 dark:text-stone-500 mt-1 px-1 font-mono tabular-nums">
+                                  <span>
+                                    {new Date(msg.createdAt).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </span>
+                                  {isMine && !msg.isUnsent && (
+                                    <>
+                                      {msg.status === 'syncing' ? (
+                                        <span className="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 font-sans font-medium text-[10px]">
+                                          <RefreshCw className="w-3 h-3 animate-spin text-sky-500" />
+                                          <span>Syncing...</span>
+                                        </span>
+                                      ) : msg.status === 'failed' ? (
+                                        <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 font-sans font-medium text-[10px]">
+                                          <AlertCircle className="w-3 h-3 text-red-500" />
+                                          <span>Failed</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => retryOfflineMessage(msg.id)}
+                                            className="underline ml-0.5 hover:text-red-700 dark:hover:text-red-300 font-semibold cursor-pointer"
+                                          >
+                                            Retry
+                                          </button>
+                                        </span>
+                                      ) : msg.status === 'pending' || msg.status === 'queued' || (msg as any).offlineQueued ? (
+                                        <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-sans font-medium text-[10px]">
+                                          <Clock className="w-3 h-3 text-amber-500 animate-pulse" />
+                                          <span>{!isOnline ? 'Queued offline' : 'Pending'}</span>
+                                        </span>
+                                      ) : msg.status === 'sending' && (Date.now() - new Date(msg.createdAt).getTime() < 1800) ? (
+                                        <span className="inline-flex items-center gap-1 text-stone-400 dark:text-stone-500 font-sans text-[10px]">
+                                          <Clock className="w-3 h-3 animate-spin text-stone-400" />
+                                          <span>Sending...</span>
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 text-stone-400 dark:text-stone-500 font-sans text-[10px]">
+                                          <CheckCheck className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
+                                          <span>Sent</span>
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
-
-                    {/* Quick Response Prompt Suggestions */}
-                    <div className="px-3.5 py-1.5 bg-stone-50 border-t border-stone-200/70 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-                      <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-amber-500" />
-                        <span>Prompt:</span>
-                      </span>
-                      {[
-                        '👋 Greetings fellow Cecilian!',
-                        '🎓 Are you attending the next campus homecoming?',
-                        '🎉 Congratulations on your career advancement!',
-                        '💼 Would love to connect regarding opportunities.'
-                      ].map((prompt, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleInsertQuickReply(prompt)}
-                          className="px-2.5 py-1 rounded-full bg-white hover:bg-stone-100 border border-stone-200/80 text-[11px] text-stone-700 whitespace-nowrap cursor-pointer transition-colors shadow-2xs"
-                        >
-                          {prompt}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Offline Status & Pending Queue Banner */}
-                    {(!isOnline || offlineQueueCount > 0) && (
-                      <div className="px-3.5 py-2 bg-amber-50/95 border-t border-amber-200/90 flex items-center justify-between gap-2 text-xs">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className={`w-2 h-2 rounded-full ${!isOnline ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'} shrink-0`} />
-                          <span className="text-amber-950 font-medium text-[11px] truncate">
-                            {!isOnline
-                              ? `Offline mode · ${offlineQueueCount} message${offlineQueueCount === 1 ? '' : 's'} queued to send on reconnect`
-                              : isFirestoreSyncing
-                              ? `Synchronizing ${offlineQueueCount} message${offlineQueueCount === 1 ? '' : 's'} to Cloud...`
-                              : `${offlineQueueCount} offline message${offlineQueueCount === 1 ? '' : 's'} ready to synchronize`}
-                          </span>
-                        </div>
-                        {offlineQueueCount > 0 && isOnline && (
-                          <button
-                            type="button"
-                            disabled={isFirestoreSyncing}
-                            onClick={() => syncOfflineMessages()}
-                            className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-[11px] font-semibold rounded-lg shadow-2xs transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
-                          >
-                            <RefreshCw className={`w-3 h-3 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
-                            <span>{isFirestoreSyncing ? 'Syncing...' : 'Sync Now'}</span>
-                          </button>
+                            );
+                          })
                         )}
+                        <div ref={messagesEndRef} />
                       </div>
-                    )}
 
-                    {/* Input Composer Form */}
-                    <form
-                      onSubmit={handleSend}
-                      className="p-3 sm:p-3.5 bg-white dark:bg-stone-900 border-t border-stone-200/90 dark:border-stone-800 flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-                    >
-                      <input
-                        type="text"
-                        value={inputMessage}
-                        onChange={(e) => setInputMessage(e.target.value)}
-                        placeholder={
-                          !isOnline
-                            ? 'Type message (offline)...'
-                            : activeChat.isGroupChat || activeChat.isEventChat
-                            ? `Message ${activeChat.groupName || 'group'}...`
-                            : `Message ${recipientUser?.name || 'alumnus'}...`
-                        }
-                        className="flex-1 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl focus:bg-white dark:focus:bg-stone-850 focus:outline-hidden focus:border-[#8B181B] transition-colors"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!inputMessage.trim()}
-                        className="min-w-[44px] min-h-[44px] p-2.5 bg-[#8B181B] hover:bg-[#721316] disabled:opacity-40 text-white rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center shrink-0"
-                        aria-label="Send message"
+                      {/* Quick Response Prompt Suggestions */}
+                      <div className="px-3.5 py-1.5 bg-stone-50 dark:bg-stone-900 border-t border-stone-200/70 dark:border-stone-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+                        <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3 text-amber-500" />
+                          <span>Prompt:</span>
+                        </span>
+                        {[
+                          '👋 Greetings fellow Cecilian!',
+                          '🎓 Are you attending the next campus homecoming?',
+                          '🎉 Congratulations on your career advancement!',
+                          '💼 Would love to connect regarding opportunities.'
+                        ].map((prompt, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleInsertQuickReply(prompt)}
+                            className="px-2.5 py-1 rounded-full bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-200/80 dark:border-stone-700 text-[11px] text-stone-700 dark:text-stone-200 whitespace-nowrap cursor-pointer transition-colors shadow-2xs"
+                          >
+                            {prompt}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Offline Status & Pending Queue Banner */}
+                      {(!isOnline || offlineQueueCount > 0) && (
+                        <div className="px-3.5 py-2 bg-amber-50/95 dark:bg-amber-950/40 border-t border-amber-200/90 dark:border-amber-900/60 flex items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className={`w-2 h-2 rounded-full ${!isOnline ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'} shrink-0`} />
+                            <span className="text-amber-950 dark:text-amber-200 font-medium text-[11px] truncate">
+                              {!isOnline
+                                ? `Offline mode · ${offlineQueueCount} message${offlineQueueCount === 1 ? '' : 's'} queued to send on reconnect`
+                                : isFirestoreSyncing
+                                ? `Synchronizing ${offlineQueueCount} message${offlineQueueCount === 1 ? '' : 's'} to Cloud...`
+                                : `${offlineQueueCount} offline message${offlineQueueCount === 1 ? '' : 's'} ready to synchronize`}
+                            </span>
+                          </div>
+                          {offlineQueueCount > 0 && isOnline && (
+                            <button
+                              type="button"
+                              disabled={isFirestoreSyncing}
+                              onClick={() => syncOfflineMessages()}
+                              className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-[11px] font-semibold rounded-lg shadow-2xs transition-colors shrink-0 flex items-center gap-1 cursor-pointer"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
+                              <span>{isFirestoreSyncing ? 'Syncing...' : 'Sync Now'}</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Input Composer Form */}
+                      <form
+                        onSubmit={handleSend}
+                        className="p-3 sm:p-3.5 bg-white dark:bg-stone-900 border-t border-stone-200/90 dark:border-stone-800 flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
                       >
-                        <Send className="w-4 h-4" />
-                      </button>
-                    </form>
-                  </div>
+                        <input
+                          type="text"
+                          value={inputMessage}
+                          onChange={(e) => setInputMessage(e.target.value)}
+                          placeholder={
+                            !isOnline
+                              ? 'Type message (offline)...'
+                              : activeChat.isGroupChat || activeChat.isEventChat
+                              ? `Message ${activeChat.groupName || 'group'}...`
+                              : `Message ${recipientUser?.name || 'alumnus'}...`
+                          }
+                          className="flex-1 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B] dark:focus:border-rose-500 transition-colors"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!inputMessage.trim()}
+                          className="min-w-[44px] min-h-[44px] p-2.5 bg-[#8B181B] hover:bg-[#721316] disabled:opacity-40 text-white rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center shrink-0"
+                          aria-label="Send message"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </form>
+                    </div>
 
                   {/* Right Profile Rail (Collapsible) */}
                   {showDossierDrawer && (
-                    <div className="hidden lg:flex w-72 border-l border-stone-200/90 bg-[#FAF9F6]/80 flex-col p-4 space-y-4 overflow-y-auto shrink-0">
+                    <div className="hidden lg:flex w-72 border-l border-stone-200/90 dark:border-stone-800 bg-[#FAF9F6]/80 dark:bg-stone-900 flex-col p-4 space-y-4 overflow-y-auto shrink-0">
                       {activeChat.isGroupChat || activeChat.isEventChat ? (
                         <div className="space-y-4">
-                          <div className="text-center space-y-2 pb-4 border-b border-stone-200/80">
+                          <div className="text-center space-y-2 pb-4 border-b border-stone-200/80 dark:border-stone-800">
                             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#8B181B] to-amber-700 text-white flex items-center justify-center mx-auto shadow-sm">
                               <CalendarCheck className="w-7 h-7 text-amber-200" />
                             </div>
-                            <h3 className="text-xs font-bold text-stone-900">
+                            <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100">
                               {activeChat.groupName || 'Event Group'}
                             </h3>
-                            <span className="text-[10px] text-stone-500 font-mono">
+                            <span className="text-[10px] text-stone-500 dark:text-stone-400 font-mono">
                               Event Group Chat
                             </span>
                           </div>
 
                           {activeEvent && (
-                            <div className="p-3 bg-white rounded-xl border border-stone-200 space-y-2 text-xs">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                            <div className="p-3 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2 text-xs">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">
                                 Event Details
                               </div>
-                              <div className="space-y-1 text-stone-700 text-[11px]">
+                              <div className="space-y-1 text-stone-700 dark:text-stone-300 text-[11px]">
                                 <div><strong>Date:</strong> {activeEvent.date}</div>
                                 <div><strong>Venue:</strong> {activeEvent.location || 'SCC Campus'}</div>
                               </div>
@@ -1355,8 +1355,8 @@ export const MessagesView: React.FC = () => {
 
                           <div className="space-y-2">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="font-bold text-stone-900">Attendees</span>
-                              <span className="font-mono text-stone-500 text-[10px]">
+                              <span className="font-bold text-stone-900 dark:text-stone-100">Attendees</span>
+                              <span className="font-mono text-stone-500 dark:text-stone-400 text-[10px]">
                                 {activeGroupMembers.length} verified
                               </span>
                             </div>
@@ -1365,19 +1365,19 @@ export const MessagesView: React.FC = () => {
                                 <div
                                   key={member.uid}
                                   onClick={() => setSelectedUserIdForModal(member.uid)}
-                                  className="p-2 bg-white rounded-lg border border-stone-200/70 hover:border-[#8B181B]/40 flex items-center gap-2 cursor-pointer transition-colors"
+                                  className="p-2 bg-white dark:bg-stone-850 rounded-lg border border-stone-200/70 dark:border-stone-750 hover:border-[#8B181B]/40 dark:hover:border-rose-500/40 flex items-center gap-2 cursor-pointer transition-colors"
                                 >
                                   <img
                                     src={getUserAvatar(member.profilePictureUrl)}
                                     alt={member.name}
                                     onError={handleUserAvatarError}
-                                    className="w-7 h-7 rounded-full object-cover"
+                                    className="w-7 h-7 rounded-full object-cover border border-stone-200 dark:border-stone-700"
                                   />
                                   <div className="flex-1 min-w-0">
-                                    <div className="text-[11px] font-semibold text-stone-900 truncate">
+                                    <div className="text-[11px] font-semibold text-stone-900 dark:text-stone-100 truncate">
                                       {member.name}
                                     </div>
-                                    <div className="text-[10px] text-stone-400 truncate">
+                                    <div className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
                                       {member.batch ? `Batch ${member.batch}` : member.role}
                                     </div>
                                   </div>
@@ -1389,15 +1389,15 @@ export const MessagesView: React.FC = () => {
                       ) : (
                         recipientUser && (
                           <div className="space-y-4">
-                            <div className="text-center space-y-2 pb-4 border-b border-stone-200/80">
+                            <div className="text-center space-y-2 pb-4 border-b border-stone-200/80 dark:border-stone-800">
                               <img
                                 src={getUserAvatar(recipientUser.profilePictureUrl)}
                                 alt={recipientUser.name}
                                 onError={handleUserAvatarError}
-                                className="w-16 h-16 rounded-full object-cover mx-auto border-2 border-white shadow-sm"
+                                className="w-16 h-16 rounded-full object-cover mx-auto border-2 border-white dark:border-stone-700 shadow-sm"
                               />
                               <div>
-                                <h3 className="text-xs font-bold text-stone-900">
+                                <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100">
                                   {recipientUser.name}
                                 </h3>
                                 <div className="mt-1">
@@ -1406,11 +1406,11 @@ export const MessagesView: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="p-3 bg-white rounded-xl border border-stone-200 space-y-2 text-xs">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                            <div className="p-3 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2 text-xs">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">
                                 Academic Pedigree
                               </div>
-                              <div className="space-y-1 text-stone-700 text-[11px]">
+                              <div className="space-y-1 text-stone-700 dark:text-stone-300 text-[11px]">
                                 {recipientUser.batch && (
                                   <div><strong>Batch:</strong> Class of {recipientUser.batch}</div>
                                 )}
@@ -1421,11 +1421,11 @@ export const MessagesView: React.FC = () => {
                             </div>
 
                             {(recipientUser.company || recipientUser.currentPosition) && (
-                              <div className="p-3 bg-white rounded-xl border border-stone-200 space-y-2 text-xs">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                              <div className="p-3 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2 text-xs">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">
                                   Current Career
                                 </div>
-                                <div className="space-y-1 text-stone-700 text-[11px]">
+                                <div className="space-y-1 text-stone-700 dark:text-stone-300 text-[11px]">
                                   {recipientUser.currentPosition && (
                                     <div><strong>Role:</strong> {recipientUser.currentPosition}</div>
                                   )}
@@ -1439,7 +1439,7 @@ export const MessagesView: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setSelectedUserIdForModal(recipientUser.uid)}
-                              className="w-full py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                              className="w-full py-2 bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-750 dark:border dark:border-stone-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                             >
                               Inspect Public Profile
                             </button>
@@ -1452,30 +1452,30 @@ export const MessagesView: React.FC = () => {
               </>
             ) : (
               /* ZERO-STATE: ALUMNI DISPATCH DIRECTORY DESK */
-              <div className="flex-1 p-4 sm:p-5 lg:p-6 overflow-y-auto space-y-4 bg-[#FAF9F6]/40">
+              <div className="flex-1 p-4 sm:p-5 lg:p-6 overflow-y-auto space-y-4 bg-[#FAF9F6]/40 dark:bg-stone-900/50">
                 <div className="w-full space-y-4">
                   {/* Filter & Search Bar */}
-                  <div className="bg-white p-3 sm:p-3.5 rounded-2xl border border-stone-200/90 shadow-2xs">
+                  <div className="bg-white dark:bg-stone-900 p-3 sm:p-3.5 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-2xs">
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                       <div className="relative flex-1">
-                        <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Search className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
                           value={contactDirectorySearch}
                           onChange={(e) => setContactDirectorySearch(e.target.value)}
                           placeholder="Search alumni by name, course, batch, or company..."
-                          className="w-full pl-9 pr-8 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:bg-white focus:outline-hidden focus:border-[#8B181B] transition-colors"
+                          className="w-full pl-9 pr-8 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B] dark:focus:border-rose-500 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 transition-colors"
                         />
                       </div>
 
-                      <div className="flex items-center gap-1 p-0.5 bg-stone-100 rounded-xl text-xs shrink-0">
+                      <div className="flex items-center gap-1 p-0.5 bg-stone-100 dark:bg-stone-800 rounded-xl text-xs shrink-0">
                         <button
                           type="button"
                           onClick={() => setContactFilter('all')}
                           className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
                             contactFilter === 'all'
-                              ? 'bg-white text-stone-900 font-semibold shadow-2xs'
-                              : 'text-stone-600 hover:text-stone-900'
+                              ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs'
+                              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
                           }`}
                         >
                           All ({users.length - 1})
@@ -1485,8 +1485,8 @@ export const MessagesView: React.FC = () => {
                           onClick={() => setContactFilter('staff')}
                           className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
                             contactFilter === 'staff'
-                              ? 'bg-white text-stone-900 font-semibold shadow-2xs'
-                              : 'text-stone-600 hover:text-stone-900'
+                              ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs'
+                              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
                           }`}
                         >
                           Staff & Officers
@@ -1500,32 +1500,32 @@ export const MessagesView: React.FC = () => {
                     {directoryContacts.map((contact) => (
                       <div
                         key={contact.uid}
-                        className="p-4 bg-white rounded-2xl border border-stone-200 shadow-2xs flex flex-col justify-between space-y-3 hover:border-[#8B181B]/40 transition-colors"
+                        className="p-4 bg-white dark:bg-stone-850 rounded-2xl border border-stone-200 dark:border-stone-750 shadow-2xs flex flex-col justify-between space-y-3 hover:border-[#8B181B]/40 dark:hover:border-rose-500/40 transition-colors"
                       >
                         <div className="flex items-start gap-3">
                           <img
                             src={getUserAvatar(contact.profilePictureUrl)}
                             alt={contact.name}
                             onError={handleUserAvatarError}
-                            className="w-10 h-10 rounded-full object-cover border border-stone-200 shrink-0"
+                            className="w-10 h-10 rounded-full object-cover border border-stone-200 dark:border-stone-700 shrink-0"
                           />
                           <div className="min-w-0">
-                            <h4 className="text-xs font-bold text-stone-900 truncate">
+                            <h4 className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
                               {contact.name}
                             </h4>
-                            <p className="text-[11px] text-stone-500 truncate mt-0.5">
+                            <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate mt-0.5">
                               {contact.batch ? `Class of ${contact.batch}` : contact.role}
                               {contact.course ? ` · ${contact.course}` : ''}
                             </p>
                             {contact.company && (
-                              <p className="text-[10px] text-stone-400 truncate">
+                              <p className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
                                 {contact.currentPosition ? `${contact.currentPosition} at ` : ''}{contact.company}
                               </p>
                             )}
                           </div>
                         </div>
 
-                        <div className="pt-2 border-t border-stone-100 flex items-center justify-between">
+                        <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between">
                           <UserRoleBadge role={contact.role} size="xs" />
                           <button
                             type="button"
@@ -1550,69 +1550,72 @@ export const MessagesView: React.FC = () => {
       {/* ========================================================================= */}
       {/* NEW DISPATCH MODAL                                                        */}
       {/* ========================================================================= */}
+      {/* ========================================================================= */}
+      {/* NEW DISPATCH MODAL                                                        */}
+      {/* ========================================================================= */}
       <AnimatePresence>
         {showNewChatModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl border border-stone-200 max-w-lg w-full p-6 shadow-2xl space-y-4"
+              className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 max-w-lg w-full p-6 shadow-2xl space-y-4"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-[#8B181B]/10 text-[#8B181B] flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-[#8B181B]/10 dark:bg-rose-950/50 text-[#8B181B] dark:text-rose-400 flex items-center justify-center">
                     <UserPlus className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900">Initiate Peer Dispatch</h3>
-                    <p className="text-[11px] text-stone-500">Select an alumnus to start a direct line</p>
+                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Initiate Peer Dispatch</h3>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">Select an alumnus to start a direct line</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowNewChatModal(false)}
-                  className="p-1 rounded-full text-stone-400 hover:bg-stone-100 cursor-pointer"
+                  className="p-1 rounded-full text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <div className="relative">
-                <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={contactDirectorySearch}
                   onChange={(e) => setContactDirectorySearch(e.target.value)}
                   placeholder="Search by name, program, batch..."
-                  className="w-full pl-9 pr-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:bg-white focus:outline-hidden focus:border-[#8B181B]"
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B] dark:focus:border-rose-500 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 transition-colors"
                 />
               </div>
 
-              <div className="max-h-72 overflow-y-auto space-y-2 divide-y divide-stone-100">
+              <div className="max-h-72 overflow-y-auto space-y-2 divide-y divide-stone-100 dark:divide-stone-800">
                 {directoryContacts.map((contact) => (
                   <div
                     key={contact.uid}
                     onClick={() => handleStartConversationWith(contact)}
-                    className="pt-2 flex items-center justify-between p-2 rounded-xl hover:bg-stone-50 cursor-pointer transition-colors"
+                    className="pt-2 flex items-center justify-between p-2 rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800 cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <img
                         src={getUserAvatar(contact.profilePictureUrl)}
                         alt={contact.name}
                         onError={handleUserAvatarError}
-                        className="w-8 h-8 rounded-full object-cover shrink-0"
+                        className="w-8 h-8 rounded-full object-cover shrink-0 border border-stone-200 dark:border-stone-700"
                       />
                       <div className="min-w-0">
-                        <div className="text-xs font-bold text-stone-900 truncate">{contact.name}</div>
-                        <div className="text-[11px] text-stone-500 truncate">
+                        <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">{contact.name}</div>
+                        <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
                           {contact.batch ? `Batch ${contact.batch}` : contact.role} · {contact.course || 'Cecilian'}
                         </div>
                       </div>
                     </div>
                     <button
                       type="button"
-                      className="px-2.5 py-1 bg-[#8B181B] text-white rounded-lg text-[10px] font-semibold shrink-0 cursor-pointer"
+                      className="px-2.5 py-1 bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg text-[10px] font-semibold shrink-0 cursor-pointer transition-colors"
                     >
                       Connect
                     </button>
@@ -1629,27 +1632,27 @@ export const MessagesView: React.FC = () => {
       {/* ========================================================================= */}
       <AnimatePresence>
         {showMembersModal && activeChat && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl border border-stone-200 max-w-md w-full p-6 shadow-2xl space-y-4"
+              className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 max-w-md w-full p-6 shadow-2xl space-y-4"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 flex items-center justify-center">
                     <Users className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900">Event Attendee List</h3>
-                    <p className="text-[11px] text-stone-500">{activeGroupMembers.length} verified attendees</p>
+                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Event Attendee List</h3>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">{activeGroupMembers.length} verified attendees</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowMembersModal(false)}
-                  className="p-1 rounded-full text-stone-400 hover:bg-stone-100 cursor-pointer"
+                  className="p-1 rounded-full text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1663,18 +1666,18 @@ export const MessagesView: React.FC = () => {
                       setSelectedUserIdForModal(member.uid);
                       setShowMembersModal(false);
                     }}
-                    className="p-2.5 rounded-xl border border-stone-200/80 bg-stone-50 hover:bg-stone-100 flex items-center justify-between cursor-pointer transition-colors"
+                    className="p-2.5 rounded-xl border border-stone-200/80 dark:border-stone-800 bg-stone-50 dark:bg-stone-850 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center justify-between cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <img
                         src={getUserAvatar(member.profilePictureUrl)}
                         alt={member.name}
                         onError={handleUserAvatarError}
-                        className="w-8 h-8 rounded-full object-cover shrink-0"
+                        className="w-8 h-8 rounded-full object-cover shrink-0 border border-stone-200 dark:border-stone-700"
                       />
                       <div className="min-w-0">
-                        <div className="text-xs font-bold text-stone-900 truncate">{member.name}</div>
-                        <div className="text-[11px] text-stone-500 truncate">
+                        <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">{member.name}</div>
+                        <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
                           {member.batch ? `Batch ${member.batch}` : member.role} · {member.course || 'Cecilian'}
                         </div>
                       </div>
@@ -1693,27 +1696,27 @@ export const MessagesView: React.FC = () => {
       {/* ========================================================================= */}
       <AnimatePresence>
         {messageToUnsend && activeChat && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl border border-stone-200 max-w-sm w-full p-6 shadow-2xl space-y-4"
+              className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 max-w-sm w-full p-6 shadow-2xl space-y-4"
             >
-              <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-700 flex items-center justify-center mx-auto">
-                <Undo2 className="w-6 h-6 text-[#8B181B]" />
+              <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-rose-950/50 text-red-700 dark:text-rose-400 flex items-center justify-center mx-auto">
+                <Undo2 className="w-6 h-6 text-[#8B181B] dark:text-rose-400" />
               </div>
 
               <div className="text-center space-y-1.5">
-                <h3 className="text-base font-bold text-stone-900">
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
                   Unsend Message for Everyone?
                 </h3>
-                <p className="text-xs text-stone-600 leading-relaxed">
+                <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
                   This will remove this message from the conversation for all participants. An institutional notice that the dispatch was unsent will be displayed.
                 </p>
               </div>
 
-              <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-700 italic line-clamp-2">
+              <div className="p-3 bg-stone-50 dark:bg-stone-850 border border-stone-200 dark:border-stone-800 rounded-xl text-xs text-stone-700 dark:text-stone-300 italic line-clamp-2">
                 "{messageToUnsend.text}"
               </div>
 
@@ -1721,7 +1724,7 @@ export const MessagesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setMessageToUnsend(null)}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-stone-300 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition-colors cursor-pointer"
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-stone-300 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1747,27 +1750,27 @@ export const MessagesView: React.FC = () => {
       {/* ========================================================================= */}
       <AnimatePresence>
         {messageToDelete && activeChat && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl border border-stone-200 max-w-sm w-full p-6 shadow-2xl space-y-4"
+              exit={{ opacity: 0, scale: 1 }}
+              className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 max-w-sm w-full p-6 shadow-2xl space-y-4"
             >
-              <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-700 flex items-center justify-center mx-auto">
-                <Trash2 className="w-6 h-6 text-stone-700" />
+              <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 flex items-center justify-center mx-auto">
+                <Trash2 className="w-6 h-6 text-stone-700 dark:text-stone-300" />
               </div>
 
               <div className="text-center space-y-1.5">
-                <h3 className="text-base font-bold text-stone-900">
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
                   Delete Message for Yourself?
                 </h3>
-                <p className="text-xs text-stone-600 leading-relaxed">
+                <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
                   This message will be removed from your personal conversation view. Other participants in this thread will still be able to see it.
                 </p>
               </div>
 
-              <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-700 italic line-clamp-2">
+              <div className="p-3 bg-stone-50 dark:bg-stone-850 border border-stone-200 dark:border-stone-800 rounded-xl text-xs text-stone-700 dark:text-stone-300 italic line-clamp-2">
                 "{messageToDelete.text}"
               </div>
 
@@ -1775,7 +1778,7 @@ export const MessagesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setMessageToDelete(null)}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-stone-300 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition-colors cursor-pointer"
+                  className="flex-1 py-2.5 px-4 rounded-xl border border-stone-300 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1785,7 +1788,7 @@ export const MessagesView: React.FC = () => {
                     deleteMessageForMe(activeChat.id, messageToDelete.id);
                     setMessageToDelete(null);
                   }}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-950 text-white text-xs font-bold transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-stone-950 dark:bg-stone-800 dark:hover:bg-stone-750 text-white text-xs font-bold transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 border dark:border-stone-700"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Delete for Me</span>
