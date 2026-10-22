@@ -43,12 +43,14 @@ import {
   Sliders,
   Send,
   Share2,
-  Globe
+  Globe,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
 import { ThemeMode, applyTheme, getStoredTheme } from '../../lib/theme';
 import { UserRoleBadge } from '../common/UserRoleBadge';
+import { UserRole } from '../../types';
 import { PlatformOnly } from '../common/PlatformOnly';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import {
@@ -83,7 +85,10 @@ export const SettingsView: React.FC = () => {
     updateNotificationSettings,
     pushPermissionStatus,
     requestBrowserPushPermission,
-    sendTest24HourAlert
+    sendTest24HourAlert,
+    updateUserRole,
+    users,
+    permissions
   } = useAlumni();
 
   // Active filter pill for Command Center navigation
@@ -110,6 +115,22 @@ export const SettingsView: React.FC = () => {
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Authority Role Management Modal state
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [selectedRoleUserUid, setSelectedRoleUserUid] = useState<string>(currentUser?.uid || '');
+  const [selectedRoleValue, setSelectedRoleValue] = useState<UserRole>((currentUser?.role as UserRole) || 'alumni');
+  const [isSavingRole, setIsSavingRole] = useState(false);
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const [roleSuccess, setRoleSuccess] = useState<string | null>(null);
+
+  // Synchronize target selection when modal triggers or user profile changes
+  useEffect(() => {
+    if (currentUser?.uid) {
+      setSelectedRoleUserUid(currentUser.uid);
+      setSelectedRoleValue((currentUser.role as UserRole) || 'alumni');
+    }
+  }, [currentUser?.uid, currentUser?.role]);
 
   // Administrative roles cannot delete their accounts from settings
   const isAdminRole = ['admin', 'superadmin', 'registrar', 'staff', 'moderator'].includes(currentUser?.role || '');
@@ -371,6 +392,33 @@ export const SettingsView: React.FC = () => {
     }, 1800);
   };
 
+  const handleUpdateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRoleError(null);
+    setRoleSuccess(null);
+    if (!selectedRoleUserUid) {
+      setRoleError('Please select a target user account.');
+      return;
+    }
+    setIsSavingRole(true);
+    try {
+      const res = await updateUserRole(selectedRoleUserUid, selectedRoleValue);
+      if (res?.success) {
+        setRoleSuccess(`Successfully updated role to ${selectedRoleValue.toUpperCase()} and persisted to database.`);
+        setTimeout(() => {
+          setShowRoleModal(false);
+          setRoleSuccess(null);
+        }, 1600);
+      } else {
+        setRoleError(res?.message || 'Could not update user role.');
+      }
+    } catch (err: any) {
+      setRoleError(err?.message || 'Unexpected error updating role.');
+    } finally {
+      setIsSavingRole(false);
+    }
+  };
+
   // Active channel count
   const activeChannelsCount = [pushEnabled, emailEnabled, messagesEnabled, eventsEnabled, jobsEnabled].filter(Boolean).length;
 
@@ -392,15 +440,30 @@ export const SettingsView: React.FC = () => {
 
           {/* Metric Pill 1: Account Authority */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full border border-stone-300 flex items-center justify-center text-stone-700 shrink-0">
+            <div className="w-10 h-10 rounded-full border border-stone-300 dark:border-stone-700 flex items-center justify-center text-stone-700 dark:text-stone-300 shrink-0">
               <User className="w-4 h-4" />
             </div>
             <div>
-              <span className="text-[11px] text-stone-500 block leading-tight font-medium">
-                Authority Role
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-stone-500 dark:text-stone-400 block leading-tight font-medium">
+                  Authority Role
+                </span>
+                {(currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRoleUserUid(currentUser.uid);
+                      setSelectedRoleValue(currentUser.role as UserRole);
+                      setShowRoleModal(true);
+                    }}
+                    className="text-[10px] font-bold text-[#8B181B] dark:text-red-400 hover:underline cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-lg font-extrabold text-stone-900 uppercase tracking-tight">
+                <span className="text-lg font-extrabold text-stone-900 dark:text-stone-100 uppercase tracking-tight">
                   {currentUser.role}
                 </span>
                 <span className="text-[10px] text-stone-400 font-medium">tier</span>
@@ -593,6 +656,39 @@ export const SettingsView: React.FC = () => {
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>Update</span>
                 </button>
+              </div>
+
+              {/* Chip 3: Authority Role & Elevation */}
+              <div className="bg-stone-50/80 rounded-2xl p-3 flex items-center justify-between border border-stone-200/80 shadow-2xs">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-bold text-stone-800 block">
+                      Authority Role
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-stone-200 text-stone-700">
+                      {currentUser.role}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-stone-500">
+                    {currentUser.role === 'admin' || currentUser.role === 'superadmin'
+                      ? 'Administrator privilege active'
+                      : 'Standard alumni clearance'}
+                  </span>
+                </div>
+                {(currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedRoleUserUid(currentUser.uid);
+                      setSelectedRoleValue(currentUser.role as UserRole);
+                      setShowRoleModal(true);
+                    }}
+                    className="px-2.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] active:scale-95 text-white rounded-xl text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Change Role</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -986,6 +1082,63 @@ export const SettingsView: React.FC = () => {
       {/* DETAILED SETTINGS CARDS (FILTERABLE COMMAND SECTIONS)                      */}
       {/* ========================================================================= */}
       
+      {/* SECTION: AUTHORITY ROLE & ACCESS GOVERNANCE */}
+      {(activeFilterPill === 'all' || activeFilterPill === 'security' || activeFilterPill === 'compliance') && (
+        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-red-50 text-[#8B181B] flex items-center justify-center">
+                <ShieldCheck className="w-4 h-4 stroke-[2]" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-900">Authority Role & Privilege Governance</h3>
+                <p className="text-xs text-stone-500">Institutional clearance tier, permission boundaries, and Firestore synchronization</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold border border-stone-200">
+              Synchronized DB
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-stone-50/80 border border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-stone-900">Active Institutional Clearance:</span>
+                <UserRoleBadge role={currentUser.role} size="sm" />
+              </div>
+              <p className="text-[11px] text-stone-500 max-w-xl">
+                {currentUser.role === 'superadmin' && 'Full system root access: Architecture configurations, all role delegations, and security auditing.'}
+                {currentUser.role === 'admin' && 'Administrative privileges: Manage alumni accounts, directory moderation, opportunity reviews, and announcements.'}
+                {currentUser.role === 'registrar' && 'Registrar authority: Validate student credentials, verify alumni graduation registry records, and audit status.'}
+                {currentUser.role === 'staff' && 'Institutional staff clearance: Departmental notices, campus career posts, and student event coordination.'}
+                {currentUser.role === 'moderator' && 'Community moderator clearance: Review discussion submissions, forum items, and member report flags.'}
+                {currentUser.role === 'employer' && 'Corporate employer clearance: Post job opportunities and browse qualified alumni candidates.'}
+                {currentUser.role === 'alumni' && 'Verified alumni privileges: Discover alumni, connect with classmates, submit career applications, and access campus pass.'}
+              </p>
+            </div>
+
+            {(currentUser.role === 'admin' || currentUser.role === 'superadmin') ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRoleUserUid(currentUser.uid);
+                  setSelectedRoleValue(currentUser.role as UserRole);
+                  setShowRoleModal(true);
+                }}
+                className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-2 cursor-pointer shrink-0 active:scale-95"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Modify Authority Role</span>
+              </button>
+            ) : (
+              <span className="text-[11px] text-stone-400 italic">
+                Role managed by Administration
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* SECTION 1: SECURITY & CREDENTIALS ACCESS */}
       {(activeFilterPill === 'all' || activeFilterPill === 'security') && (
         <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-5">
@@ -1673,6 +1826,144 @@ export const SettingsView: React.FC = () => {
                       className="px-4 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold cursor-pointer shadow-2xs"
                     >
                       Update Password
+                    </button>
+                  </div>
+                </form>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* ROLE MODIFICATION MODAL                                                   */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {showRoleModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl border border-stone-200 text-xs space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3.5 border-b border-stone-200">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center text-[#8B181B]">
+                    <ShieldCheck className="w-4 h-4 stroke-[2]" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-stone-900">Modify Authority Role</h3>
+                    <p className="text-[11px] text-stone-500">Update clearance tier and persist to Firestore database</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRoleModal(false)}
+                  disabled={isSavingRole}
+                  className="text-stone-400 hover:text-stone-600 p-1 rounded-lg cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {roleSuccess ? (
+                <div className="my-5 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-xs">Role Committed</p>
+                    <p className="text-[11px] text-emerald-700 mt-0.5">{roleSuccess}</p>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleUpdateRole} className="space-y-4">
+                  {roleError && (
+                    <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                      <span>{roleError}</span>
+                    </div>
+                  )}
+
+                  {/* Target User Selector */}
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">
+                      Target User Account *
+                    </label>
+                    <select
+                      value={selectedRoleUserUid}
+                      onChange={(e) => {
+                        const targetUid = e.target.value;
+                        setSelectedRoleUserUid(targetUid);
+                        const userObj = users.find((u) => u.uid === targetUid) || (currentUser.uid === targetUid ? currentUser : null);
+                        if (userObj) {
+                          setSelectedRoleValue(userObj.role as UserRole);
+                        }
+                      }}
+                      disabled={isSavingRole}
+                      className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:border-[#8B181B] cursor-pointer"
+                    >
+                      <option value={currentUser.uid}>
+                        {currentUser.name} ({currentUser.email}) - Current User [Self]
+                      </option>
+                      {users
+                        .filter((u) => u.uid !== currentUser.uid)
+                        .map((u) => (
+                          <option key={u.uid} value={u.uid}>
+                            {u.name} ({u.email || u.uid}) - Currently {u.role.toUpperCase()}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* New Role Selector */}
+                  <div>
+                    <label className="text-xs font-semibold text-stone-700 block mb-1">
+                      Assigned Role Tier *
+                    </label>
+                    <select
+                      value={selectedRoleValue}
+                      onChange={(e) => setSelectedRoleValue(e.target.value as UserRole)}
+                      disabled={isSavingRole}
+                      className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-hidden focus:border-[#8B181B] cursor-pointer"
+                    >
+                      <option value="alumni">Alumni (Standard Portal Access)</option>
+                      <option value="moderator">Moderator (Community Governance)</option>
+                      <option value="staff">Staff (Department Operations)</option>
+                      <option value="registrar">Registrar (Verification Officer)</option>
+                      <option value="admin">Admin (Portal Administrator)</option>
+                      {currentUser?.role === 'superadmin' && (
+                        <option value="superadmin">Superadmin (Root System Authority)</option>
+                      )}
+                      <option value="employer">Employer (Career Partner)</option>
+                    </select>
+                  </div>
+
+                  <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-[11px] text-stone-600 space-y-1">
+                    <p className="font-semibold text-stone-800 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Persistence Guarantee:</span>
+                    </p>
+                    <p className="text-stone-500">
+                      Changes commit directly to the Firestore collection and update credentials across all client and backend sessions.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowRoleModal(false)}
+                      disabled={isSavingRole}
+                      className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-medium cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSavingRole}
+                      className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold cursor-pointer shadow-2xs flex items-center gap-1.5 disabled:opacity-60"
+                    >
+                      {isSavingRole && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <span>{isSavingRole ? 'Persisting...' : 'Save Role Change'}</span>
                     </button>
                   </div>
                 </form>

@@ -1102,13 +1102,19 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
   }
 
   // ============================================================================
-  // ALUMNI-EXCLUSIVE ACCESS ENFORCEMENT & STATUS VERIFICATION
+  // PLATFORM-BASED ACCESS ENFORCEMENT & STATUS VERIFICATION
+  // - Mobile APK ('mobile' / 'native_apk'): Exclusive for Alumni.
+  // - Web Portal ('web'): Open to Alumni, Super Admin, Admin, Registrar, Staff, Moderator, Employer.
   // ============================================================================
+  const reqPlatform = String(req.body.platform || 'web').toLowerCase().trim();
+  const isApkEnvironment = reqPlatform === 'mobile' || reqPlatform === 'native_apk' || reqPlatform === 'apk';
   const userRole = (user.role || 'alumni').toLowerCase().trim();
-  if (userRole !== 'alumni') {
+
+  if (isApkEnvironment && userRole !== 'alumni') {
     return res.status(403).json({
-      error: 'Mobile Application is Exclusive for Alumni.',
-      code: 'ALUMNI_EXCLUSIVE_REQUIRED'
+      error: 'Administrative access is restricted to the web portal.',
+      code: 'ADMIN_WEB_ONLY_RESTRICTION',
+      role: user.role
     });
   }
 
@@ -1223,15 +1229,7 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
     }
   }
 
-  // Enforce Alumni-Exclusive Access
-  const effectiveRole = (user.role || 'alumni').toLowerCase().trim();
-  if (effectiveRole !== 'alumni') {
-    return res.status(403).json({
-      error: 'Mobile Application is Exclusive for Alumni.',
-      code: 'ALUMNI_ONLY_ACCESS',
-      role: user.role
-    });
-  }
+
 
   // Issue cryptographically signed session token with 7-day persistent validity & unique sessionId
   const sessionId = `sess_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
@@ -1622,10 +1620,10 @@ app.get('/api/moderators/quota', (_req: Request, res: Response) => {
 // 6.6.1 Admin Route: Role Assignment & Elevation
 app.post('/api/admin/promote-user', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
   const adminActor = (req as any).user;
-  const { targetEmail, newRole } = req.body;
+  const { targetEmail, targetUid, newRole } = req.body;
 
-  if (!targetEmail || !newRole) {
-    return res.status(400).json({ error: 'Target email and new role are required.' });
+  if ((!targetEmail && !targetUid) || !newRole) {
+    return res.status(400).json({ error: 'Target email or UID and new role are required.' });
   }
 
   const ALLOWED_ROLES = ['superadmin', 'admin', 'staff', 'moderator', 'employer', 'alumni', 'registrar'];
@@ -1633,10 +1631,33 @@ app.post('/api/admin/promote-user', requireServerAuth, requireRole(['admin', 'su
     return res.status(400).json({ error: `Invalid role '${newRole}'. Allowed: ${ALLOWED_ROLES.join(', ')}` });
   }
 
-  const normalized = String(targetEmail).toLowerCase().trim();
-  const targetUser = credentialsDb.get(normalized);
+  const normalized = targetEmail ? String(targetEmail).toLowerCase().trim() : '';
+  let targetUser = normalized ? credentialsDb.get(normalized) : null;
+  if (!targetUser && targetUid) {
+    for (const u of credentialsDb.values()) {
+      if (u.uid === targetUid) {
+        targetUser = u;
+        break;
+      }
+    }
+  }
   if (!targetUser) {
-    return res.status(404).json({ error: `User with email '${targetEmail}' not found.` });
+    // If user exists in client/Firestore but not in-memory credentialsDb, upsert entry
+    const fallbackEmail = normalized || `${targetUid}@stcecilia.edu`;
+    targetUser = {
+      uid: targetUid || `usr_${Date.now()}`,
+      email: fallbackEmail,
+      hash: defaultAdminHash,
+      salt: defaultAdminSalt,
+      role: 'alumni',
+      name: (normalized || targetUid || 'Cecilian Member').split('@')[0],
+      emailVerified: true,
+      isVerified: true
+    };
+    credentialsDb.set(fallbackEmail, targetUser);
+    if (targetUid) {
+      credentialsDb.set(targetUid, targetUser);
+    }
   }
 
   // RBAC Constraint 2.1 & 2.2: Cannot edit infrastructure configs or assign/demote superadmin unless superadmin

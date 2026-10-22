@@ -36,7 +36,8 @@ import {
   RotateCcw,
   SlidersHorizontal,
   ChevronDown,
-  CheckSquare
+  CheckSquare,
+  Loader2
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { UserProfile, UserRole, isAdministrativeOrStaffRole } from '../../types';
@@ -69,6 +70,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
   const [visibleUserCount, setVisibleUserCount] = useState<number>(12);
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
+  const [updatingRoleUid, setUpdatingRoleUid] = useState<string | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -531,22 +533,35 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                     <div className="flex items-center justify-between text-stone-600 dark:text-stone-400">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Role</span>
                       {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid ? (
-                        <select
-                          value={u.role}
-                          onChange={(e) => {
-                            const newRole = e.target.value as UserRole;
-                            updateUserRole(u.uid, newRole);
-                            showToast(`Updated ${u.name}'s role to ${newRole.toUpperCase()}`, 'success');
-                          }}
-                          className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-200 hover:border-stone-400 focus:outline-hidden cursor-pointer"
-                        >
-                          <option value="alumni">Alumni</option>
-                          <option value="admin">Admin</option>
-                          <option value="registrar">Registrar</option>
-                          <option value="staff">Staff</option>
-                          <option value="moderator">Moderator</option>
-                          <option value="employer">Employer</option>
-                        </select>
+                        <div className="flex items-center gap-1.5">
+                          {updatingRoleUid === u.uid && (
+                            <Loader2 className="w-3 h-3 animate-spin text-[#8B181B]" />
+                          )}
+                          <select
+                            value={u.role}
+                            disabled={updatingRoleUid === u.uid}
+                            onChange={async (e) => {
+                              const newRole = e.target.value as UserRole;
+                              setUpdatingRoleUid(u.uid);
+                              try {
+                                await updateUserRole(u.uid, newRole);
+                              } finally {
+                                setUpdatingRoleUid(null);
+                              }
+                            }}
+                            className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-200 hover:border-stone-400 focus:outline-hidden cursor-pointer disabled:opacity-60"
+                          >
+                            <option value="alumni">Alumni</option>
+                            <option value="moderator">Moderator</option>
+                            <option value="staff">Staff</option>
+                            <option value="registrar">Registrar</option>
+                            <option value="admin">Admin</option>
+                            {currentUser?.role === 'superadmin' && (
+                              <option value="superadmin">Superadmin</option>
+                            )}
+                            <option value="employer">Employer</option>
+                          </select>
+                        </div>
                       ) : (
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                           u.role === 'admin' || u.role === 'superadmin'
@@ -763,22 +778,35 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                       {/* Role Column */}
                       <td className="py-3.5 px-4">
                         {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid ? (
-                          <select
-                            value={u.role}
-                            onChange={(e) => {
-                              const newRole = e.target.value as UserRole;
-                              updateUserRole(u.uid, newRole);
-                              showToast(`Updated ${u.name}'s role to ${newRole.toUpperCase()}`, 'success');
-                            }}
-                            className="px-2 py-1 rounded-lg text-[11px] font-bold uppercase bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-stone-700 hover:border-stone-400 focus:outline-hidden cursor-pointer"
-                          >
-                            <option value="alumni">Alumni</option>
-                            <option value="admin">Admin</option>
-                            <option value="registrar">Registrar</option>
-                            <option value="staff">Staff</option>
-                            <option value="moderator">Moderator</option>
-                            <option value="employer">Employer</option>
-                          </select>
+                          <div className="flex items-center gap-1.5">
+                            {updatingRoleUid === u.uid && (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#8B181B]" />
+                            )}
+                            <select
+                              value={u.role}
+                              disabled={updatingRoleUid === u.uid}
+                              onChange={async (e) => {
+                                const newRole = e.target.value as UserRole;
+                                setUpdatingRoleUid(u.uid);
+                                try {
+                                  await updateUserRole(u.uid, newRole);
+                                } finally {
+                                  setUpdatingRoleUid(null);
+                                }
+                              }}
+                              className="px-2 py-1 rounded-lg text-[11px] font-bold uppercase bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-stone-700 hover:border-stone-400 focus:outline-hidden cursor-pointer disabled:opacity-60"
+                            >
+                              <option value="alumni">Alumni</option>
+                              <option value="moderator">Moderator</option>
+                              <option value="staff">Staff</option>
+                              <option value="registrar">Registrar</option>
+                              <option value="admin">Admin</option>
+                              {currentUser?.role === 'superadmin' && (
+                                <option value="superadmin">Superadmin</option>
+                              )}
+                              <option value="employer">Employer</option>
+                            </select>
+                          </div>
                         ) : (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
                             {u.role}

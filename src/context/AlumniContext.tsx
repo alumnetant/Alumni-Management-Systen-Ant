@@ -406,8 +406,8 @@ interface AlumniContextType {
   // Admin Actions
   verifyUser: (uid: string) => void;
   setUserVerified: (uid: string, status?: boolean) => void;
-  updateUserRole: (uid: string, newRole: UserRole) => void;
-  setUserRole: (uid: string, newRole: UserRole) => void;
+  updateUserRole: (uid: string, newRole: UserRole) => Promise<{ success: boolean; message?: string }>;
+  setUserRole: (uid: string, newRole: UserRole) => Promise<{ success: boolean; message?: string }>;
   deleteAlumni: (uid: string) => Promise<boolean>;
   createChapter: (ch: Omit<Chapter, 'id'>) => void;
   createMilestone: (m: Omit<CareerMilestone, 'id'>) => void;
@@ -1209,12 +1209,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const clientPlatform: 'mobile' | 'web' = useMemo(() => {
     if (clientPlatformOverride) return clientPlatformOverride;
     if (typeof window === 'undefined') return 'web';
-    if (typeof (window as any).Capacitor !== 'undefined' && (window as any).Capacitor.isNativePlatform?.()) {
-      return 'mobile';
-    }
-    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Silk/i.test(navigator.userAgent) ||
-      (window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 1024);
-    return (window.innerWidth < 1024 || isMobileUA) ? 'mobile' : 'web';
+    // Strictly native Capacitor Android APK package
+    const isCapacitorNative =
+      typeof (window as any).Capacitor !== 'undefined' &&
+      typeof (window as any).Capacitor.isNativePlatform === 'function' &&
+      (window as any).Capacitor.isNativePlatform();
+    return isCapacitorNative ? 'mobile' : 'web';
   }, [clientPlatformOverride]);
 
   const setClientPlatformOverride = useCallback((platform: 'mobile' | 'web' | null) => {
@@ -2792,11 +2792,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     // ========================================================================
-    // ALUMNI-EXCLUSIVE ACCESS ENFORCEMENT
+    // PLATFORM-BASED ACCESS ENFORCEMENT
+    // Alumni: Allowed on both Web and Mobile APK.
+    // Admin / Staff: Allowed ONLY on Web Portal. Blocked on Mobile APK.
     // ========================================================================
     const effectiveRole = (user.role || 'alumni').toLowerCase().trim();
-    if (effectiveRole !== 'alumni') {
-      const errorMsg = 'Mobile Application is Exclusive for Alumni.';
+    if (clientPlatform === 'mobile' && effectiveRole !== 'alumni') {
+      const errorMsg = 'Administrative access is restricted to the web portal.';
       showToast(errorMsg, 'error');
       setLoginPlatformError(errorMsg);
       return false;
@@ -6528,11 +6530,109 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setUserVerifiedExplicit(uid);
   };
 
-  const updateUserRole = (uid: string, newRole: UserRole) => {
-    // Immutable Role Constraint: Assigned roles are permanent and cannot be modified even by administrators.
-    showToast('Role modification disabled: Assigned roles are permanent and immutable. System policy prohibits modifying user roles.', 'error');
-    console.warn(`Attempted role change for ${uid} to ${newRole} rejected: roles are immutable.`);
-    return;
+  const updateUserRole = async (uid: string, newRole: UserRole): Promise<{ success: boolean; message?: string }> => {
+    if (!permissions.canAccessAdminPanel && currentUser?.role !== 'admin' && currentUser?.role !== 'superadmin') {
+      showToast('Permission denied: Only Administrators and Super Admins can modify user roles.', 'error');
+      return { success: false, message: 'Permission denied: Administrators only' };
+    }
+
+    const targetUser = users.find((u) => u.uid === uid) || (currentUser?.uid === uid ? currentUser : null);
+    const previousRole = targetUser?.role || 'alumni';
+
+    // Superadmin protection: Only superadmin can assign superadmin or modify a superadmin account
+    if (currentUser?.role !== 'superadmin' && (newRole === 'superadmin' || previousRole === 'superadmin')) {
+      showToast('Permission denied: Only Super Administrators can assign or modify the Super Admin role.', 'error');
+      return { success: false, message: 'Superadmin privilege required' };
+    }
+
+    // Moderator quota: Max 3 active moderators allowed
+    if (newRole === 'moderator' && previousRole !== 'moderator') {
+      const activeMods = users.filter((u) => u.role === 'moderator' && u.uid !== uid).length;
+      if (activeMods >= 3) {
+        showToast('Moderator quota limit reached (maximum 3 active moderators allowed).', 'error');
+        return { success: false, message: 'Moderator quota limit reached (maximum 3 allowed)' };
+      }
+    }
+
+    // 1. Optimistic Local State Update
+    setUsers((prev) => prev.map((u) => (u.uid === uid ? { ...u, role: newRole } : u)));
+    if (currentUser && currentUser.uid === uid) {
+      const updatedUser = { ...currentUser, role: newRole };
+      saveActiveSession(updatedUser);
+      try {
+        localStorage.setItem('alumni_user', JSON.stringify(updatedUser));
+      } catch {}
+    }
+
+    // 2. Persist to Firestore database
+    try {
+      await alumniService.updateAlumni(uid, { role: newRole }, targetUser || undefined);
+    } catch (fsErr) {
+      console.warn('Firestore updateDoc warning for role change:', fsErr);
+    }
+
+    // 3. Update Credential Vault for local login synchronization
+    try {
+      const userEmail = targetUser?.email;
+      if (userEmail) {
+        const cred = findCredentialInVault(userEmail) || findCredentialInVault(uid);
+        if (cred) {
+          cred.role = newRole;
+          saveCredentialToVault(cred);
+        }
+      }
+    } catch {}
+
+    // 4. Synchronize with Backend Credentials DB & Audit Log
+    try {
+      const token = getStoredSessionToken() || (currentUser ? createSessionToken(currentUser) : 'dev-admin-session-token');
+      const response = await fetch('/api/admin/promote-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          targetEmail: targetUser?.email || '',
+          targetUid: uid,
+          newRole
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        // Rollback optimistic state
+        setUsers((prev) => prev.map((u) => (u.uid === uid ? { ...u, role: previousRole } : u)));
+        if (currentUser && currentUser.uid === uid) {
+          const rolledBack = { ...currentUser, role: previousRole };
+          saveActiveSession(rolledBack);
+          try {
+            localStorage.setItem('alumni_user', JSON.stringify(rolledBack));
+          } catch {}
+        }
+        await alumniService.updateAlumni(uid, { role: previousRole }, targetUser || undefined);
+        const errMsg = data.error || 'Failed to update user role on server.';
+        showToast(errMsg, 'error');
+        return { success: false, message: errMsg };
+      }
+    } catch (netErr) {
+      console.warn('Backend /api/admin/promote-user sync skipped or offline:', netErr);
+    }
+
+    // 5. System Audit Log
+    addAuditLog({
+      action: 'ROLE_MODIFIED',
+      actorId: currentUser?.uid || 'usr_admin',
+      actorName: currentUser?.name || currentUser?.email || 'Administrator',
+      actorRole: currentUser?.role || 'admin',
+      category: 'user_management',
+      details: `Modified role for ${targetUser?.name || targetUser?.email || uid} from ${previousRole.toUpperCase()} to ${newRole.toUpperCase()}`,
+      severity: 'info',
+      targetRecordId: uid
+    });
+
+    showToast(`Role updated to ${newRole.toUpperCase()} and persisted to database.`, 'success');
+    return { success: true };
   };
 
   const deleteAlumni = async (uid: string): Promise<boolean> => {

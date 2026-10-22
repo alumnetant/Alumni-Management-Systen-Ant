@@ -1,115 +1,134 @@
-# Plan: Alumni Portal Navigation, Access Control, Notifications, & UI Polish
+# Platform-Based Role Access Control: Universal Alumni Access & Web-Only Admin Portal
 
-This plan addresses all requested portal updates: bottom icon dashboard reset, menu reorganization, removal of extra platform options, alumni-exclusive login enforcement with custom notice, confirmed logout logic, accurate online status indicators, a header notification popover with unread counter badge, direct navigation for connection requests, fixed messaging layout containers, "Already Applied / Submitted" job indicators, and dark mode contrast fixes.
+This plan establishes platform-specific authentication and runtime access boundaries for the St. Cecilia's College Alumni Network. It enables alumni members to use both the Web Portal and the native Android APK mobile application, while strictly restricting administrators, super administrators, and institutional staff (Registrar, Staff, Moderator, Employer) to the Web Portal.
 
 ---
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> **Confirmed Specifications**:
-> 1. **Bottom Icon Dashboard Reset**: Tapping the bottom dashboard icon scrolls to top and dispatches an event to reset active search queries, sub-tabs, filters, and expanded cards back to the main overview.
-> 2. **Header Notification Icon & Popover**: Convert the notification section into a header bell icon with an unread badge that opens a dropdown popover menu anchored to the bell.
-> 3. **Connection Request Direct Navigation**: Clicking a connection request notification navigates directly to the Network directory with the "Pending Requests" tab pre-selected for instant review and acceptance.
-> 4. **Alumni-Exclusive Access Enforcement**: Restrict login exclusively to alumni (`role === 'alumni'`). Non-alumni roles attempting login will be blocked with the exact note: `"Mobile Application is Exclusive for Alumni."`
-> 5. **Logout Confirmation**: Provide an explicit confirmation modal before terminating the session and clearing stored tokens.
-> 6. **Messaging Layout Fix**: Wrap the active conversation thread in a dedicated container with proper z-index and fixed positioning so header elements and the back button are never obscured.
-> 7. **Job Application State**: Display a prominent `"Submitted"` or `"Already Applied"` status on jobs the alumnus has applied to.
-> 8. **Dark Mode Contrast**: Fix rogue white-background panels and hardcoded dark text for complete dark-mode legibility.
+> **Confirmed Specifications from Clarification Phase**:
+> 1. **Alumni Universal Clearance**: Alumni accounts (`role === 'alumni'`) can sign in and access the platform from **both** the Web Portal (desktop, tablet, mobile web browsers) and the native APK mobile application.
+> 2. **Administrative Web-Only Restriction**: Administrators (`admin`, `superadmin`) and all institutional staff roles (`registrar`, `staff`, `moderator`, `employer`) can **only** access the Web Portal. They are blocked from signing in on the native mobile APK package.
+> 3. **Native APK Environment Detection**: The mobile application environment is distinguished strictly by native runtime detection (`Capacitor.isNativePlatform()`), eliminating the previous viewport width check (`< 1024px`) that inadvertently treated mobile web browsers as the mobile APK.
+> 4. **User Guidance Notice**: When an administrator or non-alumni account attempts to log in on the mobile APK package, authentication is blocked with the exact institutional advisory: `"Administrative access is restricted to the web portal"`.
 
 ---
 
-## 1. Architectural Changes by Module
+## 1. Overview & Core Concept
+
+- **What It Does**: Enforces platform-specific security boundaries between collegiate stakeholders. Mobile alumni members access dedicated features (digital alumni ID pass, real-time push alerts, messaging, and networking) on both their phones and web browsers, while administration, registrar records verification, user role assignment, and management desks are secured strictly within the full-featured Web Portal.
+- **Target Audience**:
+  - Alumni accessing the network via the downloaded Android APK or any web browser.
+  - School Administrators, Superadmins, Registrars, and Staff accessing console desks via web browsers on desktop, laptop, tablet, or mobile.
+- **Key Value**: Prevents unauthorized administrative access attempts on personal mobile devices via the APK binary, guarantees a stable full-screen workstation experience for administrative tasks, and delivers universal access for alumni.
+
+---
+
+## 2. User Experience & Visual Design
+
+- **Alumni Login Flow (Web & Mobile APK)**:
+  - An alumnus enters their Student ID, Alumni ID, or email and password.
+  - Authentication succeeds seamlessly across both platforms.
+  - On the mobile APK, the alumnus experiences the touch-optimized mobile interface with bottom glass dock, push notifications, and campus pass.
+  - On the Web Portal, the alumnus enjoys the spacious desktop dashboard.
+
+- **Administrator Login Flow on Web Portal**:
+  - An administrator signs in via any standard web browser (Chrome, Safari, Firefox, Edge on desktop, tablet, or mobile).
+  - The Web Portal validates the administrative credentials and loads the console dashboard with full management capabilities.
+
+- **Administrator Login Attempt on Mobile APK**:
+  - If an administrator enters administrative credentials into the native Android APK package:
+    - Login is halted immediately before creating an active session.
+    - A crisp, styled modal or inline banner in St. Cecilia's deep crimson (`#8B181B`) displays:
+      `"Administrative access is restricted to the web portal"`.
+    - An action button provides a direct browser launch option (`"Open Web Portal"`), seamlessly directing the administrator to the web URL.
+    - No administrative data or tokens are stored in the mobile APK storage.
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Native Runtime Inspection Over Viewport Width**
+  - *Chosen Approach*: Identify the APK strictly through `Capacitor.isNativePlatform()` and native Capacitor bridge headers.
+  - *Why*: Viewport width detection (`innerWidth < 1024px`) previously misidentified mobile web browsers as APK binaries, erroneously blocking administrators inspecting the portal on smartphones or responsive displays.
+  - *Alternatives Considered*: User-Agent sniffing (fragile and easily spoofed); Screen size checks (blocks mobile web testing).
+
+- **Decision 2: Dual Client & Server Enforcement**
+  - *Chosen Approach*: Enforce platform clearance both in the client authentication state and inside the backend Express API (`/api/auth/login`).
+  - *Why*: Client validation gives instant, responsive feedback, while server-side validation guarantees that requests directly sent to the API cannot bypass the platform check.
+
+- **Decision 3: Non-Alumni Institutional Roles Alignment**
+  - *Chosen Approach*: Align Registrars, Staff, Moderators, and Employers with Administrators (Web Portal only).
+  - *Why*: Maintains high security across all privileged institutional roles and avoids exposing departmental tools in consumer mobile packages.
+
+---
+
+## 4. Technical Architecture & Data Strategy
+
+### Authentication & Platform Gate Architecture
 
 ```
-  ┌────────────────────────────────────────────────────────┐
-  │                        HEADER                          │
-  │  [Logo / Title]              [Bell + Badge] [Messages] │ <── Add Bell Popover
-  └──────────────────────────┬─────────────────────────────┘
-                             │
-     ┌───────────────────────┴───────────────────────┐
-     │                                               │
-     ▼                                               ▼
-[Notification Popover]                      [Navigation Drawer / Breadcrumbs]
- - Unread counter badge                      - Remove "Profile" (in bottom nav)
- - Direct "Confirm Request" link             - Remove "Alumni Mobile App" / "Web Portal"
- - Direct event / announcement link          - Clean breadcrumbs
-
-  ┌────────────────────────────────────────────────────────┐
-  │                      PORTAL MAIN                       │
-  │  [Dashboard / Network / Messages / Jobs / Settings]    │
-  │                                                        │
-  │  • Messages: Fixed container prevents cutoffs          │
-  │  • Jobs: "Already Applied / Submitted" badges          │
-  │  • Online Status: 5-minute accurate heartbeat          │
-  │  • Dark Mode: Full dark:bg-stone-900 / dark:text-stone │
-  └──────────────────────────┬─────────────────────────────┘
-                             │
-                             ▼
-  ┌────────────────────────────────────────────────────────┐
-  │                  BOTTOM GLASS DOCK                     │
-  │  [Home]  [Network]  [Pass]  [Messages]  [Profile]      │
-  │    ▲                                                   │
-  │    └─ Clicking resets dashboard back to main overview  │
-  └────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                        CLIENT RUNTIME DETECTION                        │
+│                                                                        │
+│   ┌────────────────────────────────┐  ┌────────────────────────────┐   │
+│   │   Native Android APK Package   │  │   Web Portal (Any Browser) │   │
+│   │   Capacitor.isNativePlatform() │  │   Desktop / Tablet / Phone │   │
+│   │   platform: "native_apk"       │  │   platform: "web"          │   │
+│   └───────────────┬────────────────┘  └─────────────┬──────────────┘   │
+└───────────────────┼─────────────────────────────────┼──────────────────┘
+                    │                                 │
+                    ▼                                 ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                      AUTHENTICATION PLATFORM GATE                      │
+│                                                                        │
+│   • Alumni (role === 'alumni'):                                        │
+│     Allowed on "native_apk" AND "web"                                  │
+│                                                                        │
+│   • Administrators & Staff (admin, superadmin, registrar, staff...):   │
+│     Allowed ONLY on "web"                                              │
+│     Blocked on "native_apk" with:                                      │
+│     "Administrative access is restricted to the web portal"            │
+└───────────────────┬─────────────────────────────────┬──────────────────┘
+                    │                                 │
+                    ▼                                 ▼
+┌───────────────────────────────────────┐ ┌──────────────────────────────┐
+│ Express API /api/auth/login           │ │ Client Auth State            │
+│ Verify platform & role constraints    │ │ Display advisory modal &     │
+│ Return HTTP 403 on APK admin attempt  │ │ "Open Web Portal" link       │
+└───────────────────────────────────────┘ └──────────────────────────────┘
 ```
 
----
+### Component & State Mapping
 
-## 2. Proposed Changes by File
-
-### Module 1: Alumni Portal & Navigation Updates
-- **`src/components/layout/Navigation.tsx`**:
-  - Update `handleMobileNavClick('dashboard')`: When clicked (or already on dashboard), dispatch `applet:reset-dashboard` and execute smooth scroll to top `(0, 0)`.
-  - Remove `"profile"` from the mobile burger drawer and breadcrumbs (it is prominently placed in the bottom glass dock).
-  - Remove any legacy `"Alumni Mobile App"` and `"Web Portal"` menu options.
-- **`src/components/alumni/AlumniWorkspaceLayout.tsx`**:
-  - Remove `"profile"` from `secondaryNavItems` in the sidebar and breadcrumb path calculation.
-  - Clean up breadcrumb trail so it cleanly renders the current active section.
-  - Add listener for `applet:reset-dashboard` to clear active search queries and restore default overview.
-
-### Module 2: Access Control & Login
-- **`src/components/auth/AuthPage.tsx` & `src/context/AlumniContext.tsx`**:
-  - In `login` function, verify that `user.role === 'alumni'`.
-  - If a non-alumni user (e.g. `admin`, `staff`, `registrar`, `employer`) attempts to log in, block authentication and set the error message:
-    `"Mobile Application is Exclusive for Alumni."`
-  - Implement a Confirmation Modal for the Log Out action in `AlumniWorkspaceLayout.tsx`, `Header.tsx`, and `SettingsView.tsx` with clear Cancel and Confirm options.
-
-### Module 3: Status, Notifications, & Connection Requests
-- **`src/context/AlumniContext.tsx`**:
-  - Implement a precise active status calculation: Users with a `lastActiveAt` timestamp within the past 5 minutes are rendered as "Active Now" (green dot); otherwise, render formatted relative activity (e.g., "Active 12m ago").
-  - Update notification click routing: When an alert of type `friend_request` or `connection_request` is clicked, navigate to `network` with `{ subTab: 'requests' }`.
-- **`src/components/layout/Header.tsx` & `src/components/alumni/AlumniWorkspaceLayout.tsx`**:
-  - Add a styled Notification Bell button beside the Messages icon in the top header bar.
-  - Render a red unread badge pill showing `unreadNotificationsCount`.
-  - Render an anchored dropdown popover menu displaying recent notifications, quick actions, "Mark All as Read", and direct deep-linking to connection requests.
-
-### Module 4: Messaging, Job Applications, & Dark Mode UI Fixes
-- **`src/components/messages/MessagesView.tsx`**:
-  - Wrap the active thread conversation view in a fixed/absolute positioned container (`fixed inset-0 z-50 md:relative md:inset-auto md:z-auto h-full flex flex-col`) with explicit safe-area padding so that the back button, header avatar, and input bar are never clipped or hidden on mobile screens.
-- **`src/components/opportunities/OpportunitiesView.tsx`**:
-  - Check whether `jobApplications.some(app => app.jobId === opp.id && app.applicantUid === currentUser.uid)`.
-  - If applied, replace the "Apply Now" button with a disabled, clear `"✓ Submitted"` or `"Already Applied"` badge button.
-- **Dark Mode Contrast Audit**:
-  - Inspect and fix contrast in `OpportunitiesView.tsx`, `MessagesView.tsx`, `NetworkView.tsx`, `DashboardOverview.tsx`, and `CollegiatePushBanner.tsx`. Replace remaining hardcoded `bg-white` and `text-stone-900` with `dark:bg-stone-900` and `dark:text-stone-100`.
+- **Platform State (`AlumniContext.tsx`)**:
+  - `isNativeApk`: Boolean flag checking `Capacitor.isNativePlatform()`.
+  - `clientPlatform`: Evaluates to `'native_apk'` when running within the compiled Capacitor binary; otherwise evaluates to `'web'`.
+  - `setClientPlatformOverride`: Retains developer debugging capability for testing native APK posture in preview environments.
+- **Login Validation (`AlumniContext.tsx` & `server.ts`)**:
+  - In `login(identifier, password)`:
+    - Sends `{ identifier, password, platform: clientPlatform }` to `/api/auth/login`.
+    - If `platform === 'native_apk'` and `user.role !== 'alumni'`:
+      - Abort session creation.
+      - Return `{ success: false, error: 'Administrative access is restricted to the web portal' }`.
+  - In `server.ts` line 1105 (`/api/auth/login`):
+    - Replace the unconditional non-alumni block with platform-aware validation:
+      `if (platform === 'native_apk' && userRole !== 'alumni')` -> return 403 with `Administrative access is restricted to the web portal`.
+      `if (platform !== 'native_apk')` -> permit both alumni and administrators to log in!
 
 ---
 
-## 3. Verification Plan
+## 5. Verification Plan
 
-1. **Compilation & Linting**:
-   - Run `compile_applet` and `lint_applet` to confirm zero TypeScript or build errors.
-2. **Access Control Testing**:
-   - Attempt login with `admin@stcecilia.edu.ph` -> Expect message: `"Mobile Application is Exclusive for Alumni."`
-   - Attempt login with `alumni@stcecilia.edu.ph` -> Expect successful login.
-3. **Navigation & Dashboard Reset Testing**:
-   - Scroll down in Dashboard and tap bottom Home icon -> Expect viewport scrolls to top and resets view.
-   - Verify breadcrumb and drawer do not contain duplicate "Profile" or "Alumni Mobile App" / "Web Portal" items.
-4. **Header Notification & Connection Request Direct Routing**:
-   - Click bell icon in header -> Expect dropdown popover with unread counter.
-   - Click a connection request notification -> Expect instant navigation to Network directory with the Pending Requests view active.
-5. **Messaging Layout & Job Application Badging**:
-   - Open a chat on mobile viewport -> Verify back button and input box are fully visible and clickable without obstruction.
-   - View jobs that have an existing application -> Verify badge displays "✓ Submitted" / "Already Applied".
-6. **Dark Mode Verification**:
-   - Toggle to dark mode and verify readability across all updated surfaces.
+1. **Automated Verification**:
+   - Run `lint_applet` and `compile_applet` to confirm zero TypeScript compilation errors.
+2. **Alumni Login Verification**:
+   - Web Browser: Sign in as `alumni@stcecilia.edu.ph` -> Expect successful login.
+   - Native APK simulation: Set platform to APK -> Sign in as `alumni@stcecilia.edu.ph` -> Expect successful login.
+3. **Administrator Login Verification**:
+   - Web Browser: Sign in as `admin@stcecilia.edu.ph` or `superadmin@stcecilia.edu.ph` -> Expect successful login and access to administrative desks.
+   - Native APK simulation: Set platform to APK -> Attempt sign in as `admin@stcecilia.edu.ph` -> Expect blocked login with notice: `"Administrative access is restricted to the web portal"`.
+4. **Staff Roles Verification**:
+   - Web Browser: Sign in as `registrar@stcecilia.edu.ph` or `employer@stcecilia.edu.ph` -> Expect successful login.
+   - Native APK simulation: Attempt sign in -> Expect blocked login with the same web-only advisory.
