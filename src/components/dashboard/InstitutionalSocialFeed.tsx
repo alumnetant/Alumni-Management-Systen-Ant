@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sparkles,
   Award,
@@ -95,6 +95,19 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
 
   // Destructive confirmation state (Requirement 5)
   const [postToDelete, setPostToDelete] = useState<{ id: string; title: string } | null>(null);
+
+  // Reset feed filters and modals when Home/Dashboard is clicked
+  useEffect(() => {
+    const handleReset = () => {
+      setActiveFilter('all');
+      setShowComposerModal(false);
+      setActiveHoverPostId(null);
+      setLightboxImage(null);
+      setPostToDelete(null);
+    };
+    window.addEventListener('applet:reset-dashboard', handleReset);
+    return () => window.removeEventListener('applet:reset-dashboard', handleReset);
+  }, []);
 
   // Check if current user is permitted to post
   // Admins, staff, moderators, and verified alumni can publish posts

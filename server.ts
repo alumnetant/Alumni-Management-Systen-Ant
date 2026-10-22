@@ -1102,9 +1102,15 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
   }
 
   // ============================================================================
-  // ACCOUNT LIFECYCLE & STATUS VERIFICATION
+  // ALUMNI-EXCLUSIVE ACCESS ENFORCEMENT & STATUS VERIFICATION
   // ============================================================================
   const userRole = (user.role || 'alumni').toLowerCase().trim();
+  if (userRole !== 'alumni') {
+    return res.status(403).json({
+      error: 'Mobile Application is Exclusive for Alumni.',
+      code: 'ALUMNI_EXCLUSIVE_REQUIRED'
+    });
+  }
 
   // GATE 2: Account Lifecycle Status Gate
   const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
@@ -1215,6 +1221,16 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
         });
       }
     }
+  }
+
+  // Enforce Alumni-Exclusive Access
+  const effectiveRole = (user.role || 'alumni').toLowerCase().trim();
+  if (effectiveRole !== 'alumni') {
+    return res.status(403).json({
+      error: 'Mobile Application is Exclusive for Alumni.',
+      code: 'ALUMNI_ONLY_ACCESS',
+      role: user.role
+    });
   }
 
   // Issue cryptographically signed session token with 7-day persistent validity & unique sessionId

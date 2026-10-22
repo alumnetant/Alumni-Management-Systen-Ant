@@ -2792,8 +2792,15 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     // ========================================================================
-    // ACCOUNT LIFECYCLE & STATUS VERIFICATION
+    // ALUMNI-EXCLUSIVE ACCESS ENFORCEMENT
     // ========================================================================
+    const effectiveRole = (user.role || 'alumni').toLowerCase().trim();
+    if (effectiveRole !== 'alumni') {
+      const errorMsg = 'Mobile Application is Exclusive for Alumni.';
+      showToast(errorMsg, 'error');
+      setLoginPlatformError(errorMsg);
+      return false;
+    }
     setLoginPlatformError(null);
 
     const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
@@ -2833,7 +2840,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       password: expectedPassword,
       isVerified: user.role === 'alumni' ? true : user.isVerified,
       verified: user.role === 'alumni' ? true : user.verified,
-      verificationStatus: user.role === 'alumni' ? 'verified' : user.verificationStatus
+      verificationStatus: user.role === 'alumni' ? 'verified' : user.verificationStatus,
+      lastActiveAt: new Date().toISOString(),
+      isOnline: true
     };
 
     // 6. Complete login & persist session securely
@@ -3412,6 +3421,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             Authorization: `Bearer ${token}`
           }
         });
+
+        if (res.ok) {
+          const nowIso = new Date().toISOString();
+          setUsers((prev) =>
+            prev.map((u) => (u.uid === currentUserId ? { ...u, lastActiveAt: nowIso, isOnline: true } : u))
+          );
+        }
 
         if (res.status === 401) {
           const errData = await res.json().catch(() => ({}));

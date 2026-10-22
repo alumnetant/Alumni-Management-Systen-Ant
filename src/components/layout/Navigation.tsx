@@ -136,12 +136,6 @@ export const Navigation: React.FC<NavigationProps> = ({ onOpenAuth }) => {
 
   const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    {
-      id: 'notifications',
-      label: 'Notifications',
-      icon: Bell,
-      badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : null
-    },
     ...(currentUser?.role === 'employer'
       ? [{ id: 'employer_portal', label: 'Employer Dashboard', icon: Building2 }]
       : []),
@@ -200,6 +194,10 @@ export const Navigation: React.FC<NavigationProps> = ({ onOpenAuth }) => {
       onClick: () => {
         triggerHaptic('light');
         setActiveTab('dashboard');
+        window.dispatchEvent(new CustomEvent('applet:reset-dashboard'));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        const mainElem = document.querySelector('main');
+        if (mainElem) mainElem.scrollTo({ top: 0, behavior: 'smooth' });
         setShowMobileMore(false);
       }
     },
@@ -319,12 +317,6 @@ export const Navigation: React.FC<NavigationProps> = ({ onOpenAuth }) => {
       desc: 'Campus landmarks, archival images & historical photos'
     },
     {
-      id: 'profile',
-      label: 'My Alumni Profile',
-      icon: UserIcon,
-      desc: 'Manage your degree, work & contact info'
-    },
-    {
       id: 'settings',
       label: 'Account & Privacy Settings',
       icon: SettingsIcon,
@@ -334,6 +326,15 @@ export const Navigation: React.FC<NavigationProps> = ({ onOpenAuth }) => {
 
   const handleMobileNavClick = (tabId: string) => {
     triggerHaptic('light');
+    if (tabId === 'dashboard') {
+      setActiveTab('dashboard');
+      window.dispatchEvent(new CustomEvent('applet:reset-dashboard'));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const mainElem = document.querySelector('main');
+      if (mainElem) mainElem.scrollTo({ top: 0, behavior: 'smooth' });
+      setShowMobileMore(false);
+      return;
+    }
     if (tabId === 'gallery') {
       window.dispatchEvent(new CustomEvent('applet:open-gallery'));
       setShowMobileMore(false);

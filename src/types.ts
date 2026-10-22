@@ -133,6 +133,8 @@ export interface UserProfile {
   employmentStatus?: 'Employed' | 'Self-employed' | 'Unemployed' | 'Student' | 'Retired';
   birthday?: string; // 'YYYY-MM-DD' or 'MM-DD'
   lastLoginAt?: string;
+  lastActiveAt?: string | number;
+  isOnline?: boolean;
   engagementScore?: number; // 0 - 100
   verificationStatus?: 'verified' | 'pending_review' | 'flagged' | 'rejected';
   verificationFlagReason?: string;

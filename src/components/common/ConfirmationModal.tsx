@@ -49,12 +49,14 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       role="dialog"
       aria-modal="true"
     >
-      <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-stone-200 text-xs animate-in zoom-in-95 duration-150">
+      <div className="bg-white dark:bg-stone-900 rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-stone-200 dark:border-stone-800 text-xs animate-in zoom-in-95 duration-150">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <div
               className={`p-2.5 rounded-xl shrink-0 ${
-                isDanger ? 'bg-red-50 text-[#8B181B] border border-red-200/70' : 'bg-blue-50 text-blue-700 border border-blue-200/70'
+                isDanger
+                  ? 'bg-red-50 dark:bg-rose-950/50 text-[#8B181B] dark:text-rose-400 border border-red-200/70 dark:border-rose-900/60'
+                  : 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-200/70 dark:border-blue-900/60'
               }`}
             >
               {isDanger ? (
@@ -64,10 +66,10 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
               )}
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-stone-900 font-sans tracking-tight">
+              <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100 font-sans tracking-tight">
                 {title}
               </h3>
-              <p className="text-xs text-stone-600 mt-1.5 leading-relaxed">
+              <p className="text-xs text-stone-600 dark:text-stone-300 mt-1.5 leading-relaxed">
                 {message}
               </p>
             </div>
@@ -77,19 +79,19 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             type="button"
             onClick={onClose}
             disabled={isProcessing}
-            className="text-stone-400 hover:text-stone-700 p-1 rounded-lg transition-colors cursor-pointer"
+            className="text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 p-1 rounded-lg transition-colors cursor-pointer"
             aria-label="Close dialog"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="mt-6 pt-3.5 border-t border-stone-100 flex items-center justify-end gap-2.5">
+        <div className="mt-6 pt-3.5 border-t border-stone-100 dark:border-stone-800 flex items-center justify-end gap-2.5">
           <button
             type="button"
             onClick={onClose}
             disabled={isProcessing}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 transition-colors cursor-pointer disabled:opacity-50"
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer disabled:opacity-50"
           >
             {cancelLabel}
           </button>

@@ -45,6 +45,7 @@ import { useTheme } from '../../lib/theme';
 import { UserRole } from '../../types';
 import { CampusGalleryModal } from '../gallery/CampusGalleryModal';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
+import { ConfirmationModal } from '../common/ConfirmationModal';
 
 export const Header: React.FC<{
   onOpenSearch?: () => void;
@@ -85,6 +86,7 @@ export const Header: React.FC<{
   const [showMobileAppModal, setShowMobileAppModal] = useState(false);
   const [headerSearchQuery, setHeaderSearchQuery] = useState('');
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Smooth horizontal scroll progress for reading long content pages (flutter-free 1:1 tracking)
   const { scrollYProgress } = useScroll();
@@ -214,6 +216,7 @@ export const Header: React.FC<{
       setActiveTab('opportunities');
     } else if (n.type === 'friend_request' || n.type === 'friend_accepted') {
       setActiveTab('network');
+      window.dispatchEvent(new CustomEvent('applet:open-network-requests'));
     }
   };
 
@@ -901,17 +904,6 @@ export const Header: React.FC<{
                       Account & Assistance
                     </div>
 
-                    {currentUser && (
-                      <button
-                        type="button"
-                        onClick={() => handlePortalRedirect('profile')}
-                        className="w-full flex items-center gap-2.5 px-2 py-1.5 text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg cursor-pointer text-left"
-                      >
-                        <UserIcon className="w-4 h-4 text-stone-500 dark:text-stone-400 shrink-0" />
-                        <span>My Alumni Profile</span>
-                      </button>
-                    )}
-
                     <button
                       type="button"
                       onClick={() => handlePortalRedirect('settings')}
@@ -936,15 +928,6 @@ export const Header: React.FC<{
 
                     <button
                       type="button"
-                      onClick={() => handlePortalRedirect(() => setShowMobileAppModal(true))}
-                      className="w-full flex items-center gap-2.5 px-2 py-1.5 text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg cursor-pointer text-left"
-                    >
-                      <Smartphone className="w-4 h-4 text-[#8B181B] dark:text-rose-400 shrink-0" />
-                      <span className="font-semibold">Mobile App (Android APK & PWA)</span>
-                    </button>
-
-                    <button
-                      type="button"
                       onClick={() => handlePortalRedirect(() => setShowHelpModal(true))}
                       className="w-full flex items-center gap-2.5 px-2 py-1.5 text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg cursor-pointer text-left"
                     >
@@ -955,7 +938,7 @@ export const Header: React.FC<{
                     {currentUser && (
                       <button
                         type="button"
-                        onClick={() => handlePortalRedirect(() => logout())}
+                        onClick={() => handlePortalRedirect(() => setShowLogoutConfirm(true))}
                         className="w-full flex items-center gap-2.5 px-2 py-1.5 text-xs text-red-600 dark:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 rounded-lg cursor-pointer text-left"
                       >
                         <LogOut className="w-4 h-4 text-red-600 dark:text-rose-400 shrink-0" />
@@ -1039,9 +1022,10 @@ export const Header: React.FC<{
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => {
-                          logout();
                           setShowProfileMenu(false);
+                          setShowLogoutConfirm(true);
                         }}
                         className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-red-600 dark:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 rounded-xl border-t border-stone-100 dark:border-stone-800 mt-1 pt-2 cursor-pointer min-h-[38px] transition-colors"
                       >
@@ -1312,6 +1296,20 @@ export const Header: React.FC<{
         </div>
       </div>
     )}
+
+    {/* Sign Out Confirmation Modal */}
+    <ConfirmationModal
+      isOpen={showLogoutConfirm}
+      onClose={() => setShowLogoutConfirm(false)}
+      onConfirm={() => {
+        setShowLogoutConfirm(false);
+        logout();
+      }}
+      title="Confirm Log Out"
+      message="Are you sure you want to end your current Cecilian Alumni session? You can sign back in anytime."
+      confirmLabel="Log Out"
+      variant="danger"
+    />
   </>
 );
 };

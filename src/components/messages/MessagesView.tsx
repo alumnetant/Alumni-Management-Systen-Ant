@@ -57,6 +57,7 @@ import { UserProfile, ChatThread, ChatMessage } from '../../types';
 import { EventEmailNotificationInbox } from './EventEmailNotificationInbox';
 import { UserRoleBadge } from '../common/UserRoleBadge';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
+import { getUserOnlineStatus } from '../../lib/userStatus';
 
 export const MessagesView: React.FC = () => {
   const {
@@ -736,6 +737,7 @@ export const MessagesView: React.FC = () => {
                     // 1-on-1 Direct Alumnus Conversation
                     const otherId = (chat.memberIds || []).find((id) => id !== currentUser?.uid);
                     const other = users.find((u) => u.uid === otherId);
+                    const otherStatus = getUserOnlineStatus(other);
 
                     return (
                       <div
@@ -746,8 +748,8 @@ export const MessagesView: React.FC = () => {
                         }}
                         className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all ${
                           isSelected
-                            ? 'bg-stone-100/90 border-l-[3px] border-l-[#8B181B]'
-                            : 'hover:bg-white'
+                            ? 'bg-stone-100/90 dark:bg-stone-800/90 border-l-[3px] border-l-[#8B181B]'
+                            : 'hover:bg-white dark:hover:bg-stone-800/50'
                         }`}
                       >
                         <div className="relative shrink-0">
@@ -755,17 +757,17 @@ export const MessagesView: React.FC = () => {
                             src={getUserAvatar(other?.profilePictureUrl)}
                             alt={other?.name}
                             onError={handleUserAvatarError}
-                            className="w-10 h-10 rounded-full object-cover border border-stone-200"
+                            className="w-10 h-10 rounded-full object-cover border border-stone-200 dark:border-stone-700"
                           />
-                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
+                          <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-stone-900 ${otherStatus.dotColor}`} title={otherStatus.statusLabel} />
                         </div>
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-1">
-                            <h3 className="text-xs font-bold text-stone-900 truncate">
+                            <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
                               {other?.name || 'Cecilian Colleague'}
                             </h3>
-                            <span className="text-[10px] font-mono text-stone-400 tabular-nums shrink-0">
+                            <span className="text-[10px] font-mono text-stone-400 dark:text-stone-500 tabular-nums shrink-0">
                               {new Date(chat.lastMessageAt).toLocaleTimeString([], {
                                 hour: '2-digit',
                                 minute: '2-digit'
@@ -773,14 +775,21 @@ export const MessagesView: React.FC = () => {
                             </span>
                           </div>
 
-                          <p className={`text-xs truncate mt-0.5 ${unread > 0 ? 'text-stone-900 font-semibold' : 'text-stone-500'}`}>
+                          <p className={`text-xs truncate mt-0.5 ${unread > 0 ? 'text-stone-900 dark:text-stone-100 font-semibold' : 'text-stone-500 dark:text-stone-400'}`}>
                             {chat.lastMessage || 'Direct connection initiated.'}
                           </p>
 
                           <div className="flex items-center justify-between mt-1 gap-1">
-                            <span className="text-[10px] text-stone-500 truncate">
-                              {other?.batch ? `Batch ${other.batch}` : other?.role || 'Alumnus'}
-                            </span>
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate">
+                                {other?.batch ? `Batch ${other.batch}` : other?.role || 'Alumnus'}
+                              </span>
+                              {otherStatus.isOnline && (
+                                <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1 py-0.2 rounded">
+                                  Active
+                                </span>
+                              )}
+                            </div>
                             {unread > 0 && (
                               <span className="px-1.5 py-0.2 bg-[#8B181B] text-white rounded-full text-[10px] font-bold shrink-0">
                                 {unread}
@@ -795,29 +804,29 @@ export const MessagesView: React.FC = () => {
               </div>
 
               {/* Bottom Quick Action */}
-              <div className="p-3 border-t border-stone-200/80 bg-white">
+              <div className="p-3 border-t border-stone-200/80 dark:border-stone-800 bg-white dark:bg-stone-900">
                 <button
                   type="button"
                   onClick={() => setShowNewChatModal(true)}
-                  className="w-full py-2 bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="w-full py-2 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-750 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Users className="w-3.5 h-3.5 text-[#8B181B]" />
+                  <Users className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
                   <span>Browse Alumni Directory</span>
                 </button>
               </div>
             </div>
 
             {/* CENTER & RIGHT: ACTIVE CONVERSATION CANVAS OR DIRECTORY DESK */}
-            <div className={`flex-1 flex flex-col bg-white min-w-0 ${!activeChatId ? 'hidden md:flex' : 'flex'}`}>
+            <div className={`flex-1 flex flex-col bg-white dark:bg-stone-900 min-w-0 ${!activeChatId ? 'hidden md:flex' : 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto h-[100dvh] md:h-full flex flex-col'}`}>
               {activeChat ? (
                 <>
                   {/* Active Header */}
-                  <div className="p-3.5 sm:p-4 bg-[#FAF9F5] border-b border-stone-200/90 flex items-center justify-between gap-3">
+                  <div className="p-3.5 sm:p-4 bg-[#FAF9F5] dark:bg-stone-850 border-b border-stone-200/90 dark:border-stone-800 flex items-center justify-between gap-3 pt-[max(0.875rem,env(safe-area-inset-top))]">
                     <div className="flex items-center gap-3 min-w-0">
                       <button
                         type="button"
                         onClick={() => setActiveChatId(null)}
-                        className="md:hidden min-w-[44px] min-h-[44px] p-2.5 rounded-xl text-stone-600 hover:bg-stone-200 active:bg-stone-300 transition-colors cursor-pointer shrink-0 flex items-center justify-center"
+                        className="md:hidden min-w-[44px] min-h-[44px] p-2.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-750 active:bg-stone-300 transition-colors cursor-pointer shrink-0 flex items-center justify-center"
                         aria-label="Back to conversations list"
                       >
                         <ArrowLeft className="w-5 h-5" />
@@ -834,9 +843,14 @@ export const MessagesView: React.FC = () => {
                             alt={recipientUser?.name}
                             onError={handleUserAvatarError}
                             onClick={() => recipientUser && setSelectedUserIdForModal(recipientUser.uid)}
-                            className="w-10 h-10 rounded-full object-cover border border-stone-200 cursor-pointer"
+                            className="w-10 h-10 rounded-full object-cover border border-stone-200 dark:border-stone-700 cursor-pointer"
                           />
-                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white" />
+                          {(() => {
+                            const recipientStatus = getUserOnlineStatus(recipientUser);
+                            return (
+                              <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ${recipientStatus.dotColor} border-2 border-white dark:border-stone-900 ${recipientStatus.isOnline ? 'animate-pulse' : ''}`} />
+                            );
+                          })()}
                         </div>
                       )}
 
@@ -844,14 +858,14 @@ export const MessagesView: React.FC = () => {
                         {activeChat.isGroupChat || activeChat.isEventChat ? (
                           <>
                             <div className="flex items-center gap-2">
-                              <h2 className="text-xs sm:text-sm font-bold text-stone-900 truncate">
+                              <h2 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 truncate">
                                 {activeChat.groupName || 'Event Cohort Lounge'}
                               </h2>
-                              <span className="text-[10px] font-semibold text-[#8B181B] bg-rose-50 border border-rose-200/60 px-1.5 py-0.2 rounded">
+                              <span className="text-[10px] font-semibold text-[#8B181B] dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border border-rose-200/60 dark:border-rose-900 px-1.5 py-0.2 rounded">
                                 Event Cohort
                               </span>
                             </div>
-                            <p className="text-[11px] text-stone-500 flex items-center gap-1.5 mt-0.5 truncate">
+                            <p className="text-[11px] text-stone-500 dark:text-stone-400 flex items-center gap-1.5 mt-0.5 truncate">
                               <Users className="w-3 h-3 text-stone-400 shrink-0" />
                               <span>{(activeChat.memberIds || (activeChat as any).participants || []).length} Verified Attendees</span>
                             </p>
@@ -861,17 +875,27 @@ export const MessagesView: React.FC = () => {
                             <div className="flex items-center gap-2 flex-wrap">
                               <h2
                                 onClick={() => recipientUser && setSelectedUserIdForModal(recipientUser.uid)}
-                                className="text-xs sm:text-sm font-bold text-stone-900 hover:text-[#8B181B] transition-colors cursor-pointer truncate"
+                                className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 hover:text-[#8B181B] dark:hover:text-rose-400 transition-colors cursor-pointer truncate"
                               >
                                 {recipientUser?.name}
                               </h2>
                               <UserRoleBadge role={recipientUser?.role} size="xs" />
                             </div>
-                            <p className="text-[11px] text-stone-500 truncate mt-0.5">
-                              {recipientUser?.batch ? `Batch ${recipientUser.batch}` : 'Alumnus'}
-                              {recipientUser?.course ? ` · ${recipientUser.course}` : ''}
-                              {recipientUser?.company ? ` · ${recipientUser.company}` : ''}
-                            </p>
+                            {(() => {
+                              const recipientStatus = getUserOnlineStatus(recipientUser);
+                              return (
+                                <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate mt-0.5 flex items-center gap-1.5">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${recipientStatus.dotColor}`} />
+                                  <span className={recipientStatus.isOnline ? 'text-emerald-700 dark:text-emerald-400 font-medium' : ''}>
+                                    {recipientStatus.statusLabel}
+                                  </span>
+                                  <span>·</span>
+                                  <span>{recipientUser?.batch ? `Batch ${recipientUser.batch}` : 'Alumnus'}</span>
+                                  {recipientUser?.course ? ` · ${recipientUser.course}` : ''}
+                                  {recipientUser?.company ? ` · ${recipientUser.company}` : ''}
+                                </p>
+                              );
+                            })()}
                           </>
                         )}
                       </div>
@@ -918,8 +942,8 @@ export const MessagesView: React.FC = () => {
                         onClick={() => setShowDossierDrawer(!showDossierDrawer)}
                         className={`p-2 rounded-xl border transition-colors cursor-pointer ${
                           showDossierDrawer
-                            ? 'bg-stone-200 border-stone-300 text-stone-900'
-                            : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                            ? 'bg-stone-200 dark:bg-stone-750 border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100'
+                            : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-750'
                         }`}
                         title={showDossierDrawer ? 'Hide Profile Panel' : 'Show Profile Panel'}
                       >
@@ -934,11 +958,11 @@ export const MessagesView: React.FC = () => {
 
                   {/* Messages Feed + Dossier */}
                   <div className="flex-1 flex overflow-hidden">
-                    <div className="flex-1 flex flex-col overflow-hidden bg-[#FAF9F6]/30">
+                    <div className="flex-1 flex flex-col overflow-hidden bg-[#FAF9F6]/30 dark:bg-stone-900">
                       {/* Message Bubble Feed */}
                       <div className="flex-1 p-4 overflow-y-auto space-y-3.5">
                         <div className="text-center my-2">
-                          <span className="px-3 py-1 bg-stone-100 border border-stone-200/80 rounded-full text-[10px] font-medium text-stone-500">
+                          <span className="px-3 py-1 bg-stone-100 dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 rounded-full text-[10px] font-medium text-stone-500 dark:text-stone-400">
                             {activeChat.isGroupChat || activeChat.isEventChat
                               ? 'Official Event Cohort Channel · Institutional Governance Active'
                               : 'End-to-End Cecilian Peer Dispatch'}
@@ -1269,7 +1293,7 @@ export const MessagesView: React.FC = () => {
                     {/* Input Composer Form */}
                     <form
                       onSubmit={handleSend}
-                      className="p-3 sm:p-3.5 bg-white border-t border-stone-200/90 flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+                      className="p-3 sm:p-3.5 bg-white dark:bg-stone-900 border-t border-stone-200/90 dark:border-stone-800 flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
                     >
                       <input
                         type="text"
@@ -1282,7 +1306,7 @@ export const MessagesView: React.FC = () => {
                             ? `Message ${activeChat.groupName || 'group'}...`
                             : `Message ${recipientUser?.name || 'alumnus'}...`
                         }
-                        className="flex-1 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm bg-stone-50 border border-stone-200 rounded-xl focus:bg-white focus:outline-hidden focus:border-[#8B181B] transition-colors"
+                        className="flex-1 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl focus:bg-white dark:focus:bg-stone-850 focus:outline-hidden focus:border-[#8B181B] transition-colors"
                       />
                       <button
                         type="submit"

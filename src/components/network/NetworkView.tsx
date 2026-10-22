@@ -45,6 +45,7 @@ import { getStatusConfig, QUICK_STATUS_OPTIONS, QuickStatusSelector } from '../d
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
+import { getUserOnlineStatus } from '../../lib/userStatus';
 
 export const NetworkView: React.FC = () => {
   const {
@@ -126,6 +127,18 @@ export const NetworkView: React.FC = () => {
     };
     window.addEventListener('applet:network-search', handleRemoteSearch);
     return () => window.removeEventListener('applet:network-search', handleRemoteSearch);
+  }, []);
+
+  // Connection request direct navigation listener
+  useEffect(() => {
+    const handleOpenRequests = () => {
+      setActiveSubTab('requests');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const mainElem = document.querySelector('main');
+      if (mainElem) mainElem.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    window.addEventListener('applet:open-network-requests', handleOpenRequests);
+    return () => window.removeEventListener('applet:open-network-requests', handleOpenRequests);
   }, []);
 
   // Reset directory pagination when any filter changes
@@ -941,6 +954,7 @@ export const NetworkView: React.FC = () => {
                     const connected = isConnected(user.uid);
                     const reqState = hasPendingRequestWith(user.uid);
                     const statusConfig = getStatusConfig(user.quickStatus);
+                    const onlineStatus = getUserOnlineStatus(user);
 
                     return (
                       <div
@@ -957,8 +971,8 @@ export const NetworkView: React.FC = () => {
                               onError={handleUserAvatarError}
                               className="w-12 h-12 rounded-xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 shadow-2xs"
                             />
-                            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-white ring-2 ring-white">
-                              <span className={`block h-2 w-2 rounded-full ${statusConfig.dotColor}`} />
+                            <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-white dark:bg-stone-900 ring-2 ring-white dark:ring-stone-900" title={onlineStatus.statusLabel}>
+                              <span className={`block h-2 w-2 rounded-full ${onlineStatus.dotColor}`} />
                             </span>
                           </div>
 
@@ -975,6 +989,12 @@ export const NetworkView: React.FC = () => {
                               <span className="text-[10px] font-bold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded shrink-0">
                                 Batch {user.batch || '2024'}
                               </span>
+                              {onlineStatus.isOnline && (
+                                <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                  Active now
+                                </span>
+                              )}
                             </div>
 
                             <p className="text-xs font-semibold text-[#8B181B] truncate mt-0.5">
@@ -1259,6 +1279,7 @@ export const NetworkView: React.FC = () => {
                       const connected = isConnected(user.uid);
                       const reqState = hasPendingRequestWith(user.uid);
                       const statusConfig = getStatusConfig(user.quickStatus);
+                      const onlineStatus = getUserOnlineStatus(user);
 
                       return (
                         <motion.div
@@ -1279,8 +1300,8 @@ export const NetworkView: React.FC = () => {
                                   onClick={() => setSelectedUserIdForModal(user.uid)}
                                   className="w-13 h-13 rounded-2xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer hover:opacity-90 transition-opacity shadow-2xs"
                                 />
-                                <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white ring-2 ring-white shadow-2xs">
-                                  <span className={`block h-2.5 w-2.5 rounded-full ${statusConfig.dotColor}`} />
+                                <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-white dark:bg-stone-900 ring-2 ring-white dark:ring-stone-900 shadow-2xs" title={onlineStatus.statusLabel}>
+                                  <span className={`block h-2.5 w-2.5 rounded-full ${onlineStatus.dotColor}`} />
                                 </span>
                               </div>
 
@@ -1288,6 +1309,12 @@ export const NetworkView: React.FC = () => {
                                 <span className="text-[11px] font-bold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 px-2 py-0.5 rounded-lg">
                                   Class of {user.batch || '2024'}
                                 </span>
+                                {onlineStatus.isOnline && (
+                                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    Active now
+                                  </span>
+                                )}
                                 {user.department && (
                                   <span className="text-[10px] font-semibold text-[#8B181B] bg-red-50 dark:bg-red-950/40 border border-red-200/60 dark:border-red-900/60 px-2 py-0.5 rounded-md">
                                     {user.department}

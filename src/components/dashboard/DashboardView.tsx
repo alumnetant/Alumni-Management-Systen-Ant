@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar,
@@ -55,6 +55,25 @@ export const DashboardView: React.FC = () => {
   const [reservationGuests, setReservationGuests] = useState(1);
   const [isReserving, setIsReserving] = useState(false);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
+
+  // Reset dashboard state and scroll to top when Home/Dashboard is clicked
+  useEffect(() => {
+    const handleResetDashboard = () => {
+      setSelectedAnnouncement(null);
+      setReservationEventTarget(null);
+      setShowGalleryModal(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const mainEl = document.querySelector('main');
+      if (mainEl) {
+        mainEl.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+
+    window.addEventListener('applet:reset-dashboard', handleResetDashboard);
+    return () => {
+      window.removeEventListener('applet:reset-dashboard', handleResetDashboard);
+    };
+  }, []);
 
   // Time-of-day greeting
   const salutation = useMemo(() => {

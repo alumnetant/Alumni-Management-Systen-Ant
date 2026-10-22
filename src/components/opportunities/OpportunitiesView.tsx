@@ -419,98 +419,117 @@ export const OpportunitiesView: React.FC = () => {
       {activeSubTab === 'explore' && (
         <div className="space-y-5">
           {/* Flagship Career Placement Spotlight Bento Card */}
-          {spotlightJob && !searchQuery && selectedType === 'all' && selectedCourseFilter === 'all' && selectedSkillTag === 'all' && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="relative overflow-hidden rounded-2xl bg-white border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] p-5 sm:p-6 lg:p-7 group"
-            >
-              <div className="h-1.5 w-full absolute top-0 left-0 bg-gradient-to-r from-[#8B181B] via-[#B45309] to-[#8B181B]" />
+          {spotlightJob && !searchQuery && selectedType === 'all' && selectedCourseFilter === 'all' && selectedSkillTag === 'all' && (() => {
+            const spotlightHasApplied = myApplications.some((a) => a.jobId === spotlightJob.id);
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="relative overflow-hidden rounded-2xl bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] p-5 sm:p-6 lg:p-7 group"
+              >
+                <div className="h-1.5 w-full absolute top-0 left-0 bg-gradient-to-r from-[#8B181B] via-[#B45309] to-[#8B181B]" />
 
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <div className="flex items-start gap-4 min-w-0">
-                  <div className="w-14 h-14 rounded-2xl bg-[#8B181B] text-white font-black text-lg flex items-center justify-center shrink-0 shadow-sm">
-                    {spotlightJob.company.slice(0, 2).toUpperCase()}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                  <div className="flex items-start gap-4 min-w-0">
+                    <div className="w-14 h-14 rounded-2xl bg-[#8B181B] text-white font-black text-lg flex items-center justify-center shrink-0 shadow-sm">
+                      {spotlightJob.company.slice(0, 2).toUpperCase()}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-1">
+                        <span className="text-[#8B181B] dark:text-rose-400 flex items-center gap-1">
+                          <Award className="w-3.5 h-3.5" />
+                          Flagship Opportunity
+                        </span>
+                        <span aria-hidden="true" className="text-stone-300 dark:text-stone-700">·</span>
+                        <span>{spotlightJob.type}</span>
+                        {spotlightJob.requiredCourse && (
+                          <>
+                            <span aria-hidden="true" className="text-stone-300 dark:text-stone-700">·</span>
+                            <span className="text-stone-600 dark:text-stone-300">{spotlightJob.requiredCourse}</span>
+                          </>
+                        )}
+                        {spotlightHasApplied && (
+                          <>
+                            <span aria-hidden="true" className="text-stone-300 dark:text-stone-700">·</span>
+                            <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Already Applied
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      <h2
+                        onClick={() => setSelectedOpportunityForModal(spotlightJob)}
+                        className="text-lg sm:text-xl font-bold text-stone-900 dark:text-stone-100 group-hover:text-[#8B181B] dark:group-hover:text-rose-400 transition-colors cursor-pointer"
+                      >
+                        {spotlightJob.title}
+                      </h2>
+
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-stone-600 dark:text-stone-300 mt-1">
+                        <span className="font-semibold text-stone-800 dark:text-stone-200">{spotlightJob.company}</span>
+                        <span className="text-stone-300 dark:text-stone-700">•</span>
+                        <span className="flex items-center gap-1 text-stone-500 dark:text-stone-400">
+                          <MapPin className="w-3.5 h-3.5 text-stone-400" />
+                          {spotlightJob.location}
+                        </span>
+                        {spotlightJob.salaryOrStipend && (
+                          <>
+                            <span className="text-stone-300 dark:text-stone-700">•</span>
+                            <span className="font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+                              {spotlightJob.salaryOrStipend}
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-stone-600 dark:text-stone-300 mt-2 line-clamp-2 max-w-2xl leading-relaxed">
+                        {spotlightJob.description}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-1">
-                      <span className="text-[#8B181B] flex items-center gap-1">
-                        <Award className="w-3.5 h-3.5" />
-                        Flagship Opportunity
-                      </span>
-                      <span aria-hidden="true" className="text-stone-300">·</span>
-                      <span>{spotlightJob.type}</span>
-                      {spotlightJob.requiredCourse && (
-                        <>
-                          <span aria-hidden="true" className="text-stone-300">·</span>
-                          <span className="text-stone-600">{spotlightJob.requiredCourse}</span>
-                        </>
+                  <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-3 shrink-0">
+                    {computeUserMatch(spotlightJob) && (
+                      <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold">
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>{computeUserMatch(spotlightJob)?.score}% Profile Match</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOpportunityForModal(spotlightJob)}
+                        className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-750 text-stone-800 dark:text-stone-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                      >
+                        View Details
+                      </button>
+                      {spotlightHasApplied ? (
+                        <div className="px-4 py-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Already Applied</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setApplyingOpportunity(spotlightJob)}
+                          className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-98 cursor-pointer flex items-center gap-1.5"
+                        >
+                          <span>Apply Now</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
                       )}
                     </div>
-
-                    <h2
-                      onClick={() => setSelectedOpportunityForModal(spotlightJob)}
-                      className="text-lg sm:text-xl font-bold text-stone-900 group-hover:text-[#8B181B] transition-colors cursor-pointer"
-                    >
-                      {spotlightJob.title}
-                    </h2>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-stone-600 mt-1">
-                      <span className="font-semibold text-stone-800">{spotlightJob.company}</span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1 text-stone-500">
-                        <MapPin className="w-3.5 h-3.5 text-stone-400" />
-                        {spotlightJob.location}
-                      </span>
-                      {spotlightJob.salaryOrStipend && (
-                        <>
-                          <span>•</span>
-                          <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                            {spotlightJob.salaryOrStipend}
-                          </span>
-                        </>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-stone-600 mt-2 line-clamp-2 max-w-2xl leading-relaxed">
-                      {spotlightJob.description}
-                    </p>
                   </div>
                 </div>
-
-                <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-3 shrink-0">
-                  {computeUserMatch(spotlightJob) && (
-                    <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold">
-                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>{computeUserMatch(spotlightJob)?.score}% Profile Match</span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedOpportunityForModal(spotlightJob)}
-                      className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                    >
-                      View Details
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setApplyingOpportunity(spotlightJob)}
-                      className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-98 cursor-pointer flex items-center gap-1.5"
-                    >
-                      <span>Apply Now</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
+              </motion.div>
+            );
+          })()}
 
           {/* Filters Bar */}
-          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5 sm:gap-3">
+          <div className="bg-white dark:bg-stone-900 p-3.5 sm:p-4 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5 sm:gap-3">
             <div className="relative flex-1 min-w-0">
               <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
@@ -518,7 +537,7 @@ export const OpportunitiesView: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by role, company name, required course, or skill (e.g. PHP, Laravel, React, TypeScript)..."
-                className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-stone-50 border border-stone-200/90 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#8B181B] focus:border-[#8B181B] placeholder:text-stone-400"
+                className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#8B181B] focus:border-[#8B181B] placeholder:text-stone-400 dark:placeholder:text-stone-500"
               />
             </div>
 
@@ -975,19 +994,26 @@ export const OpportunitiesView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedOpportunityForModal(opp)}
-                        className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer active:scale-95"
+                        className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-750 text-stone-800 dark:text-stone-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer active:scale-95"
                       >
                         Details
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setApplyingOpportunity(opp)}
-                        className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-95 cursor-pointer flex items-center gap-1"
-                      >
-                        <span>{hasApplied ? 'View / Reapply' : 'Apply Now'}</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
+                      {hasApplied ? (
+                        <div className="px-3.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold flex items-center gap-1 shadow-2xs">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Already Applied</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setApplyingOpportunity(opp)}
+                          className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                        >
+                          <span>Apply Now</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -1294,18 +1320,25 @@ export const OpportunitiesView: React.FC = () => {
                 <span>Share Job</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const opp = selectedOpportunityForModal;
-                  setSelectedOpportunityForModal(null);
-                  setApplyingOpportunity(opp);
-                }}
-                className="px-5 py-2.5 bg-[#991B1B] hover:bg-[#7F1D1D] text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <span>Submit Direct Portal Application</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+              {selectedOpportunityForModal && myApplications.some((a) => a.jobId === selectedOpportunityForModal.id) ? (
+                <div className="px-5 py-2.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Already Applied</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const opp = selectedOpportunityForModal;
+                    setSelectedOpportunityForModal(null);
+                    setApplyingOpportunity(opp);
+                  }}
+                  className="px-5 py-2.5 bg-[#991B1B] hover:bg-[#7F1D1D] text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>Submit Direct Portal Application</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </div>

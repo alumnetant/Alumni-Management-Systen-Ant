@@ -24,6 +24,7 @@ import {
   Moon,
   Sun,
   Bell,
+  Check,
   Sparkles,
   ChevronRight,
   ExternalLink,
@@ -56,6 +57,7 @@ import { GlobalCommandPalette } from '../common/GlobalCommandPalette';
 import { NotificationsView } from '../notifications/NotificationsView';
 import { registerBackAction, triggerHaptic } from '../../services/mobileAppService';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { ConfirmationModal } from '../common/ConfirmationModal';
 
 export type AlumniModuleId =
   | 'dashboard'
@@ -91,8 +93,13 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     isFirestoreSyncing,
     logout,
     notifications,
+    userNotifications,
     unreadNotificationsCount,
+    markNotificationAsRead,
     markAllNotificationsAsRead,
+    acceptFriendRequest,
+    isConnected,
+    getConnectionStatus,
     showToast
   } = useAlumni();
 
@@ -142,7 +149,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       const activeTag = (document.activeElement as HTMLElement)?.tagName;
       const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeTag) || (document.activeElement as HTMLElement)?.isContentEditable;
       if (isInput) return;
-
       if (((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') || e.key === '[') {
         e.preventDefault();
         setIsSidebarExpanded((prev) => !prev);
@@ -156,6 +162,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
   const [showMobileNav, setShowMobileNav] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDigitalPassModal, setShowDigitalPassModal] = useState(false);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -301,13 +308,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       badge: null
     }] : []),
     {
-      id: 'notifications' as AlumniModuleId,
-      label: 'Notifications',
-      icon: Bell,
-      badge: unreadNotificationsCount > 0 ? unreadNotificationsCount : null,
-      isCrimsonBadge: true
-    },
-    {
       id: 'messages' as AlumniModuleId,
       label: 'Messages',
       icon: MessageSquare,
@@ -337,15 +337,9 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       icon: ImageIcon,
       badge: null
     }
-  ], [unreadNotificationsCount, unreadMessagesCount, upcomingEventsCount, announcements.length, displayJobsBadgeCount]);
+  ], [unreadMessagesCount, upcomingEventsCount, announcements.length, displayJobsBadgeCount]);
 
   const secondaryNavItems = useMemo(() => [
-    {
-      id: 'profile' as AlumniModuleId,
-      label: 'My Profile',
-      icon: UserIcon,
-      badge: null
-    },
     {
       id: 'settings' as AlumniModuleId,
       label: 'Settings',
@@ -502,6 +496,150 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
               )}
             </button>
 
+            {/* Notifications Bell with Popover (Header Icon with Unread Counter) */}
+            <div className="relative" data-header-dropdown="true">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNotifications(!showNotifications);
+                  setShowProfileMenu(false);
+                }}
+                className={`relative p-2 rounded-xl transition-colors cursor-pointer border ${
+                  showNotifications
+                    ? 'text-[#8B181B] dark:text-rose-400 bg-red-50 dark:bg-rose-950/50 border-red-200 dark:border-rose-900/60 shadow-2xs'
+                    : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200/80 dark:border-stone-700 shadow-2xs'
+                }`}
+                aria-label="Notifications"
+                title="Notifications"
+              >
+                <Bell className="w-4 h-4 stroke-[1.75]" />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#8B181B] text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-[#181615] shadow-xs">
+                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div
+                  className="fixed left-3 right-3 top-15 max-h-[calc(100dvh-5rem)] sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-w-none bg-white dark:bg-stone-900 rounded-2xl shadow-2xl border border-stone-200/90 dark:border-stone-800 z-50 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-850 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-[#8B181B] dark:text-rose-400" />
+                      <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">Notifications</span>
+                      {unreadNotificationsCount > 0 && (
+                        <span className="px-1.5 py-0.5 text-[10px] bg-red-100 dark:bg-rose-950 text-red-700 dark:text-rose-400 font-bold rounded-full">
+                          {unreadNotificationsCount} new
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {unreadNotificationsCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => markAllNotificationsAsRead()}
+                          className="text-xs text-[#8B181B] dark:text-rose-400 hover:underline font-semibold cursor-pointer"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setShowNotifications(false)}
+                        className="sm:hidden p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 rounded-lg hover:bg-stone-200/60 dark:hover:bg-stone-700 transition-colors cursor-pointer"
+                        aria-label="Close notifications"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-96 overflow-y-auto divide-y divide-stone-100 dark:divide-stone-800">
+                    {userNotifications.length === 0 ? (
+                      <div className="p-8 text-center text-stone-400 dark:text-stone-500 text-xs">
+                        No notifications yet
+                      </div>
+                    ) : (
+                      userNotifications.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            markNotificationAsRead(n.id);
+                            setShowNotifications(false);
+                            if (n.type === 'message') {
+                              handleSelectModule('messages');
+                            } else if (n.type === 'announcement' || n.type === 'announcement_broadcast') {
+                              handleSelectModule('announcements');
+                            } else if (n.type === 'event' || n.type === 'event_broadcast') {
+                              handleSelectModule('events');
+                            } else if (n.type === 'gallery') {
+                              setShowGalleryModal(true);
+                            } else if (n.type === 'job') {
+                              handleSelectModule('opportunities');
+                            } else if (n.type === 'friend_request' || n.type === 'friend_accepted') {
+                              handleSelectModule('network');
+                              window.dispatchEvent(new CustomEvent('applet:open-network-requests'));
+                            }
+                          }}
+                          className={`p-3.5 transition-colors cursor-pointer ${
+                            !n.read ? 'bg-rose-50/40 dark:bg-rose-950/20' : 'hover:bg-stone-50 dark:hover:bg-stone-800/50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="text-xs font-semibold text-stone-900 dark:text-stone-100">{n.title}</div>
+                            <span className="text-[10px] text-stone-400 dark:text-stone-500 shrink-0">
+                              {new Date(n.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </span>
+                          </div>
+                          <p className="text-xs text-stone-600 dark:text-stone-300 mt-1 leading-relaxed">{n.body}</p>
+                          {n.type === 'friend_request' && (
+                            <div className="mt-2.5 flex items-center gap-2">
+                              {n.actionStatus === 'accepted' || isConnected(n.fromUid || '') || getConnectionStatus(n.fromUid || '') === 'accepted' ? (
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  <span>Connection Accepted</span>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (n.refId) acceptFriendRequest(n.refId);
+                                      markNotificationAsRead(n.id);
+                                      showToast('Connection request accepted!');
+                                    }}
+                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-white bg-[#8B181B] hover:bg-[#721316] rounded-lg shadow-2xs transition-colors cursor-pointer"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Confirm Request</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleSelectModule('network');
+                                      window.dispatchEvent(new CustomEvent('applet:open-network-requests'));
+                                      setShowNotifications(false);
+                                    }}
+                                    className="px-2.5 py-1 text-xs font-semibold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    View in Network
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Alumnus Profile Dropdown */}
             <div className="relative" data-profile-dropdown="true">
               <button
@@ -577,8 +715,8 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        logout();
-                        if (onOpenAuth) onOpenAuth('login');
+                        setShowProfileMenu(false);
+                        setShowLogoutConfirm(true);
                       }}
                       className="w-full text-left px-3 py-2 rounded-xl text-xs text-red-600 dark:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer font-semibold"
                     >
@@ -660,7 +798,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                       className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold tabular-nums ${
                         isActive
                           ? 'bg-white/20 text-white'
-                          : item.isCrimsonBadge
+                          : (item as any).isCrimsonBadge || item.id === 'messages'
                           ? 'bg-[#8B181B] text-white'
                           : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
                       }`}
@@ -820,7 +958,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums ${
                                 isActive
                                   ? 'bg-white/20 text-white'
-                                  : item.isCrimsonBadge
+                                  : (item as any).isCrimsonBadge || item.id === 'messages'
                                   ? 'bg-[#8B181B] text-white'
                                   : 'bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-300'
                               }`}>
@@ -943,8 +1081,8 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      logout();
-                      if (onOpenAuth) onOpenAuth('login');
+                      setShowMobileNav(false);
+                      setShowLogoutConfirm(true);
                     }}
                     className="w-full py-2.5 px-3 text-red-600 dark:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
                   >
@@ -1034,7 +1172,13 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
           {/* 1. Home */}
           <button
             type="button"
-            onClick={() => handleSelectModule('dashboard')}
+            onClick={() => {
+              handleSelectModule('dashboard');
+              window.dispatchEvent(new CustomEvent('applet:reset-dashboard'));
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              const mainElem = document.querySelector('main');
+              if (mainElem) mainElem.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none ${
               currentModule === 'dashboard'
                 ? 'text-[#8B181B] dark:text-rose-400 font-bold'
@@ -1174,6 +1318,21 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
         isOpen={showCommandPalette}
         onClose={() => setShowCommandPalette(false)}
         onSelectTab={(tab) => handleSelectModule(tab as AlumniModuleId)}
+      />
+
+      {/* Log Out Confirmation Dialog */}
+      <ConfirmationModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          logout();
+          if (onOpenAuth) onOpenAuth('login');
+        }}
+        title="Confirm Log Out"
+        message="Are you sure you want to log out of your Cecilian Alumni session? You can sign back in at any time."
+        confirmLabel="Log Out"
+        variant="danger"
       />
     </div>
   );

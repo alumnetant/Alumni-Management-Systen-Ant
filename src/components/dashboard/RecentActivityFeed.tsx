@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
   Megaphone,
@@ -84,6 +84,15 @@ export const RecentActivityFeed: React.FC<RecentActivityFeedProps> = ({
 
   const [filter, setFilter] = useState<'all' | 'event' | 'opportunity' | 'alumni' | 'announcement'>('all');
   const [showAllActivities, setShowAllActivities] = useState(false);
+
+  useEffect(() => {
+    const handleReset = () => {
+      setFilter('all');
+      setShowAllActivities(false);
+    };
+    window.addEventListener('applet:reset-dashboard', handleReset);
+    return () => window.removeEventListener('applet:reset-dashboard', handleReset);
+  }, []);
 
   // Format relative time helper
   const getRelativeTime = (date: any): string => {
