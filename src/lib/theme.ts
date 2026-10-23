@@ -25,6 +25,38 @@ export interface ThemeColors {
   softWhite: string;
   appBg: string;
   appText: string;
+  // Direct Messaging Semantic Theme Variables
+  dmBgCanvas: string;
+  dmBgDeck: string;
+  dmBgRail: string;
+  dmBgRailHeader: string;
+  dmBgItemHover: string;
+  dmBgItemActive: string;
+  dmBgChat: string;
+  dmBgHeader: string;
+  dmBgFooter: string;
+  dmBorder: string;
+  dmBorderSubtle: string;
+  dmTextPrimary: string;
+  dmTextSecondary: string;
+  dmTextMuted: string;
+  dmBubbleSent: string;
+  dmBubbleSentText: string;
+  dmBubbleReceived: string;
+  dmBubbleReceivedText: string;
+  dmBubbleReceivedBorder: string;
+  dmInputBg: string;
+  dmInputBorder: string;
+  dmInputText: string;
+  dmInputPlaceholder: string;
+  dmChipBg: string;
+  dmChipBorder: string;
+  dmChipText: string;
+  dmDossierBg: string;
+  dmCardBg: string;
+  dmCardBorder: string;
+  dmModalBg: string;
+  dmModalBorder: string;
 }
 
 export const LIGHT_THEME_VARIABLES: ThemeColors = {
@@ -44,7 +76,38 @@ export const LIGHT_THEME_VARIABLES: ThemeColors = {
   cardWhite: '#FFFFFF',
   softWhite: '#F9FAFB',
   appBg: '#F9FAFB',
-  appText: '#111827'
+  appText: '#111827',
+  dmBgCanvas: '#F9FAFB',
+  dmBgDeck: '#FFFFFF',
+  dmBgRail: '#FAF9F6',
+  dmBgRailHeader: '#FFFFFF',
+  dmBgItemHover: '#F5F5F4',
+  dmBgItemActive: '#FAF6EC',
+  dmBgChat: '#FAF9F6',
+  dmBgHeader: '#FFFFFF',
+  dmBgFooter: '#FFFFFF',
+  dmBorder: '#E5E7EB',
+  dmBorderSubtle: '#F3F4F6',
+  dmTextPrimary: '#111827',
+  dmTextSecondary: '#4B5563',
+  dmTextMuted: '#9CA3AF',
+  dmBubbleSent: '#8B181B',
+  dmBubbleSentText: '#FFFFFF',
+  dmBubbleReceived: '#FFFFFF',
+  dmBubbleReceivedText: '#111827',
+  dmBubbleReceivedBorder: '#E5E7EB',
+  dmInputBg: '#F3F4F6',
+  dmInputBorder: '#E5E7EB',
+  dmInputText: '#111827',
+  dmInputPlaceholder: '#9CA3AF',
+  dmChipBg: '#FFFFFF',
+  dmChipBorder: '#E5E7EB',
+  dmChipText: '#374151',
+  dmDossierBg: '#FAF9F6',
+  dmCardBg: '#FFFFFF',
+  dmCardBorder: '#E5E7EB',
+  dmModalBg: '#FFFFFF',
+  dmModalBorder: '#E5E7EB'
 };
 
 export const DARK_THEME_VARIABLES: ThemeColors = {
@@ -64,7 +127,38 @@ export const DARK_THEME_VARIABLES: ThemeColors = {
   cardWhite: '#1C1917',
   softWhite: '#121316',
   appBg: '#121316',
-  appText: '#F5F5F4'
+  appText: '#F5F5F4',
+  dmBgCanvas: '#121316',
+  dmBgDeck: '#1C1917',
+  dmBgRail: '#171513',
+  dmBgRailHeader: '#1C1917',
+  dmBgItemHover: '#242220',
+  dmBgItemActive: '#292524',
+  dmBgChat: '#121316',
+  dmBgHeader: '#1C1917',
+  dmBgFooter: '#1C1917',
+  dmBorder: 'rgba(255, 255, 255, 0.08)',
+  dmBorderSubtle: 'rgba(255, 255, 255, 0.05)',
+  dmTextPrimary: '#F5F5F4',
+  dmTextSecondary: '#D6D3D1',
+  dmTextMuted: '#A8A29E',
+  dmBubbleSent: '#8B181B',
+  dmBubbleSentText: '#FFFFFF',
+  dmBubbleReceived: '#242220',
+  dmBubbleReceivedText: '#F5F5F4',
+  dmBubbleReceivedBorder: 'rgba(255, 255, 255, 0.08)',
+  dmInputBg: '#242220',
+  dmInputBorder: 'rgba(255, 255, 255, 0.1)',
+  dmInputText: '#F5F5F4',
+  dmInputPlaceholder: '#78716c',
+  dmChipBg: '#242220',
+  dmChipBorder: 'rgba(255, 255, 255, 0.08)',
+  dmChipText: '#D6D3D1',
+  dmDossierBg: '#171513',
+  dmCardBg: '#242220',
+  dmCardBorder: 'rgba(255, 255, 255, 0.08)',
+  dmModalBg: '#1C1917',
+  dmModalBorder: 'rgba(255, 255, 255, 0.1)'
 };
 
 const THEME_STORAGE_KEY = 'cecilian_theme_mode';
@@ -119,6 +213,39 @@ export function applyTheme(mode: ThemeMode) {
   root.style.setProperty('--color-soft-white', vars.softWhite);
   root.style.setProperty('--bg-app', vars.appBg);
   root.style.setProperty('--text-app', vars.appText);
+
+  // Direct Messaging variables
+  root.style.setProperty('--dm-bg-canvas', vars.dmBgCanvas);
+  root.style.setProperty('--dm-bg-deck', vars.dmBgDeck);
+  root.style.setProperty('--dm-bg-rail', vars.dmBgRail);
+  root.style.setProperty('--dm-bg-rail-header', vars.dmBgRailHeader);
+  root.style.setProperty('--dm-bg-item-hover', vars.dmBgItemHover);
+  root.style.setProperty('--dm-bg-item-active', vars.dmBgItemActive);
+  root.style.setProperty('--dm-bg-chat', vars.dmBgChat);
+  root.style.setProperty('--dm-bg-header', vars.dmBgHeader);
+  root.style.setProperty('--dm-bg-footer', vars.dmBgFooter);
+  root.style.setProperty('--dm-border', vars.dmBorder);
+  root.style.setProperty('--dm-border-subtle', vars.dmBorderSubtle);
+  root.style.setProperty('--dm-text-primary', vars.dmTextPrimary);
+  root.style.setProperty('--dm-text-secondary', vars.dmTextSecondary);
+  root.style.setProperty('--dm-text-muted', vars.dmTextMuted);
+  root.style.setProperty('--dm-bubble-sent', vars.dmBubbleSent);
+  root.style.setProperty('--dm-bubble-sent-text', vars.dmBubbleSentText);
+  root.style.setProperty('--dm-bubble-received', vars.dmBubbleReceived);
+  root.style.setProperty('--dm-bubble-received-text', vars.dmBubbleReceivedText);
+  root.style.setProperty('--dm-bubble-received-border', vars.dmBubbleReceivedBorder);
+  root.style.setProperty('--dm-input-bg', vars.dmInputBg);
+  root.style.setProperty('--dm-input-border', vars.dmInputBorder);
+  root.style.setProperty('--dm-input-text', vars.dmInputText);
+  root.style.setProperty('--dm-input-placeholder', vars.dmInputPlaceholder);
+  root.style.setProperty('--dm-chip-bg', vars.dmChipBg);
+  root.style.setProperty('--dm-chip-border', vars.dmChipBorder);
+  root.style.setProperty('--dm-chip-text', vars.dmChipText);
+  root.style.setProperty('--dm-dossier-bg', vars.dmDossierBg);
+  root.style.setProperty('--dm-card-bg', vars.dmCardBg);
+  root.style.setProperty('--dm-card-border', vars.dmCardBorder);
+  root.style.setProperty('--dm-modal-bg', vars.dmModalBg);
+  root.style.setProperty('--dm-modal-border', vars.dmModalBorder);
 
   // 4. Update body background and color directly for immediate repaint
   document.body.style.backgroundColor = vars.appBg;

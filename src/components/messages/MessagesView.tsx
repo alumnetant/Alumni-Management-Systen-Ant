@@ -492,17 +492,32 @@ export const MessagesView: React.FC = () => {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 4, scale: 0.96 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className={`absolute top-full mt-2 w-72 bg-white dark:bg-stone-900 rounded-2xl shadow-xl border border-stone-200/90 dark:border-stone-800 py-2 z-50 overflow-hidden divide-y divide-stone-100 dark:divide-stone-800 ${
+              style={{
+                backgroundColor: 'var(--dm-modal-bg)',
+                borderColor: 'var(--dm-modal-border)',
+              }}
+              className={`absolute top-full mt-2 w-72 rounded-2xl shadow-xl border py-2 z-50 overflow-hidden divide-y divide-[var(--dm-border-subtle)] ${
                 align === 'right' ? 'right-0' : 'left-0'
               }`}
             >
               {/* Header */}
-              <div className="px-3.5 py-2 bg-stone-50/70 dark:bg-stone-800/80 flex items-center justify-between">
+              <div
+                style={{
+                  backgroundColor: 'var(--dm-input-bg)',
+                }}
+                className="px-3.5 py-2 flex items-center justify-between"
+              >
                 <div>
-                  <span className="text-[11px] font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider block font-sans">
+                  <span
+                    style={{ color: 'var(--dm-text-primary)' }}
+                    className="text-[11px] font-bold uppercase tracking-wider block font-sans"
+                  >
                     Filter Conversations
                   </span>
-                  <span className="text-[10px] text-stone-400 dark:text-stone-500">
+                  <span
+                    style={{ color: 'var(--dm-text-muted)' }}
+                    className="text-[10px]"
+                  >
                     Showing {filteredChats.length} of {chatCounts.all} threads
                   </span>
                 </div>
@@ -527,11 +542,11 @@ export const MessagesView: React.FC = () => {
                       key={opt.id}
                       type="button"
                       onClick={() => handleSelect(opt.id)}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between gap-3 transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-300 font-semibold'
-                          : 'text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800'
-                      }`}
+                      style={{
+                        backgroundColor: isSelected ? 'rgba(139,24,27,0.1)' : 'transparent',
+                        color: isSelected ? 'var(--dm-bubble-sent)' : 'var(--dm-text-primary)',
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between gap-3 transition-colors cursor-pointer hover:bg-[var(--dm-bg-item-hover)]"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div
@@ -544,8 +559,18 @@ export const MessagesView: React.FC = () => {
                           <Icon className="w-3.5 h-3.5" />
                         </div>
                         <div className="min-w-0">
-                          <span className="block truncate font-bold text-stone-900 dark:text-stone-100">{opt.label}</span>
-                          <span className="block text-[10px] text-stone-400 dark:text-stone-500 truncate">{opt.desc}</span>
+                          <span
+                            style={{ color: 'var(--dm-text-primary)' }}
+                            className="block truncate font-bold"
+                          >
+                            {opt.label}
+                          </span>
+                          <span
+                            style={{ color: 'var(--dm-text-muted)' }}
+                            className="block text-[10px] truncate"
+                          >
+                            {opt.desc}
+                          </span>
                         </div>
                       </div>
 
@@ -578,7 +603,13 @@ export const MessagesView: React.FC = () => {
       {/* MODE 1: EVENT EMAIL BULLETINS                                             */}
       {/* ========================================================================= */}
       {messageViewMode === 'event_emails' ? (
-        <div className="bg-white dark:bg-stone-900 rounded-[32px] border border-stone-200 dark:border-stone-800 shadow-2xs overflow-hidden p-6">
+        <div
+          style={{
+            backgroundColor: 'var(--dm-bg-deck)',
+            borderColor: 'var(--dm-border)',
+          }}
+          className="rounded-[32px] border shadow-2xs overflow-hidden p-6"
+        >
           <EventEmailNotificationInbox />
         </div>
       ) : (
@@ -586,40 +617,71 @@ export const MessagesView: React.FC = () => {
           {/* ===================================================================== */}
           {/* MAIN COMMUNICATIONS DECK (3-COLUMN SPLIT CANVAS)                      */}
           {/* ===================================================================== */}
-          <div className="bg-white dark:bg-stone-900 rounded-[32px] border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col md:flex-row h-[760px] lg:h-[calc(100dvh-130px)] min-h-[700px]">
+          <div
+            style={{
+              backgroundColor: 'var(--dm-bg-deck)',
+              borderColor: 'var(--dm-border)',
+            }}
+            className="rounded-[28px] sm:rounded-[32px] border shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col md:flex-row h-[calc(100dvh-95px)] sm:h-[calc(100dvh-115px)] md:h-[760px] lg:h-[calc(100dvh-130px)] min-h-[480px]"
+          >
             
             {/* LEFT RAIL: CHANNELS STREAM (~340px) */}
             <div
-              className={`w-full md:w-80 lg:w-96 border-r border-stone-200/90 dark:border-stone-800 flex flex-col shrink-0 bg-[#FAF9F6]/60 dark:bg-stone-900/95 ${
+              style={{
+                backgroundColor: 'var(--dm-bg-rail)',
+                borderColor: 'var(--dm-border)',
+              }}
+              className={`w-full md:w-80 lg:w-96 md:border-r flex flex-col shrink-0 ${
                 activeChatId ? 'hidden md:flex' : 'flex'
               }`}
             >
               {/* Search Bar & Stream Header */}
-              <div className="p-3.5 border-b border-stone-200/80 dark:border-stone-800 space-y-2.5 bg-white dark:bg-stone-900">
+              <div
+                style={{
+                  backgroundColor: 'var(--dm-bg-rail-header)',
+                  borderColor: 'var(--dm-border)',
+                }}
+                className="p-3.5 border-b space-y-2.5"
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold font-sans tracking-tight text-stone-900 dark:text-stone-100 uppercase">
+                  <span
+                    style={{ color: 'var(--dm-text-primary)' }}
+                    className="text-xs font-bold font-sans tracking-tight uppercase"
+                  >
                     Dispatch Channels
                   </span>
-                  <span className="text-[11px] font-mono text-stone-400 dark:text-stone-500 tabular-nums">
+                  <span
+                    style={{ color: 'var(--dm-text-muted)' }}
+                    className="text-[11px] font-mono tabular-nums"
+                  >
                     {filteredChats.length} showing
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
-                    <Search className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Search
+                      style={{ color: 'var(--dm-text-muted)' }}
+                      className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                    />
                     <input
                       type="text"
                       value={chatSearch}
                       onChange={(e) => setChatSearch(e.target.value)}
                       placeholder="Search alumni or event cohort..."
-                      className="w-full pl-8 pr-7 py-2 text-xs bg-stone-50 dark:bg-stone-800/90 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B] dark:focus:border-rose-500 transition-colors"
+                      style={{
+                        backgroundColor: 'var(--dm-input-bg)',
+                        borderColor: 'var(--dm-input-border)',
+                        color: 'var(--dm-input-text)',
+                      }}
+                      className="w-full pl-8 pr-7 py-2 text-xs border rounded-xl focus:outline-hidden focus:border-[#8B181B] transition-colors"
                     />
                     {chatSearch && (
                       <button
                         type="button"
                         onClick={() => setChatSearch('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
+                        style={{ color: 'var(--dm-text-muted)' }}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 hover:opacity-80 cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -665,13 +727,28 @@ export const MessagesView: React.FC = () => {
               </div>
 
               {/* Feed of Chats */}
-              <div ref={chatListScrollRef} className="flex-1 overflow-y-auto divide-y divide-stone-100/90 dark:divide-stone-800/80">
+              <div
+                ref={chatListScrollRef}
+                style={{
+                  backgroundColor: 'var(--dm-bg-rail)',
+                }}
+                className="flex-1 overflow-y-auto divide-y divide-[var(--dm-border-subtle)]"
+              >
                 {filteredChats.length === 0 ? (
                   <div className="p-8 text-center space-y-3">
-                    <div className="w-10 h-10 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500 flex items-center justify-center mx-auto">
+                    <div
+                      style={{
+                        backgroundColor: 'var(--dm-input-bg)',
+                        color: 'var(--dm-text-muted)',
+                      }}
+                      className="w-10 h-10 rounded-full flex items-center justify-center mx-auto"
+                    >
                       <MessageSquare className="w-5 h-5" />
                     </div>
-                    <p className="text-xs text-stone-500 dark:text-stone-400 leading-relaxed">
+                    <p
+                      style={{ color: 'var(--dm-text-secondary)' }}
+                      className="text-xs leading-relaxed"
+                    >
                       No matching conversations found for this filter.
                     </p>
                     <button
@@ -696,11 +773,11 @@ export const MessagesView: React.FC = () => {
                             setActiveChatId(chat.id);
                             markChatAsRead(chat.id);
                           }}
-                          className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all ${
-                            isSelected
-                              ? 'bg-[#FAF6EC] dark:bg-stone-800/90 border-l-[3px] border-l-[#8B181B]'
-                              : 'hover:bg-stone-50/80 dark:hover:bg-stone-800/50'
-                          }`}
+                          style={{
+                            backgroundColor: isSelected ? 'var(--dm-bg-item-active)' : 'transparent',
+                            borderLeftColor: isSelected ? 'var(--dm-bubble-sent)' : 'transparent',
+                          }}
+                          className="p-3.5 flex items-start gap-3 cursor-pointer transition-all border-l-[3px] hover:bg-[var(--dm-bg-item-hover)] active:bg-[var(--dm-bg-item-hover)]"
                         >
                           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#8B181B] via-[#991B1B] to-amber-700 text-white flex items-center justify-center shadow-2xs shrink-0">
                             <CalendarCheck className="w-5 h-5 text-amber-200" />
@@ -708,10 +785,16 @@ export const MessagesView: React.FC = () => {
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
-                              <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
+                              <h3
+                                style={{ color: 'var(--dm-text-primary)' }}
+                                className="text-xs font-bold truncate"
+                              >
                                 {chat.groupName || 'Event Cohort Lounge'}
                               </h3>
-                              <span className="text-[10px] font-mono text-stone-400 dark:text-stone-500 tabular-nums shrink-0">
+                              <span
+                                style={{ color: 'var(--dm-text-muted)' }}
+                                className="text-[10px] font-mono tabular-nums shrink-0"
+                              >
                                 {new Date(chat.lastMessageAt).toLocaleTimeString([], {
                                   hour: '2-digit',
                                   minute: '2-digit'
@@ -719,7 +802,10 @@ export const MessagesView: React.FC = () => {
                               </span>
                             </div>
 
-                            <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
+                            <p
+                              style={{ color: 'var(--dm-text-secondary)' }}
+                              className="text-xs truncate mt-0.5"
+                            >
                               {chat.lastMessage || 'Channel established.'}
                             </p>
 
@@ -751,28 +837,35 @@ export const MessagesView: React.FC = () => {
                           setActiveChatId(chat.id);
                           markChatAsRead(chat.id);
                         }}
-                        className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-stone-100/90 dark:bg-stone-800/90 border-l-[3px] border-l-[#8B181B]'
-                            : 'hover:bg-stone-50/80 dark:hover:bg-stone-800/50'
-                        }`}
+                        style={{
+                          backgroundColor: isSelected ? 'var(--dm-bg-item-active)' : 'transparent',
+                          borderLeftColor: isSelected ? 'var(--dm-bubble-sent)' : 'transparent',
+                        }}
+                        className="p-3.5 flex items-start gap-3 cursor-pointer transition-all border-l-[3px] hover:bg-[var(--dm-bg-item-hover)] active:bg-[var(--dm-bg-item-hover)]"
                       >
                         <div className="relative shrink-0">
                           <img
                             src={getUserAvatar(other?.profilePictureUrl)}
                             alt={other?.name}
                             onError={handleUserAvatarError}
-                            className="w-10 h-10 rounded-full object-cover border border-stone-200 dark:border-stone-700"
+                            style={{ borderColor: 'var(--dm-border)' }}
+                            className="w-10 h-10 rounded-full object-cover border"
                           />
                           <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-stone-900 ${otherStatus.dotColor}`} title={otherStatus.statusLabel} />
                         </div>
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-1">
-                            <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
+                            <h3
+                              style={{ color: 'var(--dm-text-primary)' }}
+                              className="text-xs font-bold truncate"
+                            >
                               {other?.name || 'Cecilian Colleague'}
                             </h3>
-                            <span className="text-[10px] font-mono text-stone-400 dark:text-stone-500 tabular-nums shrink-0">
+                            <span
+                              style={{ color: 'var(--dm-text-muted)' }}
+                              className="text-[10px] font-mono tabular-nums shrink-0"
+                            >
                               {new Date(chat.lastMessageAt).toLocaleTimeString([], {
                                 hour: '2-digit',
                                 minute: '2-digit'
@@ -780,13 +873,22 @@ export const MessagesView: React.FC = () => {
                             </span>
                           </div>
 
-                          <p className={`text-xs truncate mt-0.5 ${unread > 0 ? 'text-stone-900 dark:text-stone-100 font-semibold' : 'text-stone-500 dark:text-stone-400'}`}>
+                          <p
+                            style={{
+                              color: unread > 0 ? 'var(--dm-text-primary)' : 'var(--dm-text-secondary)',
+                              fontWeight: unread > 0 ? 600 : 400,
+                            }}
+                            className="text-xs truncate mt-0.5"
+                          >
                             {chat.lastMessage || 'Direct connection initiated.'}
                           </p>
 
                           <div className="flex items-center justify-between mt-1 gap-1">
                             <div className="flex items-center gap-1.5 truncate">
-                              <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate">
+                              <span
+                                style={{ color: 'var(--dm-text-secondary)' }}
+                                className="text-[10px] truncate"
+                              >
                                 {other?.batch ? `Batch ${other.batch}` : other?.role || 'Alumnus'}
                               </span>
                               {otherStatus.isOnline && (
@@ -809,11 +911,22 @@ export const MessagesView: React.FC = () => {
               </div>
 
               {/* Bottom Quick Action */}
-              <div className="p-3 border-t border-stone-200/80 dark:border-stone-800 bg-white dark:bg-stone-900">
+              <div
+                style={{
+                  backgroundColor: 'var(--dm-bg-rail-header)',
+                  borderColor: 'var(--dm-border)',
+                }}
+                className="p-3 border-t"
+              >
                 <button
                   type="button"
                   onClick={() => setShowNewChatModal(true)}
-                  className="w-full py-2 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--dm-input-bg)',
+                    borderColor: 'var(--dm-input-border)',
+                    color: 'var(--dm-text-primary)',
+                  }}
+                  className="w-full py-2 hover:opacity-90 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Users className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
                   <span>Browse Alumni Directory</span>
@@ -822,16 +935,36 @@ export const MessagesView: React.FC = () => {
             </div>
 
             {/* CENTER & RIGHT: ACTIVE CONVERSATION CANVAS OR DIRECTORY DESK */}
-            <div className={`flex-1 flex flex-col bg-white dark:bg-stone-900 min-w-0 ${!activeChatId ? 'hidden md:flex' : 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto h-[100dvh] md:h-full flex flex-col'}`}>
+            <div
+              style={{
+                backgroundColor: 'var(--dm-bg-chat)',
+              }}
+              className={`flex-1 flex flex-col min-w-0 ${
+                !activeChatId
+                  ? 'hidden md:flex'
+                  : 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto h-[100dvh] md:h-full flex flex-col'
+              }`}
+            >
               {activeChat ? (
                 <>
                   {/* Active Header */}
-                  <div className="p-3.5 sm:p-4 bg-[#FAF9F5] dark:bg-stone-900 border-b border-stone-200/90 dark:border-stone-800 flex items-center justify-between gap-3 pt-[max(0.875rem,env(safe-area-inset-top))]">
+                  <div
+                    style={{
+                      backgroundColor: 'var(--dm-bg-header)',
+                      borderColor: 'var(--dm-border)',
+                    }}
+                    className="p-3.5 sm:p-4 border-b flex items-center justify-between gap-3 pt-[max(0.875rem,env(safe-area-inset-top))]"
+                  >
                     <div className="flex items-center gap-3 min-w-0">
                       <button
                         type="button"
                         onClick={() => setActiveChatId(null)}
-                        className="md:hidden min-w-[44px] min-h-[44px] p-2.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-800 active:bg-stone-300 transition-colors cursor-pointer shrink-0 flex items-center justify-center"
+                        style={{
+                          color: 'var(--dm-text-primary)',
+                          backgroundColor: 'var(--dm-input-bg)',
+                          borderColor: 'var(--dm-input-border)',
+                        }}
+                        className="lg:hidden min-w-[44px] min-h-[44px] p-2.5 rounded-xl border hover:opacity-90 active:scale-95 transition-all cursor-pointer shrink-0 flex items-center justify-center"
                         aria-label="Back to conversations list"
                       >
                         <ArrowLeft className="w-5 h-5" />
@@ -848,7 +981,8 @@ export const MessagesView: React.FC = () => {
                             alt={recipientUser?.name}
                             onError={handleUserAvatarError}
                             onClick={() => recipientUser && setSelectedUserIdForModal(recipientUser.uid)}
-                            className="w-10 h-10 rounded-full object-cover border border-stone-200 dark:border-stone-700 cursor-pointer"
+                            style={{ borderColor: 'var(--dm-border)' }}
+                            className="w-10 h-10 rounded-full object-cover border cursor-pointer"
                           />
                           {(() => {
                             const recipientStatus = getUserOnlineStatus(recipientUser);
@@ -863,15 +997,21 @@ export const MessagesView: React.FC = () => {
                         {activeChat.isGroupChat || activeChat.isEventChat ? (
                           <>
                             <div className="flex items-center gap-2">
-                              <h2 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 truncate">
+                              <h2
+                                style={{ color: 'var(--dm-text-primary)' }}
+                                className="text-xs sm:text-sm font-bold truncate"
+                              >
                                 {activeChat.groupName || 'Event Cohort Lounge'}
                               </h2>
                               <span className="text-[10px] font-semibold text-[#8B181B] dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border border-rose-200/60 dark:border-rose-900 px-1.5 py-0.2 rounded">
                                 Event Cohort
                               </span>
                             </div>
-                            <p className="text-[11px] text-stone-500 dark:text-stone-400 flex items-center gap-1.5 mt-0.5 truncate">
-                              <Users className="w-3 h-3 text-stone-400 shrink-0" />
+                            <p
+                              style={{ color: 'var(--dm-text-secondary)' }}
+                              className="text-[11px] flex items-center gap-1.5 mt-0.5 truncate"
+                            >
+                              <Users className="w-3 h-3 opacity-60 shrink-0" />
                               <span>{(activeChat.memberIds || (activeChat as any).participants || []).length} Verified Attendees</span>
                             </p>
                           </>
@@ -880,7 +1020,8 @@ export const MessagesView: React.FC = () => {
                             <div className="flex items-center gap-2 flex-wrap">
                               <h2
                                 onClick={() => recipientUser && setSelectedUserIdForModal(recipientUser.uid)}
-                                className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 hover:text-[#8B181B] dark:hover:text-rose-400 transition-colors cursor-pointer truncate"
+                                style={{ color: 'var(--dm-text-primary)' }}
+                                className="text-xs sm:text-sm font-bold hover:text-[#8B181B] dark:hover:text-rose-400 transition-colors cursor-pointer truncate"
                               >
                                 {recipientUser?.name}
                               </h2>
@@ -889,7 +1030,10 @@ export const MessagesView: React.FC = () => {
                             {(() => {
                               const recipientStatus = getUserOnlineStatus(recipientUser);
                               return (
-                                <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate mt-0.5 flex items-center gap-1.5">
+                                <p
+                                  style={{ color: 'var(--dm-text-secondary)' }}
+                                  className="text-[11px] truncate mt-0.5 flex items-center gap-1.5"
+                                >
                                   <span className={`w-1.5 h-1.5 rounded-full ${recipientStatus.dotColor}`} />
                                   <span className={recipientStatus.isOnline ? 'text-emerald-700 dark:text-emerald-400 font-medium' : ''}>
                                     {recipientStatus.statusLabel}
@@ -913,7 +1057,12 @@ export const MessagesView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setShowMembersModal(true)}
-                            className="px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700 rounded-xl text-xs font-medium text-stone-700 dark:text-stone-200 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+                            style={{
+                              backgroundColor: 'var(--dm-chip-bg)',
+                              borderColor: 'var(--dm-chip-border)',
+                              color: 'var(--dm-chip-text)',
+                            }}
+                            className="px-2.5 py-1.5 border hover:opacity-90 rounded-xl text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                           >
                             <Users className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
                             <span className="hidden sm:inline">Roster</span>
@@ -934,7 +1083,12 @@ export const MessagesView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setSelectedUserIdForModal(recipientUser.uid)}
-                            className="px-2.5 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-700 rounded-xl text-xs font-medium text-stone-700 dark:text-stone-200 flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
+                            style={{
+                              backgroundColor: 'var(--dm-chip-bg)',
+                              borderColor: 'var(--dm-chip-border)',
+                              color: 'var(--dm-chip-text)',
+                            }}
+                            className="px-2.5 py-1.5 border hover:opacity-90 rounded-xl text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
                           >
                             <User className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
                             <span className="hidden sm:inline">Profile</span>
@@ -945,11 +1099,12 @@ export const MessagesView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setShowDossierDrawer(!showDossierDrawer)}
-                        className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-                          showDossierDrawer
-                            ? 'bg-stone-200 dark:bg-stone-700 border-stone-300 dark:border-stone-600 text-stone-900 dark:text-stone-100'
-                            : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700'
-                        }`}
+                        style={{
+                          backgroundColor: showDossierDrawer ? 'var(--dm-bg-item-active)' : 'var(--dm-chip-bg)',
+                          borderColor: showDossierDrawer ? 'var(--dm-border)' : 'var(--dm-chip-border)',
+                          color: 'var(--dm-text-primary)',
+                        }}
+                        className="p-2 rounded-xl border transition-colors cursor-pointer"
                         title={showDossierDrawer ? 'Hide Profile Panel' : 'Show Profile Panel'}
                       >
                         {showDossierDrawer ? (
@@ -962,12 +1117,25 @@ export const MessagesView: React.FC = () => {
                   </div>
 
                   {/* Messages Feed + Dossier */}
-                  <div className="flex-1 flex overflow-hidden">
-                    <div className="flex-1 flex flex-col overflow-hidden bg-[#FAF9F6]/30 dark:bg-stone-900">
+                  <div
+                    style={{ backgroundColor: 'var(--dm-bg-chat)' }}
+                    className="flex-1 flex overflow-hidden"
+                  >
+                    <div
+                      style={{ backgroundColor: 'var(--dm-bg-chat)' }}
+                      className="flex-1 flex flex-col overflow-hidden"
+                    >
                       {/* Message Bubble Feed */}
                       <div className="flex-1 p-4 overflow-y-auto space-y-3.5">
                         <div className="text-center my-2">
-                          <span className="px-3 py-1 bg-stone-100 dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 rounded-full text-[10px] font-medium text-stone-500 dark:text-stone-400">
+                          <span
+                            style={{
+                              backgroundColor: 'var(--dm-chip-bg)',
+                              borderColor: 'var(--dm-chip-border)',
+                              color: 'var(--dm-text-secondary)',
+                            }}
+                            className="px-3 py-1 border rounded-full text-[10px] font-medium"
+                          >
                             {activeChat.isGroupChat || activeChat.isEventChat
                               ? 'Official Event Cohort Channel · Institutional Governance Active'
                               : 'End-to-End Cecilian Peer Dispatch'}
@@ -976,14 +1144,26 @@ export const MessagesView: React.FC = () => {
 
                         {activeChatMessages.length === 0 ? (
                           <div className="text-center py-16 space-y-3">
-                            <div className="w-12 h-12 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500 flex items-center justify-center mx-auto">
+                            <div
+                              style={{
+                                backgroundColor: 'var(--dm-input-bg)',
+                                color: 'var(--dm-text-muted)',
+                              }}
+                              className="w-12 h-12 rounded-full flex items-center justify-center mx-auto"
+                            >
                               <Sparkles className="w-6 h-6 text-amber-500" />
                             </div>
                             <div className="max-w-xs mx-auto space-y-1">
-                              <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100">
+                              <h3
+                                style={{ color: 'var(--dm-text-primary)' }}
+                                className="text-xs font-bold"
+                              >
                                 No messages recorded yet
                               </h3>
-                              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                              <p
+                                style={{ color: 'var(--dm-text-secondary)' }}
+                                className="text-[11px]"
+                              >
                                 Send an institutional greeting or inquiry to initiate exchange.
                               </p>
                             </div>
@@ -1025,7 +1205,8 @@ export const MessagesView: React.FC = () => {
                                         />
                                         <span
                                           onClick={() => sender && setSelectedUserIdForModal(sender.uid)}
-                                          className="text-[11px] font-bold text-stone-800 dark:text-stone-200 hover:text-[#8B181B] dark:hover:text-rose-400 cursor-pointer"
+                                          style={{ color: 'var(--dm-text-primary)' }}
+                                          className="text-[11px] font-bold hover:text-[#8B181B] dark:hover:text-rose-400 cursor-pointer"
                                         >
                                           {msg.senderName || sender?.name || 'Attendee'}
                                         </span>
@@ -1038,21 +1219,31 @@ export const MessagesView: React.FC = () => {
                                 <div className="relative max-w-[85%] sm:max-w-[70%] group/bubble">
                                   {msg.isUnsent ? (
                                     <div
-                                      className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm leading-relaxed italic border border-stone-200/90 dark:border-stone-700 bg-stone-100/80 dark:bg-stone-800/80 text-stone-500 dark:text-stone-400 flex items-center gap-2 ${
+                                      style={{
+                                        backgroundColor: 'var(--dm-input-bg)',
+                                        borderColor: 'var(--dm-input-border)',
+                                        color: 'var(--dm-text-muted)',
+                                      }}
+                                      className={`px-3.5 py-2 rounded-2xl text-xs sm:text-sm leading-relaxed italic border flex items-center gap-2 ${
                                         isMine ? 'rounded-br-xs' : 'rounded-bl-xs'
                                       }`}
                                     >
-                                      <Undo2 className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                                      <Undo2 className="w-3.5 h-3.5 shrink-0" />
                                       <span>This message was unsent</span>
                                     </div>
                                   ) : (
                                     <>
                                       <div
                                         onClick={() => setActiveMessageMenuId(activeMessageMenuId === msg.id ? null : msg.id)}
-                                        className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm leading-relaxed cursor-pointer select-none transition-all ${
+                                        style={{
+                                          backgroundColor: isMine ? 'var(--dm-bubble-sent)' : 'var(--dm-bubble-received)',
+                                          color: isMine ? 'var(--dm-bubble-sent-text)' : 'var(--dm-bubble-received-text)',
+                                          borderColor: isMine ? 'rgba(0,0,0,0.2)' : 'var(--dm-bubble-received-border)',
+                                        }}
+                                        className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm leading-relaxed cursor-pointer select-none transition-all border ${
                                           isMine
-                                            ? 'bg-[#8B181B] dark:bg-[#721316] text-white rounded-br-xs shadow-[0_2px_8px_rgba(139,24,27,0.25)] border border-rose-900/40'
-                                            : 'bg-white dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700/80 text-stone-900 dark:text-stone-100 rounded-bl-xs shadow-2xs'
+                                            ? 'rounded-br-xs shadow-[0_2px_8px_rgba(139,24,27,0.25)]'
+                                            : 'rounded-bl-xs shadow-2xs'
                                         }`}
                                       >
                                         {msg.text}
@@ -1069,7 +1260,13 @@ export const MessagesView: React.FC = () => {
                                         }`}
                                       >
                                         {/* Reaction Bar */}
-                                        <div className="flex items-center gap-1 p-1 bg-white dark:bg-stone-800 rounded-full shadow-lg border border-stone-200/90 dark:border-stone-700">
+                                        <div
+                                          style={{
+                                            backgroundColor: 'var(--dm-bg-deck)',
+                                            borderColor: 'var(--dm-border)',
+                                          }}
+                                          className="flex items-center gap-1 p-1 rounded-full shadow-lg border"
+                                        >
                                           {QUICK_EMOJIS.map((emoji) => {
                                             const isUserReaction = msg.reactions?.[emoji]?.includes(currentUser.uid);
                                             return (
@@ -1079,7 +1276,6 @@ export const MessagesView: React.FC = () => {
                                                 onClick={(e) => {
                                                   e.stopPropagation();
                                                   reactToMessage(activeChat.id, msg.id, emoji);
-                                                  // Request 7: Automatically close or hide reaction selection DIV immediately
                                                   setActiveMessageMenuId(null);
                                                 }}
                                                 className={`w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-sm sm:text-xs hover:scale-125 active:scale-95 transition-transform rounded-full cursor-pointer relative ${
@@ -1104,7 +1300,8 @@ export const MessagesView: React.FC = () => {
                                                   activeMessageMenuId === msg.id ? null : msg.id
                                                 );
                                               }}
-                                              className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 rounded-full hover:bg-stone-100 dark:hover:bg-stone-700 cursor-pointer"
+                                              style={{ color: 'var(--dm-text-secondary)' }}
+                                              className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-full hover:bg-[var(--dm-bg-item-hover)] cursor-pointer"
                                               title="Message options"
                                             >
                                               <MoreVertical className="w-3.5 h-3.5" />
@@ -1112,9 +1309,13 @@ export const MessagesView: React.FC = () => {
 
                                             {activeMessageMenuId === msg.id && (
                                               <div
+                                                style={{
+                                                  backgroundColor: 'var(--dm-modal-bg)',
+                                                  borderColor: 'var(--dm-modal-border)',
+                                                }}
                                                 className={`absolute bottom-full mb-1 ${
                                                   isMine ? 'right-0' : 'left-0'
-                                                } w-44 bg-white dark:bg-stone-900 rounded-xl shadow-xl border border-stone-200 dark:border-stone-800 py-1 z-30 text-xs`}
+                                                } w-44 rounded-xl shadow-xl border py-1 z-30 text-xs`}
                                               >
                                                 {(isMine ||
                                                   ['admin', 'superadmin', 'moderator'].includes(
@@ -1138,9 +1339,10 @@ export const MessagesView: React.FC = () => {
                                                     setMessageToDelete(msg);
                                                     setActiveMessageMenuId(null);
                                                   }}
-                                                  className="w-full px-3 py-2 text-left text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center gap-2 font-medium cursor-pointer"
+                                                  style={{ color: 'var(--dm-text-primary)' }}
+                                                  className="w-full px-3 py-2 text-left hover:bg-[var(--dm-bg-item-hover)] flex items-center gap-2 font-medium cursor-pointer"
                                                 >
-                                                  <Trash2 className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
+                                                  <Trash2 className="w-3.5 h-3.5 opacity-60" />
                                                   <span>Delete for me</span>
                                                 </button>
                                               </div>
@@ -1152,7 +1354,7 @@ export const MessagesView: React.FC = () => {
                                   )}
                                 </div>
 
-                                {/* Messenger-Style Message Reactions Display Badge (Request 7) */}
+                                {/* Messenger-Style Message Reactions Display Badge */}
                                 {!msg.isUnsent && msg.reactions && Object.keys(msg.reactions).length > 0 && (() => {
                                   const activeEntries = Object.entries(msg.reactions).filter(
                                     ([_, uids]) => Array.isArray(uids) && uids.length > 0
@@ -1173,11 +1375,12 @@ export const MessagesView: React.FC = () => {
                                           setInspectingReactionsMessage(msg);
                                           setReactionDetailTab('all');
                                         }}
-                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all cursor-pointer shadow-2xs active:scale-95 select-none ${
-                                          hasMyReaction
-                                            ? 'bg-rose-50 dark:bg-rose-950/70 text-[#8B181B] dark:text-rose-300 border-rose-300 dark:border-rose-800 ring-1 ring-[#8B181B]/20'
-                                            : 'bg-white dark:bg-stone-800 hover:bg-stone-50 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700'
-                                        }`}
+                                        style={{
+                                          backgroundColor: hasMyReaction ? 'rgba(139,24,27,0.1)' : 'var(--dm-chip-bg)',
+                                          color: hasMyReaction ? 'var(--dm-bubble-sent)' : 'var(--dm-text-primary)',
+                                          borderColor: hasMyReaction ? 'var(--dm-bubble-sent)' : 'var(--dm-chip-border)',
+                                        }}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all cursor-pointer shadow-2xs active:scale-95 select-none"
                                         title="View who reacted"
                                       >
                                         <span className="flex items-center -space-x-1">
@@ -1193,7 +1396,10 @@ export const MessagesView: React.FC = () => {
                                   );
                                 })()}
 
-                                <div className="flex items-center gap-1.5 text-[10px] text-stone-400 dark:text-stone-500 mt-1 px-1 font-mono tabular-nums">
+                                <div
+                                  style={{ color: 'var(--dm-text-muted)' }}
+                                  className="flex items-center gap-1.5 text-[10px] mt-1 px-1 font-mono tabular-nums"
+                                >
                                   <span>
                                     {new Date(msg.createdAt).toLocaleTimeString([], {
                                       hour: '2-digit',
@@ -1225,13 +1431,13 @@ export const MessagesView: React.FC = () => {
                                           <span>{!isOnline ? 'Queued offline' : 'Pending'}</span>
                                         </span>
                                       ) : msg.status === 'sending' && (Date.now() - new Date(msg.createdAt).getTime() < 1800) ? (
-                                        <span className="inline-flex items-center gap-1 text-stone-400 dark:text-stone-500 font-sans text-[10px]">
-                                          <Clock className="w-3 h-3 animate-spin text-stone-400" />
+                                        <span className="inline-flex items-center gap-1 font-sans text-[10px] opacity-70">
+                                          <Clock className="w-3 h-3 animate-spin" />
                                           <span>Sending...</span>
                                         </span>
                                       ) : (
-                                        <span className="inline-flex items-center gap-1 text-stone-400 dark:text-stone-500 font-sans text-[10px]">
-                                          <CheckCheck className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
+                                        <span className="inline-flex items-center gap-1 font-sans text-[10px] opacity-70">
+                                          <CheckCheck className="w-3.5 h-3.5" />
                                           <span>Sent</span>
                                         </span>
                                       )}
@@ -1246,8 +1452,17 @@ export const MessagesView: React.FC = () => {
                       </div>
 
                       {/* Quick Response Prompt Suggestions */}
-                      <div className="px-3.5 py-1.5 bg-stone-50 dark:bg-stone-900 border-t border-stone-200/70 dark:border-stone-800 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-                        <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                      <div
+                        style={{
+                          backgroundColor: 'var(--dm-bg-header)',
+                          borderColor: 'var(--dm-border)',
+                        }}
+                        className="px-3.5 py-1.5 border-t flex items-center gap-1.5 overflow-x-auto scrollbar-none"
+                      >
+                        <span
+                          style={{ color: 'var(--dm-text-muted)' }}
+                          className="text-[10px] font-semibold uppercase tracking-wider shrink-0 flex items-center gap-1"
+                        >
                           <Sparkles className="w-3 h-3 text-amber-500" />
                           <span>Prompt:</span>
                         </span>
@@ -1261,7 +1476,12 @@ export const MessagesView: React.FC = () => {
                             key={idx}
                             type="button"
                             onClick={() => handleInsertQuickReply(prompt)}
-                            className="px-2.5 py-1 rounded-full bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-200/80 dark:border-stone-700 text-[11px] text-stone-700 dark:text-stone-200 whitespace-nowrap cursor-pointer transition-colors shadow-2xs"
+                            style={{
+                              backgroundColor: 'var(--dm-chip-bg)',
+                              borderColor: 'var(--dm-chip-border)',
+                              color: 'var(--dm-chip-text)',
+                            }}
+                            className="px-2.5 py-1 rounded-full border hover:opacity-80 text-[11px] whitespace-nowrap cursor-pointer transition-colors shadow-2xs"
                           >
                             {prompt}
                           </button>
@@ -1298,7 +1518,11 @@ export const MessagesView: React.FC = () => {
                       {/* Input Composer Form */}
                       <form
                         onSubmit={handleSend}
-                        className="p-3 sm:p-3.5 bg-white dark:bg-stone-900 border-t border-stone-200/90 dark:border-stone-800 flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+                        style={{
+                          backgroundColor: 'var(--dm-bg-footer)',
+                          borderColor: 'var(--dm-border)',
+                        }}
+                        className="p-3 sm:p-3.5 border-t flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
                       >
                         <input
                           type="text"
@@ -1311,7 +1535,12 @@ export const MessagesView: React.FC = () => {
                               ? `Message ${activeChat.groupName || 'group'}...`
                               : `Message ${recipientUser?.name || 'alumnus'}...`
                           }
-                          className="flex-1 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 rounded-xl focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B] dark:focus:border-rose-500 transition-colors"
+                          style={{
+                            backgroundColor: 'var(--dm-input-bg)',
+                            borderColor: 'var(--dm-input-border)',
+                            color: 'var(--dm-input-text)',
+                          }}
+                          className="flex-1 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm border rounded-xl focus:outline-hidden focus:border-[#8B181B] transition-colors"
                         />
                         <button
                           type="submit"
@@ -1326,27 +1555,54 @@ export const MessagesView: React.FC = () => {
 
                   {/* Right Profile Rail (Collapsible) */}
                   {showDossierDrawer && (
-                    <div className="hidden lg:flex w-72 border-l border-stone-200/90 dark:border-stone-800 bg-[#FAF9F6]/80 dark:bg-stone-900 flex-col p-4 space-y-4 overflow-y-auto shrink-0">
+                    <div
+                      style={{
+                        backgroundColor: 'var(--dm-dossier-bg)',
+                        borderColor: 'var(--dm-border)',
+                      }}
+                      className="hidden lg:flex w-72 border-l flex-col p-4 space-y-4 overflow-y-auto shrink-0"
+                    >
                       {activeChat.isGroupChat || activeChat.isEventChat ? (
                         <div className="space-y-4">
-                          <div className="text-center space-y-2 pb-4 border-b border-stone-200/80 dark:border-stone-800">
+                          <div
+                            style={{ borderColor: 'var(--dm-border)' }}
+                            className="text-center space-y-2 pb-4 border-b"
+                          >
                             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#8B181B] to-amber-700 text-white flex items-center justify-center mx-auto shadow-sm">
                               <CalendarCheck className="w-7 h-7 text-amber-200" />
                             </div>
-                            <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100">
+                            <h3
+                              style={{ color: 'var(--dm-text-primary)' }}
+                              className="text-xs font-bold"
+                            >
                               {activeChat.groupName || 'Event Group'}
                             </h3>
-                            <span className="text-[10px] text-stone-500 dark:text-stone-400 font-mono">
+                            <span
+                              style={{ color: 'var(--dm-text-muted)' }}
+                              className="text-[10px] font-mono"
+                            >
                               Event Group Chat
                             </span>
                           </div>
 
                           {activeEvent && (
-                            <div className="p-3 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2 text-xs">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">
+                            <div
+                              style={{
+                                backgroundColor: 'var(--dm-card-bg)',
+                                borderColor: 'var(--dm-card-border)',
+                              }}
+                              className="p-3 rounded-xl border space-y-2 text-xs"
+                            >
+                              <div
+                                style={{ color: 'var(--dm-text-muted)' }}
+                                className="text-[10px] font-bold uppercase tracking-wider"
+                              >
                                 Event Details
                               </div>
-                              <div className="space-y-1 text-stone-700 dark:text-stone-300 text-[11px]">
+                              <div
+                                style={{ color: 'var(--dm-text-secondary)' }}
+                                className="space-y-1 text-[11px]"
+                              >
                                 <div><strong>Date:</strong> {activeEvent.date}</div>
                                 <div><strong>Venue:</strong> {activeEvent.location || 'SCC Campus'}</div>
                               </div>
@@ -1355,8 +1611,16 @@ export const MessagesView: React.FC = () => {
 
                           <div className="space-y-2">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="font-bold text-stone-900 dark:text-stone-100">Attendees</span>
-                              <span className="font-mono text-stone-500 dark:text-stone-400 text-[10px]">
+                              <span
+                                style={{ color: 'var(--dm-text-primary)' }}
+                                className="font-bold"
+                              >
+                                Attendees
+                              </span>
+                              <span
+                                style={{ color: 'var(--dm-text-muted)' }}
+                                className="font-mono text-[10px]"
+                              >
                                 {activeGroupMembers.length} verified
                               </span>
                             </div>
@@ -1365,19 +1629,30 @@ export const MessagesView: React.FC = () => {
                                 <div
                                   key={member.uid}
                                   onClick={() => setSelectedUserIdForModal(member.uid)}
-                                  className="p-2 bg-white dark:bg-stone-850 rounded-lg border border-stone-200/70 dark:border-stone-750 hover:border-[#8B181B]/40 dark:hover:border-rose-500/40 flex items-center gap-2 cursor-pointer transition-colors"
+                                  style={{
+                                    backgroundColor: 'var(--dm-card-bg)',
+                                    borderColor: 'var(--dm-card-border)',
+                                  }}
+                                  className="p-2 rounded-lg border hover:border-[#8B181B]/40 flex items-center gap-2 cursor-pointer transition-colors"
                                 >
                                   <img
                                     src={getUserAvatar(member.profilePictureUrl)}
                                     alt={member.name}
                                     onError={handleUserAvatarError}
-                                    className="w-7 h-7 rounded-full object-cover border border-stone-200 dark:border-stone-700"
+                                    style={{ borderColor: 'var(--dm-border)' }}
+                                    className="w-7 h-7 rounded-full object-cover border"
                                   />
                                   <div className="flex-1 min-w-0">
-                                    <div className="text-[11px] font-semibold text-stone-900 dark:text-stone-100 truncate">
+                                    <div
+                                      style={{ color: 'var(--dm-text-primary)' }}
+                                      className="text-[11px] font-semibold truncate"
+                                    >
                                       {member.name}
                                     </div>
-                                    <div className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
+                                    <div
+                                      style={{ color: 'var(--dm-text-muted)' }}
+                                      className="text-[10px] truncate"
+                                    >
                                       {member.batch ? `Batch ${member.batch}` : member.role}
                                     </div>
                                   </div>
@@ -1389,15 +1664,22 @@ export const MessagesView: React.FC = () => {
                       ) : (
                         recipientUser && (
                           <div className="space-y-4">
-                            <div className="text-center space-y-2 pb-4 border-b border-stone-200/80 dark:border-stone-800">
+                            <div
+                              style={{ borderColor: 'var(--dm-border)' }}
+                              className="text-center space-y-2 pb-4 border-b"
+                            >
                               <img
                                 src={getUserAvatar(recipientUser.profilePictureUrl)}
                                 alt={recipientUser.name}
                                 onError={handleUserAvatarError}
-                                className="w-16 h-16 rounded-full object-cover mx-auto border-2 border-white dark:border-stone-700 shadow-sm"
+                                style={{ borderColor: 'var(--dm-border)' }}
+                                className="w-16 h-16 rounded-full object-cover mx-auto border-2 shadow-sm"
                               />
                               <div>
-                                <h3 className="text-xs font-bold text-stone-900 dark:text-stone-100">
+                                <h3
+                                  style={{ color: 'var(--dm-text-primary)' }}
+                                  className="text-xs font-bold"
+                                >
                                   {recipientUser.name}
                                 </h3>
                                 <div className="mt-1">
@@ -1406,11 +1688,23 @@ export const MessagesView: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="p-3 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2 text-xs">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">
+                            <div
+                              style={{
+                                backgroundColor: 'var(--dm-card-bg)',
+                                borderColor: 'var(--dm-card-border)',
+                              }}
+                              className="p-3 rounded-xl border space-y-2 text-xs"
+                            >
+                              <div
+                                style={{ color: 'var(--dm-text-muted)' }}
+                                className="text-[10px] font-bold uppercase tracking-wider"
+                              >
                                 Academic Pedigree
                               </div>
-                              <div className="space-y-1 text-stone-700 dark:text-stone-300 text-[11px]">
+                              <div
+                                style={{ color: 'var(--dm-text-secondary)' }}
+                                className="space-y-1 text-[11px]"
+                              >
                                 {recipientUser.batch && (
                                   <div><strong>Batch:</strong> Class of {recipientUser.batch}</div>
                                 )}
@@ -1421,11 +1715,23 @@ export const MessagesView: React.FC = () => {
                             </div>
 
                             {(recipientUser.company || recipientUser.currentPosition) && (
-                              <div className="p-3 bg-white dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 space-y-2 text-xs">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">
+                              <div
+                                style={{
+                                  backgroundColor: 'var(--dm-card-bg)',
+                                  borderColor: 'var(--dm-card-border)',
+                                }}
+                                className="p-3 rounded-xl border space-y-2 text-xs"
+                              >
+                                <div
+                                  style={{ color: 'var(--dm-text-muted)' }}
+                                  className="text-[10px] font-bold uppercase tracking-wider"
+                                >
                                   Current Career
                                 </div>
-                                <div className="space-y-1 text-stone-700 dark:text-stone-300 text-[11px]">
+                                <div
+                                  style={{ color: 'var(--dm-text-secondary)' }}
+                                  className="space-y-1 text-[11px]"
+                                >
                                   {recipientUser.currentPosition && (
                                     <div><strong>Role:</strong> {recipientUser.currentPosition}</div>
                                   )}
@@ -1439,7 +1745,12 @@ export const MessagesView: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setSelectedUserIdForModal(recipientUser.uid)}
-                              className="w-full py-2 bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-750 dark:border dark:border-stone-700 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                              style={{
+                                backgroundColor: 'var(--dm-input-bg)',
+                                borderColor: 'var(--dm-input-border)',
+                                color: 'var(--dm-text-primary)',
+                              }}
+                              className="w-full py-2 hover:opacity-90 border rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                             >
                               Inspect Public Profile
                             </button>
@@ -1452,42 +1763,62 @@ export const MessagesView: React.FC = () => {
               </>
             ) : (
               /* ZERO-STATE: ALUMNI DISPATCH DIRECTORY DESK */
-              <div className="flex-1 p-4 sm:p-5 lg:p-6 overflow-y-auto space-y-4 bg-[#FAF9F6]/40 dark:bg-stone-900/50">
+              <div
+                style={{ backgroundColor: 'var(--dm-bg-chat)' }}
+                className="flex-1 p-4 sm:p-5 lg:p-6 overflow-y-auto space-y-4"
+              >
                 <div className="w-full space-y-4">
                   {/* Filter & Search Bar */}
-                  <div className="bg-white dark:bg-stone-900 p-3 sm:p-3.5 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-2xs">
+                  <div
+                    style={{
+                      backgroundColor: 'var(--dm-card-bg)',
+                      borderColor: 'var(--dm-card-border)',
+                    }}
+                    className="p-3 sm:p-3.5 rounded-2xl border shadow-2xs"
+                  >
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                       <div className="relative flex-1">
-                        <Search className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Search
+                          style={{ color: 'var(--dm-text-muted)' }}
+                          className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                        />
                         <input
                           type="text"
                           value={contactDirectorySearch}
                           onChange={(e) => setContactDirectorySearch(e.target.value)}
                           placeholder="Search alumni by name, course, batch, or company..."
-                          className="w-full pl-9 pr-8 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B] dark:focus:border-rose-500 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 transition-colors"
+                          style={{
+                            backgroundColor: 'var(--dm-input-bg)',
+                            borderColor: 'var(--dm-input-border)',
+                            color: 'var(--dm-input-text)',
+                          }}
+                          className="w-full pl-9 pr-8 py-2 text-xs border rounded-xl focus:outline-hidden focus:border-[#8B181B] transition-colors"
                         />
                       </div>
 
-                      <div className="flex items-center gap-1 p-0.5 bg-stone-100 dark:bg-stone-800 rounded-xl text-xs shrink-0">
+                      <div
+                        style={{ backgroundColor: 'var(--dm-input-bg)' }}
+                        className="flex items-center gap-1 p-0.5 rounded-xl text-xs shrink-0"
+                      >
                         <button
                           type="button"
                           onClick={() => setContactFilter('all')}
-                          className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
-                            contactFilter === 'all'
-                              ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs'
-                              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                          }`}
+                          style={{
+                            backgroundColor: contactFilter === 'all' ? 'var(--dm-card-bg)' : 'transparent',
+                            color: contactFilter === 'all' ? 'var(--dm-text-primary)' : 'var(--dm-text-secondary)',
+                          }}
+                          className="px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer shadow-2xs"
                         >
                           All ({users.length - 1})
                         </button>
                         <button
                           type="button"
                           onClick={() => setContactFilter('staff')}
-                          className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
-                            contactFilter === 'staff'
-                              ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 font-semibold shadow-2xs'
-                              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                          }`}
+                          style={{
+                            backgroundColor: contactFilter === 'staff' ? 'var(--dm-card-bg)' : 'transparent',
+                            color: contactFilter === 'staff' ? 'var(--dm-text-primary)' : 'var(--dm-text-secondary)',
+                          }}
+                          className="px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer shadow-2xs"
                         >
                           Staff & Officers
                         </button>
@@ -1500,32 +1831,49 @@ export const MessagesView: React.FC = () => {
                     {directoryContacts.map((contact) => (
                       <div
                         key={contact.uid}
-                        className="p-4 bg-white dark:bg-stone-850 rounded-2xl border border-stone-200 dark:border-stone-750 shadow-2xs flex flex-col justify-between space-y-3 hover:border-[#8B181B]/40 dark:hover:border-rose-500/40 transition-colors"
+                        style={{
+                          backgroundColor: 'var(--dm-card-bg)',
+                          borderColor: 'var(--dm-card-border)',
+                        }}
+                        className="p-4 rounded-2xl border shadow-2xs flex flex-col justify-between space-y-3 hover:border-[#8B181B]/40 transition-colors"
                       >
                         <div className="flex items-start gap-3">
                           <img
                             src={getUserAvatar(contact.profilePictureUrl)}
                             alt={contact.name}
                             onError={handleUserAvatarError}
-                            className="w-10 h-10 rounded-full object-cover border border-stone-200 dark:border-stone-700 shrink-0"
+                            style={{ borderColor: 'var(--dm-border)' }}
+                            className="w-10 h-10 rounded-full object-cover border shrink-0"
                           />
                           <div className="min-w-0">
-                            <h4 className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
+                            <h4
+                              style={{ color: 'var(--dm-text-primary)' }}
+                              className="text-xs font-bold truncate"
+                            >
                               {contact.name}
                             </h4>
-                            <p className="text-[11px] text-stone-500 dark:text-stone-400 truncate mt-0.5">
+                            <p
+                              style={{ color: 'var(--dm-text-secondary)' }}
+                              className="text-[11px] truncate mt-0.5"
+                            >
                               {contact.batch ? `Class of ${contact.batch}` : contact.role}
                               {contact.course ? ` · ${contact.course}` : ''}
                             </p>
                             {contact.company && (
-                              <p className="text-[10px] text-stone-400 dark:text-stone-500 truncate">
+                              <p
+                                style={{ color: 'var(--dm-text-muted)' }}
+                                className="text-[10px] truncate"
+                              >
                                 {contact.currentPosition ? `${contact.currentPosition} at ` : ''}{contact.company}
                               </p>
                             )}
                           </div>
                         </div>
 
-                        <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between">
+                        <div
+                          style={{ borderColor: 'var(--dm-border-subtle)' }}
+                          className="pt-2 border-t flex items-center justify-between"
+                        >
                           <UserRoleBadge role={contact.role} size="xs" />
                           <button
                             type="button"
@@ -1550,9 +1898,6 @@ export const MessagesView: React.FC = () => {
       {/* ========================================================================= */}
       {/* NEW DISPATCH MODAL                                                        */}
       {/* ========================================================================= */}
-      {/* ========================================================================= */}
-      {/* NEW DISPATCH MODAL                                                        */}
-      {/* ========================================================================= */}
       <AnimatePresence>
         {showNewChatModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs">
@@ -1560,55 +1905,90 @@ export const MessagesView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 max-w-lg w-full p-6 shadow-2xl space-y-4"
+              style={{
+                backgroundColor: 'var(--dm-modal-bg)',
+                borderColor: 'var(--dm-modal-border)',
+              }}
+              className="rounded-3xl border max-w-lg w-full p-6 shadow-2xl space-y-4"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
+              <div
+                style={{ borderColor: 'var(--dm-border)' }}
+                className="flex items-center justify-between pb-3 border-b"
+              >
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-[#8B181B]/10 dark:bg-rose-950/50 text-[#8B181B] dark:text-rose-400 flex items-center justify-center">
                     <UserPlus className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Initiate Peer Dispatch</h3>
-                    <p className="text-[11px] text-stone-500 dark:text-stone-400">Select an alumnus to start a direct line</p>
+                    <h3
+                      style={{ color: 'var(--dm-text-primary)' }}
+                      className="text-sm font-bold"
+                    >
+                      Initiate Peer Dispatch
+                    </h3>
+                    <p
+                      style={{ color: 'var(--dm-text-secondary)' }}
+                      className="text-[11px]"
+                    >
+                      Select an alumnus to start a direct line
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowNewChatModal(false)}
-                  className="p-1 rounded-full text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                  style={{ color: 'var(--dm-text-muted)' }}
+                  className="p-1 rounded-full hover:bg-[var(--dm-bg-item-hover)] transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <div className="relative">
-                <Search className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search
+                  style={{ color: 'var(--dm-text-muted)' }}
+                  className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                />
                 <input
                   type="text"
                   value={contactDirectorySearch}
                   onChange={(e) => setContactDirectorySearch(e.target.value)}
                   placeholder="Search by name, program, batch..."
-                  className="w-full pl-9 pr-3 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B] dark:focus:border-rose-500 text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 transition-colors"
+                  style={{
+                    backgroundColor: 'var(--dm-input-bg)',
+                    borderColor: 'var(--dm-input-border)',
+                    color: 'var(--dm-input-text)',
+                  }}
+                  className="w-full pl-9 pr-3 py-2 text-xs border rounded-xl focus:outline-hidden focus:border-[#8B181B] transition-colors"
                 />
               </div>
 
-              <div className="max-h-72 overflow-y-auto space-y-2 divide-y divide-stone-100 dark:divide-stone-800">
+              <div className="max-h-72 overflow-y-auto space-y-2 divide-y divide-[var(--dm-border-subtle)]">
                 {directoryContacts.map((contact) => (
                   <div
                     key={contact.uid}
                     onClick={() => handleStartConversationWith(contact)}
-                    className="pt-2 flex items-center justify-between p-2 rounded-xl hover:bg-stone-50 dark:hover:bg-stone-800 cursor-pointer transition-colors"
+                    className="pt-2 flex items-center justify-between p-2 rounded-xl hover:bg-[var(--dm-bg-item-hover)] cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <img
                         src={getUserAvatar(contact.profilePictureUrl)}
                         alt={contact.name}
                         onError={handleUserAvatarError}
-                        className="w-8 h-8 rounded-full object-cover shrink-0 border border-stone-200 dark:border-stone-700"
+                        style={{ borderColor: 'var(--dm-border)' }}
+                        className="w-8 h-8 rounded-full object-cover shrink-0 border"
                       />
                       <div className="min-w-0">
-                        <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">{contact.name}</div>
-                        <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                        <div
+                          style={{ color: 'var(--dm-text-primary)' }}
+                          className="text-xs font-bold truncate"
+                        >
+                          {contact.name}
+                        </div>
+                        <div
+                          style={{ color: 'var(--dm-text-secondary)' }}
+                          className="text-[11px] truncate"
+                        >
                           {contact.batch ? `Batch ${contact.batch}` : contact.role} · {contact.course || 'Cecilian'}
                         </div>
                       </div>
@@ -1637,22 +2017,40 @@ export const MessagesView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 max-w-md w-full p-6 shadow-2xl space-y-4"
+              style={{
+                backgroundColor: 'var(--dm-modal-bg)',
+                borderColor: 'var(--dm-modal-border)',
+              }}
+              className="rounded-3xl border max-w-md w-full p-6 shadow-2xl space-y-4"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
+              <div
+                style={{ borderColor: 'var(--dm-border)' }}
+                className="flex items-center justify-between pb-3 border-b"
+              >
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 flex items-center justify-center">
                     <Users className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Event Attendee List</h3>
-                    <p className="text-[11px] text-stone-500 dark:text-stone-400">{activeGroupMembers.length} verified attendees</p>
+                    <h3
+                      style={{ color: 'var(--dm-text-primary)' }}
+                      className="text-sm font-bold"
+                    >
+                      Event Attendee List
+                    </h3>
+                    <p
+                      style={{ color: 'var(--dm-text-secondary)' }}
+                      className="text-[11px]"
+                    >
+                      {activeGroupMembers.length} verified attendees
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowMembersModal(false)}
-                  className="p-1 rounded-full text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                  style={{ color: 'var(--dm-text-muted)' }}
+                  className="p-1 rounded-full hover:bg-[var(--dm-bg-item-hover)] transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1666,18 +2064,31 @@ export const MessagesView: React.FC = () => {
                       setSelectedUserIdForModal(member.uid);
                       setShowMembersModal(false);
                     }}
-                    className="p-2.5 rounded-xl border border-stone-200/80 dark:border-stone-800 bg-stone-50 dark:bg-stone-850 hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center justify-between cursor-pointer transition-colors"
+                    style={{
+                      backgroundColor: 'var(--dm-card-bg)',
+                      borderColor: 'var(--dm-card-border)',
+                    }}
+                    className="p-2.5 rounded-xl border hover:opacity-90 flex items-center justify-between cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <img
                         src={getUserAvatar(member.profilePictureUrl)}
                         alt={member.name}
                         onError={handleUserAvatarError}
-                        className="w-8 h-8 rounded-full object-cover shrink-0 border border-stone-200 dark:border-stone-700"
+                        style={{ borderColor: 'var(--dm-border)' }}
+                        className="w-8 h-8 rounded-full object-cover shrink-0 border"
                       />
                       <div className="min-w-0">
-                        <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">{member.name}</div>
-                        <div className="text-[11px] text-stone-500 dark:text-stone-400 truncate">
+                        <div
+                          style={{ color: 'var(--dm-text-primary)' }}
+                          className="text-xs font-bold truncate"
+                        >
+                          {member.name}
+                        </div>
+                        <div
+                          style={{ color: 'var(--dm-text-secondary)' }}
+                          className="text-[11px] truncate"
+                        >
                           {member.batch ? `Batch ${member.batch}` : member.role} · {member.course || 'Cecilian'}
                         </div>
                       </div>
@@ -1701,22 +2112,39 @@ export const MessagesView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 max-w-sm w-full p-6 shadow-2xl space-y-4"
+              style={{
+                backgroundColor: 'var(--dm-modal-bg)',
+                borderColor: 'var(--dm-modal-border)',
+              }}
+              className="rounded-3xl border max-w-sm w-full p-6 shadow-2xl space-y-4"
             >
               <div className="w-12 h-12 rounded-2xl bg-red-100 dark:bg-rose-950/50 text-red-700 dark:text-rose-400 flex items-center justify-center mx-auto">
                 <Undo2 className="w-6 h-6 text-[#8B181B] dark:text-rose-400" />
               </div>
 
               <div className="text-center space-y-1.5">
-                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
+                <h3
+                  style={{ color: 'var(--dm-text-primary)' }}
+                  className="text-base font-bold"
+                >
                   Unsend Message for Everyone?
                 </h3>
-                <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
+                <p
+                  style={{ color: 'var(--dm-text-secondary)' }}
+                  className="text-xs leading-relaxed"
+                >
                   This will remove this message from the conversation for all participants. An institutional notice that the dispatch was unsent will be displayed.
                 </p>
               </div>
 
-              <div className="p-3 bg-stone-50 dark:bg-stone-850 border border-stone-200 dark:border-stone-800 rounded-xl text-xs text-stone-700 dark:text-stone-300 italic line-clamp-2">
+              <div
+                style={{
+                  backgroundColor: 'var(--dm-input-bg)',
+                  borderColor: 'var(--dm-input-border)',
+                  color: 'var(--dm-text-secondary)',
+                }}
+                className="p-3 border rounded-xl text-xs italic line-clamp-2"
+              >
                 "{messageToUnsend.text}"
               </div>
 
@@ -1724,7 +2152,11 @@ export const MessagesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setMessageToUnsend(null)}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-stone-300 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                  style={{
+                    borderColor: 'var(--dm-input-border)',
+                    color: 'var(--dm-text-secondary)',
+                  }}
+                  className="flex-1 py-2.5 px-4 rounded-xl border text-xs font-semibold hover:bg-[var(--dm-bg-item-hover)] transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1754,23 +2186,46 @@ export const MessagesView: React.FC = () => {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 1 }}
-              className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 max-w-sm w-full p-6 shadow-2xl space-y-4"
+              exit={{ opacity: 0, scale: 0.95 }}
+              style={{
+                backgroundColor: 'var(--dm-modal-bg)',
+                borderColor: 'var(--dm-modal-border)',
+              }}
+              className="rounded-3xl border max-w-sm w-full p-6 shadow-2xl space-y-4"
             >
-              <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 flex items-center justify-center mx-auto">
-                <Trash2 className="w-6 h-6 text-stone-700 dark:text-stone-300" />
+              <div
+                style={{
+                  backgroundColor: 'var(--dm-input-bg)',
+                  color: 'var(--dm-text-secondary)',
+                }}
+                className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto"
+              >
+                <Trash2 className="w-6 h-6 opacity-75" />
               </div>
 
               <div className="text-center space-y-1.5">
-                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
+                <h3
+                  style={{ color: 'var(--dm-text-primary)' }}
+                  className="text-base font-bold"
+                >
                   Delete Message for Yourself?
                 </h3>
-                <p className="text-xs text-stone-600 dark:text-stone-400 leading-relaxed">
+                <p
+                  style={{ color: 'var(--dm-text-secondary)' }}
+                  className="text-xs leading-relaxed"
+                >
                   This message will be removed from your personal conversation view. Other participants in this thread will still be able to see it.
                 </p>
               </div>
 
-              <div className="p-3 bg-stone-50 dark:bg-stone-850 border border-stone-200 dark:border-stone-800 rounded-xl text-xs text-stone-700 dark:text-stone-300 italic line-clamp-2">
+              <div
+                style={{
+                  backgroundColor: 'var(--dm-input-bg)',
+                  borderColor: 'var(--dm-input-border)',
+                  color: 'var(--dm-text-secondary)',
+                }}
+                className="p-3 border rounded-xl text-xs italic line-clamp-2"
+              >
                 "{messageToDelete.text}"
               </div>
 
@@ -1778,7 +2233,11 @@ export const MessagesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setMessageToDelete(null)}
-                  className="flex-1 py-2.5 px-4 rounded-xl border border-stone-300 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                  style={{
+                    borderColor: 'var(--dm-input-border)',
+                    color: 'var(--dm-text-secondary)',
+                  }}
+                  className="flex-1 py-2.5 px-4 rounded-xl border text-xs font-semibold hover:bg-[var(--dm-bg-item-hover)] transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1799,11 +2258,11 @@ export const MessagesView: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Messenger-Style Message Reactions Detail Breakdown Modal (Request 7) */}
+      {/* Messenger-Style Message Reactions Detail Breakdown Modal */}
       <AnimatePresence>
         {inspectingReactionsMessage && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-stone-950/50 backdrop-blur-xs animate-in fade-in duration-150"
+            className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
             onClick={() => setInspectingReactionsMessage(null)}
           >
             <motion.div
@@ -1812,15 +2271,28 @@ export const MessagesView: React.FC = () => {
               exit={{ opacity: 0, scale: 0.95, y: 12 }}
               transition={{ type: 'spring', damping: 25, stiffness: 320 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200/90 dark:border-stone-800 max-w-sm w-full p-4 sm:p-5 shadow-2xl space-y-3.5 max-h-[85vh] flex flex-col"
+              style={{
+                backgroundColor: 'var(--dm-modal-bg)',
+                borderColor: 'var(--dm-modal-border)',
+              }}
+              className="rounded-3xl border max-w-sm w-full p-4 sm:p-5 shadow-2xl space-y-3.5 max-h-[85vh] flex flex-col"
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between pb-2.5 border-b border-stone-100 dark:border-stone-800">
+              <div
+                style={{ borderColor: 'var(--dm-border)' }}
+                className="flex items-center justify-between pb-2.5 border-b"
+              >
                 <div>
-                  <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
+                  <h3
+                    style={{ color: 'var(--dm-text-primary)' }}
+                    className="text-sm font-bold"
+                  >
                     Message Reactions
                   </h3>
-                  <p className="text-[11px] text-stone-500">
+                  <p
+                    style={{ color: 'var(--dm-text-muted)' }}
+                    className="text-[11px]"
+                  >
                     {Object.values(inspectingReactionsMessage.reactions || {}).reduce(
                       (acc, uids) => acc + (Array.isArray(uids) ? uids.length : 0),
                       0
@@ -1831,7 +2303,8 @@ export const MessagesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setInspectingReactionsMessage(null)}
-                  className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                  style={{ color: 'var(--dm-text-muted)' }}
+                  className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl hover:bg-[var(--dm-bg-item-hover)] transition-colors cursor-pointer"
                   aria-label="Close reactions breakdown"
                 >
                   <X className="w-4 h-4" />
@@ -1843,11 +2316,11 @@ export const MessagesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setReactionDetailTab('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer shrink-0 transition-colors ${
-                    reactionDetailTab === 'all'
-                      ? 'bg-stone-900 text-white dark:bg-white dark:text-stone-900 shadow-2xs'
-                      : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-750'
-                  }`}
+                  style={{
+                    backgroundColor: reactionDetailTab === 'all' ? 'var(--dm-bubble-sent)' : 'var(--dm-input-bg)',
+                    color: reactionDetailTab === 'all' ? '#FFFFFF' : 'var(--dm-text-secondary)',
+                  }}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold cursor-pointer shrink-0 transition-colors shadow-2xs"
                 >
                   All
                 </button>
@@ -1858,11 +2331,11 @@ export const MessagesView: React.FC = () => {
                       key={em}
                       type="button"
                       onClick={() => setReactionDetailTab(em)}
-                      className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer shrink-0 flex items-center gap-1.5 transition-colors ${
-                        reactionDetailTab === em
-                          ? 'bg-[#8B181B] text-white shadow-2xs'
-                          : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-750'
-                      }`}
+                      style={{
+                        backgroundColor: reactionDetailTab === em ? 'var(--dm-bubble-sent)' : 'var(--dm-input-bg)',
+                        color: reactionDetailTab === em ? '#FFFFFF' : 'var(--dm-text-secondary)',
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-semibold cursor-pointer shrink-0 flex items-center gap-1.5 transition-colors shadow-2xs"
                     >
                       <span>{em}</span>
                       <span className="text-[10px] tabular-nums font-mono font-bold">{uids.length}</span>
@@ -1872,7 +2345,7 @@ export const MessagesView: React.FC = () => {
               </div>
 
               {/* Users List with Avatar, Name, and Reaction */}
-              <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 divide-y divide-stone-100 dark:divide-stone-800/60">
+              <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 divide-y divide-[var(--dm-border-subtle)]">
                 {(() => {
                   const items: { uid: string; emoji: string }[] = [];
                   for (const [em, uids] of Object.entries(inspectingReactionsMessage.reactions || {})) {
@@ -1883,7 +2356,10 @@ export const MessagesView: React.FC = () => {
 
                   if (items.length === 0) {
                     return (
-                      <div className="py-8 text-center text-xs text-stone-400">
+                      <div
+                        style={{ color: 'var(--dm-text-muted)' }}
+                        className="py-8 text-center text-xs"
+                      >
                         No reactions under this tab.
                       </div>
                     );
@@ -1909,10 +2385,14 @@ export const MessagesView: React.FC = () => {
                             src={getUserAvatar(u?.profilePictureUrl)}
                             alt={u?.name || 'User'}
                             onError={handleUserAvatarError}
-                            className="w-9 h-9 rounded-full object-cover border border-stone-200 dark:border-stone-700 shrink-0"
+                            style={{ borderColor: 'var(--dm-border)' }}
+                            className="w-9 h-9 rounded-full object-cover border shrink-0"
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-stone-900 dark:text-stone-100 group-hover:text-[#8B181B] transition-colors truncate flex items-center gap-1">
+                            <p
+                              style={{ color: 'var(--dm-text-primary)' }}
+                              className="text-xs font-bold group-hover:text-[#8B181B] transition-colors truncate flex items-center gap-1"
+                            >
                               <span>{u?.name || 'Cecilian Alumnus'}</span>
                               {isMe && (
                                 <span className="text-[10px] font-semibold text-[#8B181B] dark:text-rose-400">
@@ -1920,7 +2400,10 @@ export const MessagesView: React.FC = () => {
                                 </span>
                               )}
                             </p>
-                            <p className="text-[10px] text-stone-400 truncate">
+                            <p
+                              style={{ color: 'var(--dm-text-muted)' }}
+                              className="text-[10px] truncate"
+                            >
                               {u?.course ? u.course : u?.batch ? `Batch ${u.batch}` : 'Alumni Member'}
                             </p>
                           </div>

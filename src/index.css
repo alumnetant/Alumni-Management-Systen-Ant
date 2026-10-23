@@ -58,6 +58,39 @@ body {
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
   --sar: env(safe-area-inset-right, 0px);
+
+  /* Direct Messaging Semantic Theme Tokens (Derived from theme variables) */
+  --dm-bg-canvas: var(--background, #F9FAFB);
+  --dm-bg-deck: var(--card, #FFFFFF);
+  --dm-bg-rail: #FAF9F6;
+  --dm-bg-rail-header: var(--card, #FFFFFF);
+  --dm-bg-item-hover: rgba(0, 0, 0, 0.04);
+  --dm-bg-item-active: #FAF6EC;
+  --dm-bg-chat: #FAF9F6;
+  --dm-bg-header: #FFFFFF;
+  --dm-bg-footer: var(--card, #FFFFFF);
+  --dm-border: var(--border, #E5E7EB);
+  --dm-border-subtle: rgba(0, 0, 0, 0.06);
+  --dm-text-primary: var(--foreground, #111827);
+  --dm-text-secondary: var(--color-muted-text, #6B7280);
+  --dm-text-muted: #9CA3AF;
+  --dm-bubble-sent: #8B181B;
+  --dm-bubble-sent-text: #FFFFFF;
+  --dm-bubble-received: var(--card, #FFFFFF);
+  --dm-bubble-received-text: var(--foreground, #111827);
+  --dm-bubble-received-border: var(--border, #E5E7EB);
+  --dm-input-bg: var(--muted, #F3F4F6);
+  --dm-input-border: var(--border, #E5E7EB);
+  --dm-input-text: var(--foreground, #111827);
+  --dm-input-placeholder: #9CA3AF;
+  --dm-chip-bg: var(--card, #FFFFFF);
+  --dm-chip-border: var(--border, #E5E7EB);
+  --dm-chip-text: #374151;
+  --dm-dossier-bg: #FAF9F6;
+  --dm-card-bg: var(--card, #FFFFFF);
+  --dm-card-border: var(--border, #E5E7EB);
+  --dm-modal-bg: var(--card, #FFFFFF);
+  --dm-modal-border: var(--border, #E5E7EB);
 }
 
 .pt-safe {
@@ -396,6 +429,39 @@ button, [role="button"], input[type="submit"], a, .interactive-card {
    ======================================================== */
 html.dark {
   color-scheme: dark;
+
+  /* Direct Messaging Semantic Theme Tokens in Dark Mode */
+  --dm-bg-canvas: #121316;
+  --dm-bg-deck: #1C1917;
+  --dm-bg-rail: #171513;
+  --dm-bg-rail-header: #1C1917;
+  --dm-bg-item-hover: #242220;
+  --dm-bg-item-active: #292524;
+  --dm-bg-chat: #121316;
+  --dm-bg-header: #1C1917;
+  --dm-bg-footer: #1C1917;
+  --dm-border: rgba(255, 255, 255, 0.08);
+  --dm-border-subtle: rgba(255, 255, 255, 0.05);
+  --dm-text-primary: #F5F5F4;
+  --dm-text-secondary: #D6D3D1;
+  --dm-text-muted: #A8A29E;
+  --dm-bubble-sent: #8B181B;
+  --dm-bubble-sent-text: #FFFFFF;
+  --dm-bubble-received: #242220;
+  --dm-bubble-received-text: #F5F5F4;
+  --dm-bubble-received-border: rgba(255, 255, 255, 0.08);
+  --dm-input-bg: #242220;
+  --dm-input-border: rgba(255, 255, 255, 0.1);
+  --dm-input-text: #F5F5F4;
+  --dm-input-placeholder: #78716c;
+  --dm-chip-bg: #242220;
+  --dm-chip-border: rgba(255, 255, 255, 0.08);
+  --dm-chip-text: #D6D3D1;
+  --dm-dossier-bg: #171513;
+  --dm-card-bg: #242220;
+  --dm-card-border: rgba(255, 255, 255, 0.08);
+  --dm-modal-bg: #1C1917;
+  --dm-modal-border: rgba(255, 255, 255, 0.1);
 }
 
 html.dark body {
