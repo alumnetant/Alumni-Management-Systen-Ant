@@ -44,6 +44,7 @@ import { getRegistrationConflicts } from '../../services/studentVerificationServ
 import { compressImage } from '../../lib/utils';
 import { AdminCommandBar } from './AdminCommandBar';
 import { AdminQuickActionBar } from './AdminQuickActionBar';
+import { AdminDatabaseSeederModal } from './AdminDatabaseSeederModal';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
 
 export type AdminTab =
@@ -118,6 +119,7 @@ export const AdminPanelView: React.FC = () => {
     pendingUsersCount + pendingEmployersCount + pendingJobsCount + pendingConflictsCount;
 
   // Modals
+  const [showDatabaseSeederModal, setShowDatabaseSeederModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -456,6 +458,7 @@ export const AdminPanelView: React.FC = () => {
           onOpenCreateEvent={() => setActiveTab('events')}
           onOpenCreateAnnouncement={() => setActiveTab('announcements')}
           onOpenGalleryUpload={() => setShowGalleryUploadModal(true)}
+          onOpenDatabaseSeeder={() => setShowDatabaseSeederModal(true)}
           onExportCsv={handleExportCsv}
           pendingUsersCount={pendingUsersCount}
           pendingEmployersCount={pendingEmployersCount}
@@ -643,6 +646,7 @@ export const AdminPanelView: React.FC = () => {
               onOpenCreateEvent={() => setActiveTab('events')}
               onOpenCreateAnnouncement={() => setActiveTab('announcements')}
               onOpenGalleryUpload={() => setShowGalleryUploadModal(true)}
+              onOpenDatabaseSeeder={() => setShowDatabaseSeederModal(true)}
             />
           )}
 
@@ -1650,6 +1654,12 @@ export const AdminPanelView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Database Sample Seeder Modal */}
+      <AdminDatabaseSeederModal
+        isOpen={showDatabaseSeederModal}
+        onClose={() => setShowDatabaseSeederModal(false)}
+      />
     </div>
   );
 };

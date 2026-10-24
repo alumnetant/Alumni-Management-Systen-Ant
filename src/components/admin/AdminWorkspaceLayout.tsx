@@ -58,13 +58,15 @@ import {
   Scale,
   Moon,
   Sun,
-  ScanFace
+  ScanFace,
+  Database
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni, STORAGE_KEYS } from '../../context/AlumniContext';
 import { useTheme } from '../../lib/theme';
 import { UserRole, UserProfile } from '../../types';
 import { AdminDashboardOverview } from './AdminDashboardOverview';
+import { AdminDatabaseSeederModal } from './AdminDatabaseSeederModal';
 import { AdminUsersTable } from './AdminUsersTable';
 import { RegistrarRegistryMatcher } from './RegistrarRegistryMatcher';
 import { AdminRequestsAndConflictsView } from './AdminRequestsAndConflictsView';
@@ -199,6 +201,9 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
 
   // Command bar modal state
   const [showCommandBar, setShowCommandBar] = useState(false);
+
+  // Firestore Database Seeder Modal state
+  const [showDatabaseSeederModal, setShowDatabaseSeederModal] = useState(false);
 
   // Create User Modal state
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -724,6 +729,17 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
 
 
 
+            {/* Database Sample Seeder Launcher */}
+            <button
+              type="button"
+              onClick={() => setShowDatabaseSeederModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-[#8B181B] dark:text-amber-400 border border-amber-500/20 text-xs font-semibold transition-all cursor-pointer shadow-2xs active:scale-95"
+              title="Populate 50 sample records per core feature into live Firestore"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Database Seeder</span>
+            </button>
+
             {/* Universal Quick Theme Toggle (Light / Dark Mode) */}
             <button
               type="button"
@@ -1113,6 +1129,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                   onOpenCreateEvent={() => setCurrentModule('events')}
                   onOpenCreateAnnouncement={() => setCurrentModule('announcements')}
                   onOpenGalleryUpload={() => setShowGalleryUploadModal(true)}
+                  onOpenDatabaseSeeder={() => setShowDatabaseSeederModal(true)}
                 />
               )
             )}
@@ -1982,6 +1999,14 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
           </div>
         </div>
       )}
+
+      {/* ========================================================
+          FIRESTORE DATABASE SAMPLE SEEDER MODAL
+          ======================================================== */}
+      <AdminDatabaseSeederModal
+        isOpen={showDatabaseSeederModal}
+        onClose={() => setShowDatabaseSeederModal(false)}
+      />
 
       {/* ========================================================
           ADMINISTRATIVE FOOTER

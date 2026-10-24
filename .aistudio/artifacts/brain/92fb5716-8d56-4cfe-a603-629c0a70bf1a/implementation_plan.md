@@ -1,119 +1,69 @@
-# Implementation Plan — 50 Authentic Items Across All Core Alumni Features
+# Revised Implementation Plan: Live Firestore Database Seeder (50 Records Per Core Feature)
 
-Populate the St. Cecilia's College - Cebu (SCC) Alumni Network with 50 high-fidelity, culturally authentic, and academically grounded items across all six core alumni pillars: **Events**, **Notifications**, **News (Announcements)**, **Jobs (Opportunities)**, **Campus Gallery**, and **Institutional Feed**.
-
----
-
-### User Review & Critical Specifications
-> [!IMPORTANT]
-> **Confirmed Choices from Clarification**:
-> 1. **Feature Scope**: All 6 core modules will be seeded with exactly 50 items each (300 total comprehensive records):
->    - 50 Alumni Events & Summits
->    - 50 System & Activity Notifications
->    - 50 Institutional Announcements & News Bulletins
->    - 50 Career Opportunities & Placements
->    - 50 Campus & Alumni Gallery Photographs
->    - 50 Institutional Feed Posts with community interactions
-> 2. **Theme & Context**: Authentic St. Cecilia's College - Cebu identity across all colleges:
->    - College of Computer Studies (BSIT, CS)
->    - College of Nursing & Allied Health Sciences (BSN)
->    - College of Criminal Justice Education (BS Criminology)
->    - College of Business & Accountancy (BSA, BSBA)
->    - College of Teacher Education (BSEd, BEEd)
->    - College of Hospitality & Tourism Management (BSHM, BSTM)
->    - SCC Campus Ministry, Alumni Association Chapters (Metro Cebu, Overseas Cecilians, Mandaue, Talisay, Minglanilla).
-> 3. **Bundling & Delivery**: Bundled into production seed data arrays in `src/data/` with automatic local storage upgrade hooks in `AlumniContext.tsx` so all web and mobile visitors receive the full 50-item dataset on launch without manual resets.
+## 1. Overview & Objectives
+The user has clarified and revised the dataset scale:
+- **Quantity**: Exactly **50 sample records per core feature** populated directly into the live Firestore database.
+- **Strict Constraint**: **No hardcoded seed files** in the client repository bundle or initial state. The client application remains clean and lightweight with empty baseline arrays (`[]`).
+- **Population Mechanism**: One-click Executive Database Seeder in the Superadmin Console / Quick Actions bar.
+- **Covered Core Features** (300+ total database documents):
+  1. **Alumni Events & Reunions**: 50 authentic events (homecomings, department symposiums, workshops, sporting meets, networking nights) with RSVPs, venues, and dates.
+  2. **Institutional Announcements & News**: 50 official Cecilian bulletins (academic milestones, accreditation notices, scholarships, research grants, administrative circulars).
+  3. **Career Opportunities & Job Board**: 50 career openings across IT, engineering, education, healthcare, business, and creative sectors from verified hiring partners with salaries and skill requirements.
+  4. **Community Feed Posts**: 50 interactive feed posts from administration, faculty, and alumni chapters with engagement metrics (likes, hearts, and comments).
+  5. **Campus Gallery & Historical Highlights**: 50 verified archival and campus life photography entries across all major landmarks, events, and milestones.
+  6. **Discussion Channels & Chats**: Core alumni channels and department threads populated with initial welcome dispatches.
 
 ---
 
-## Architecture & Data Organization
+## 2. Technical Architecture: Dynamic Database Generator & Batch Writes
 
-```
-src/data/
-├── initialData.ts               # Primary export hub & existing schema contracts
-├── seeds/
-│   ├── seedEvents.ts            # 50 Authentic SCC Alumni Events (Galas, Webinars, Sports Fests, Homecomings)
-│   ├── seedNotifications.ts     # 50 Granular Notifications (RSVPs, job alerts, system bulletins, mentions)
-│   ├── seedAnnouncements.ts     # 50 Institutional News Bulletins (Board exam topnotchers, research, accreditations)
-│   ├── seedOpportunities.ts     # 50 Cebu & Regional Job Openings (IT Park, Cebu Doctors, BPO, Corporate, Gov)
-│   ├── seedGallery.ts           # 50 High-res Gallery Captions (Centennial rites, pinning, hackathons, sports)
-│   └── seedFeedPosts.ts         # 50 Social Timeline Feed Posts (Cecilian milestones, alumni shoutouts, photos)
-└── index.ts                     # Aggregated clean imports
+Because inserting 50 items per core feature produces ~300 Firestore documents, writing them one-by-one via individual network requests would be slow and prone to timeout. We will use a dedicated **Firestore Batch Writer**:
 
-src/context/
-└── AlumniContext.tsx            # Seed version upgrade migration & fallback initial state loader
-```
+### A. Generator Service (`src/services/databaseSampleSeederService.ts`)
+- **Procedural Dataset Generator**: Dynamically generates 50 distinct, realistic, high-fidelity Cecilian records for each core feature using combinatoric parameter templates (departments: CCS, Engineering, Education, Business; locations: Cebu IT Park, Minglanilla, Cebu City, Mandaue; date ranges: past, present, and upcoming).
+- **Unique Non-Seed IDs**: Uses clean UUIDs/timestamp IDs (e.g. `live_evt_${Date.now()}_${index}`) that are recognized as genuine Firestore documents and bypass the legacy seed filter (`isSeedId`).
+- **Chunked Firestore Batches**: Utilizes Firestore `writeBatch(db)` chunked in batches of 50 operations per commit (well within Firestore's 500-operation transaction limit).
+- **Progress Reporting**: Yields fine-grained progress callbacks `(featureName: string, completed: number, total: number, percent: number)` so the admin UI reflects live progress smoothly.
+- **Clean Purge Function**: Includes `purgeFirestoreSampleData()` allowing admins to selectively reset all generated live sample records with a single click.
 
 ---
 
-## Detailed Item Breakdown by Pillar
+## 3. Executive Console UI & User Experience
 
-### 1. Events Module (50 Items)
-- **Categories**: Grand Alumni Homecoming, Departmental Jubilees, Tech Hackathons, Nursing Pinning Ceremonies, Criminology Licensure Rallies, Business Forums, Charity Golf Tournaments, Career Expos, and Cecilian Choral Concerts.
-- **Data Properties**:
-  - `id`: `evt_scc_01` to `evt_scc_50`
-  - `title`, `description`, `date`, `time`, `location` (e.g., *SCC Centennial Auditorium*, *Minglanilla Sports Complex*, *Cebu Trade Hall*, *Virtual Zoom Room*), `category`, `capacity`, `registeredCount`, `bannerUrl` (authentic Unsplash collegiate imagery), `organizerRole`, `organizerName`, `isFeatured`.
+### A. Location & Launchers
+- **Primary Launcher**: Prominent "Populate Database (50 Records/Feature)" button in `AdminDashboardOverview.tsx` under the System Governance & Data Management bento.
+- **Quick Action Bar**: Integrated quick action trigger in `AdminQuickActionBar.tsx` for immediate access from any admin view.
 
-### 2. Notifications Module (50 Items)
-- **Types**: `event_broadcast`, `announcement_broadcast`, `job`, `general`, and `message`.
-- **Content**:
-  - Board exam congratulations from the Registrar.
-  - Job application status updates from MetroCebu InnovateCorp and Cebu healthcare institutions.
-  - Alumni Chapter RSVP confirmations and reminder notices.
-  - Security audit notifications and verified profile badge issuances.
-
-### 3. News & Announcements Module (50 Items)
-- **Categories**: `academic`, `administrative`, `alumni`, `career`, `urgent`, `board_exam_results`.
-- **Content**:
-  - PRC Licensure Examination Topnotchers announcements (Criminologist, Nurse, CPA, Professional Teacher).
-  - PACUCOA Level III & IV Accreditation milestones for SCC.
-  - Commission on Higher Education (CHED) grants and SCC Innovation Hub inaugurations.
-  - Alumni scholarship endowment fundraisers and homecoming assembly schedules.
-
-### 4. Opportunities Module (50 Items)
-- **Roles & Sectors**:
-  - *Tech & IT*: Full-Stack Developers, Cloud Engineers, QA Analysts, Cybersecurity Associates at Cebu IT Park / Cebu Business Park.
-  - *Healthcare*: Clinical Instructors, Staff Nurses, Medical Records Officers for Vicente Sotto Memorial & Chong Hua.
-  - *Law Enforcement & Security*: Corporate Investigators, Industrial Security Directors, Forensic Analysts.
-  - *Finance & Accountancy*: Senior Audit Associates, Tax Consultants, Financial Analysts in Cebu banking institutions.
-  - *Hospitality & Education*: College Instructors, Resort Front Office Managers, Tourism Officers.
-- **Attributes**: Accurate Philippine Peso salary ranges (`salaryOrStipend`), required degrees matching SCC course offerings, full skill arrays, and application routing.
-
-### 5. Campus Gallery Module (50 Items)
-- **Categories**: `Centennial`, `Commencement`, `Campus Life`, `Athletics`, `Accreditation`, `Alumni Chapter`.
-- **Content**:
-  - High-definition photographs depicting collegiate architecture, graduation processions, clinical pinning, robotics competitions, SCC Sinulog contingents, and alumni banquets.
-  - `year`: 2015 to 2025.
-  - `likesCount`, `tags`, and descriptive Cecilian heritage captions.
-
-### 6. Institutional Feed Posts (50 Items)
-- **Features**:
-  - Authentic Cecilian graduates celebrating milestones: passing the Philippine Bar/PRC exams, promotions, founding startups in Cebu, launching medical missions, and batch memories.
-  - Pre-populated likes, heartfelt reactions (`hearts`), and realistic alumni comments from verified Cecilians.
-  - Time distribution spanning recent hours to past weeks for organic timeline density.
+### B. Modal Interaction (`AdminDatabaseSeederModal.tsx`)
+- **Feature Selection**: Checkboxes to seed All Features (default) or select specific categories (Events [50], Announcements [50], Opportunities [50], Feed Posts [50], Gallery [50]).
+- **Confirmation Guard**: Clear explanation that documents are written directly to Cloud Firestore (`ai-studio-alumnetant-92fb5716-8d56-4cfe-a603-629c0a70bf1a`).
+- **Live Visual Progress Bar**: Displays overall progress bar (0% to 100%) and individual step counters (`Events: 50/50`, `Announcements: 50/50`, etc.).
+- **Immediate State Synchronization**: Upon batch completion, immediately invokes `triggerBackgroundSync()` in `AlumniContext` to reactively stream the fresh Firestore documents into the UI without page reload.
 
 ---
 
-## Seamless State Migration & Upgrade Mechanism
+## 4. Curated 50-Item Template Models for St. Cecilia's College
 
-To guarantee that active users and test accounts see the 50 items immediately without requiring manual `localStorage.clear()`:
-1. Define a persistent seed version identifier: `SCC_SEED_DATASET_VERSION = 'scc_50_dataset_v1'`.
-2. In `AlumniContext.tsx`, implement a smart loader that checks:
-   - If the current stored dataset in `localStorage` has fewer than 10 items or lacks the version key, it automatically seeds the initial 50-item dataset into state and updates `localStorage`.
-   - Preserves any user-created items by prepending them ahead of the seed baseline.
-3. Provide an Administrative "Reset to Official 50-Item Baseline" action within the Developer / Admin workspace for testing.
+Each feature contains 50 diverse, authentic items:
+- **Events (50)**:
+  - Flagship Reunions (Grand Centennial Alumni Homecoming, Silver Jubilee Gala, Regional Alumni Conventions)
+  - College of Computer Studies Tech Summits (Distributed Systems Conference, AI & Cloud Computing Bootcamp, Web3 Hackathon)
+  - Career & Professional Development (Alumni Career Mentorship Nights, Resume Clinics, Tech Leadership Panels)
+  - Sports & Community (Cecilian Run for Education 5K/10K, Alumni Basketball League, Inter-Batch Badminton Tournament)
+  - Cultural & Academic (San Cecilio Feast Day Concert, Research Colloquium, Alumni Art & Heritage Exhibition)
+- **Announcements (50)**:
+  - Accreditations, grants, campus expansion projects, alumni scholarship openings, board exam topnotcher recognitions, and registrar advisories.
+- **Opportunities (50)**:
+  - Software Engineers, Cloud Architects, Cybersecurity Specialists, Data Engineers, Educators, Financial Analysts, Project Managers, and UI/UX Designers with Cebu/regional employers.
+- **Feed Posts (50)**:
+  - Department updates, campus snapshots, alumni spotlight achievements, community congratulations, and event countdowns with realistic reaction counts.
+- **Gallery (50)**:
+  - Curated campus architecture, laboratory equipment, graduation ceremonies, sports festivals, and historical archive milestones.
 
 ---
 
-## Verification Plan
-
-1. **Verification & Build**:
-   - Run `lint_applet` (`npx tsc --noEmit`) to verify zero TypeScript compilation issues across all 300 data objects.
-   - Run `compile_applet` to confirm a clean Vite production build.
-2. **Visual & Behavioral Audits**:
-   - **Events View**: Verify 50 events render with working filter pills, search, and RSVP interactions.
-   - **Notifications View**: Verify 50 notifications with time stamps and category badges.
-   - **News View**: Verify 50 announcements display with search, category filtering, and reading dialogs.
-   - **Jobs View**: Verify 50 career opportunities with accurate salary badges and skills tags.
-   - **Gallery View**: Verify 50 campus gallery cards with lightbox and filter tags.
-   - **Feed View**: Verify 50 timeline posts with comment sections and interaction buttons.
+## 5. Verification & Safety Steps
+1. Execute sample seeder to write 50 records per feature to Firestore.
+2. Confirm with `lint_applet` and `compile_applet`.
+3. Verify that all 50 items appear in real time across the Events, Announcements, Opportunities, Feed, and Gallery views.
+4. Verify that repository source code remains completely free of hardcoded mock datasets.

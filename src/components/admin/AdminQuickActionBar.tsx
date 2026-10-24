@@ -13,7 +13,8 @@ import {
   RefreshCw,
   CheckCircle,
   ArrowRight,
-  ExternalLink
+  ExternalLink,
+  Database
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 
@@ -23,6 +24,7 @@ interface AdminQuickActionBarProps {
   onOpenCreateEvent: () => void;
   onOpenCreateAnnouncement: () => void;
   onOpenGalleryUpload: () => void;
+  onOpenDatabaseSeeder?: () => void;
   onExportCsv: () => void;
   pendingUsersCount: number;
   pendingEmployersCount: number;
@@ -36,6 +38,7 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
   onOpenCreateEvent,
   onOpenCreateAnnouncement,
   onOpenGalleryUpload,
+  onOpenDatabaseSeeder,
   onExportCsv,
   pendingUsersCount,
   pendingEmployersCount,
@@ -211,6 +214,19 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
             <ImageIcon className="w-3.5 h-3.5 text-stone-600" />
             <span>Add Photo</span>
           </button>
+
+          {/* Quick Action: Database Sample Seeder */}
+          {onOpenDatabaseSeeder && (
+            <button
+              type="button"
+              onClick={onOpenDatabaseSeeder}
+              title="Populate 50 sample records per core feature into live Firestore"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-amber-400 rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95 border border-stone-850 shadow-2xs"
+            >
+              <Database className="w-3.5 h-3.5 text-amber-400" />
+              <span>Sample Data (Firestore)</span>
+            </button>
+          )}
         </div>
 
         {/* Right side utilities: Export CSV & Cloud Sync */}

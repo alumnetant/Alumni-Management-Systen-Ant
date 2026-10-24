@@ -62,6 +62,7 @@ interface AdminDashboardOverviewProps {
   onOpenCreateEvent: () => void;
   onOpenCreateAnnouncement: () => void;
   onOpenGalleryUpload: () => void;
+  onOpenDatabaseSeeder?: () => void;
 }
 
 export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
@@ -69,7 +70,8 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
   onOpenCreateUser,
   onOpenCreateEvent,
   onOpenCreateAnnouncement,
-  onOpenGalleryUpload
+  onOpenGalleryUpload,
+  onOpenDatabaseSeeder
 }) => {
   const {
     currentUser,
@@ -1297,6 +1299,35 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
               <span>Add Member Profile</span>
             </button>
           </div>
+
+          {/* 1b. DATABASE SAMPLE SEEDER BENTO TILE */}
+          {onOpenDatabaseSeeder && (
+            <div className="bg-stone-900 text-stone-100 rounded-[32px] p-6 shadow-md border border-stone-800 space-y-3 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-400">
+                  <Database className="w-4 h-4" />
+                  <span className="text-xs font-bold uppercase tracking-wider">Cloud Firestore</span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-semibold">
+                  50 / Feature
+                </span>
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-white tracking-tight">Database Sample Seeder</h4>
+                <p className="text-xs text-stone-400 mt-1 leading-relaxed">
+                  Populate 250 verified authentic records directly into Cloud Firestore across Events, Announcements, Jobs, Feed, and Gallery.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenDatabaseSeeder}
+                className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Launch Database Seeder</span>
+              </button>
+            </div>
+          )}
 
           {/* 2. RECENT REGISTRATIONS (Row of overlapping circular avatars) */}
           <div className="bg-white dark:bg-stone-900 rounded-[32px] p-5 border border-stone-200/90 dark:border-stone-800 shadow-2xs flex items-center justify-between">
