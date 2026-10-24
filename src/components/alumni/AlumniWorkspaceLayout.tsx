@@ -472,54 +472,8 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
             </div>
           </div>
 
-          {/* Zone 2: Breadcrumbs & Quick Search Omnibar */}
-          <div className="hidden md:flex items-center gap-3 flex-1 max-w-xl mx-4">
-            <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 font-medium shrink-0">
-              <span className="text-stone-400 dark:text-stone-500">Alumni</span>
-              <span>/</span>
-              <span className="text-stone-900 dark:text-stone-100 font-semibold">{currentSectionName}</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowCommandPalette(true)}
-              className="flex-1 flex items-center justify-between px-3.5 py-1.5 bg-stone-50 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 rounded-xl border border-stone-200 dark:border-stone-700 text-xs transition-colors cursor-pointer group shadow-2xs"
-            >
-              <div className="flex items-center gap-2">
-                <Search className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 stroke-[1.75] group-hover:text-[#8B181B] transition-colors" />
-                <span className="text-stone-400 dark:text-stone-500">Search alumni roster, events, jobs...</span>
-              </div>
-              <kbd className="hidden lg:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-white dark:bg-stone-700 text-stone-500 dark:text-stone-300 border border-stone-200 dark:border-stone-600 rounded">
-                ⌘K
-              </kbd>
-            </button>
-          </div>
-
-          {/* Zone 3: Quick Digital Pass, Live Sync, Dark/Light, Notifications & Profile */}
+          {/* Zone 2: Theme Toggle & Notifications Only */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-            {/* Digital Pass Quick Launch Button */}
-            <button
-              type="button"
-              onClick={() => setShowDigitalPassModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-              title="Open Digital Alumni ID Card Pass"
-            >
-              <QrCode className="w-3.5 h-3.5 stroke-[2]" />
-              <span className="hidden sm:inline">My Alumni Pass</span>
-            </button>
-
-            {/* Cloud Sync Button */}
-            <button
-              type="button"
-              onClick={() => syncAllDataToCloud()}
-              disabled={isFirestoreSyncing}
-              title="Synchronize database with Firestore cloud"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-50 border border-stone-200 dark:border-stone-700"
-            >
-              <Loader2 className={`w-3.5 h-3.5 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
-              <span className="hidden lg:inline">{isFirestoreSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
-            </button>
-
             {/* Universal Theme Toggle */}
             <button
               type="button"
@@ -678,94 +632,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 </div>
               )}
             </div>
-
-            {/* Alumnus Profile Dropdown */}
-            <div className="relative" data-profile-dropdown="true">
-              <button
-                type="button"
-                onClick={() => setShowProfileMenu((prev) => !prev)}
-                className="flex items-center gap-2 p-1 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
-              >
-                <img
-                  src={getUserAvatar(currentUser?.profilePictureUrl)}
-                  onError={handleUserAvatarError}
-                  alt={currentUser?.name || 'Alumnus'}
-                  referrerPolicy="no-referrer"
-                  className="w-8 h-8 rounded-full object-cover border border-stone-200 dark:border-stone-700 shadow-2xs"
-                />
-              </button>
-
-              {showProfileMenu && (
-                <div
-                  className="absolute right-0 mt-2 w-60 bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150"
-                  onClick={() => setShowProfileMenu(false)}
-                >
-                  <div className="px-3.5 py-2 border-b border-stone-100 dark:border-stone-800">
-                    <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">{currentUser?.name}</p>
-                    <p className="text-[11px] text-stone-400 dark:text-stone-500 truncate">{currentUser?.email}</p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="inline-block text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 uppercase tracking-wider">
-                        Verified Alumnus
-                      </span>
-                      <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">
-                        {currentUser?.studentId || 'SCC-ALUM'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-1 space-y-0.5">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectModule('profile')}
-                      className="w-full text-left px-3 py-2 rounded-xl text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer font-medium"
-                    >
-                      <UserIcon className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 stroke-[1.75]" />
-                      <span>My Alumni Profile</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowDigitalPassModal(true)}
-                      className="w-full text-left px-3 py-2 rounded-xl text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer font-medium"
-                    >
-                      <QrCode className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 stroke-[1.75]" />
-                      <span>Digital Alumni Pass</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectModule('settings')}
-                      className="w-full text-left px-3 py-2 rounded-xl text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer font-medium"
-                    >
-                      <SettingsIcon className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500 stroke-[1.75]" />
-                      <span>Account Settings</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        window.dispatchEvent(new CustomEvent('applet:lock-dashboard'));
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-xs text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-2 cursor-pointer font-medium"
-                      title="Lock dashboard with Face Detection protection"
-                    >
-                      <ScanFace className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 stroke-[1.75]" />
-                      <span>Lock Dashboard (Face ID)</span>
-                    </button>
-                    <div className="border-t border-stone-100 dark:border-stone-800 my-1" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        setShowLogoutConfirm(true);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-xl text-xs text-red-600 dark:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer font-semibold"
-                    >
-                      <LogOut className="w-3.5 h-3.5 stroke-[1.75]" />
-                      <span>Sign Out</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </header>
@@ -780,49 +646,28 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
         <aside
           className={`hidden lg:flex shrink-0 sticky top-16 h-[calc(100dvh-4rem)] flex-col bg-white dark:bg-[#181615] transition-all duration-200 ease-in-out select-none z-30 shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${
             isSidebarExpanded
-              ? 'w-64 border-r border-stone-200/80 dark:border-stone-800 opacity-100'
+              ? 'w-60 border-r border-stone-200/80 dark:border-stone-800 opacity-100'
               : 'w-0 overflow-hidden border-r-0 opacity-0 pointer-events-none'
           }`}
         >
-          {/* Header of Sidebar: College Brand & Desk */}
-          <div className="h-14 px-3.5 border-b border-stone-100 dark:border-stone-800/80 flex items-center justify-between overflow-hidden">
-            <div className="flex items-center min-w-0 gap-2.5 flex-1">
-              <img
-                src="/assets/cecilians-seal.jpg"
-                alt="St. Cecilia's Seal"
-                referrerPolicy="no-referrer"
-                className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-stone-200/60 dark:ring-stone-700"
-              />
-              <div className="min-w-0 flex-1 overflow-hidden">
-                <span className="text-xs font-bold text-stone-900 dark:text-stone-100 block truncate">
-                  Institutional Desk
-                </span>
-                <span className="text-[10px] font-semibold text-[#8B181B] dark:text-rose-400 block truncate">
-                  Alumni Services & Hub
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Alumnus Identity & Digital Pass Card */}
-          <div className="p-3 border-b border-stone-100 dark:border-stone-800/80 bg-stone-50/60 dark:bg-stone-900/40">
-            <div className="flex items-center gap-2.5 mb-2.5">
+          {/* Minimalist Alumnus Identity */}
+          <div className="px-3.5 py-3 border-b border-stone-100 dark:border-stone-800/80 flex items-center justify-between gap-2.5">
+            <div className="flex items-center min-w-0 gap-2.5">
               <img
                 src={getUserAvatar(currentUser?.profilePictureUrl)}
                 onError={handleUserAvatarError}
                 alt={currentUser?.name}
                 referrerPolicy="no-referrer"
-                className="w-8 h-8 rounded-full object-cover border border-stone-200 dark:border-stone-700 shrink-0"
+                className="w-7 h-7 rounded-full object-cover border border-stone-200 dark:border-stone-700 shrink-0"
               />
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">{currentUser?.name}</p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className="text-[10px] text-stone-500 dark:text-stone-400 truncate">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-stone-900 dark:text-stone-100 truncate">{currentUser?.name}</p>
+                <div className="flex items-center gap-1.5 -mt-0.5">
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500">
                     Batch {currentUser?.batch || '2023'}
                   </span>
-                  <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">
-                    Verified
-                  </span>
+                  <span className="w-1 h-1 rounded-full bg-emerald-500" />
+                  <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">Verified</span>
                 </div>
               </div>
             </div>
@@ -830,33 +675,34 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
             <button
               type="button"
               onClick={() => setShowDigitalPassModal(true)}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+              className="p-1.5 rounded-lg text-stone-500 hover:text-[#8B181B] dark:text-stone-400 dark:hover:text-rose-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer shrink-0"
+              title="Show Digital Alumni QR Pass"
+              aria-label="Digital Pass"
             >
-              <QrCode className="w-3.5 h-3.5" />
-              <span>Show Digital Pass (QR)</span>
+              <QrCode className="w-4 h-4 stroke-[1.75]" />
             </button>
           </div>
 
-          {/* Institutional Services List (Completely Distinct from Navbar Destinations) */}
+          {/* Clean Muted List Scroll Container */}
           <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4 scrollbar-none">
-            {/* Group 1: Academic & Diaspora Services */}
+            {/* Group 1: Institutional Services */}
             <div>
-              <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2 mb-1.5">
-                Alumni Services
+              <div className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2.5 mb-1">
+                Institutional Services
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {/* 1. Academic Registrar Desk */}
                 <button
                   type="button"
                   onClick={() => setShowRegistrarModal(true)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/80 dark:hover:bg-stone-800/60 transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-normal text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <FileText className="w-4 h-4 text-[#8B181B] dark:text-rose-400 shrink-0 stroke-[1.75]" />
+                    <FileText className="w-4 h-4 text-stone-400 group-hover:text-[#8B181B] dark:group-hover:text-rose-400 shrink-0 stroke-[1.5] transition-colors" />
                     <span className="truncate">Registrar & Records</span>
                   </div>
-                  <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
-                    TOR / Diplomas
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
+                    TOR
                   </span>
                 </button>
 
@@ -864,14 +710,14 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowChaptersModal(true)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/80 dark:hover:bg-stone-800/60 transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-normal text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Globe className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 stroke-[1.75]" />
+                    <Globe className="w-4 h-4 text-stone-400 group-hover:text-sky-600 dark:group-hover:text-sky-400 shrink-0 stroke-[1.5] transition-colors" />
                     <span className="truncate">Regional Chapters</span>
                   </div>
-                  <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
-                    Diaspora
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
+                    Hub
                   </span>
                 </button>
 
@@ -879,13 +725,13 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowGalleryModal(true)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/80 dark:hover:bg-stone-800/60 transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-normal text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <ImageIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 stroke-[1.75]" />
+                    <ImageIcon className="w-4 h-4 text-stone-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 shrink-0 stroke-[1.5] transition-colors" />
                     <span className="truncate">Campus Life & Gallery</span>
                   </div>
-                  <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
                     Heritage
                   </span>
                 </button>
@@ -894,13 +740,13 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowGovernanceModal(true)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/80 dark:hover:bg-stone-800/60 transition-colors cursor-pointer group"
+                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-normal text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Landmark className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 stroke-[1.75]" />
+                    <Landmark className="w-4 h-4 text-stone-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 shrink-0 stroke-[1.5] transition-colors" />
                     <span className="truncate">Governance & Charter</span>
                   </div>
-                  <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
+                  <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
                     PACUCOA
                   </span>
                 </button>
@@ -909,27 +755,25 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
 
             {/* Group 2: Institutional Bulletins */}
             <div>
-              <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2 mb-1.5">
+              <div className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2.5 mb-1">
                 Official Bulletins
               </div>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <button
                   type="button"
                   onClick={() => handleSelectModule('announcements')}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer group ${
                     currentModule === 'announcements'
-                      ? 'bg-[#8B181B] text-white font-semibold'
-                      : 'text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/80 dark:hover:bg-stone-800/60'
+                      ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-medium'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Megaphone className={`w-4 h-4 shrink-0 stroke-[1.75] ${currentModule === 'announcements' ? 'text-white' : 'text-stone-500 dark:text-stone-400'}`} />
+                    <Megaphone className="w-4 h-4 text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 shrink-0 stroke-[1.5] transition-colors" />
                     <span className="truncate">Circulars & Memoranda</span>
                   </div>
                   {announcements.length > 0 && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      currentModule === 'announcements' ? 'bg-white/20 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
-                    }`}>
+                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">
                       {announcements.length}
                     </span>
                   )}
@@ -938,42 +782,51 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
             </div>
           </div>
 
-          {/* Footer of Sidebar: Account Settings & Security */}
-          <div className="p-2 border-t border-stone-100 dark:border-stone-800/80 space-y-1">
+          {/* Minimalist Footer: Account & Session */}
+          <div className="p-2 border-t border-stone-100 dark:border-stone-800/80 space-y-0.5">
             <button
               type="button"
               onClick={() => handleSelectModule('profile')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                 currentModule === 'profile'
-                  ? 'bg-[#8B181B] text-white font-semibold'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/80 dark:hover:bg-stone-800/60'
+                  ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-medium'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50'
               }`}
             >
-              <UserIcon className="w-4 h-4 shrink-0 stroke-[1.75]" />
+              <UserIcon className="w-3.5 h-3.5 text-stone-400 stroke-[1.5]" />
               <span className="truncate">Alumni Profile</span>
             </button>
 
             <button
               type="button"
               onClick={() => handleSelectModule('settings')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                 currentModule === 'settings'
-                  ? 'bg-[#8B181B] text-white font-semibold'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/80 dark:hover:bg-stone-800/60'
+                  ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-medium'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50'
               }`}
             >
-              <SettingsIcon className="w-4 h-4 shrink-0 stroke-[1.75]" />
+              <SettingsIcon className="w-3.5 h-3.5 text-stone-400 stroke-[1.5]" />
               <span className="truncate">Settings & Privacy</span>
             </button>
 
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('applet:lock-dashboard'))}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-stone-600 dark:text-stone-400 hover:text-amber-800 dark:hover:text-amber-300 hover:bg-amber-50/60 dark:hover:bg-amber-950/30 transition-colors cursor-pointer"
               title="Lock dashboard with Face ID"
             >
-              <ScanFace className="w-4 h-4 shrink-0 stroke-[1.75] text-amber-600 dark:text-amber-400" />
+              <ScanFace className="w-3.5 h-3.5 text-stone-400 stroke-[1.5]" />
               <span className="truncate">Face ID Lock</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowLogoutConfirm(true)}
+              className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-stone-500 dark:text-stone-400 hover:text-red-600 dark:hover:text-rose-400 hover:bg-red-50/60 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5 stroke-[1.5]" />
+              <span className="truncate">Sign Out</span>
             </button>
           </div>
         </aside>
@@ -999,47 +852,46 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white dark:bg-[#181615] z-50 md:hidden flex flex-col shadow-2xl border-r border-stone-200/90 dark:border-stone-800"
               >
                 {/* Header with College Brand */}
-                <div className="p-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="p-3.5 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
                     <img
                       src="/assets/cecilians-seal.jpg"
                       alt="St. Cecilia's Seal"
                       referrerPolicy="no-referrer"
-                      className="w-8 h-8 rounded-full object-cover ring-1 ring-stone-200 dark:ring-stone-700"
+                      className="w-7 h-7 rounded-full object-cover ring-1 ring-stone-200 dark:ring-stone-700"
                     />
                     <div>
-                      <div className="font-extrabold text-xs text-stone-900 dark:text-stone-100">St. Cecilia's College</div>
-                      <div className="text-[10px] font-bold text-[#8B181B] dark:text-rose-400 uppercase tracking-wider">Institutional Alumni Services</div>
+                      <div className="font-bold text-xs text-stone-900 dark:text-stone-100">St. Cecilia's College</div>
+                      <div className="text-[10px] font-semibold text-[#8B181B] dark:text-rose-400">Institutional Services</div>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowMobileNav(false)}
-                    className="p-1.5 rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                    className="p-1 rounded-lg text-stone-400 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
                   >
-                    <X className="w-5 h-5 stroke-[1.75]" />
+                    <X className="w-4 h-4 stroke-[1.75]" />
                   </button>
                 </div>
 
-                {/* Alumnus Identity Card Header with 1-Tap Digital Pass */}
-                <div className="p-3.5 mx-3 mt-3 rounded-xl bg-stone-50 dark:bg-stone-900/90 border border-stone-200/70 dark:border-stone-800">
-                  <div className="flex items-center gap-3">
+                {/* Compact Alumnus Identity */}
+                <div className="px-3.5 py-3 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between gap-2.5 bg-stone-50/50 dark:bg-stone-900/40">
+                  <div className="flex items-center min-w-0 gap-2.5">
                     <img
                       src={getUserAvatar(currentUser?.profilePictureUrl)}
                       onError={handleUserAvatarError}
                       alt={currentUser?.name || 'Alumnus'}
                       referrerPolicy="no-referrer"
-                      className="w-10 h-10 rounded-full object-cover border border-stone-200 dark:border-stone-700 shrink-0"
+                      className="w-8 h-8 rounded-full object-cover border border-stone-200 dark:border-stone-700 shrink-0"
                     />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">{currentUser?.name || 'Alumnus'}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] font-medium text-stone-500 dark:text-stone-400 truncate">
-                          Batch {currentUser?.batch || '2023'}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-stone-900 dark:text-stone-100 truncate">{currentUser?.name || 'Alumnus'}</p>
+                      <div className="flex items-center gap-1.5 -mt-0.5">
+                        <span className="text-[10px] text-stone-400 dark:text-stone-500">
+                          Class {currentUser?.batch || '2023'}
                         </span>
-                        <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">
-                          Verified
-                        </span>
+                        <span className="w-1 h-1 rounded-full bg-emerald-500" />
+                        <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">Verified</span>
                       </div>
                     </div>
                   </div>
@@ -1050,21 +902,21 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                       setShowDigitalPassModal(true);
                       setShowMobileNav(false);
                     }}
-                    className="mt-3 w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-[#8B181B] dark:text-rose-400 text-xs font-semibold hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors cursor-pointer shrink-0"
                   >
                     <QrCode className="w-3.5 h-3.5" />
-                    <span>My Digital Alumni Pass</span>
+                    <span>Pass</span>
                   </button>
                 </div>
 
-                {/* Institutional Services & Utilities List (Completely Distinct from Bottom Navbar) */}
-                <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
+                {/* Institutional Services Clean Muted List */}
+                <div className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
                   {/* Category: Academic & Diaspora Services */}
                   <div>
-                    <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2 mb-1.5">
+                    <div className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2 mb-1">
                       Institutional Services
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-0.5">
                       {/* 1. Academic Registrar Desk */}
                       <button
                         type="button"
@@ -1072,18 +924,15 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                           setShowRegistrarModal(true);
                           setShowMobileNav(false);
                         }}
-                        className="w-full flex items-center justify-between p-3 rounded-xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 text-left hover:border-[#8B181B]/40 transition-all cursor-pointer group shadow-2xs"
+                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-normal text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-red-50 dark:bg-rose-950/50 flex items-center justify-center text-[#8B181B] dark:text-rose-400 shrink-0">
-                            <FileText className="w-4 h-4 stroke-[1.75]" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">Registrar & Records</div>
-                            <div className="text-[10px] text-stone-500 dark:text-stone-400 truncate">TOR, Certificates & Diplomas</div>
-                          </div>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <FileText className="w-4 h-4 text-stone-400 group-hover:text-[#8B181B] dark:group-hover:text-rose-400 shrink-0 stroke-[1.5] transition-colors" />
+                          <span className="truncate">Registrar & Records</span>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-[#8B181B] transition-colors shrink-0" />
+                        <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
+                          TOR
+                        </span>
                       </button>
 
                       {/* 2. Regional Chapters Hub */}
@@ -1093,18 +942,15 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                           setShowChaptersModal(true);
                           setShowMobileNav(false);
                         }}
-                        className="w-full flex items-center justify-between p-3 rounded-xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 text-left hover:border-sky-500/40 transition-all cursor-pointer group shadow-2xs"
+                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-normal text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-sky-50 dark:bg-sky-950/50 flex items-center justify-center text-sky-600 dark:text-sky-400 shrink-0">
-                            <Globe className="w-4 h-4 stroke-[1.75]" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">Regional Alumni Chapters</div>
-                            <div className="text-[10px] text-stone-500 dark:text-stone-400 truncate">Cebu, NCR, Global Diaspora</div>
-                          </div>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Globe className="w-4 h-4 text-stone-400 group-hover:text-sky-600 dark:group-hover:text-sky-400 shrink-0 stroke-[1.5] transition-colors" />
+                          <span className="truncate">Regional Chapters</span>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-sky-600 transition-colors shrink-0" />
+                        <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
+                          Hub
+                        </span>
                       </button>
 
                       {/* 3. Campus Memory Gallery */}
@@ -1114,18 +960,15 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                           setShowGalleryModal(true);
                           setShowMobileNav(false);
                         }}
-                        className="w-full flex items-center justify-between p-3 rounded-xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 text-left hover:border-emerald-500/40 transition-all cursor-pointer group shadow-2xs"
+                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-normal text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                            <ImageIcon className="w-4 h-4 stroke-[1.75]" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">Campus Life & Gallery</div>
-                            <div className="text-[10px] text-stone-500 dark:text-stone-400 truncate">Historic photos & memory lane</div>
-                          </div>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <ImageIcon className="w-4 h-4 text-stone-400 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 shrink-0 stroke-[1.5] transition-colors" />
+                          <span className="truncate">Campus Life & Gallery</span>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-emerald-600 transition-colors shrink-0" />
+                        <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
+                          Heritage
+                        </span>
                       </button>
 
                       {/* 4. Institutional Governance & Accreditations */}
@@ -1135,63 +978,69 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                           setShowGovernanceModal(true);
                           setShowMobileNav(false);
                         }}
-                        className="w-full flex items-center justify-between p-3 rounded-xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 text-left hover:border-amber-500/40 transition-all cursor-pointer group shadow-2xs"
+                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-normal text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
-                            <Landmark className="w-4 h-4 stroke-[1.75]" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">Governance & Accreditations</div>
-                            <div className="text-[10px] text-stone-500 dark:text-stone-400 truncate">PACUCOA Level III & SEC Charter</div>
-                          </div>
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Landmark className="w-4 h-4 text-stone-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 shrink-0 stroke-[1.5] transition-colors" />
+                          <span className="truncate">Governance & Charter</span>
                         </div>
-                        <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-amber-600 transition-colors shrink-0" />
+                        <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
+                          PACUCOA
+                        </span>
                       </button>
                     </div>
                   </div>
 
                   {/* Category: Institutional Bulletins */}
                   <div>
-                    <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2 mb-1.5">
-                      College Bulletins
+                    <div className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2 mb-1">
+                      Official Bulletins
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleSelectModule('announcements');
-                        setShowMobileNav(false);
-                      }}
-                      className="w-full flex items-center justify-between p-3 rounded-xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 text-left hover:border-stone-400 transition-all cursor-pointer group shadow-2xs"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-700 dark:text-stone-300 shrink-0">
-                          <Megaphone className="w-4 h-4 stroke-[1.75]" />
+                    <div className="space-y-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleSelectModule('announcements');
+                          setShowMobileNav(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer group ${
+                          currentModule === 'announcements'
+                            ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-medium'
+                            : 'text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Megaphone className="w-4 h-4 text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 shrink-0 stroke-[1.5] transition-colors" />
+                          <span className="truncate">Circulars & Memoranda</span>
                         </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">Official Announcements</div>
-                          <div className="text-[10px] text-stone-500 dark:text-stone-400 truncate">Circulars & Board memorandums</div>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 transition-colors shrink-0" />
-                    </button>
+                        {announcements.length > 0 && (
+                          <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">
+                            {announcements.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Category: Account & Preferences */}
                   <div>
-                    <div className="text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2 mb-1.5">
+                    <div className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2 mb-1">
                       Account & Security
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       <button
                         type="button"
                         onClick={() => {
                           handleSelectModule('profile');
                           setShowMobileNav(false);
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800/70 cursor-pointer"
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
+                          currentModule === 'profile'
+                            ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-medium'
+                            : 'text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50'
+                        }`}
                       >
-                        <UserIcon className="w-4 h-4 stroke-[1.75] text-stone-500" />
+                        <UserIcon className="w-3.5 h-3.5 text-stone-400 stroke-[1.5]" />
                         <span>Alumni Profile</span>
                       </button>
 
@@ -1201,9 +1050,13 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                           handleSelectModule('settings');
                           setShowMobileNav(false);
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800/70 cursor-pointer"
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
+                          currentModule === 'settings'
+                            ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-medium'
+                            : 'text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50'
+                        }`}
                       >
-                        <SettingsIcon className="w-4 h-4 stroke-[1.75] text-stone-500" />
+                        <SettingsIcon className="w-3.5 h-3.5 text-stone-400 stroke-[1.5]" />
                         <span>Settings & Privacy</span>
                       </button>
 
@@ -1214,10 +1067,10 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                           setShowMobileNav(false);
                           window.dispatchEvent(new CustomEvent('applet:lock-dashboard'));
                         }}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer"
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-stone-700 dark:text-stone-300 hover:text-amber-800 dark:hover:text-amber-300 hover:bg-amber-50/60 dark:hover:bg-amber-950/30 transition-colors cursor-pointer"
                         title="Lock dashboard with Face Detection protection"
                       >
-                        <ScanFace className="w-4 h-4 stroke-[1.75] text-amber-600 dark:text-amber-400" />
+                        <ScanFace className="w-3.5 h-3.5 text-stone-400 stroke-[1.5]" />
                         <span>Lock Dashboard (Face ID)</span>
                       </button>
                     </div>
@@ -1225,16 +1078,16 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 </div>
 
                 {/* Footer with Sign Out */}
-                <div className="p-3 border-t border-stone-100 dark:border-stone-800">
+                <div className="p-2.5 border-t border-stone-100 dark:border-stone-800">
                   <button
                     type="button"
                     onClick={() => {
                       setShowMobileNav(false);
                       setShowLogoutConfirm(true);
                     }}
-                    className="w-full py-2.5 px-3 text-red-600 dark:text-rose-400 hover:bg-red-50 dark:hover:bg-rose-950/40 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                    className="w-full py-2 px-3 text-stone-500 dark:text-stone-400 hover:text-red-600 dark:hover:text-rose-400 hover:bg-red-50/60 dark:hover:bg-rose-950/30 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors"
                   >
-                    <LogOut className="w-4 h-4 stroke-[1.75]" />
+                    <LogOut className="w-3.5 h-3.5 stroke-[1.5]" />
                     <span>Sign Out</span>
                   </button>
                 </div>
