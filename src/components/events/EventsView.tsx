@@ -80,7 +80,7 @@ export const EventsView: React.FC = () => {
     showToast
   } = useAlumni();
 
-  const [filterType, setFilterType] = useState<'upcoming' | 'ongoing' | 'past' | 'all'>('upcoming');
+  const [filterType, setFilterType] = useState<'upcoming' | 'ongoing' | 'past' | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'reunion' | 'workshop' | 'networking' | 'webinar' | 'social'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
@@ -161,10 +161,16 @@ export const EventsView: React.FC = () => {
 
   const filteredEvents = useMemo(() => {
     return events.filter((e) => {
-      const lifecycle = getEventLifecycleStatus(e, now);
-      if (filterType === 'upcoming' && lifecycle.status !== 'upcoming') return false;
-      if (filterType === 'ongoing' && lifecycle.status !== 'ongoing') return false;
-      if (filterType === 'past' && lifecycle.status !== 'completed') return false;
+      const eventStart = new Date(e.startDate).getTime();
+      const eventEnd = e.endDate ? new Date(e.endDate).getTime() : eventStart + 3600000 * 4;
+      const nowMs = now.getTime();
+      const isUpcoming = eventStart >= nowMs;
+      const isOngoing = eventStart < nowMs && eventEnd >= nowMs;
+      const isPast = eventEnd < nowMs;
+
+      if (filterType === 'upcoming' && !isUpcoming) return false;
+      if (filterType === 'ongoing' && !isOngoing) return false;
+      if (filterType === 'past' && !isPast) return false;
 
       if (categoryFilter !== 'all' && e.type !== categoryFilter) return false;
 

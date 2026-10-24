@@ -119,8 +119,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
   // Filtered Posts: Do not display posts in the dashboard of admins, except from the alumni
   const displayedPosts = useMemo(() => {
     let posts = [...feedPosts];
-    const isAdminUser = currentUser && currentUser.role !== 'alumni';
-    if (alumniOnly || isAdminUser) {
+    if (alumniOnly) {
       posts = posts.filter((p) => p.authorRole === 'alumni');
     }
     if (activeFilter !== 'all') {

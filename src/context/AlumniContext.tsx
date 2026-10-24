@@ -908,6 +908,30 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
 
+  /**
+   * Identifies whether an entity ID originates from the previous mock/seed batches.
+   * Ensures generated mock datasets are never loaded or merged.
+   */
+  const isSeedId = (id?: string | null): boolean => {
+    if (!id) return false;
+    return (
+      id.startsWith('evt_scc_') ||
+      id.startsWith('notif_scc_') ||
+      id.startsWith('ann_scc_') ||
+      id.startsWith('opp_scc_') ||
+      id.startsWith('gal_scc_') ||
+      id.startsWith('post_scc_') ||
+      id.startsWith('chat_centennial_') ||
+      id.startsWith('chat_ccs_') ||
+      id.startsWith('chat_registrar_') ||
+      id.startsWith('chat_admin_') ||
+      id.startsWith('chat_julian_') ||
+      id.startsWith('chat_celeste_') ||
+      id.startsWith('chat_metrocebu_') ||
+      id.startsWith('chat_exec_')
+    );
+  };
+
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.REQUESTS);
@@ -922,9 +946,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.CHATS);
       const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_CHATS;
+      const clean = parsed.filter((c: ChatThread) => !isSeedId(c.id));
+      return clean;
     } catch {
-      return [];
+      return INITIAL_CHATS;
     }
   });
 
@@ -932,9 +958,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES);
       const parsed = saved ? JSON.parse(saved) : {};
-      return typeof parsed === 'object' && parsed !== null ? parsed : {};
+      if (typeof parsed !== 'object' || parsed === null) return INITIAL_MESSAGES;
+      const cleanMessages: Record<string, ChatMessage[]> = {};
+      Object.entries(parsed).forEach(([chatId, msgList]) => {
+        if (!isSeedId(chatId) && Array.isArray(msgList)) {
+          cleanMessages[chatId] = (msgList as ChatMessage[]).filter((m) => !isSeedId(m.id));
+        }
+      });
+      return cleanMessages;
     } catch {
-      return {};
+      return INITIAL_MESSAGES;
     }
   });
 
@@ -948,42 +981,63 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
       const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_NOTIFICATIONS;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((n: AppNotification) => !isSeedId(n.id));
+      }
+      return INITIAL_NOTIFICATIONS;
     } catch {
       return INITIAL_NOTIFICATIONS;
     }
   });
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
+    } catch {}
+  }, [notifications]);
+
   const [events, setEvents] = useState<AlumniEvent[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.EVENTS);
       const parsed = saved ? JSON.parse(saved) : [];
-      const list = Array.isArray(parsed) ? parsed : [];
+      const list = Array.isArray(parsed) ? parsed.filter((e: AlumniEvent) => !isSeedId(e.id)) : INITIAL_EVENTS;
       return list.map((e: AlumniEvent) => ({
         ...e,
         likes: Array.isArray(e.likes) ? e.likes : [],
         comments: Array.isArray(e.comments) ? e.comments : []
       }));
     } catch {
-      return [];
+      return INITIAL_EVENTS;
     }
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
+    } catch {}
+  }, [events]);
 
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.ANNOUNCEMENTS);
       const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed) ? parsed.filter((a: Announcement) => !isSeedId(a.id)) : INITIAL_ANNOUNCEMENTS;
     } catch {
-      return [];
+      return INITIAL_ANNOUNCEMENTS;
     }
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.ANNOUNCEMENTS, JSON.stringify(announcements));
+    } catch {}
+  }, [announcements]);
 
   const [opportunities, setOpportunities] = useState<Opportunity[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.OPPORTUNITIES);
       const parsed = saved ? JSON.parse(saved) : [];
-      const list = Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_OPPORTUNITIES;
+      const list = Array.isArray(parsed) ? parsed.filter((opp: Opportunity) => !isSeedId(opp.id)) : INITIAL_OPPORTUNITIES;
       return list.map((opp: Opportunity) => ({
         ...opp,
         skills: Array.isArray(opp.skills) ? opp.skills : []
@@ -992,6 +1046,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return INITIAL_OPPORTUNITIES;
     }
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.OPPORTUNITIES, JSON.stringify(opportunities));
+    } catch {}
+  }, [opportunities]);
 
   const [jobApplications, setJobApplications] = useState<JobApplication[]>(() => {
     try {
@@ -1033,17 +1093,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.GALLERY);
       const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed) ? parsed.filter((g: GalleryItem) => !isSeedId(g.id)) : INITIAL_GALLERY_ITEMS;
     } catch {
-      return [];
+      return INITIAL_GALLERY_ITEMS;
     }
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(galleryItems));
+    } catch {}
+  }, [galleryItems]);
 
   const [feedPosts, setFeedPosts] = useState<InstitutionalFeedPost[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.FEED_POSTS);
       const parsed = saved ? JSON.parse(saved) : [];
-      const list = Array.isArray(parsed) ? parsed : [];
+      const list = Array.isArray(parsed) ? parsed.filter((p: InstitutionalFeedPost) => !isSeedId(p.id)) : INITIAL_FEED_POSTS;
       return list.map((p: InstitutionalFeedPost) => ({
         ...p,
         likes: Array.isArray(p.likes) ? p.likes : [],
@@ -1051,9 +1117,58 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         comments: Array.isArray(p.comments) ? p.comments : []
       }));
     } catch {
-      return [];
+      return INITIAL_FEED_POSTS;
     }
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(feedPosts));
+    } catch {}
+  }, [feedPosts]);
+
+  // One-time purge of any residual seed items from localStorage
+  useEffect(() => {
+    try {
+      const keysToClean = [
+        STORAGE_KEYS.NOTIFICATIONS,
+        STORAGE_KEYS.EVENTS,
+        STORAGE_KEYS.ANNOUNCEMENTS,
+        STORAGE_KEYS.OPPORTUNITIES,
+        STORAGE_KEYS.GALLERY,
+        STORAGE_KEYS.FEED_POSTS,
+        STORAGE_KEYS.CHATS
+      ];
+      keysToClean.forEach((key) => {
+        const item = localStorage.getItem(key);
+        if (item) {
+          try {
+            const parsed = JSON.parse(item);
+            if (Array.isArray(parsed)) {
+              const cleaned = parsed.filter((x: any) => !isSeedId(x?.id));
+              localStorage.setItem(key, JSON.stringify(cleaned));
+            }
+          } catch {}
+        }
+      });
+      // Purge seed messages
+      const msgs = localStorage.getItem(STORAGE_KEYS.MESSAGES);
+      if (msgs) {
+        try {
+          const parsedMsgs = JSON.parse(msgs);
+          if (typeof parsedMsgs === 'object' && parsedMsgs !== null) {
+            const cleanMsgs: Record<string, ChatMessage[]> = {};
+            Object.entries(parsedMsgs).forEach(([chatId, mList]) => {
+              if (!isSeedId(chatId) && Array.isArray(mList)) {
+                cleanMsgs[chatId] = (mList as ChatMessage[]).filter((m) => !isSeedId(m?.id));
+              }
+            });
+            localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(cleanMsgs));
+          }
+        } catch {}
+      }
+    } catch {}
+  }, []);
 
   const [reservations, setReservations] = useState<EventReservation[]>(() => {
     try {
@@ -1332,9 +1447,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         try {
           const liveEvents = await getEventsFromFirestore();
           if (liveEvents && liveEvents.length > 0) {
-            setEvents(liveEvents);
+            const cleanEvents = liveEvents.filter((e) => !isSeedId(e.id));
+            setEvents(cleanEvents);
             try {
-              localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(liveEvents));
+              localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(cleanEvents));
             } catch {}
           }
         } catch (err) {
@@ -1359,9 +1475,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         try {
           const liveAnnouncements = await getAnnouncementsFromFirestore();
           if (liveAnnouncements && liveAnnouncements.length > 0) {
-            setAnnouncements(liveAnnouncements);
+            const cleanAnnouncements = liveAnnouncements.filter((a) => !isSeedId(a.id));
+            setAnnouncements(cleanAnnouncements);
             try {
-              localStorage.setItem(STORAGE_KEYS.ANNOUNCEMENTS, JSON.stringify(liveAnnouncements));
+              localStorage.setItem(STORAGE_KEYS.ANNOUNCEMENTS, JSON.stringify(cleanAnnouncements));
             } catch {}
           }
         } catch (err) {
@@ -1374,13 +1491,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         try {
           const liveOpps = await getOpportunitiesFromFirestore();
           if (liveOpps && liveOpps.length > 0) {
-            setOpportunities(liveOpps);
+            const cleanOpps = liveOpps.filter((o) => !isSeedId(o.id));
+            setOpportunities(cleanOpps);
             try {
-              localStorage.setItem(STORAGE_KEYS.OPPORTUNITIES, JSON.stringify(liveOpps));
+              localStorage.setItem(STORAGE_KEYS.OPPORTUNITIES, JSON.stringify(cleanOpps));
             } catch {}
-          } else {
-            INITIAL_OPPORTUNITIES.forEach((opp) => saveOpportunityToFirestore(opp).catch(() => {}));
-            setOpportunities(INITIAL_OPPORTUNITIES);
           }
         } catch (err) {
           console.warn('Background sync opportunities notice:', err);
@@ -1410,9 +1525,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         try {
           const livePosts = await getFeedPostsFromFirestore();
           if (livePosts && livePosts.length > 0) {
-            setFeedPosts(livePosts);
+            const cleanPosts = livePosts.filter((p) => !isSeedId(p.id));
+            setFeedPosts(cleanPosts);
             try {
-              localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(livePosts));
+              localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(cleanPosts));
             } catch {}
           }
         } catch (err) {
@@ -1438,9 +1554,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             });
           }
           if (freshNotifs && freshNotifs.length > 0) {
-            setNotifications(freshNotifs);
+            const cleanNotifs = freshNotifs.filter((n) => !isSeedId(n.id));
+            setNotifications(cleanNotifs);
             try {
-              localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(freshNotifs));
+              localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(cleanNotifs));
             } catch {}
           }
         } catch (err) {
@@ -2022,19 +2139,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const unsubEvents = subscribeToEvents((firestoreEvents) => {
       if (isSubscribed) {
-        setEvents(firestoreEvents || []);
+        setEvents((firestoreEvents || []).filter((e) => !isSeedId(e.id)));
       }
     });
 
     const unsubOpps = subscribeToOpportunities((firestoreOpps) => {
       if (isSubscribed) {
-        if (firestoreOpps && firestoreOpps.length > 0) {
-          setOpportunities(firestoreOpps);
-        } else {
-          // If Firestore is empty, seed INITIAL_OPPORTUNITIES so jobs persist for employer
-          INITIAL_OPPORTUNITIES.forEach((opp) => saveOpportunityToFirestore(opp).catch(() => {}));
-          setOpportunities(INITIAL_OPPORTUNITIES);
-        }
+        setOpportunities((firestoreOpps || []).filter((o) => !isSeedId(o.id)));
       }
     });
 
@@ -2043,7 +2154,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (firestoreApps && firestoreApps.length > 0) {
           setJobApplications(firestoreApps);
         } else {
-          // If Firestore is empty, seed INITIAL_JOB_APPLICATIONS so employer can immediately view applicants
+          // If Firestore is empty, initialize baseline job applications
           INITIAL_JOB_APPLICATIONS.forEach((app) => saveJobApplicationToFirestore(app).catch(() => {}));
           setJobApplications(INITIAL_JOB_APPLICATIONS);
         }
@@ -2052,7 +2163,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const unsubAnn = subscribeToAnnouncements((firestoreAnns) => {
       if (isSubscribed) {
-        setAnnouncements(firestoreAnns || []);
+        setAnnouncements((firestoreAnns || []).filter((a) => !isSeedId(a.id)));
       }
     });
 
@@ -2084,13 +2195,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const unsubFeed = subscribeToFeedPosts((firestorePosts) => {
       if (isSubscribed) {
-        setFeedPosts(firestorePosts);
+        setFeedPosts((firestorePosts || []).filter((p) => !isSeedId(p.id)));
       }
     });
 
     const unsubGallery = subscribeToGalleryItems((firestoreGallery) => {
-      if (isSubscribed && firestoreGallery && firestoreGallery.length > 0) {
-        setGalleryItems(firestoreGallery);
+      if (isSubscribed && firestoreGallery) {
+        setGalleryItems(firestoreGallery.filter((g) => !isSeedId(g.id)));
       }
     });
 

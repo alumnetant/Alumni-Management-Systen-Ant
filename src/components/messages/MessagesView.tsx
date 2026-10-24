@@ -131,14 +131,15 @@ export const MessagesView: React.FC = () => {
     }
   }, [activeChatId, activeFilterPill]);
 
-  // Active chat object - Isolated to currentUser's conversations
+  // Active chat object - Isolated to currentUser's conversations & institutional lounges
   const activeChat = useMemo(() => {
     if (!activeChatId || !currentUser?.uid) return null;
-    const found = chats.find(
-      (c) =>
-        c.id === activeChatId &&
-        (c.memberIds || (c as any).participants || []).includes(currentUser.uid)
-    );
+    const found = chats.find((c) => {
+      if (c.id !== activeChatId) return false;
+      if (c.isGroupChat || c.isEventChat) return true;
+      const members = c.memberIds || (c as any).participants || [];
+      return members.includes(currentUser.uid) || members.includes('all');
+    });
     return found || null;
   }, [chats, activeChatId, currentUser?.uid]);
 
@@ -221,10 +222,11 @@ export const MessagesView: React.FC = () => {
   const filteredChats = useMemo(() => {
     if (!currentUser?.uid) return [];
     return chats.filter((c) => {
-      const members = c.memberIds || (c as any).participants || [];
-      if (!members.includes(currentUser.uid)) return false;
-
       const isEventOrGroup = c.isGroupChat || c.isEventChat;
+      const members = c.memberIds || (c as any).participants || [];
+      const isMember = isEventOrGroup || members.includes(currentUser.uid) || members.includes('all');
+      if (!isMember) return false;
+
       const unread = c.unreadCount?.[currentUser.uid] || 0;
 
       // Filter by pill tab
@@ -269,9 +271,11 @@ export const MessagesView: React.FC = () => {
   // Counts for pills
   const chatCounts = useMemo(() => {
     if (!currentUser) return { all: 0, direct: 0, events: 0, staff: 0, unread: 0 };
-    const myChats = chats.filter((c) =>
-      (c.memberIds || (c as any).participants || []).includes(currentUser.uid)
-    );
+    const myChats = chats.filter((c) => {
+      if (c.isGroupChat || c.isEventChat) return true;
+      const members = c.memberIds || (c as any).participants || [];
+      return members.includes(currentUser.uid) || members.includes('all');
+    });
     const eventsCount = myChats.filter((c) => c.isGroupChat || c.isEventChat).length;
     const directCount = myChats.filter((c) => !c.isGroupChat && !c.isEventChat).length;
     const unreadCount = myChats.filter((c) => (c.unreadCount?.[currentUser.uid] || 0) > 0).length;
@@ -615,24 +619,24 @@ export const MessagesView: React.FC = () => {
       ) : (
         <>
           {/* ===================================================================== */}
-          {/* MAIN COMMUNICATIONS DECK (3-COLUMN SPLIT CANVAS)                      */}
+          {/* MAIN COMMUNICATIONS DECK (RESPONSIVE CHANNELS & CONVERSATION DECK)     */}
           {/* ===================================================================== */}
           <div
             style={{
               backgroundColor: 'var(--dm-bg-deck)',
               borderColor: 'var(--dm-border)',
             }}
-            className="rounded-[28px] sm:rounded-[32px] border shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col md:flex-row h-[calc(100dvh-95px)] sm:h-[calc(100dvh-115px)] md:h-[760px] lg:h-[calc(100dvh-130px)] min-h-[480px]"
+            className="rounded-[24px] sm:rounded-[32px] border shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col lg:flex-row h-[calc(100dvh-100px)] min-h-[500px]"
           >
             
-            {/* LEFT RAIL: CHANNELS STREAM (~340px) */}
+            {/* LEFT RAIL: CHANNELS STREAM */}
             <div
               style={{
                 backgroundColor: 'var(--dm-bg-rail)',
                 borderColor: 'var(--dm-border)',
               }}
-              className={`w-full md:w-80 lg:w-96 md:border-r flex flex-col shrink-0 ${
-                activeChatId ? 'hidden md:flex' : 'flex'
+              className={`w-full lg:w-80 xl:w-96 lg:border-r flex flex-col shrink-0 h-full ${
+                activeChatId ? 'hidden lg:flex' : 'flex'
               }`}
             >
               {/* Search Bar & Stream Header */}
@@ -841,7 +845,9 @@ export const MessagesView: React.FC = () => {
                           backgroundColor: isSelected ? 'var(--dm-bg-item-active)' : 'transparent',
                           borderLeftColor: isSelected ? 'var(--dm-bubble-sent)' : 'transparent',
                         }}
-                        className="p-3.5 flex items-start gap-3 cursor-pointer transition-all border-l-[3px] hover:bg-[var(--dm-bg-item-hover)] active:bg-[var(--dm-bg-item-hover)]"
+                        className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all border-l-[3px] hover:bg-[var(--dm-bg-item-hover)] active:bg-[var(--dm-bg-item-hover)] ${
+                          isSelected ? 'bg-rose-50/40 dark:bg-stone-800/60' : ''
+                        }`}
                       >
                         <div className="relative shrink-0">
                           <img
@@ -887,10 +893,15 @@ export const MessagesView: React.FC = () => {
                             <div className="flex items-center gap-1.5 truncate">
                               <span
                                 style={{ color: 'var(--dm-text-secondary)' }}
-                                className="text-[10px] truncate"
+                                className="text-[10px] truncate font-medium"
                               >
-                                {other?.batch ? `Batch ${other.batch}` : other?.role || 'Alumnus'}
+                                {other?.batch ? `Batch ${other.batch}` : other?.role ? other.role.toUpperCase() : 'Alumnus'}
                               </span>
+                              {other?.isVerified && (
+                                <span className="text-[9px] font-bold text-[#8B181B] dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border border-rose-200/50 dark:border-rose-900/60 px-1 py-0.2 rounded">
+                                  Verified
+                                </span>
+                              )}
                               {otherStatus.isOnline && (
                                 <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1 py-0.2 rounded">
                                   Active
@@ -939,10 +950,8 @@ export const MessagesView: React.FC = () => {
               style={{
                 backgroundColor: 'var(--dm-bg-chat)',
               }}
-              className={`flex-1 flex flex-col min-w-0 ${
-                !activeChatId
-                  ? 'hidden md:flex'
-                  : 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto h-[100dvh] md:h-full flex flex-col'
+              className={`flex-1 flex flex-col min-w-0 h-full ${
+                !activeChatId ? 'hidden lg:flex' : 'flex'
               }`}
             >
               {activeChat ? (
@@ -953,9 +962,9 @@ export const MessagesView: React.FC = () => {
                       backgroundColor: 'var(--dm-bg-header)',
                       borderColor: 'var(--dm-border)',
                     }}
-                    className="p-3.5 sm:p-4 border-b flex items-center justify-between gap-3 pt-[max(0.875rem,env(safe-area-inset-top))]"
+                    className="p-3 sm:p-4 border-b flex items-center justify-between gap-2.5 shrink-0"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <button
                         type="button"
                         onClick={() => setActiveChatId(null)}
@@ -964,10 +973,11 @@ export const MessagesView: React.FC = () => {
                           backgroundColor: 'var(--dm-input-bg)',
                           borderColor: 'var(--dm-input-border)',
                         }}
-                        className="lg:hidden min-w-[44px] min-h-[44px] p-2.5 rounded-xl border hover:opacity-90 active:scale-95 transition-all cursor-pointer shrink-0 flex items-center justify-center"
+                        className="lg:hidden min-h-[38px] px-2.5 py-1.5 rounded-xl border hover:opacity-90 active:scale-95 transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
                         aria-label="Back to conversations list"
                       >
-                        <ArrowLeft className="w-5 h-5" />
+                        <ArrowLeft className="w-4 h-4" />
+                        <span className="text-xs font-semibold hidden sm:inline">Channels</span>
                       </button>
 
                       {activeChat.isGroupChat || activeChat.isEventChat ? (
@@ -1003,7 +1013,7 @@ export const MessagesView: React.FC = () => {
                               >
                                 {activeChat.groupName || 'Event Cohort Lounge'}
                               </h2>
-                              <span className="text-[10px] font-semibold text-[#8B181B] dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border border-rose-200/60 dark:border-rose-900 px-1.5 py-0.2 rounded">
+                              <span className="text-[10px] font-semibold text-[#8B181B] dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border border-rose-200/60 dark:border-rose-900 px-1.5 py-0.2 rounded shrink-0">
                                 Event Cohort
                               </span>
                             </div>
@@ -1029,19 +1039,27 @@ export const MessagesView: React.FC = () => {
                             </div>
                             {(() => {
                               const recipientStatus = getUserOnlineStatus(recipientUser);
+                              const details = [
+                                recipientUser?.batch ? `Batch ${recipientUser.batch}` : (recipientUser?.role ? recipientUser.role.toUpperCase() : 'Alumnus'),
+                                recipientUser?.course && recipientUser.course !== 'N/A' ? recipientUser.course : null,
+                                recipientUser?.company && recipientUser.company !== 'N/A' ? recipientUser.company : null
+                              ].filter(Boolean).join(' · ');
+
                               return (
                                 <p
                                   style={{ color: 'var(--dm-text-secondary)' }}
                                   className="text-[11px] truncate mt-0.5 flex items-center gap-1.5"
                                 >
-                                  <span className={`w-1.5 h-1.5 rounded-full ${recipientStatus.dotColor}`} />
-                                  <span className={recipientStatus.isOnline ? 'text-emerald-700 dark:text-emerald-400 font-medium' : ''}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${recipientStatus.dotColor} shrink-0`} />
+                                  <span className={recipientStatus.isOnline ? 'text-emerald-700 dark:text-emerald-400 font-medium shrink-0' : 'shrink-0'}>
                                     {recipientStatus.statusLabel}
                                   </span>
-                                  <span>·</span>
-                                  <span>{recipientUser?.batch ? `Batch ${recipientUser.batch}` : 'Alumnus'}</span>
-                                  {recipientUser?.course ? ` · ${recipientUser.course}` : ''}
-                                  {recipientUser?.company ? ` · ${recipientUser.company}` : ''}
+                                  {details && (
+                                    <>
+                                      <span>·</span>
+                                      <span className="truncate">{details}</span>
+                                    </>
+                                  )}
                                 </p>
                               );
                             })()}
@@ -1104,7 +1122,7 @@ export const MessagesView: React.FC = () => {
                           borderColor: showDossierDrawer ? 'var(--dm-border)' : 'var(--dm-chip-border)',
                           color: 'var(--dm-text-primary)',
                         }}
-                        className="p-2 rounded-xl border transition-colors cursor-pointer"
+                        className="hidden lg:flex p-2 rounded-xl border transition-colors cursor-pointer"
                         title={showDossierDrawer ? 'Hide Profile Panel' : 'Show Profile Panel'}
                       >
                         {showDossierDrawer ? (

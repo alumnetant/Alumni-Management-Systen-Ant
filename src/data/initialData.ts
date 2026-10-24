@@ -329,109 +329,11 @@ export const INITIAL_USERS: UserProfile[] = [
 export const INITIAL_FRIEND_REQUESTS: FriendRequest[] = [];
 export const INITIAL_CHATS: ChatThread[] = [];
 export const INITIAL_MESSAGES: Record<string, ChatMessage[]> = {};
-export const INITIAL_NOTIFICATIONS: AppNotification[] = [
-  {
-    id: 'notif_welcome_announcement',
-    toUid: 'all',
-    type: 'announcement_broadcast',
-    title: '📢 Welcome to the Official Cecilian AlumNet Portal',
-    body: 'Connect with fellow alumni, discover career opportunities, participate in reunions, and access your verified digital alumni credentials.',
-    read: false,
-    createdAt: new Date(Date.now() - 3600000 * 24 * 3).toISOString()
-  },
-  {
-    id: 'notif_init_homecoming_event',
-    toUid: 'all',
-    type: 'event_broadcast',
-    title: '🎉 45th Grand Cecilian Alumni Homecoming 2026',
-    body: 'Registration is officially open for the 45th Anniversary Homecoming Gala at the Grand Pavilion. Reserve your pass today!',
-    metadata: { targetRole: 'alumni' },
-    read: false,
-    createdAt: new Date(Date.now() - 3600000 * 24 * 2).toISOString()
-  },
-  {
-    id: 'notif_init_job_opening',
-    toUid: 'all',
-    type: 'job',
-    title: '💼 Career Opening: Associate Cloud Systems Engineer',
-    body: 'MetroCebu InnovateCorp is hiring Cecilian graduates in BS Information Technology. Hybrid work arrangement in Cebu IT Park.',
-    refId: 'opp_metrocebu_cloud_01',
-    metadata: { jobId: 'opp_metrocebu_cloud_01', targetRole: 'alumni' },
-    read: false,
-    createdAt: new Date(Date.now() - 3600000 * 24).toISOString()
-  },
-  {
-    id: 'notif_init_app_received_employer',
-    toUid: 'usr_employer_cecilia',
-    type: 'job',
-    title: '💼 New Job Application: Associate Cloud Systems Engineer',
-    body: 'Julian Marc S. Villareal submitted an application with a 95% automated profile match! Review credentials and schedule an interview.',
-    refId: 'opp_metrocebu_cloud_01',
-    metadata: { jobId: 'opp_metrocebu_cloud_01', applicationId: 'app_julian_metrocebu_01', targetRole: 'employer' },
-    read: false,
-    createdAt: new Date(Date.now() - 3600000 * 18).toISOString()
-  },
-  {
-    id: 'notif_init_app_status_julian',
-    toUid: 'usr_alumni_cecilia_01',
-    type: 'job',
-    title: '🎯 Application Status: Under Active Review',
-    body: 'MetroCebu InnovateCorp has received your application for Associate Cloud Systems Engineer. Your profile was verified with the Registrar.',
-    refId: 'opp_metrocebu_cloud_01',
-    metadata: { jobId: 'opp_metrocebu_cloud_01', applicationId: 'app_julian_metrocebu_01', targetRole: 'alumni' },
-    read: false,
-    createdAt: new Date(Date.now() - 3600000 * 16).toISOString()
-  },
-  {
-    id: 'notif_init_direct_msg_julian',
-    toUid: 'usr_alumni_cecilia_01',
-    fromUid: 'usr_admin_cecilia_01',
-    type: 'message',
-    title: '💬 New message from Alumni Relations Office',
-    body: 'Hello Julian! Your digital alumni pass credentials have been validated for the upcoming batch reunion.',
-    refId: 'chat_direct_admin_julian',
-    metadata: { targetRole: 'alumni' },
-    read: false,
-    createdAt: new Date(Date.now() - 3600000 * 6).toISOString()
-  },
-  {
-    id: 'notif_init_job_pending_admin',
-    toUid: 'usr_admin_cecilia_01',
-    type: 'general',
-    title: '🔔 New Job Posting Awaiting Approval',
-    body: 'MetroCebu InnovateCorp submitted a corporate recruitment posting for review. Verify qualifications and approve for the alumni board.',
-    refId: 'opp_metrocebu_cloud_01',
-    metadata: { targetRole: 'admin' },
-    read: false,
-    createdAt: new Date(Date.now() - 3600000 * 30).toISOString()
-  }
-];
+export const INITIAL_NOTIFICATIONS: AppNotification[] = [];
 export const INITIAL_EVENTS: AlumniEvent[] = [];
 export const INITIAL_RESERVATIONS: EventReservation[] = [];
 export const INITIAL_ANNOUNCEMENTS: Announcement[] = [];
-export const INITIAL_OPPORTUNITIES: Opportunity[] = [
-  {
-    id: 'opp_metrocebu_cloud_01',
-    title: 'Associate Cloud Systems Engineer',
-    company: 'MetroCebu InnovateCorp',
-    location: 'Cebu IT Park, Lahug, Cebu City (Hybrid)',
-    type: 'Full-time',
-    description: 'We are seeking passionate Cecilian graduates in BS Information Technology or Computer Engineering to join our enterprise Cloud Operations unit. You will collaborate on modernizing microservices, managing container pipelines, and monitoring cloud environments.',
-    salaryOrStipend: '₱35,000 - ₱48,000 / month',
-    requiredCourse: 'B.S. Information Technology',
-    skills: ['AWS / Cloud Infrastructure', 'Linux Administration', 'Docker', 'Python or TypeScript', 'Git'],
-    experienceLevel: 'Entry Level',
-    howToApply: 'internal',
-    contactEmail: 'careers@metrocebuinnovate.ph',
-    approvalStatus: 'approved',
-    postedBy: 'usr_employer_cecilia',
-    posterName: 'MetroCebu InnovateCorp',
-    posterRole: 'employer',
-    createdAt: '2025-01-15T08:00:00.000Z',
-    status: 'active',
-    applicationsCount: 1
-  }
-];
+export const INITIAL_OPPORTUNITIES: Opportunity[] = [];
 
 export const INITIAL_JOB_APPLICATIONS: JobApplication[] = [
   {
