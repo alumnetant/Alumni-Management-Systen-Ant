@@ -475,57 +475,7 @@ export const DashboardView: React.FC = () => {
             "The Alumni Desk" — Credential, Peer Connections, Career Leads, Heritage
             ===================================================================== */}
         <div className="lg:col-span-5 space-y-6 sm:space-y-8 min-w-0">
-          {/* CARD 1: OFFICIAL DIGITAL ALUMNI PASS WIDGET */}
-          <section className="bg-gradient-to-br from-[#8B181B] to-[#5C0F11] text-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-md relative overflow-hidden space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <img
-                  src="/assets/cecilians-seal.jpg"
-                  alt="Seal"
-                  className="w-8 h-8 rounded-full border border-white/30 object-cover"
-                />
-                <div>
-                  <div className="text-[10px] uppercase font-bold tracking-widest text-amber-300">
-                    St. Cecilia's College
-                  </div>
-                  <div className="text-xs font-extrabold tracking-tight">Official Alumni Credential</div>
-                </div>
-              </div>
-
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/15 text-white border border-white/20">
-                Active Member
-              </span>
-            </div>
-
-            <div className="space-y-1 pt-1">
-              <div className="text-base sm:text-lg font-bold font-sans tracking-tight truncate">
-                {currentUser?.name || 'Cecilian Alumnus'}
-              </div>
-              <div className="text-xs text-stone-200/90 font-mono">
-                ID: {currentUser?.studentId || currentUser?.alumniId || 'SCC-ALUM-2023'}
-              </div>
-              <div className="text-xs text-amber-200/90 truncate">
-                {currentUser?.course || 'Degree Graduate'} · Batch {currentUser?.batch || '2023'}
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-white/15 flex items-center justify-between">
-              <span className="text-[11px] text-white/80">Tap to present QR bar</span>
-              <button
-                type="button"
-                onClick={() => {
-                  triggerHaptic('light');
-                  window.dispatchEvent(new CustomEvent('applet:open-alumni-pass'));
-                }}
-                className="px-3.5 py-1.5 rounded-xl bg-white text-[#8B181B] hover:bg-stone-100 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[38px]"
-              >
-                <QrCode className="w-3.5 h-3.5 stroke-[2]" />
-                <span>Open Pass</span>
-              </button>
-            </div>
-          </section>
-
-          {/* CARD 2: CLASSMATES & BATCHMATES PULSE */}
+          {/* CARD: CLASSMATES & BATCHMATES PULSE */}
           <section className="bg-white dark:bg-[#181615] rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-stone-200/80 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
               <div>
