@@ -1132,53 +1132,63 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
             PRIMARY ALUMNI CONTENT VIEWPORT
             ====================================================== */}
         <main className="flex-1 min-w-0 w-full max-w-full px-3 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
-          <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto animate-in fade-in duration-200">
-            {/* MODULE: Dashboard Overview (Alumni Hub) */}
-            {currentModule === 'dashboard' && <DashboardView />}
+          <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentModule}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+              >
+                {/* MODULE: Dashboard Overview (Alumni Hub) */}
+                {currentModule === 'dashboard' && <DashboardView />}
 
-            {/* MODULE: Dedicated Notifications Page */}
-            {currentModule === 'notifications' && <NotificationsView />}
+                {/* MODULE: Dedicated Notifications Page */}
+                {currentModule === 'notifications' && <NotificationsView />}
 
-            {/* MODULE: Alumni Directory & Network */}
-            {currentModule === 'network' && (
-              <VerificationGate routeName="Alumni Directory & Networking">
-                <NetworkView />
-              </VerificationGate>
-            )}
+                {/* MODULE: Alumni Directory & Network */}
+                {currentModule === 'network' && (
+                  <VerificationGate routeName="Alumni Directory & Networking">
+                    <NetworkView />
+                  </VerificationGate>
+                )}
 
-            {/* MODULE: Direct Peer Messaging */}
-            {currentModule === 'messages' && (
-              <VerificationGate routeName="Direct Peer Messaging">
-                <MessagesView />
-              </VerificationGate>
-            )}
+                {/* MODULE: Direct Peer Messaging */}
+                {currentModule === 'messages' && (
+                  <VerificationGate routeName="Direct Peer Messaging">
+                    <MessagesView />
+                  </VerificationGate>
+                )}
 
-            {/* MODULE: Campus Reunions & Events */}
-            {currentModule === 'events' && (
-              <VerificationGate routeName="Campus Reunions & Official Events">
-                <EventsView />
-              </VerificationGate>
-            )}
+                {/* MODULE: Campus Reunions & Events */}
+                {currentModule === 'events' && (
+                  <VerificationGate routeName="Campus Reunions & Official Events">
+                    <EventsView />
+                  </VerificationGate>
+                )}
 
-            {/* MODULE: Institutional Bulletins */}
-            {currentModule === 'announcements' && (
-              <VerificationGate routeName="Institutional Announcements">
-                <AnnouncementsView />
-              </VerificationGate>
-            )}
+                {/* MODULE: Institutional Bulletins */}
+                {currentModule === 'announcements' && (
+                  <VerificationGate routeName="Institutional Announcements">
+                    <AnnouncementsView />
+                  </VerificationGate>
+                )}
 
-            {/* MODULE: Career Opportunities & Jobs */}
-            {currentModule === 'opportunities' && (
-              <VerificationGate routeName="Career Opportunities & Job Board">
-                <OpportunitiesView />
-              </VerificationGate>
-            )}
+                {/* MODULE: Career Opportunities & Jobs */}
+                {currentModule === 'opportunities' && (
+                  <VerificationGate routeName="Career Opportunities & Job Board">
+                    <OpportunitiesView />
+                  </VerificationGate>
+                )}
 
-            {/* MODULE: Profile & Card */}
-            {currentModule === 'profile' && <ProfileView />}
+                {/* MODULE: Profile & Card */}
+                {currentModule === 'profile' && <ProfileView />}
 
-            {/* MODULE: Account Settings */}
-            {currentModule === 'settings' && <SettingsView />}
+                {/* MODULE: Account Settings */}
+                {currentModule === 'settings' && <SettingsView />}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </main>
       </div>

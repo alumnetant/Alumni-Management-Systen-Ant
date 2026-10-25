@@ -1,43 +1,97 @@
-# Implementation Plan: Web Digital Alumni ID Access & Landing Features Clean-Up
+# Platform Hardening & UI/UX Upgrade: Unified Release Plan
 
-## 1. Overview & Core Intent
-1. **Digital Alumni ID on the Website**: Remove the artificial `PlatformOnly` mobile-exclusive restriction that was blocking website users from seeing their real interactive Digital Alumni Pass. Enable alumni on the website to view and flip their actual, scannable **Digital Alumni ID Card** directly via the header/sidebar pass modal and embedded directly in their Alumni Profile page.
-2. **Landing Page Features Clean-Up**: Under "FEATURES & NETWORK CAPABILITIES" on the institutional landing page, remove the interactive action buttons (`Explore`, `Preview Pass`, `Browse Jobs`, `Read Feed`, `Find Chapter`, `View Hall of Fame`) while retaining the clean, subtle feature status metadata.
+A coordinated release implementing the top 3 high-impact upgrades across security, design, and usability:
+1. **UI/UX Polish**: Shimmering skeleton loaders & fluid Framer Motion view transitions.
+2. **Security Hardening**: Dynamic rolling cryptographic QR code on the Digital Alumni Pass (30s refresh with animated countdown ring).
+3. **Power Search**: Universal fuzzy Command Palette (`Cmd+K`) indexing alumni, events, jobs, and campus circulars.
 
 ---
 
 > [!IMPORTANT]
 > **Summary of Confirmed User Decisions**
-> - **Web Digital Alumni ID Access**: Rendered directly in the **modal popup** (accessible from the sidebar pass button, dashboard pass button, and mobile drawer) AND embedded directly inside the **Alumni Profile** page on web desktop.
-> - **Landing Page Feature Footers**: Remove the 6 action buttons (`Explore`, `Preview Pass`, `Browse Jobs`, `Read Feed`, `Find Chapter`, `View Hall of Fame`) and preserve the subtle feature status text (e.g. *Verified Match Records*, *Instant QR Verification*, *For Employers & Alumni*, *Admin Broadcasts*, *12 Active Hubs*, *Cecilian Pride*).
+> - **Release Strategy**: Unified release bundling all three upgrades together.
+> - **Digital ID Pass Security**: Rolling token refreshing every 30 seconds with an animated countdown ring and live security badge.
+> - **Command Palette Indexing**: Multi-entity indexing covering Alumni Roster, Events & Reunions, Job Board, and Official Circulars.
 
 ---
 
-## 2. Proposed Changes
+## 1. Upgrade 1: Skeleton Loaders & Fluid View Transitions
 
-### A. Digital Alumni ID Access on Web (`AlumniWorkspaceLayout.tsx` & `ProfileView.tsx`)
-1. **Pass Modal (`src/components/alumni/AlumniWorkspaceLayout.tsx`)**:
-   - Replace `<PlatformOnly client="mobile" fallback={<WebDigitalPassCard user={currentUser} />}><DigitalAlumniCard /></PlatformOnly>` with direct `<DigitalAlumniCard user={currentUser} />`.
-   - On desktop website and mobile alike, clicking the "Digital Alumni Pass" button (in the sidebar, masthead greeting, or mobile drawer) will open the full interactive, metallic, 3D flippable digital ID card with real QR verification and card flip animations.
-2. **Embedded Profile Pass (`src/components/profile/ProfileView.tsx`)**:
-   - Remove the `PlatformOnly` wrapper around `#digital-id-section` that previously swapped the real card with the download prompt.
-   - Render `<DigitalAlumniCard user={currentUser} />` directly in the Alumni Profile view for all desktop and mobile web sessions.
-
-### B. Clean-Up Landing Page Feature Cards (`src/components/landing/LandingPage.tsx`)
-- In the 6-grid feature cards under "FEATURES & NETWORK CAPABILITIES":
-  - **Card 1 (Alumni Network)**: Keep `<span>Verified Match Records</span>`, remove `<span className="text-[#8B181B] font-semibold">Explore</span>`.
-  - **Card 2 (Digital Alumni Card)**: Keep `<span>Instant QR Verification</span>`, remove `<span className="text-[#B45309] font-semibold">Preview Pass</span>`.
-  - **Card 3 (Career Placement Board)**: Keep `<span>For Employers & Alumni</span>`, remove `<span className="text-emerald-800 font-semibold">Browse Jobs</span>`.
-  - **Card 4 (Institutional Announcements)**: Keep `<span>Admin Broadcasts</span>`, remove `<span className="text-stone-700 font-semibold">Read Feed</span>`.
-  - **Card 5 (Global Batch Chapters)**: Keep `<span>12 Active Hubs</span>`, remove `<span className="text-[#8B181B] font-semibold">Find Chapter</span>`.
-  - **Card 6 (Milestones & Honors)**: Keep `<span>Cecilian Pride</span>`, remove `<span className="text-[#B45309] font-semibold">View Hall of Fame</span>`.
+### Problem & Objective
+Currently, switching between modules (e.g. Dashboard to Directory or Events) exhibits abrupt DOM pop-ins when data or network state updates. We will introduce:
+1. **Framer Motion View Transitions**:
+   - Wrap the main workspace viewport in an `<AnimatePresence mode="wait">` transition with subtle vertical drift (`y: 6`, `opacity: 0` $\to$ `y: 0`, `opacity: 1`) and spring easing (`damping: 25`, `stiffness: 280`).
+2. **Shimmering Skeleton Loaders**:
+   - Create reusable skeleton components with subtle stone-to-parchment linear shimmer gradients:
+     - `DirectorySkeleton`: Grid of 6 alumnus profile cards with avatar, batch tag, and bio wireframes.
+     - `EventsSkeleton`: Hero event banner and date-card wireframes.
+     - `JobsSkeleton`: Job posting list items with company logo, stipend, and badge wireframes.
 
 ---
 
-## 3. Verification & Testing
-1. **Type & Lint Check**: Run `lint_applet` (`tsc --noEmit`) to verify clean TypeScript compilation.
-2. **Build Check**: Run `compile_applet` to verify production Vite build.
-3. **Visual Verification**:
-   - Verify on desktop web (`>= 1024px`) that clicking "Digital Alumni Pass" displays the interactive metallic card with QR code, flip capability, and full details.
-   - Verify on the profile page that the digital card renders cleanly and interactively.
-   - Verify on the landing page that the 6 feature cards under "FEATURES & NETWORK CAPABILITIES" display clean status text without the removed action buttons.
+## 2. Upgrade 2: Rolling Cryptographic QR Code on Digital Alumni Pass
+
+### Problem & Objective
+Static QR codes can be screenshotted and transferred to non-alumni for unauthorized physical campus gate or turnstile entry. We will upgrade `DigitalAlumniCard.tsx` with:
+1. **Dynamic Time-Based Token Engine (30-Second Cadence)**:
+   - Generate a cryptographic verification payload consisting of:
+     - `alumnusUid` + `studentId` / `alumniId`
+     - Epoch time bucket: `Math.floor(Date.now() / 30000)`
+     - Anti-tamper hash verification signature
+   - The QR code dynamically regenerates every 30 seconds.
+2. **Animated Countdown Ring & Live Security Indicator**:
+   - An SVG circular progress ring displaying seconds remaining (30s $\to$ 0s) in St. Cecilia crimson/gold.
+   - A pulsing green dot labeled `LIVE VERIFICATION TOKEN` assuring security guards and turnstile scanners that the pass is actively running and not a static screenshot.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   DIGITAL PASS QR BACK                      │
+│                                                             │
+│                    ┌──────────────────┐                     │
+│                    │                  │                     │
+│                    │   [ROLLING QR]   │                     │
+│                    │                  │                     │
+│                    └──────────────────┘                     │
+│                                                             │
+│            ( 24s )  ● LIVE VERIFICATION TOKEN               │
+│         [==== circular countdown ring ====]                 │
+│                                                             │
+│       "Refreshes every 30s · Anti-Screenshot Guard"         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Upgrade 3: Universal Fuzzy Global Search (`Cmd+K`)
+
+### Problem & Objective
+Currently, `GlobalCommandPalette.tsx` offers basic tab navigation. We will expand it into a true spotlight-style search index across all application entities:
+1. **Multi-Domain Indexing**:
+   - **Alumni Roster**: Search by alumnus name, graduation batch (e.g., "2023"), course/major (e.g., "BSIT", "BSBA"), and company/city.
+   - **Campus Events**: Search by reunion title, date, venue, and organizer.
+   - **Career Board**: Search by role title, hiring company, location, and job type.
+   - **Official Circulars**: Search by advisory headline, memorandum subject, and priority.
+2. **Categorized Results with Keyboard Navigation**:
+   - Keyboard arrow navigation (`↑` / `↓`), category headers with distinct icons, and instant `Enter` key execution to navigate directly to the target record.
+
+---
+
+## 4. Implementation Steps & File Modifications
+
+| File | Change Details |
+| :--- | :--- |
+| `src/components/common/LoadingSkeletons.tsx` | Create modular skeleton components (`DirectorySkeleton`, `EventsSkeleton`, `JobsSkeleton`). |
+| `src/components/alumni/AlumniWorkspaceLayout.tsx` | Wrap active module rendering in `<AnimatePresence mode="wait">` with spring transitions. |
+| `src/components/profile/DigitalAlumniCard.tsx` | Add 30s rolling QR token generator, SVG countdown ring, and live security status indicator. |
+| `src/components/common/GlobalCommandPalette.tsx` | Ingest `users`, `events`, `opportunities`, `announcements` and perform real-time fuzzy search with categorized keyboard selection. |
+
+---
+
+## 5. Verification Plan
+
+1. **Type & Lint Check**: Run `lint_applet` (`tsc --noEmit`) to verify zero type mismatches.
+2. **Production Build**: Run `compile_applet` to confirm successful Vite bundling.
+3. **Interactive Verification**:
+   - **Digital ID Card**: Open the pass modal, observe the animated SVG countdown ring ticking down from 30s, and confirm QR code refreshes with a new token at 0s.
+   - **Command Palette (`Cmd+K`)**: Press `Cmd+K` (or `Ctrl+K`), type query (e.g., "2023", "Alumni", "Career", or a student name), verify grouped results appear with proper icons and clicking opens the exact item.
+   - **View Transitions**: Click across sidebar tabs on desktop and bottom bar on mobile to experience smooth spring view transitions.

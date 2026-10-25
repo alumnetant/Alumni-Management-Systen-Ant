@@ -265,7 +265,7 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
           location.includes(q)
         );
       })
-      .slice(0, 6)
+      .slice(0, 5)
       .map((u) => ({
         id: `user-${u.uid}`,
         title: u.name,
@@ -280,7 +280,77 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
           setSelectedUserIdForModal(u.uid);
         }
       }));
-  }, [users, query]);
+  }, [users, query, onClose, setSelectedUserIdForModal]);
+
+  // Events Search Matching
+  const matchedEvents = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || q.length < 2) return [];
+
+    return (events || [])
+      .filter((e) => {
+        const title = (e.title || '').toLowerCase();
+        const desc = (e.description || '').toLowerCase();
+        const loc = (e.location || '').toLowerCase();
+        return title.includes(q) || desc.includes(q) || loc.includes(q);
+      })
+      .slice(0, 4)
+      .map((e) => ({
+        id: `event-${e.id}`,
+        title: e.title,
+        subtitle: `${new Date(e.startDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} • ${e.location || 'St. Cecilia Campus'}`,
+        category: 'Events & Reunions',
+        icon: Calendar,
+        action: () => handleNavigate('events')
+      }));
+  }, [events, query]);
+
+  // Jobs Search Matching
+  const matchedJobs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || q.length < 2) return [];
+
+    return (opportunities || [])
+      .filter((j) => {
+        const title = (j.title || '').toLowerCase();
+        const comp = (j.company || '').toLowerCase();
+        const loc = (j.location || '').toLowerCase();
+        const type = (j.type || '').toLowerCase();
+        return title.includes(q) || comp.includes(q) || loc.includes(q) || type.includes(q);
+      })
+      .slice(0, 4)
+      .map((j) => ({
+        id: `job-${j.id}`,
+        title: j.title,
+        subtitle: `${j.company} • ${j.location || 'Remote'} • ${j.type ? j.type.replace('_', ' ').toUpperCase() : 'Full-time'}`,
+        category: 'Job Board',
+        icon: Briefcase,
+        action: () => handleNavigate('opportunities')
+      }));
+  }, [opportunities, query]);
+
+  // Announcements Search Matching
+  const matchedAnnouncements = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || q.length < 2) return [];
+
+    return (announcements || [])
+      .filter((a) => {
+        const title = (a.title || '').toLowerCase();
+        const content = (a.content || '').toLowerCase();
+        const cat = (a.category || '').toLowerCase();
+        return title.includes(q) || content.includes(q) || cat.includes(q);
+      })
+      .slice(0, 4)
+      .map((a) => ({
+        id: `ann-${a.id}`,
+        title: a.title,
+        subtitle: `${new Date(a.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} • Official Bulletin`,
+        category: 'Announcements',
+        icon: Megaphone,
+        action: () => handleNavigate('announcements')
+      }));
+  }, [announcements, query]);
 
   // Combine and Filter all Results
   const allResults = useMemo(() => {
@@ -303,8 +373,15 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
       item.keywords.toLowerCase().includes(q)
     );
 
-    return [...matchedAlumni, ...filteredNav, ...filteredActions];
-  }, [query, matchedAlumni, navigationItems, quickActions]);
+    return [
+      ...matchedAlumni,
+      ...matchedEvents,
+      ...matchedJobs,
+      ...matchedAnnouncements,
+      ...filteredNav,
+      ...filteredActions
+    ];
+  }, [query, matchedAlumni, matchedEvents, matchedJobs, matchedAnnouncements, navigationItems, quickActions]);
 
   // Keyboard navigation
   useEffect(() => {
