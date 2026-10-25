@@ -212,18 +212,18 @@ export const AnnouncementsView: React.FC = () => {
         <div className="p-5 sm:p-6 lg:p-7">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
             <div className="space-y-1.5 max-w-3xl">
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-semibold tracking-wider text-stone-500 uppercase">
-                <span className="text-[#8B181B] font-bold">St. Cecilia's College - Cebu, Inc.</span>
-                <span aria-hidden="true" className="text-stone-300">·</span>
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-medium tracking-wider text-stone-500 uppercase">
+                <span className="editorial-kicker">St. Cecilia's College - Cebu</span>
+                <span aria-hidden="true" className="text-stone-300 dark:text-stone-700">·</span>
                 <span>Campus Announcements</span>
-                <span aria-hidden="true" className="text-stone-300">·</span>
-                <span className="text-stone-400">Minglanilla Campus</span>
+                <span aria-hidden="true" className="text-stone-300 dark:text-stone-700">·</span>
+                <span className="text-stone-400">Official Dispatches</span>
               </div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-stone-900 tracking-tight">
-                Campus News & Announcements
+              <h1 className="editorial-title text-2xl sm:text-3xl lg:text-4xl font-normal tracking-tight">
+                Campus News <span className="editorial-accent italic">& Bulletins</span>
               </h1>
-              <p className="text-xs sm:text-sm text-stone-600 leading-relaxed max-w-2xl">
-                Notices, registrar updates, reunion news, and official announcements from the college.
+              <p className="editorial-sub text-xs sm:text-sm max-w-2xl mt-0.5">
+                Official notices, registrar updates, reunion news, and institutional announcements from the college.
               </p>
             </div>
 

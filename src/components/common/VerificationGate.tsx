@@ -29,10 +29,10 @@ export const VerificationGate: React.FC<VerificationGateProps> = ({
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [verificationResult, setVerificationResult] = useState<RegistrarVerificationResult | null>(null);
 
-  // If user is verified or holds an administrative/staff role, permit full access immediately
+  // If user is verified, logged-in alumni/employer, or holds an administrative/staff role, permit full access immediately
   if (
     isAlumniVerified ||
-    (currentUser && ['admin', 'staff', 'registrar', 'moderator', 'superadmin'].includes(currentUser.role))
+    (currentUser && ['admin', 'staff', 'registrar', 'moderator', 'superadmin', 'alumni', 'employer'].includes(currentUser.role))
   ) {
     return <>{children}</>;
   }

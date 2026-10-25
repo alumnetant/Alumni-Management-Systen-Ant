@@ -53,12 +53,8 @@ import { OpportunitiesView } from '../opportunities/OpportunitiesView';
 import { ProfileView } from '../profile/ProfileView';
 import { SettingsView } from '../settings/SettingsView';
 import { CampusGalleryModal } from '../gallery/CampusGalleryModal';
-import { RegistrarRequestModal } from '../common/RegistrarRequestModal';
 import { AlumniChaptersModal } from '../common/AlumniChaptersModal';
-import { InstitutionalGovernanceModal } from '../common/InstitutionalGovernanceModal';
 import { DigitalAlumniCard } from '../profile/DigitalAlumniCard';
-import { WebDigitalPassCard } from '../profile/WebDigitalPassCard';
-import { PlatformOnly } from '../common/PlatformOnly';
 import { VerificationGate } from '../common/VerificationGate';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
@@ -175,9 +171,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
   const [showDigitalPassModal, setShowDigitalPassModal] = useState(false);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [showRegistrarModal, setShowRegistrarModal] = useState(false);
   const [showChaptersModal, setShowChaptersModal] = useState(false);
-  const [showGovernanceModal, setShowGovernanceModal] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
 
   // Hardware Back Button action stack: Closes topmost modals/drawers first, then navigates back to dashboard
@@ -209,15 +203,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
   }, [showGalleryModal]);
 
   useEffect(() => {
-    if (showRegistrarModal) {
-      return registerBackAction(() => {
-        setShowRegistrarModal(false);
-        return true;
-      });
-    }
-  }, [showRegistrarModal]);
-
-  useEffect(() => {
     if (showChaptersModal) {
       return registerBackAction(() => {
         setShowChaptersModal(false);
@@ -225,15 +210,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       });
     }
   }, [showChaptersModal]);
-
-  useEffect(() => {
-    if (showGovernanceModal) {
-      return registerBackAction(() => {
-        setShowGovernanceModal(false);
-        return true;
-      });
-    }
-  }, [showGovernanceModal]);
 
   useEffect(() => {
     if (showCommandPalette) {
@@ -685,28 +661,155 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
 
           {/* Clean Muted List Scroll Container */}
           <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4 scrollbar-none">
-            {/* Group 1: Institutional Services */}
+            {/* Group 1: Core Navigation Modules */}
             <div>
-              <div className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2.5 mb-1">
-                Institutional Services
+              <div className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2.5 mb-1.5">
+                Core Features
               </div>
               <div className="space-y-0.5">
-                {/* 1. Academic Registrar Desk */}
+                {/* 1. Home / Dashboard */}
                 <button
                   type="button"
-                  onClick={() => setShowRegistrarModal(true)}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-normal text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
+                  onClick={() => handleSelectModule('dashboard')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer group ${
+                    currentModule === 'dashboard'
+                      ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold shadow-2xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 font-normal'
+                  }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <FileText className="w-4 h-4 text-stone-400 group-hover:text-[#8B181B] dark:group-hover:text-rose-400 shrink-0 stroke-[1.5] transition-colors" />
-                    <span className="truncate">Registrar & Records</span>
+                    <LayoutDashboard className={`w-4 h-4 shrink-0 stroke-[1.6] transition-colors ${
+                      currentModule === 'dashboard' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200'
+                    }`} />
+                    <span className="truncate">Home</span>
                   </div>
-                  <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
-                    TOR
-                  </span>
                 </button>
 
-                {/* 2. Regional Chapters */}
+                {/* 2. Alumni Directory */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectModule('network')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer group ${
+                    currentModule === 'network'
+                      ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold shadow-2xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 font-normal'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Users className={`w-4 h-4 shrink-0 stroke-[1.6] transition-colors ${
+                      currentModule === 'network' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200'
+                    }`} />
+                    <span className="truncate">Alumni Directory</span>
+                  </div>
+                </button>
+
+                {/* 3. Events & Reunions */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectModule('events')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer group ${
+                    currentModule === 'events'
+                      ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold shadow-2xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 font-normal'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Calendar className={`w-4 h-4 shrink-0 stroke-[1.6] transition-colors ${
+                      currentModule === 'events' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200'
+                    }`} />
+                    <span className="truncate">Events & Reunions</span>
+                  </div>
+                  {upcomingEventsCount > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-mono font-bold">
+                      {upcomingEventsCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* 4. Job Board */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHasDismissedJobsBadge(true);
+                    try {
+                      localStorage.setItem('scc_jobs_badge_dismissed_v1', 'true');
+                    } catch {}
+                    handleSelectModule('opportunities');
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer group ${
+                    currentModule === 'opportunities'
+                      ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold shadow-2xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 font-normal'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Briefcase className={`w-4 h-4 shrink-0 stroke-[1.6] transition-colors ${
+                      currentModule === 'opportunities' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200'
+                    }`} />
+                    <span className="truncate">Job Board</span>
+                  </div>
+                  {displayJobsBadgeCount > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono font-bold">
+                      {displayJobsBadgeCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* 5. Messages */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectModule('messages')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer group ${
+                    currentModule === 'messages'
+                      ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold shadow-2xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 font-normal'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <MessageSquare className={`w-4 h-4 shrink-0 stroke-[1.6] transition-colors ${
+                      currentModule === 'messages' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200'
+                    }`} />
+                    <span className="truncate">Messages</span>
+                  </div>
+                  {unreadMessagesCount > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#8B181B] text-white font-mono font-bold">
+                      {unreadMessagesCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* 6. Circulars & Memoranda */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectModule('announcements')}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer group ${
+                    currentModule === 'announcements'
+                      ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold shadow-2xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 font-normal'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Megaphone className={`w-4 h-4 shrink-0 stroke-[1.6] transition-colors ${
+                      currentModule === 'announcements' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200'
+                    }`} />
+                    <span className="truncate">Announcements</span>
+                  </div>
+                  {announcements.length > 0 && (
+                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">
+                      {announcements.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Group 2: Institutional Community */}
+            <div>
+              <div className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2.5 mb-1.5">
+                Community & Heritage
+              </div>
+              <div className="space-y-0.5">
+                {/* Regional Chapters */}
                 <button
                   type="button"
                   onClick={() => setShowChaptersModal(true)}
@@ -721,7 +824,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                   </span>
                 </button>
 
-                {/* 3. Campus Archival Gallery */}
+                {/* Campus Archival Gallery */}
                 <button
                   type="button"
                   onClick={() => setShowGalleryModal(true)}
@@ -734,49 +837,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                   <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
                     Heritage
                   </span>
-                </button>
-
-                {/* 4. Institutional Governance & Accreditations */}
-                <button
-                  type="button"
-                  onClick={() => setShowGovernanceModal(true)}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-normal text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Landmark className="w-4 h-4 text-stone-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 shrink-0 stroke-[1.5] transition-colors" />
-                    <span className="truncate">Governance & Charter</span>
-                  </div>
-                  <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
-                    PACUCOA
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Group 2: Institutional Bulletins */}
-            <div>
-              <div className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider px-2.5 mb-1">
-                Official Bulletins
-              </div>
-              <div className="space-y-0.5">
-                <button
-                  type="button"
-                  onClick={() => handleSelectModule('announcements')}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer group ${
-                    currentModule === 'announcements'
-                      ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100 font-medium'
-                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Megaphone className="w-4 h-4 text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 shrink-0 stroke-[1.5] transition-colors" />
-                    <span className="truncate">Circulars & Memoranda</span>
-                  </div>
-                  {announcements.length > 0 && (
-                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">
-                      {announcements.length}
-                    </span>
-                  )}
                 </button>
               </div>
             </div>
@@ -917,25 +977,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                       Institutional Services
                     </div>
                     <div className="space-y-0.5">
-                      {/* 1. Academic Registrar Desk */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowRegistrarModal(true);
-                          setShowMobileNav(false);
-                        }}
-                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-normal text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <FileText className="w-4 h-4 text-stone-400 group-hover:text-[#8B181B] dark:group-hover:text-rose-400 shrink-0 stroke-[1.5] transition-colors" />
-                          <span className="truncate">Registrar & Records</span>
-                        </div>
-                        <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
-                          TOR
-                        </span>
-                      </button>
-
-                      {/* 2. Regional Chapters Hub */}
+                      {/* 1. Regional Chapters Hub */}
                       <button
                         type="button"
                         onClick={() => {
@@ -953,7 +995,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                         </span>
                       </button>
 
-                      {/* 3. Campus Memory Gallery */}
+                      {/* 2. Campus Memory Gallery */}
                       <button
                         type="button"
                         onClick={() => {
@@ -968,24 +1010,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                         </div>
                         <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
                           Heritage
-                        </span>
-                      </button>
-
-                      {/* 4. Institutional Governance & Accreditations */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowGovernanceModal(true);
-                          setShowMobileNav(false);
-                        }}
-                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-normal text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Landmark className="w-4 h-4 text-stone-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 shrink-0 stroke-[1.5] transition-colors" />
-                          <span className="truncate">Governance & Charter</span>
-                        </div>
-                        <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
-                          PACUCOA
                         </span>
                       </button>
                     </div>
@@ -1298,12 +1322,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <PlatformOnly
-              client="mobile"
-              fallback={<WebDigitalPassCard user={currentUser} />}
-            >
-              <DigitalAlumniCard />
-            </PlatformOnly>
+            <DigitalAlumniCard user={currentUser || undefined} />
           </div>
         </div>
       )}
@@ -1314,22 +1333,10 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
         onClose={() => setShowGalleryModal(false)}
       />
 
-      {/* Official Academic Registrar & Credentials Desk Modal */}
-      <RegistrarRequestModal
-        isOpen={showRegistrarModal}
-        onClose={() => setShowRegistrarModal(false)}
-      />
-
       {/* Regional Alumni Chapters & Diaspora Hub Modal */}
       <AlumniChaptersModal
         isOpen={showChaptersModal}
         onClose={() => setShowChaptersModal(false)}
-      />
-
-      {/* Institutional Governance & Accreditations Modal */}
-      <InstitutionalGovernanceModal
-        isOpen={showGovernanceModal}
-        onClose={() => setShowGovernanceModal(false)}
       />
 
       {/* Global Command Palette (Cmd+K / Ctrl+K) */}

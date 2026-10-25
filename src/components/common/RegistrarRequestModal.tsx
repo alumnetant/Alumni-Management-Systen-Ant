@@ -166,10 +166,11 @@ export const RegistrarRequestModal: React.FC<{
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">
-                Academic Registrar & Credentials Desk
+              <span className="editorial-kicker block mb-0.5">OFFICE OF THE REGISTRAR</span>
+              <h3 className="editorial-title text-base sm:text-lg font-normal">
+                Academic Registrar <span className="editorial-accent italic">& Records Desk</span>
               </h3>
-              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+              <p className="editorial-sub text-[11px] sm:text-xs">
                 Official Transcripts (TOR), Certifications & Academic Clearances
               </p>
             </div>

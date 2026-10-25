@@ -383,13 +383,21 @@ export const NetworkView: React.FC = () => {
       ) : (
         <>
           {/* ========================================================
-              COMMAND CENTER TOP HEADER SECTION
-              Exact parity with Institutional Command Center layout:
-              Alumni Directory Header + Subtab Navigation + View Switcher + CSV Download
+              COLLEGIATE EDITORIAL MASTHEAD & CONTROLS
               ======================================================== */}
-          <div className="flex items-center justify-end gap-3 pb-2 flex-wrap">
-        {/* Filter Navigation Icon & Dropdown Menu */}
-        <div className="relative" ref={filterDropdownRef}>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2">
+            <div>
+              <span className="editorial-kicker block mb-1">ST. CECILIA'S ALUMNI ASSOCIATION</span>
+              <h1 className="editorial-title text-2xl sm:text-3xl font-normal leading-tight">
+                Alumni Roster <span className="editorial-accent italic">& Directory</span>
+              </h1>
+              <p className="editorial-sub text-xs sm:text-sm mt-0.5">
+                Connecting graduates, industry leaders, and academic cohorts across batches.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 flex-wrap">
+              {/* Filter Navigation Icon & Dropdown Menu */}
+              <div className="relative" ref={filterDropdownRef}>
           <button
             type="button"
             id="network-filter-navigation-btn"
@@ -657,6 +665,7 @@ export const NetworkView: React.FC = () => {
           <Download className="w-4 h-4" />
         </button>
       </div>
+    </div>
 
       {/* ========================================================
           COMMAND OMNIBAR & FAST MULTI-FILTER CONTROL CONSOLE

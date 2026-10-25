@@ -1055,18 +1055,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               className="w-7 h-7 rounded-full object-cover border border-white/20 shadow-sm"
             />
             <span className="w-5 h-[2px] bg-[#991B1B]" />
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#fca5a5]">
-              ST. CECILIA'S • ALUMNI
+            <span className="editorial-kicker text-[#fca5a5]">
+              ST. CECILIA'S · ALUMNI NETWORK
             </span>
           </div>
 
-          {/* Large Serif Heading */}
-          <h1 className="font-sans text-4xl sm:text-5xl xl:text-6xl font-bold text-white tracking-tight leading-[1.1] mb-5">
-            {mode === 'login'
-              ? 'Welcome Back.'
-              : registrationType === 'employer'
-              ? 'Hiring Partner Network.'
-              : 'Join the Network.'}
+          {/* Large Editorial Heading */}
+          <h1 className="editorial-title text-4xl sm:text-5xl xl:text-6xl font-normal text-white tracking-tight leading-[1.08] mb-5">
+            {mode === 'login' ? (
+              <>Welcome <span className="italic text-[#fca5a5]">Back.</span></>
+            ) : registrationType === 'employer' ? (
+              <>Hiring <span className="italic text-[#fca5a5]">Partner Network.</span></>
+            ) : (
+              <>Join the <span className="italic text-[#fca5a5]">Network.</span></>
+            )}
           </h1>
 
           {/* Subtitle */}
@@ -1214,11 +1216,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         {mode === 'login' && (
           <div className="max-w-md w-full mx-auto">
             {/* Form Title & Subtitle */}
-            <h2 className="font-sans text-2xl sm:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight mb-2">
-              Sign In
+            <span className="editorial-kicker block mb-1">OFFICIAL ACCESS</span>
+            <h2 className="editorial-title text-2xl sm:text-3xl font-normal mb-1">
+              Sign In to <span className="editorial-accent italic">Alumnet</span>
             </h2>
-            <p className="text-sm text-stone-500 dark:text-stone-400 font-normal mb-6">
-              Enter your credentials to access the portal.
+            <p className="editorial-sub text-xs sm:text-sm mb-6">
+              Enter your credentials to access the alumni workspace.
             </p>
 
             {/* Requirement 1: Active Login Session Conflict Banner (One Account, One Active Login) */}
@@ -1700,10 +1703,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       <Building2 className="w-3 h-3" />
                       Corporate Accreditation & Recruitment Partner
                     </div>
-                    <h2 className="font-sans text-2xl sm:text-3xl text-stone-900 font-bold tracking-tight mb-1">
-                      {employerStep === 1 ? 'Register Organization' : 'Validate Information'}
+                    <span className="editorial-kicker block mb-1">CORPORATE ALLIANCE</span>
+                    <h2 className="editorial-title text-2xl sm:text-3xl font-normal mb-1">
+                      {employerStep === 1 ? (
+                        <>Register <span className="editorial-accent italic">Organization</span></>
+                      ) : (
+                        <>Validate <span className="editorial-accent italic">Information</span></>
+                      )}
                     </h2>
-                    <p className="text-sm text-stone-500 font-normal mb-4">
+                    <p className="editorial-sub text-xs sm:text-sm mb-4">
                       {employerStep === 1
                         ? 'Create an employer account to post career opportunities and hire certified Cecilian graduates.'
                         : 'Please double-check and verify that all entered company details are accurate before submitting for accreditation.'}
@@ -2131,14 +2139,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 {step === 1 && (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="mb-4">
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-50 text-[#8B181B] mb-2 border border-red-200/80">
+                      <div className="editorial-kicker flex items-center gap-1.5 mb-1">
                         <ShieldCheck className="w-3.5 h-3.5" />
-                        Official Alumni Verification
+                        <span>Step 1 of 3 · Official Alumni Verification</span>
                       </div>
-                      <h2 className="font-sans text-2xl sm:text-3xl text-stone-900 font-bold tracking-tight mb-1">
-                        Verify Student ID
+                      <h2 className="editorial-title text-2xl sm:text-3xl font-normal mb-1">
+                        Verify <span className="editorial-accent italic">Student ID</span>
                       </h2>
-                      <p className="text-sm text-stone-500 font-normal leading-relaxed">
+                      <p className="editorial-sub text-xs sm:text-sm leading-relaxed">
                         Enter your official St. Cecilia’s College Student ID number to authenticate your graduation record with the Registrar.
                       </p>
                     </div>
@@ -2372,14 +2380,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 {step === 2 && (
                   <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="mb-4">
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-50 text-[#8B181B] mb-2 border border-red-200/80">
+                      <div className="editorial-kicker flex items-center gap-1.5 mb-1">
                         <UserCheck className="w-3.5 h-3.5" />
-                        Step 2 of 3 • Account Setup
+                        <span>Step 2 of 3 · Account Setup</span>
                       </div>
-                      <h2 className="font-sans text-2xl sm:text-3xl text-stone-900 font-bold tracking-tight mb-1">
-                        Account Credentials
+                      <h2 className="editorial-title text-2xl sm:text-3xl font-normal mb-1">
+                        Account <span className="editorial-accent italic">Credentials</span>
                       </h2>
-                      <p className="text-sm text-stone-500 font-normal leading-relaxed">
+                      <p className="editorial-sub text-xs sm:text-sm leading-relaxed">
                         Your identity has been verified. Set up your portal login credentials below.
                       </p>
                     </div>
@@ -2818,14 +2826,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 {/* STEP 3: REVIEW APPLICATION & CECILIAN ALUMNI PLEDGE */}
                 {step === 3 && (
                   <div>
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#8B181B] mb-1.5">
+                    <div className="editorial-kicker flex items-center gap-1.5 mb-1">
                       <ShieldCheck className="w-3.5 h-3.5" />
                       <span>Step 3 of 3 · Final Verification & Covenants</span>
                     </div>
-                    <h2 className="font-sans text-2xl sm:text-3xl text-stone-900 font-bold tracking-tight mb-1">
-                      Review & Honor Pledge
+                    <h2 className="editorial-title text-2xl sm:text-3xl font-normal mb-1">
+                      Review <span className="editorial-accent italic">& Honor Pledge</span>
                     </h2>
-                    <p className="text-sm text-stone-500 font-normal mb-4">
+                    <p className="editorial-sub text-xs sm:text-sm mb-4">
                       Verify your alumni credentials before submitting to St. Cecilia’s College alumni portal.
                     </p>
 

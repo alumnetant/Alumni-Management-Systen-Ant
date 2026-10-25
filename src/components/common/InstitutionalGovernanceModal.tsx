@@ -39,11 +39,12 @@ export const InstitutionalGovernanceModal: React.FC<{
               <Landmark className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">
-                Institutional Governance & Standards
+              <span className="editorial-kicker block mb-0.5">ACCREDITATION & CHARTER</span>
+              <h3 className="editorial-title text-base sm:text-lg font-normal">
+                Institutional Governance <span className="editorial-accent italic">& Standards</span>
               </h3>
-              <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                St. Cecilia's College - Cebu, Inc. • Accreditations & Association Charter
+              <p className="editorial-sub text-[11px] sm:text-xs">
+                St. Cecilia's College - Cebu, Inc. · Accreditations & Association Charter
               </p>
             </div>
           </div>

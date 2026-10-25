@@ -28,7 +28,6 @@ import {
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { DigitalAlumniCard } from './DigitalAlumniCard';
-import { WebDigitalPassCard } from './WebDigitalPassCard';
 import { PlatformOnly } from '../common/PlatformOnly';
 import { RegistrarSelfVerificationModal } from './RegistrarSelfVerificationModal';
 import { ImageViewerModal } from '../common/ImageViewerModal';
@@ -478,42 +477,37 @@ export const ProfileView: React.FC = () => {
           </div>
 
           {/* ========================================================
-              OFFICIAL ALUMNI DIGITAL PASS (TWO-WAY PLATFORM SEGMENTED)
-              Mobile: Full interactive metallic pass with turnstile QR
-              Web: WebDigitalPassCard with APK download and scannable QR
+              OFFICIAL ALUMNI DIGITAL PASS
+              Interactive metallic pass with QR turnstile verification
+              Accessible across web and mobile
               ======================================================== */}
-          <PlatformOnly
-            client="mobile"
-            fallback={<div className="mt-8"><WebDigitalPassCard user={currentUser} /></div>}
+          <div
+            id="digital-id-section"
+            className="mt-8 p-6 bg-gradient-to-br from-stone-900 via-stone-950 to-stone-900 dark:from-stone-950 dark:via-black dark:to-stone-950 rounded-2xl border border-stone-800 dark:border-stone-800/90 text-white shadow-xl scroll-mt-20 transition-colors"
           >
-            <div
-              id="digital-id-section"
-              className="mt-8 p-6 bg-gradient-to-br from-stone-900 via-stone-950 to-stone-900 dark:from-stone-950 dark:via-black dark:to-stone-950 rounded-2xl border border-stone-800 dark:border-stone-800/90 text-white shadow-xl scroll-mt-20 transition-colors"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-6 border-b border-stone-800">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-amber-400" />
-                    <h2 className="text-sm sm:text-base font-bold text-white uppercase tracking-wider font-mono">
-                      Official Alumni Digital Pass
-                    </h2>
-                  </div>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Interactive metallic access card with EMV chip, contactless gate verification, and QR turnstile code.
-                  </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-6 border-b border-stone-800">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-amber-400" />
+                  <h2 className="text-sm sm:text-base font-bold text-white uppercase tracking-wider font-mono">
+                    Official Alumni Digital Pass
+                  </h2>
                 </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 shadow-xs">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    ACTIVE MEMBERSHIP
-                  </span>
-                </div>
+                <p className="text-xs text-stone-400 mt-1">
+                  Interactive metallic access card with EMV chip, contactless gate verification, and QR turnstile code.
+                </p>
               </div>
 
-              <DigitalAlumniCard user={currentUser} />
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 shadow-xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  ACTIVE MEMBERSHIP
+                </span>
+              </div>
             </div>
-          </PlatformOnly>
+
+            <DigitalAlumniCard user={currentUser} />
+          </div>
 
           {/* ========================================================
               BENTO GRID: ABOUT + ACADEMIC RECORD + EXPERIENCE + EDUCATION

@@ -207,12 +207,12 @@ export const DashboardView: React.FC = () => {
 
             <div className="min-w-0 space-y-0.5">
               <div className="flex items-center gap-2 text-[11px] font-medium text-stone-400 dark:text-stone-500 flex-wrap">
+                <span className="editorial-kicker">ST. CECILIA'S COLLEGE · CEBU</span>
+                <span aria-hidden="true" className="text-stone-400">·</span>
                 <span>{todayFormatted}</span>
-                <span aria-hidden="true">·</span>
-                <span className="text-[#8B181B] dark:text-rose-400 font-semibold">St. Cecilia's College - Cebu</span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-stone-100 tracking-tight font-sans truncate">
-                {salutation}, {currentUser?.name?.split(' ')[0] || 'Cecilian'}
+              <h1 className="editorial-title text-xl sm:text-2xl font-normal tracking-tight truncate">
+                {salutation}, <span className="editorial-accent italic">{currentUser?.name?.split(' ')[0] || 'Cecilian'}</span>
               </h1>
               <div className="text-xs text-stone-500 dark:text-stone-400 flex items-center gap-2 flex-wrap">
                 <span className="truncate">{currentUser?.course || 'Bachelor Degree'}</span>
@@ -271,10 +271,11 @@ export const DashboardView: React.FC = () => {
           <section className="bg-white dark:bg-[#181615] rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-stone-200/80 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight">
-                  Campus Bulletins & Dispatches
+                <span className="editorial-kicker block mb-1">OFFICIAL ADVISORIES & DISPATCHES</span>
+                <h2 className="editorial-title text-lg sm:text-xl font-normal leading-snug">
+                  Campus Bulletins <span className="editorial-accent italic">& Dispatches</span>
                 </h2>
-                <p className="text-xs text-stone-400 dark:text-stone-500">
+                <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
                   Official notices from St. Cecilia's College administration
                 </p>
               </div>
@@ -298,7 +299,7 @@ export const DashboardView: React.FC = () => {
                   className="py-3.5 first:pt-0 last:pb-0 group cursor-pointer space-y-1.5 transition-colors"
                 >
                   <div className="flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500">
-                    <span className="font-semibold text-[#8B181B] dark:text-rose-400 text-[11px] uppercase tracking-wider">
+                    <span className="editorial-kicker">
                       {bulletin.category || 'Official Advisory'}
                     </span>
                     <span aria-hidden="true">·</span>
@@ -311,7 +312,7 @@ export const DashboardView: React.FC = () => {
                     </span>
                   </div>
 
-                  <h3 className="text-sm sm:text-base font-semibold text-stone-900 dark:text-stone-100 group-hover:text-[#8B181B] dark:group-hover:text-rose-400 transition-colors leading-snug">
+                  <h3 className="editorial-card-title text-sm sm:text-base group-hover:text-[#8B181B] dark:group-hover:text-rose-400 transition-colors leading-snug">
                     {bulletin.title}
                   </h3>
 
@@ -338,10 +339,11 @@ export const DashboardView: React.FC = () => {
           <section className="bg-white dark:bg-[#181615] rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-stone-200/80 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight">
-                  Reunions & Official Gatherings
+                <span className="editorial-kicker block mb-1">ALUMNI HOMECOMING & ASSEMBLIES</span>
+                <h2 className="editorial-title text-lg sm:text-xl font-normal leading-snug">
+                  Reunions <span className="editorial-accent italic">& Official Gatherings</span>
                 </h2>
-                <p className="text-xs text-stone-400 dark:text-stone-500">
+                <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
                   Campus homecomings, general assemblies, and batch celebrations
                 </p>
               </div>
@@ -362,10 +364,10 @@ export const DashboardView: React.FC = () => {
                 <div className="p-4 sm:p-5 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1 min-w-0">
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-[#8B181B] dark:text-rose-400">
+                      <div className="editorial-kicker">
                         {featuredEvent.isFeaturedReservation ? 'Grand Homecoming' : 'Featured Gathering'}
                       </div>
-                      <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 leading-snug">
+                      <h3 className="editorial-card-title text-base sm:text-lg leading-snug">
                         {featuredEvent.title}
                       </h3>
                     </div>
@@ -527,10 +529,11 @@ export const DashboardView: React.FC = () => {
           <section className="bg-white dark:bg-[#181615] rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-stone-200/80 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">
-                  Batch {currentUser?.batch || '2023'} Classmates
+                <span className="editorial-kicker block mb-0.5">COHORT CONNECTIONS</span>
+                <h3 className="editorial-title text-base sm:text-lg font-normal">
+                  Batch {currentUser?.batch || '2023'} <span className="editorial-accent italic">Classmates</span>
                 </h3>
-                <p className="text-xs text-stone-400 dark:text-stone-500">
+                <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
                   Alumni peers from your graduating cohort
                 </p>
               </div>
@@ -590,10 +593,11 @@ export const DashboardView: React.FC = () => {
           <section className="bg-white dark:bg-[#181615] rounded-2xl sm:rounded-3xl p-5 sm:p-6 border border-stone-200/80 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100">
-                  Career Radar
+                <span className="editorial-kicker block mb-0.5">CAREER ADVANCEMENT</span>
+                <h3 className="editorial-title text-base sm:text-lg font-normal">
+                  Career <span className="editorial-accent italic">Radar</span>
                 </h3>
-                <p className="text-xs text-stone-400 dark:text-stone-500">
+                <p className="text-xs text-stone-400 dark:text-stone-500 mt-0.5">
                   Opportunities shared by Cecilian partners
                 </p>
               </div>

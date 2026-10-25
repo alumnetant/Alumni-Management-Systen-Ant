@@ -212,7 +212,7 @@ export const PublicProfileModal: React.FC = () => {
               {/* User Details */}
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="font-sans text-xl sm:text-2xl font-bold text-stone-900 dark:text-white tracking-tight">
+                  <h2 className="editorial-title text-xl sm:text-2xl font-normal">
                     {targetUser.name}
                   </h2>
                   {targetUser.isVerified && (

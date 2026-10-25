@@ -240,16 +240,16 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-200 pb-4 mb-6 gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#8B181B]">
-                ST. CECILIA'S COLLEGE - CEBU, INC.
+              <span className="editorial-kicker">
+                ST. CECILIA'S COLLEGE · CEBU
               </span>
-              <span className="text-stone-300">•</span>
-              <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
+              <span className="text-stone-300">·</span>
+              <span className="text-[10px] font-medium text-stone-500 uppercase tracking-widest font-mono">
                 ARCHIVAL COLLECTION
               </span>
             </div>
-            <h3 id="campus-gallery-title" className="font-sans text-2xl sm:text-3xl text-stone-900 font-normal tracking-tight mt-0.5">
-              Campus & Heritage Gallery
+            <h3 id="campus-gallery-title" className="editorial-title text-2xl sm:text-3xl mt-0.5">
+              Campus <span className="editorial-accent italic">& Heritage Gallery</span>
             </h3>
           </div>
 

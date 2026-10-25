@@ -648,11 +648,8 @@ export const MessagesView: React.FC = () => {
                 className="p-3.5 border-b space-y-2.5"
               >
                 <div className="flex items-center justify-between">
-                  <span
-                    style={{ color: 'var(--dm-text-primary)' }}
-                    className="text-xs font-bold font-sans tracking-tight uppercase"
-                  >
-                    Dispatch Channels
+                  <span className="editorial-kicker">
+                    DISPATCH CHANNELS
                   </span>
                   <span
                     style={{ color: 'var(--dm-text-muted)' }}
@@ -1031,7 +1028,7 @@ export const MessagesView: React.FC = () => {
                               <h2
                                 onClick={() => recipientUser && setSelectedUserIdForModal(recipientUser.uid)}
                                 style={{ color: 'var(--dm-text-primary)' }}
-                                className="text-xs sm:text-sm font-bold hover:text-[#8B181B] dark:hover:text-rose-400 transition-colors cursor-pointer truncate"
+                                className="editorial-card-title text-sm sm:text-base hover:text-[#8B181B] dark:hover:text-rose-400 transition-colors cursor-pointer truncate"
                               >
                                 {recipientUser?.name}
                               </h2>

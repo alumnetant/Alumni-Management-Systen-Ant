@@ -1308,7 +1308,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>Verified Match Records</span>
-                <span className="text-[#8B181B] font-semibold">Explore</span>
               </div>
             </TiltCard>
 
@@ -1332,7 +1331,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>Instant QR Verification</span>
-                <span className="text-[#B45309] font-semibold">Preview Pass</span>
               </div>
             </TiltCard>
 
@@ -1356,7 +1354,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>For Employers & Alumni</span>
-                <span className="text-emerald-800 font-semibold">Browse Jobs</span>
               </div>
             </TiltCard>
 
@@ -1380,7 +1377,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>Admin Broadcasts</span>
-                <span className="text-stone-700 font-semibold">Read Feed</span>
               </div>
             </TiltCard>
 
@@ -1404,7 +1400,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>12 Active Hubs</span>
-                <span className="text-[#8B181B] font-semibold">Find Chapter</span>
               </div>
             </TiltCard>
 
@@ -1428,7 +1423,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
                 <span>Cecilian Pride</span>
-                <span className="text-[#B45309] font-semibold">View Hall of Fame</span>
               </div>
             </TiltCard>
           </motion.div>
