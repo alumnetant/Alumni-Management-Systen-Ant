@@ -1249,6 +1249,22 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
   };
   const token = createSignedSessionToken(tokenPayload);
 
+  // Issue dedicated long-lived refresh token (30 days) for native biometric Keystore vaulting
+  const refreshTokenPayload: SignedSessionPayload = {
+    sessionId,
+    uid: user.uid,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    studentId: user.studentId,
+    alumniId: user.alumniId,
+    employeeId: user.employeeId,
+    tokenType: 'refresh',
+    iat: Date.now(),
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 days validity
+  };
+  const refreshToken = createSignedSessionToken(refreshTokenPayload);
+
   // Register authoritative active single session
   activeSessions.set(user.uid, {
     sessionId,
@@ -1264,9 +1280,11 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
     userAgent: req.headers['user-agent'] || ''
   });
 
-    res.json({
+  res.json({
     message: 'Sign-in successful.',
     token,
+    accessToken: token,
+    refreshToken,
     sessionId,
     activeSession: {
       deviceInfo: currentDevice.deviceInfo,
@@ -1304,6 +1322,122 @@ app.post('/api/v1/auth/web/login', authRateLimiter, (req: Request, res: Response
     return lastHandler.handle(req, res, next);
   }
   next();
+});
+
+// 6.2.0 Biometric Vaulted Token Exchange: Refresh Session with Hardware-Bound Refresh Token
+app.post('/api/auth/refresh', authRateLimiter, (req: Request, res: Response) => {
+  const refreshToken = typeof req.body.refreshToken === 'string' ? req.body.refreshToken.trim() : '';
+
+  if (!refreshToken) {
+    return res.status(400).json({ error: 'Refresh token is required.', code: 'MISSING_REFRESH_TOKEN' });
+  }
+
+  if (revokedTokens.has(refreshToken)) {
+    return res.status(401).json({ error: 'Session credentials have been revoked.', code: 'TOKEN_REVOKED' });
+  }
+
+  const payload = verifySignedSessionToken(refreshToken);
+  if (!payload || !payload.uid) {
+    return res.status(401).json({ error: 'Invalid or tampered session token.', code: 'INVALID_TOKEN' });
+  }
+
+  if (payload.exp && payload.exp < Date.now()) {
+    return res.status(401).json({ error: 'Biometric session expired. Please sign in with your password.', code: 'TOKEN_EXPIRED' });
+  }
+
+  // Find user credential record
+  let user = credentialsDb.get(payload.uid);
+  if (!user && payload.email) {
+    user = credentialsDb.get(payload.email.toLowerCase());
+  }
+  if (!user) {
+    return res.status(404).json({ error: 'Account not found in university directory.', code: 'USER_NOT_FOUND' });
+  }
+
+  const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
+  if (accountStatus === 'SUSPENDED') {
+    return res.status(403).json({ error: 'Account has been suspended.', code: 'ACCOUNT_SUSPENDED' });
+  }
+
+  const currentDevice = extractDeviceInfo(req);
+  const newSessionId = `sess_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const newAccessToken = createSignedSessionToken({
+    sessionId: newSessionId,
+    uid: user.uid,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    studentId: user.studentId,
+    alumniId: user.alumniId,
+    employeeId: user.employeeId,
+    emailVerified: user.emailVerified,
+    isVerified: user.isVerified ?? true,
+    iat: Date.now(),
+    exp: Date.now() + 7 * 24 * 60 * 60 * 1000
+  });
+
+  // Re-issue a fresh 30-day refresh token for ongoing biometric sessions
+  const newRefreshToken = createSignedSessionToken({
+    sessionId: newSessionId,
+    uid: user.uid,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    studentId: user.studentId,
+    alumniId: user.alumniId,
+    employeeId: user.employeeId,
+    tokenType: 'refresh',
+    iat: Date.now(),
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000
+  });
+
+  // Update active single session
+  activeSessions.set(user.uid, {
+    sessionId: newSessionId,
+    token: newAccessToken,
+    uid: user.uid,
+    email: user.email,
+    name: user.name,
+    createdAt: Date.now(),
+    lastActiveAt: Date.now(),
+    deviceInfo: currentDevice.deviceInfo,
+    ipAddress: currentDevice.ipAddress,
+    approxLocation: currentDevice.approxLocation,
+    userAgent: req.headers['user-agent'] || ''
+  });
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'BIOMETRIC_TOKEN_REFRESH_SUCCESS',
+    actor: user.email,
+    actorRole: user.role,
+    ip: currentDevice.ipAddress,
+    details: { device: currentDevice.deviceInfo, method: 'Android Keystore BiometricPrompt' }
+  });
+
+  res.json({
+    message: 'Biometric authentication verified! Session resumed.',
+    token: newAccessToken,
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken,
+    sessionId: newSessionId,
+    activeSession: {
+      deviceInfo: currentDevice.deviceInfo,
+      approxLocation: currentDevice.approxLocation
+    },
+    user: {
+      uid: user.uid,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      studentId: user.studentId,
+      alumniId: user.alumniId,
+      employeeId: user.employeeId,
+      emailVerified: user.emailVerified,
+      isVerified: user.isVerified ?? true
+    }
+  });
 });
 
 // 6.2.1 Authentication: Active Session Verification & Recovery
@@ -1433,6 +1567,48 @@ app.get('/api/auth/security-notices', requireServerAuth, (req: Request, res: Res
   const userPayload = (req as any).user;
   const notices = securityAttemptNotices.filter((n) => n.uid === userPayload.uid);
   res.json({ success: true, notices });
+});
+
+// 6.2.4 Authentication: Secure Logout & Session Invalidation
+app.post('/api/auth/logout', (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  let loggedOutEmail = 'anonymous';
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    if (token) {
+      revokedTokens.add(token);
+      for (const [uid, sess] of activeSessions.entries()) {
+        if (sess.token === token) {
+          loggedOutEmail = sess.email;
+          activeSessions.delete(uid);
+          break;
+        }
+      }
+    }
+  }
+
+  const { refreshToken } = req.body || {};
+  if (refreshToken && typeof refreshToken === 'string') {
+    revokedTokens.add(refreshToken);
+    const refreshPayload = verifySignedSessionToken(refreshToken);
+    if (refreshPayload && refreshPayload.uid) {
+      activeSessions.delete(refreshPayload.uid);
+      if (refreshPayload.email) loggedOutEmail = refreshPayload.email;
+    }
+  }
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'LOGOUT_SESSION_REVOKED',
+    actor: loggedOutEmail,
+    actorRole: 'user',
+    ip: req.ip || 'unknown',
+    details: { message: 'Session and biometric credentials invalidated on logout.' }
+  });
+
+  res.json({ success: true, message: 'Logged out successfully. All session tokens invalidated.' });
 });
 
 // 6.3 Email Verification: Request Verification Token

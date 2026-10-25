@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for native app-like directional Framer Motion transitions, data security hardening (contact masking and encrypted offline pass cache), and comfy UX ergonomics with floating quick actions and touch scaling.",
-  "updatedAt":  "2026-10-25T17:27:28.691481294Z",
+  "summary":  "Comprehensive implementation plan for native Capacitor Android biometric authentication (Fingerprint & Face Unlock) with hardware-backed Keystore vault, automatic BiometricPrompt app launch triggers, post-login opt-in dialog, web fallback segmentation, and backend token refresh/session revocation.",
+  "updatedAt":  "2026-10-25T18:33:01.553185042Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

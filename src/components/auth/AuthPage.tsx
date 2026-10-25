@@ -38,12 +38,19 @@ import {
   X,
   FileText,
   Send,
-  ScanFace
+  ScanFace,
+  Fingerprint
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import {
   checkBiometricAvailability,
   authenticateWithBiometrics,
   enableBiometricLogin,
+  vaultBiometricRefreshToken,
+  retrieveVaultedRefreshToken,
+  isBiometricLoginEnabled,
+  getBiometricSavedUsername,
+  canAutoPromptBiometrics,
   BiometricAvailability
 } from '../../services/biometricAuthService';
 import { useAlumni } from '../../context/AlumniContext';
@@ -99,6 +106,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 }) => {
   const {
     login,
+    biometricLoginWithRefreshToken,
     register,
     users,
     resetUserPasswordByEmail,
@@ -133,6 +141,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     role: string;
   } | null>(null);
 
+  // Post-Login Biometric Opt-In Interactive Modal State
+  const [showBiometricOptInModal, setShowBiometricOptInModal] = useState(false);
+  const [pendingOptInUser, setPendingOptInUser] = useState<{
+    uid: string;
+    email: string;
+    role: string;
+    refreshToken: string;
+  } | null>(null);
+
   // Pending Account Approval Notification (Explicit 24 to 48 business hours)
   const [pendingApprovalNotice, setPendingApprovalNotice] = useState<{
     show: boolean;
@@ -148,56 +165,163 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
   }, [loginPlatformError]);
 
-  // Biometric Authentication State (Face Detection)
+  // Biometric Authentication State (Android Keystore / BiometricPrompt)
   const [biometricAvail, setBiometricAvail] = useState<BiometricAvailability>({
     isAvailable: false,
     biometryType: 'none',
-    label: 'Biometrics'
+    label: 'Biometrics',
+    hasFace: false,
+    hasFingerprint: false,
+    hasWebAuthn: false,
+    hasCapacitor: false,
+    isNative: false
   });
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+  const hasAutoPromptedRef = useRef(false);
 
+  // Initial Biometric Availability Check
   useEffect(() => {
     checkBiometricAvailability().then((avail) => {
       setBiometricAvail(avail);
     });
   }, []);
 
-  const handleBiometricSignIn = async () => {
+  // Automatic Native BiometricPrompt on Android App Launch
+  useEffect(() => {
+    if (hasAutoPromptedRef.current) return;
+    if (mode !== 'login') return;
+
+    const attemptNativeBiometricAutoLaunch = async () => {
+      // Only execute on native Capacitor wrapper (Android APK / iOS)
+      if (!Capacitor.isNativePlatform()) return;
+
+      const avail = await checkBiometricAvailability();
+      setBiometricAvail(avail);
+
+      if (!avail.isAvailable) return;
+
+      // Check if user has opted in and has vaulted credentials
+      const savedUser = getBiometricSavedUsername();
+      const isEnabled = isBiometricLoginEnabled();
+      if (!isEnabled || !savedUser) return;
+
+      hasAutoPromptedRef.current = true;
+
+      // Wait 350ms to ensure the native activity and login view have stabilized
+      setTimeout(async () => {
+        setIsBiometricLoading(true);
+        try {
+          const res = await retrieveVaultedRefreshToken({
+            promptReason: 'Touch fingerprint sensor or scan face to unlock Cecilian Alumnet',
+            title: 'Cecilian Biometric Unlock',
+            subtitle: `Alumnus: ${savedUser}`,
+            description: 'Verify your biometric identity to access your alumni workspace.',
+            negativeButtonText: 'Sign in with Password'
+          });
+
+          if (res.success && res.refreshToken) {
+            const refreshRes = await biometricLoginWithRefreshToken(res.refreshToken);
+            if (refreshRes.success) {
+              if (onLoginSuccess) {
+                onLoginSuccess('alumni');
+              } else if (onBackToApp) {
+                onBackToApp();
+              }
+            } else {
+              setLoginIdentifier(savedUser);
+              showToast(refreshRes.error || 'Biometric session expired. Please sign in with password.', 'info');
+            }
+          } else if (res.cancelled) {
+            setLoginIdentifier(savedUser);
+            showToast('Biometric unlock cancelled. Please sign in with your password.', 'info');
+          } else if (res.error) {
+            setLoginIdentifier(savedUser);
+            showToast(res.error, 'error');
+          }
+        } catch (err: any) {
+          console.warn('Auto biometric prompt error:', err);
+        } finally {
+          setIsBiometricLoading(false);
+        }
+      }, 350);
+    };
+
+    attemptNativeBiometricAutoLaunch();
+  }, [mode, biometricLoginWithRefreshToken, onLoginSuccess, onBackToApp, showToast]);
+
+  const handleBiometricSignIn = async (modality: 'face' | 'fingerprint' = 'fingerprint') => {
     setIsBiometricLoading(true);
     try {
-      const res = await authenticateWithBiometrics();
-      if (res.success && res.credentials) {
-        const emailOrUser = res.credentials.email;
-        const pwd = res.credentials.password;
-        
-        let ok = false;
-        if (pwd && pwd !== 'session_token') {
-          ok = await login(emailOrUser, pwd);
+      const isNative = Capacitor.isNativePlatform();
+
+      if (isNative) {
+        // Native Android BiometricPrompt flow
+        const isFace = modality === 'face';
+        const res = await retrieveVaultedRefreshToken({
+          promptReason: isFace
+            ? 'Scan your face to sign in to Cecilian Alumnet'
+            : 'Touch fingerprint sensor to sign in to Cecilian Alumnet',
+          title: isFace ? 'Cecilian Face Unlock' : 'Cecilian Touch ID & Fingerprint',
+          subtitle: 'St. Cecilia\'s College Alumni Network',
+          description: 'Authenticate using device biometrics to access your account.',
+          negativeButtonText: 'Sign in with Password'
+        });
+
+        if (res.success && res.refreshToken) {
+          const loginRes = await biometricLoginWithRefreshToken(res.refreshToken);
+          if (loginRes.success) {
+            showToast('Biometric authentication verified!', 'success');
+            if (onLoginSuccess) {
+              onLoginSuccess('alumni');
+            } else if (onBackToApp) {
+              onBackToApp();
+            }
+          } else {
+            showToast(loginRes.error || 'Session could not be renewed. Please enter your password.', 'info');
+            if (res.email) setLoginIdentifier(res.email);
+          }
+        } else if (res.cancelled) {
+          showToast('Biometric sign-in cancelled. Please use password.', 'info');
         } else {
-          // If stored token or email quick sign-in
+          showToast(res.error || 'Biometric authentication failed.', 'error');
+        }
+      } else {
+        // Clean Web/Desktop fallback
+        const res = await authenticateWithBiometrics();
+        if (res.success && res.credentials) {
+          const emailOrUser = res.credentials.email;
+          const storedRefresh = res.credentials.refreshToken;
+
+          if (storedRefresh) {
+            const loginRes = await biometricLoginWithRefreshToken(storedRefresh);
+            if (loginRes.success) {
+              showToast('Biometric authentication verified!', 'success');
+              if (onLoginSuccess) onLoginSuccess('alumni');
+              else if (onBackToApp) onBackToApp();
+              return;
+            }
+          }
+
           const matched = users.find(
             (u) =>
               u.email?.toLowerCase() === emailOrUser.toLowerCase() ||
               u.studentId?.toLowerCase() === emailOrUser.toLowerCase()
           );
-          if (matched) {
-            ok = await login(matched.email, 'demo-biometric-key');
+          if (matched && matched.password) {
+            const ok = await login(matched.email, matched.password);
+            if (ok) {
+              showToast('Biometric authentication verified!', 'success');
+              if (onLoginSuccess) onLoginSuccess('alumni');
+              else if (onBackToApp) onBackToApp();
+              return;
+            }
           }
-        }
 
-        if (ok) {
-          showToast('Biometric authentication verified!', 'success');
-          if (onLoginSuccess) {
-            onLoginSuccess('alumni');
-          } else if (onBackToApp) {
-            onBackToApp();
-          }
-        } else {
           setLoginIdentifier(emailOrUser);
-          showToast('Biometric verified! Please enter your password to renew your session.', 'info');
+          showToast('Biometric verified! Please enter your password to sign in.', 'info');
+        } else if (res.error) {
+          showToast(res.error, 'error');
         }
-      } else if (res.error) {
-        showToast(res.error, 'error');
       }
     } catch (err: any) {
       showToast(err?.message || 'Biometric authentication failed.', 'error');
@@ -1535,25 +1659,38 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   : 'SIGN IN'}
               </button>
 
-              {/* Biometric Quick Login (Face Detection & Face ID) */}
+              {/* Multi-Modal Biometric Quick Login (Face Detection & Fingerprint Sensor) */}
               {biometricAvail.isAvailable && (
                 <div className="pt-2">
                   <div className="relative flex py-2 items-center">
                     <div className="flex-grow border-t border-stone-200"></div>
                     <span className="flex-shrink mx-3 text-[10px] font-bold text-stone-400 uppercase tracking-widest">
-                      or facial recognition
+                      or biometric sign-in
                     </span>
                     <div className="flex-grow border-t border-stone-200"></div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={isLockedOut || isBiometricLoading}
-                    onClick={handleBiometricSignIn}
-                    className="w-full py-3 px-4 rounded-xl border border-stone-200/90 hover:border-[#8B181B] bg-white hover:bg-stone-50/80 text-stone-800 text-xs font-bold tracking-wide transition-all shadow-2xs flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
-                  >
-                    <ScanFace className="w-4 h-4 text-[#8B181B]" />
-                    <span>{isBiometricLoading ? 'Detecting Face...' : 'Sign in with Face Detection'}</span>
-                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={isLockedOut || isBiometricLoading}
+                      onClick={() => handleBiometricSignIn('face')}
+                      className="py-2.5 px-3 rounded-xl border border-stone-200/90 hover:border-[#8B181B] bg-white hover:bg-stone-50/80 text-stone-800 text-xs font-bold tracking-wide transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      title="Sign in with Face Detection"
+                    >
+                      <ScanFace className="w-4 h-4 text-[#8B181B]" />
+                      <span className="truncate">Face Scan</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isLockedOut || isBiometricLoading}
+                      onClick={() => handleBiometricSignIn('fingerprint')}
+                      className="py-2.5 px-3 rounded-xl border border-stone-200/90 hover:border-[#8B181B] bg-white hover:bg-stone-50/80 text-stone-800 text-xs font-bold tracking-wide transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      title="Sign in with Fingerprint / Touch ID"
+                    >
+                      <Fingerprint className="w-4 h-4 text-[#8B181B]" />
+                      <span className="truncate">Fingerprint</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -3589,6 +3726,37 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           onVerifySuccess={() => {
             const role = pendingTwoFactorUser.role || 'alumni';
             setShowTwoFactorModal(false);
+
+            // Check if native mobile device & biometrics available & user has not yet opted in
+            const isNative = Capacitor.isNativePlatform();
+            const matchedUser = users.find(
+              (u) => u.email.toLowerCase() === pendingTwoFactorUser.email.toLowerCase()
+            );
+            const userId = matchedUser?.uid || '';
+            const latestRefreshToken =
+              sessionStorage.getItem('alumni_latest_refresh_token') ||
+              sessionStorage.getItem('alumni_refresh_token') ||
+              localStorage.getItem('alumni_refresh_token') ||
+              '';
+
+            if (
+              isNative &&
+              biometricAvail.isAvailable &&
+              userId &&
+              !isBiometricLoginEnabled(userId) &&
+              latestRefreshToken
+            ) {
+              setPendingOptInUser({
+                uid: userId,
+                email: pendingTwoFactorUser.email,
+                role,
+                refreshToken: latestRefreshToken
+              });
+              setShowBiometricOptInModal(true);
+              setPendingTwoFactorUser(null);
+              return;
+            }
+
             setPendingTwoFactorUser(null);
             showToast('Two-step verification completed successfully!', 'success');
             if (onLoginSuccess) {
@@ -3602,6 +3770,73 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             setPendingTwoFactorUser(null);
           }}
         />
+      )}
+
+      {/* Post-Login Biometric Opt-In Interactive Modal (Android Keystore Vaulting) */}
+      {showBiometricOptInModal && pendingOptInUser && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-[#8B181B]/10 dark:bg-[#8B181B]/20 text-[#8B181B] dark:text-[#f87171] flex items-center justify-center mx-auto mb-4 border border-[#8B181B]/20">
+              <Fingerprint className="w-7 h-7" strokeWidth={1.75} />
+            </div>
+
+            <span className="editorial-kicker block text-center mb-1 text-[#8B181B] dark:text-[#f87171]">
+              QUICK HARDWARE ACCESS
+            </span>
+            <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-100 text-center tracking-tight mb-2">
+              Enable Biometric Login?
+            </h3>
+
+            <p className="text-xs text-stone-600 dark:text-stone-400 text-center leading-relaxed mb-6">
+              Sign in instantly next time with your <strong>Fingerprint</strong> or <strong>Face ID</strong>. Your session token is bound to this device and protected in hardware Keystore.
+            </p>
+
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (pendingOptInUser.refreshToken) {
+                    await vaultBiometricRefreshToken(
+                      pendingOptInUser.uid,
+                      pendingOptInUser.email,
+                      pendingOptInUser.refreshToken
+                    );
+                    showToast('Biometric Login enabled for this device!', 'success');
+                  }
+                  const targetRole = pendingOptInUser.role;
+                  setShowBiometricOptInModal(false);
+                  setPendingOptInUser(null);
+                  if (onLoginSuccess) {
+                    onLoginSuccess(targetRole);
+                  } else if (onBackToApp) {
+                    onBackToApp();
+                  }
+                }}
+                className="w-full min-h-[44px] py-3 px-4 rounded-xl bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold tracking-wider uppercase transition-all shadow-md hover:shadow-lg cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Fingerprint className="w-4 h-4" strokeWidth={1.75} />
+                <span>Enable Biometric Login</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const targetRole = pendingOptInUser.role;
+                  setShowBiometricOptInModal(false);
+                  setPendingOptInUser(null);
+                  if (onLoginSuccess) {
+                    onLoginSuccess(targetRole);
+                  } else if (onBackToApp) {
+                    onBackToApp();
+                  }
+                }}
+                className="w-full min-h-[44px] py-2.5 px-4 rounded-xl border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/80 text-stone-600 dark:text-stone-400 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Not Now, Continue to App
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

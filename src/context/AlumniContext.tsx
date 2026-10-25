@@ -161,6 +161,11 @@ import {
   QueuedOfflineMessage
 } from '../services/offlineMessageQueueService';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import {
+  vaultBiometricRefreshToken,
+  wipeVaultedBiometricCredentials
+} from '../services/biometricAuthService';
 
 export interface ActiveSessionConflictInfo {
   identifier: string;
@@ -248,6 +253,7 @@ interface AlumniContextType {
 
   // Auth & Session (One Account, One Active Login)
   login: (identifier: string, pass: string) => Promise<boolean>;
+  biometricLoginWithRefreshToken: (refreshToken: string) => Promise<{ success: boolean; user?: UserProfile; error?: string }>;
   activeSessionConflict: ActiveSessionConflictInfo | null;
   clearActiveSessionConflict: () => void;
   terminateOtherSessionAndLogin: (identifier: string, pass: string) => Promise<boolean>;
@@ -2781,6 +2787,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             localStorage.setItem('alumni_auth_token', authData.token);
           } catch {}
         }
+        if (authData.refreshToken) {
+          try {
+            sessionStorage.setItem('alumni_refresh_token', authData.refreshToken);
+            localStorage.setItem('alumni_refresh_token', authData.refreshToken);
+            sessionStorage.setItem('alumni_latest_refresh_token', authData.refreshToken);
+          } catch {}
+        }
         setActiveSessionConflict(null);
         setLoginPlatformError(null);
       }
@@ -2995,6 +3008,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             localStorage.setItem('alumni_auth_token', authData.token);
           } catch {}
         }
+        if (authData.refreshToken) {
+          try {
+            sessionStorage.setItem('alumni_refresh_token', authData.refreshToken);
+            localStorage.setItem('alumni_refresh_token', authData.refreshToken);
+            sessionStorage.setItem('alumni_latest_refresh_token', authData.refreshToken);
+          } catch {}
+        }
         setActiveSessionConflict(null);
 
         // Find user to log in
@@ -3039,6 +3059,88 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } catch {
       showToast('Connection error while ending session. Please check your network.', 'error');
       return false;
+    }
+  };
+
+  const biometricLoginWithRefreshToken = async (
+    refreshToken: string
+  ): Promise<{ success: boolean; user?: UserProfile; error?: string }> => {
+    if (!refreshToken) {
+      return { success: false, error: 'No vaulted refresh token provided.' };
+    }
+
+    try {
+      const res = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        return {
+          success: false,
+          error: errData.error || 'Biometric session expired. Please sign in with your password.'
+        };
+      }
+
+      const authData = await res.json();
+      if (authData.token) {
+        try {
+          sessionStorage.setItem('alumni_server_auth_token', authData.token);
+          localStorage.setItem('alumni_server_auth_token', authData.token);
+          localStorage.setItem('alumni_auth_token', authData.token);
+        } catch {}
+      }
+      if (authData.refreshToken) {
+        try {
+          sessionStorage.setItem('alumni_refresh_token', authData.refreshToken);
+          localStorage.setItem('alumni_refresh_token', authData.refreshToken);
+          if (Capacitor.isNativePlatform() && authData.user) {
+            vaultBiometricRefreshToken(authData.user.uid, authData.user.email, authData.refreshToken).catch(() => {});
+          }
+        } catch {}
+      }
+
+      let user = users.find(
+        (u) =>
+          u.uid === authData.user?.uid ||
+          u.email?.toLowerCase() === authData.user?.email?.toLowerCase()
+      );
+
+      if (!user && authData.user) {
+        user = {
+          uid: authData.user.uid,
+          name: authData.user.name || 'Cecilian Alumnus',
+          email: authData.user.email,
+          role: authData.user.role || 'alumni',
+          studentId: authData.user.studentId,
+          alumniId: authData.user.alumniId,
+          employeeId: authData.user.employeeId,
+          isVerified: authData.user.isVerified ?? true,
+          verified: authData.user.isVerified ?? true,
+          verificationStatus: 'verified',
+          lastActiveAt: new Date().toISOString(),
+          isOnline: true
+        } as UserProfile;
+        setUsers((prev) => [user!, ...prev]);
+      }
+
+      if (user) {
+        saveActiveSession(user);
+        setCurrentUserId(user.uid);
+        setAuthReady(true);
+        setActiveTab('dashboard');
+        if (typeof window !== 'undefined') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        showToast(`Welcome back, ${user.name}! Biometric identity verified.`);
+        return { success: true, user };
+      }
+
+      return { success: false, error: 'User profile not found.' };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Biometric session renewal failed.' };
     }
   };
 
@@ -3491,16 +3593,24 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         sessionStorage.getItem('alumni_server_auth_token') ||
         localStorage.getItem('alumni_server_auth_token') ||
         localStorage.getItem('alumni_auth_token');
-      if (token) {
+      const refreshToken =
+        sessionStorage.getItem('alumni_refresh_token') ||
+        localStorage.getItem('alumni_refresh_token');
+
+      if (token || refreshToken) {
         fetch('/api/auth/logout', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          }
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ refreshToken })
         }).catch(() => {});
       }
     } catch {}
+
+    // Wipe vaulted credentials from native Keystore & storage
+    wipeVaultedBiometricCredentials().catch(() => {});
 
     signOutUser().catch(() => {});
     clearStoredSession();
@@ -3511,6 +3621,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       localStorage.removeItem(STORAGE_KEYS.VIEW);
       localStorage.removeItem('alumni_server_auth_token');
       localStorage.removeItem('alumni_auth_token');
+      localStorage.removeItem('alumni_refresh_token');
+      localStorage.removeItem('alumni_latest_refresh_token');
       sessionStorage.clear();
     } catch {}
     setActiveTab('dashboard');
@@ -7557,6 +7669,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         testDatabaseWrite,
         firestoreDatabaseId: FIRESTORE_DATABASE_ID,
         login,
+        biometricLoginWithRefreshToken,
         activeSessionConflict,
         clearActiveSessionConflict,
         terminateOtherSessionAndLogin,

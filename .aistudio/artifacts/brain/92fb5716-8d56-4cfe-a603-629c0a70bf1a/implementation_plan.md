@@ -1,86 +1,136 @@
-# Implementation Plan: Native App-Like Transitions, Data Security Hardening & Comfy UX
+# Implementation Plan: Native Capacitor Biometric Authentication (Android Keystore Vault & BiometricPrompt)
 
-A comprehensive upgrade bringing native app fluidity, privacy defense, and tactile comfort to St. Cecilia's College Alumnet:
-1. **Framer Motion Transitions**: Native-feeling directional horizontal slide & gentle fade between views based on tab index, plus animated active tab pills.
-2. **Data Security Hardening**: Sensitive contact masking (phone numbers & student IDs with tap-to-reveal) and encrypted local pass caching.
-3. **Comfy UX Ergonomics**: Floating quick-action bar (smooth scroll-to-top, quick pass, ⌘K search) and padded 44px touch targets with spring tap physics.
+Implement secure, production-grade biometric authentication (Fingerprint and Face Unlock) for the St. Cecilia's College - Cebu Alumni Management System Android APK using `@capgo/capacitor-native-biometric`.
 
 ---
 
-> [!IMPORTANT]
-> **Summary of Confirmed User Decisions**
-> - **Transition Style**: Subtle directional slide with gentle fade based on tab index direction (+1 / -1).
-> - **Security Hardening**: Both sensitive contact masking (tap-to-reveal) and encrypted offline local pass cache.
-> - **Comfy UX**: Both floating quick actions (scroll-to-top, pass trigger) and enhanced touch ergonomics.
-
----
-
-## 1. Upgrade Architecture
+## 1. Architecture & Security Flow
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        ALUMNI WORKSPACE ROUTER                         │
-│             Framer Motion Directional Slider [x: -18px ↔ +18px]        │
-├────────────────────────────────────────────────────────────────────────┤
-│ • Module Index Mapping:                                                │
-│   Home(0) ↔ Directory(1) ↔ Events(2) ↔ Jobs(3) ↔ Messages(4) ↔ ...    │
-│ • Custom Directional Variant:                                          │
-│   Moving Forward:  Enters from +18px, exits to -18px                   │
-│   Moving Backward: Enters from -18px, exits to +18px                   │
-└────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌───────────────────────────────────┬────────────────────────────────────┐
-│      DATA SECURITY HARDENING      │           COMFY UX PILL            │
-├───────────────────────────────────┼────────────────────────────────────┤
-│ • Tap-to-Reveal Contact Masking   │ • Floating Quick Action Dock       │
-│   Phone: +63 9•• ••• •892         │   - Smooth "Back to Top"           │
-│   ID:    SCC-••••-0192            │   - One-tap Digital Pass launcher  │
-│ • Encrypted Offline Pass Storage  │   - Quick Search (⌘K) trigger      │
-│   Salted device-bound ciphertext  │ • 44px+ Padded Touch Ergonomics    │
-│   in localStorage                 │ • Spring Tap Feedback (active:0.98)│
-└───────────────────────────────────┴────────────────────────────────────┘
+                      +---------------------------------------+
+                      | Alumnus Enters Email & Password Form  |
+                      +---------------------------------------+
+                                          |
+                                          v
+                      +---------------------------------------+
+                      | POST /api/auth/login                  |
+                      | Receives Access Token + Refresh Token |
+                      +---------------------------------------+
+                                          |
+                      +---------------------------------------+
+                      | Is Native Android? (Capacitor Native) |
+                      +---------------------------------------+
+                             /                         \
+                     [YES]  /                           \  [NO - Web]
+                           v                             v
+           +-------------------------------+    +------------------------+
+           | Prompt Modal:                 |    | Standard Web Session   |
+           | "Enable Biometric Login?"     |    | (No Native Storage)    |
+           +-------------------------------+    +------------------------+
+                   /               \
+           [Accept]                 [Skip]
+              |                        \
+              v                         v
++-------------------------------+   +-----------------------------+
+| NativeBiometric.setCredentials|   | Continue to Dashboard       |
+| Hardware Android Keystore     |   +-----------------------------+
+| Refresh Token Encrypted Vault |
++-------------------------------+
 ```
 
----
-
-## 2. Detailed Implementation Plan
-
-### A. Framer Motion Directional Page & Tab Transitions
-- In `src/components/alumni/AlumniWorkspaceLayout.tsx`:
-  - Define an ordered module index map:
-    `['dashboard', 'network', 'events', 'opportunities', 'messages', 'announcements', 'profile', 'settings']`.
-  - Maintain `[currentModule, prevModule]` state to determine `direction = currentIndex > prevIndex ? 1 : -1`.
-  - Wrap the content viewport in `<AnimatePresence mode="wait" custom={direction}>` with smooth cubic-bezier easing (`[0.25, 1, 0.5, 1]`) and 0.22s duration.
-  - Add Framer Motion `layoutId="active-tab-pill"` on the active navigation items for seamless indicator sliding.
-
-### B. Data Security: Contact Masking & Encrypted Offline Pass
-1. **Sensitive Contact Masking (`ContactMask.tsx` & `ProfileView.tsx` / `NetworkView.tsx`)**:
-   - Mask telephone numbers by default (e.g., `+63 9•• ••• •392`) and student IDs (e.g., `SCC-••••-0821`).
-   - Provide an inline, eye-icon toggle button to temporarily unmask/reveal with a 10-second auto-remasking timer.
-2. **Encrypted Offline Pass Storage (`src/services/secureStorageService.ts`)**:
-   - Provide a lightweight, zero-dependency device-salted obfuscation/encryption wrapper for offline pass tokens stored in `localStorage`.
-   - Update `DigitalAlumniCard.tsx` to serialize through `secureStorageService.setSecureItem()`.
-
-### C. Comfy UX: Floating Quick-Action Dock & Touch Ergonomics
-1. **Floating Quick-Action Dock (`src/components/common/FloatingQuickDock.tsx`)**:
-   - Unobtrusive floating pill anchored at the bottom-right with subtle glassmorphic backdrop (`backdrop-blur-md`).
-   - Automatically slides in when the user scrolls down $> 240\text{px}$.
-   - Contains:
-     - **Back to Top**: Smooth scroll to the top of the viewport.
-     - **Digital Pass**: Opens the 3D rotating alumni card instantly.
-     - **Search (`⌘K`)**: Opens the universal Command Palette.
-2. **Touch Ergonomics**:
-   - Ensure all interactive buttons strictly satisfy $\ge 44\text{px}$ touch target standards with `active:scale-[0.98]` tactile press physics.
+### Subsequent Native Launch Flow:
+1. **Hardware & Enrollment Check:** When the mobile app initializes on native Android (`Capacitor.isNativePlatform()`), check `NativeBiometric.isAvailable()`.
+2. **Opt-in Status Check:** Verify if the user previously enabled biometric login for their account.
+3. **Auto-Trigger BiometricPrompt:**
+   - Display Android OS native `BiometricPrompt` with title `"Cecilian Biometric Access"`, subtitle `"Verify Fingerprint or Face"`, and `"Sign in with Password"` fallback button.
+4. **Token Exchange:**
+   - On success, decrypt the refresh token from Android Keystore via `NativeBiometric.getCredentials()`.
+   - Call backend `POST /api/auth/refresh` to validate the refresh token and exchange it for a fresh access token and verified user profile.
+   - Navigate directly to the Alumni Dashboard without asking for password entry.
+5. **Fallback:** If canceled, failed, or device locked, smoothly present the standard email/password form with instant access.
 
 ---
 
-## 3. Verification & Testing
+## 2. Proposed File Changes & Implementations
 
-1. **Type & Lint Validation**: Run `lint_applet` (`tsc --noEmit`).
-2. **Build Validation**: Run `compile_applet` for production Vite build.
-3. **Interactive Verification**:
-   - **Directional Transitions**: Switch between Home, Directory, Events, Jobs, Messages—observe the silky forward/backward slide transitions.
-   - **Security Masking**: Inspect telephone numbers and student IDs on the profile and directory; tap to reveal and observe auto-remasking.
-   - **Offline Storage**: Inspect `localStorage` to verify pass data is stored in encrypted format rather than plain JSON.
-   - **Floating Dock**: Scroll down on any long view; verify the floating quick-action pill slides in smoothly, and test the "Back to Top" and "Pass" triggers.
+### A. Backend Route & Token Infrastructure (`server.ts`)
+- **Dual-Token Issuance in `/api/auth/login`:**
+  - In addition to standard session tokens, generate a secure, cryptographically signed refresh token (`refreshToken`) with 30-day longevity and specific refresh token scope.
+  - Return `{ token, accessToken, refreshToken, sessionId, user }`.
+- **New Token Refresh Endpoint (`POST /api/auth/refresh`):**
+  - Validates cryptographically signed refresh token.
+  - Ensures the user account is active, non-suspended, and alumni-authorized.
+  - Issues a fresh access token and returns updated session details.
+- **Token Invalidation in `/api/auth/logout` & `/api/auth/revoke-biometrics`:**
+  - Revokes both active session and associated refresh token on explicit user logout or biometric disabling.
+
+### B. Biometric & Vault Utility Helper (`src/services/biometricAuthService.ts`)
+- **Native Android Keystore Vault Management:**
+  - `vaultBiometricRefreshToken(userId: string, email: string, refreshToken: string): Promise<boolean>`:
+    Uses `NativeBiometric.setCredentials({ server: 'edu.stcecilia.alumni.auth', username: email, password: refreshToken })` guarded by `Capacitor.isNativePlatform()`.
+  - `retrieveVaultedRefreshToken(): Promise<{ email: string; refreshToken: string } | null>`:
+    Retrieves vaulted credentials safely from native Keystore.
+  - `wipeVaultedBiometricCredentials(userId?: string): Promise<boolean>`:
+    Calls `NativeBiometric.deleteCredentials()` and removes local device opt-in flags.
+- **Hardware & Enrollment Verification:**
+  - `isNativeBiometricAvailable(): Promise<{ available: boolean; biometryType: string; error?: string }>`:
+    Accurately detects whether biometric hardware is present and enrolled in Android system settings.
+- **Native Biometric Prompt Helper:**
+  - `promptNativeBiometricUnlock(reason?: string): Promise<{ success: boolean; canceled?: boolean; error?: string }>`:
+    Triggers native Android `BiometricPrompt` with localized Cecilian branding and clean fallback.
+
+### C. Alumni Authentication Component (`src/components/auth/AuthPage.tsx`)
+- **Post-Login Biometric Opt-in Modal:**
+  - When an alumnus successfully signs in on native Android and biometric unlock is not yet active, present an elegant bottom sheet/dialog:
+    *"Enable Biometric Quick Sign-in? Touch your fingerprint sensor or use Face Unlock for instant access next time."*
+  - If enabled: encrypt and vault the refresh token in Keystore.
+  - If skipped: remember choice gracefully without re-nagging.
+- **Auto-Prompt on Native Launch:**
+  - `useEffect` hook detecting `Capacitor.isNativePlatform() && isBiometricLoginEnabled()`.
+  - Auto-triggers native `BiometricPrompt`. On success, automatically invokes the refresh token exchange and logs in directly.
+  - "Sign in with Password" button cancels the prompt and exposes the standard login form.
+- **Platform Guard (Web Safety):**
+  - Pure web browsers bypass native calls completely with zero console errors or missing plugin exceptions.
+
+### D. Settings & User Profile (`src/components/settings/SettingsView.tsx` & `src/context/AlumniContext.tsx`)
+- **Profile / Security Toggle:**
+  - "Enable Biometric Unlock" toggle in Security & Access settings.
+  - Toggling on prompts the user to verify biometrics and stores credentials.
+  - Toggling off immediately executes `wipeVaultedBiometricCredentials()`.
+- **Session Logout Synchronization:**
+  - When user clicks "Log Out" in `AlumniContext.tsx` or `SettingsView.tsx`, also trigger `wipeVaultedBiometricCredentials()` to purge Keystore tokens and prevent unauthorized access if the device is handed off.
+
+---
+
+## 3. Key Design Decisions
+
+1. **Hardware-Backed Android Keystore via Capgo Plugin:**
+   `@capgo/capacitor-native-biometric` delegates token storage directly to Android's `KeyStore` and iOS `Keychain`. Plaintext passwords are never stored in `localStorage` or `Preferences`.
+2. **Platform Segmentation:**
+   Strict isolation via `Capacitor.isNativePlatform()` ensures web users, mobile PWA users, and desktop users enjoy an identical responsive experience without native plugin stub crashes.
+3. **Institutional Taste & Micro-Interactions (AGENTS.md):**
+   The opt-in modal and biometric trigger UI adhere to St. Cecilia's deep crimson (`#8B181B`) and warm stone aesthetic, featuring Lucide icons (`Fingerprint`, `ScanFace`, `ShieldCheck`), crisp typography, and fluid micro-transitions.
+
+---
+
+## 4. Potential Risks & Mitigations
+
+| Risk | Mitigation |
+| :--- | :--- |
+| **Plugin call in Web Browser** | Every call to `NativeBiometric` is wrapped in `if (Capacitor.isNativePlatform())` with safe web fallbacks. |
+| **Biometrics changed/wiped in OS** | If fingerprint is removed or modified in OS settings, `NativeBiometric.getCredentials()` will throw an invalid key error. The app catches this, purges the invalid vault, and asks for standard password login. |
+| **Revoked refresh token** | If refresh token fails validation on the backend (e.g. session terminated on another device), clear device vault and route user to password login with informative toast. |
+
+---
+
+## 5. Verification Plan
+
+1. **Static Analysis & Linting:**
+   Run `lint_applet` to verify TypeScript typing across `biometricAuthService.ts`, `server.ts`, `AuthPage.tsx`, and `SettingsView.tsx`.
+2. **Build Compilation:**
+   Execute `compile_applet` to ensure Vite bundle and Express server compile cleanly.
+3. **Functional Workflow Testing:**
+   - Web mode verification: sign in with password, ensure no native errors appear.
+   - Dual-token exchange: verify `/api/auth/login` returns `accessToken` and `refreshToken`.
+   - Refresh flow: verify `/api/auth/refresh` responds with fresh tokens.
+   - Settings toggle: verify turning off biometrics cleans up stored state.
