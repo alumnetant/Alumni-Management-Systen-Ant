@@ -17,6 +17,7 @@ import { UserProfile } from '../../types';
 import { useAlumni } from '../../context/AlumniContext';
 import { generateAlumniId } from '../../services/studentVerificationService';
 import { triggerHaptic } from '../../services/hapticsService';
+import { secureStorageService } from '../../services/secureStorageService';
 import { Capacitor } from '@capacitor/core';
 
 interface DigitalAlumniCardProps {
@@ -72,7 +73,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
 
   const formattedId = getFormattedId(user);
 
-  // Cache digital pass credentials to localStorage so it is 100% accessible offline
+  // Cache encrypted digital pass credentials to localStorage so it is 100% accessible offline
   React.useEffect(() => {
     if (user?.uid) {
       try {
@@ -88,17 +89,14 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
           alumniId: user.alumniId,
           cachedAt: new Date().toISOString()
         };
-        localStorage.setItem(passCacheKey, JSON.stringify(passData));
+        secureStorageService.setSecureItem(passCacheKey, passData);
 
         // Request signed offline turnstile validation token hash for local offline presentation
         fetch('/api/pass/offline-token', { method: 'POST' })
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (data?.offlineSignature) {
-              localStorage.setItem(
-                passCacheKey,
-                JSON.stringify({ ...passData, ...data })
-              );
+              secureStorageService.setSecureItem(passCacheKey, { ...passData, ...data });
             }
           })
           .catch(() => {});

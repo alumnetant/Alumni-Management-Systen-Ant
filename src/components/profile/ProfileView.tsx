@@ -29,6 +29,7 @@ import {
 import { useAlumni } from '../../context/AlumniContext';
 import { DigitalAlumniCard } from './DigitalAlumniCard';
 import { PlatformOnly } from '../common/PlatformOnly';
+import { ContactMask } from '../common/ContactMask';
 import { RegistrarSelfVerificationModal } from './RegistrarSelfVerificationModal';
 import { ImageViewerModal } from '../common/ImageViewerModal';
 import { exportProfileToPdfResume } from '../../services/pdfResumeService';
@@ -383,7 +384,7 @@ export const ProfileView: React.FC = () => {
 
               {currentUser.studentId && (
                 <span className="font-mono text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-stone-700">
-                  {currentUser.studentId}
+                  <ContactMask value={currentUser.studentId} type="studentId" />
                 </span>
               )}
             </div>
@@ -416,7 +417,7 @@ export const ProfileView: React.FC = () => {
               {currentUser.phone && (
                 <span className="flex items-center gap-1.5 text-stone-600 dark:text-stone-400">
                   <Phone className="w-4 h-4 text-stone-400 dark:text-stone-500 shrink-0" />
-                  <span>{currentUser.phone}</span>
+                  <ContactMask value={currentUser.phone} type="phone" />
                 </span>
               )}
             </div>

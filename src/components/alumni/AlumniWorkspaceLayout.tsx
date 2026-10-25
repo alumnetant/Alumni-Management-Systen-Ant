@@ -63,6 +63,7 @@ import { NotificationsView } from '../notifications/NotificationsView';
 import { registerBackAction, triggerHaptic } from '../../services/mobileAppService';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { ConfirmationModal } from '../common/ConfirmationModal';
+import { FloatingQuickDock } from '../common/FloatingQuickDock';
 
 export type AlumniModuleId =
   | 'dashboard'
@@ -135,6 +136,53 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
   const handleSelectModule = (mod: AlumniModuleId) => {
     triggerHaptic('light');
     setActiveTab(mod as any);
+  };
+
+  // Directional Slide Navigation Engine (App-like Horizontal Travel)
+  const MODULE_ORDER: AlumniModuleId[] = [
+    'dashboard',
+    'notifications',
+    'network',
+    'events',
+    'opportunities',
+    'messages',
+    'announcements',
+    'gallery',
+    'profile',
+    'settings'
+  ];
+
+  const [prevModule, setPrevModule] = useState<AlumniModuleId>(currentModule);
+  const slideDirection = useMemo(() => {
+    const prevIdx = MODULE_ORDER.indexOf(prevModule);
+    const currIdx = MODULE_ORDER.indexOf(currentModule);
+    return currIdx >= prevIdx ? 1 : -1;
+  }, [prevModule, currentModule]);
+
+  useEffect(() => {
+    if (prevModule !== currentModule) {
+      setPrevModule(currentModule);
+    }
+  }, [currentModule, prevModule]);
+
+  const directionalVariants = {
+    initial: (dir: number) => ({
+      opacity: 0,
+      x: dir > 0 ? 18 : -18,
+      scale: 0.996
+    }),
+    animate: {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+      transition: { duration: 0.22, ease: [0.25, 1, 0.5, 1] as const }
+    },
+    exit: (dir: number) => ({
+      opacity: 0,
+      x: dir > 0 ? -18 : 18,
+      scale: 0.996,
+      transition: { duration: 0.16, ease: [0.25, 1, 0.5, 1] as const }
+    })
   };
 
   // Sidebar expanded state: visible by default as requested
@@ -1133,13 +1181,14 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
             ====================================================== */}
         <main className="flex-1 min-w-0 w-full max-w-full px-3 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
           <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto">
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="wait" custom={slideDirection}>
               <motion.div
                 key={currentModule}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.16, ease: 'easeOut' }}
+                custom={slideDirection}
+                variants={directionalVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
               >
                 {/* MODULE: Dashboard Overview (Alumni Hub) */}
                 {currentModule === 'dashboard' && <DashboardView />}
@@ -1369,6 +1418,12 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
         message="Are you sure you want to log out of your Cecilian Alumni session? You can sign back in at any time."
         confirmLabel="Log Out"
         variant="danger"
+      />
+
+      {/* Comfy UX: Floating Quick-Action Dock */}
+      <FloatingQuickDock
+        onOpenPass={() => setShowDigitalPassModal(true)}
+        onOpenSearch={() => setShowCommandPalette(true)}
       />
     </div>
   );
