@@ -98,8 +98,6 @@ export const SettingsView: React.FC = () => {
   // Active filter pill for Command Center navigation
   const [activeFilterPill, setActiveFilterPill] = useState<'all' | 'security' | 'notifications' | 'appearance' | 'compliance'>('all');
 
-  // Hero Card tool view: 'security_radar' | 'channels_meter' | 'session_info'
-  const [selectedHeroTool, setSelectedHeroTool] = useState<'security_radar' | 'channels_meter' | 'session_info'>('security_radar');
 
   // Clipboard & Modal States
   const [copiedId, setCopiedId] = useState(false);
@@ -630,494 +628,7 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* HERO BENTO CARD: ACCOUNT ANCHOR & SECURITY POSTURE                        */}
-      {/* ========================================================================= */}
-      <div className="bg-white rounded-[32px] p-6 sm:p-7 relative overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.02),0_8px_24px_rgba(0,0,0,0.03)] border border-stone-200/90 transition-all duration-300">
-        {/* Institutional St. Cecilia Crimson Architectural Top Trim */}
-        <div className="h-1 absolute top-0 left-0 right-0 bg-[#8B181B]" />
 
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pt-1">
-          {/* Left Details */}
-          <div className="space-y-4 max-w-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B181B] bg-red-50 px-2.5 py-0.5 rounded-full border border-red-200/60 shadow-2xs">
-                Console Security
-              </span>
-              <span className="text-xs font-semibold text-stone-500">
-                Institutional Session
-              </span>
-            </div>
-
-            <div>
-              <h3 className="text-2xl font-extrabold text-stone-900 tracking-tight leading-tight">
-                Account Governance
-              </h3>
-              <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-                Configure credential verification, multi-channel dispatch alerts, visual theme preferences, and identity protection.
-              </p>
-            </div>
-
-            <div className="space-y-2 pt-1">
-              {/* Chip 1: Account UID with Copy Button */}
-              <button
-                type="button"
-                onClick={handleCopyId}
-                className="w-full text-left bg-stone-50/80 hover:bg-stone-100/90 rounded-2xl p-3 flex items-center justify-between border border-stone-200/80 shadow-2xs cursor-pointer transition-all group"
-              >
-                <div>
-                  <span className="text-[11px] font-bold text-stone-800 group-hover:text-[#8B181B] transition-colors flex items-center gap-1.5">
-                    <span>Account UID</span>
-                    {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
-                  </span>
-                  <span className="text-[10px] text-stone-500 font-mono">
-                    {currentUser.uid.slice(0, 16)}...
-                  </span>
-                </div>
-                <span className="text-[10px] font-semibold text-[#8B181B]">
-                  {copiedId ? 'Copied' : 'Copy ID'}
-                </span>
-              </button>
-
-              {/* Chip 2: Password Security with Change Button */}
-              <div className="bg-stone-50/80 rounded-2xl p-3 flex items-center justify-between border border-stone-200/80 shadow-2xs">
-                <div>
-                  <span className="text-[11px] font-bold text-stone-800 block">
-                    Password Security
-                  </span>
-                  <span className="text-[10px] text-stone-500">
-                    Encrypted with PBKDF2 hash
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={openPasswordModal}
-                  className="px-2.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] active:scale-95 text-white rounded-xl text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1"
-                >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  <span>Update</span>
-                </button>
-              </div>
-
-              {/* Chip 3: Authority Role & Elevation */}
-              <div className="bg-stone-50/80 rounded-2xl p-3 flex items-center justify-between border border-stone-200/80 shadow-2xs">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-bold text-stone-800 block">
-                      Authority Role
-                    </span>
-                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-stone-200 text-stone-700">
-                      {currentUser.role}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-stone-500">
-                    {currentUser.role === 'admin' || currentUser.role === 'superadmin'
-                      ? 'Administrator privilege active'
-                      : 'Standard alumni clearance'}
-                  </span>
-                </div>
-                {(currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRoleUserUid(currentUser.uid);
-                      setSelectedRoleValue(currentUser.role as UserRole);
-                      setShowRoleModal(true);
-                    }}
-                    className="px-2.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] active:scale-95 text-white rounded-xl text-[10px] font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                    <span>Change Role</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Center / Right: Interactive Visualizer & Tools */}
-          <div className="flex-1 flex flex-col items-center lg:items-end justify-center gap-3 pt-4 lg:pt-0">
-            <div className="flex items-end justify-center lg:justify-end gap-3 sm:gap-4.5 w-full">
-              {/* Tool 1: Notification Channel Meters */}
-              {selectedHeroTool === 'channels_meter' && (
-                <div className="flex items-end gap-2.5 sm:gap-4">
-                  {[
-                    { label: 'Push', active: pushEnabled },
-                    { label: 'Email', active: emailEnabled },
-                    { label: 'Chat', active: messagesEnabled },
-                    { label: 'Events', active: eventsEnabled },
-                    { label: 'Jobs', active: jobsEnabled }
-                  ].map((ch, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => setActiveFilterPill('notifications')}
-                      title={`${ch.label} Channel: ${ch.active ? 'Active' : 'Disabled'}`}
-                      className="flex flex-col items-center gap-1.5 group cursor-pointer"
-                    >
-                      <div className="flex flex-col-reverse gap-1 items-center p-1 rounded-xl group-hover:bg-stone-50 transition-all">
-                        {[1, 2, 3].map((segIdx) => (
-                          <div
-                            key={segIdx}
-                            className={`w-7 sm:w-8 h-6 sm:h-7 rounded-lg transition-all ${
-                              ch.active
-                                ? 'bg-[#8B181B] shadow-xs'
-                                : 'bg-stone-200 border border-stone-200/60'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <span className={`text-[10px] font-medium transition-colors ${ch.active ? 'text-[#8B181B] font-bold' : 'text-stone-400'}`}>
-                        {ch.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Tool 2: Security Radar */}
-              {selectedHeroTool === 'security_radar' && (
-                <div className="w-full max-w-sm bg-white/80 backdrop-blur-xs rounded-2xl p-3.5 border border-white/60 shadow-2xs space-y-2.5">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-stone-800 pb-1 border-b border-stone-100">
-                    <span className="flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      Session & Cryptographic State
-                    </span>
-                    <span className="text-[10px] font-mono text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">
-                      Active Session
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-[10px]">
-                    <div className="p-2 rounded-xl bg-stone-50">
-                      <span className="text-stone-400 block text-[9px]">Account Role</span>
-                      <span className="font-extrabold text-stone-900 uppercase font-mono text-xs">{currentUser.role}</span>
-                    </div>
-                    <div className="p-2 rounded-xl bg-stone-50">
-                      <span className="text-stone-400 block text-[9px]">Verification</span>
-                      <span className="font-extrabold text-emerald-700 font-mono text-xs">
-                        {currentUser.isVerified ? 'VERIFIED' : 'PENDING'}
-                      </span>
-                    </div>
-                    <div className="p-2 rounded-xl bg-stone-50">
-                      <span className="text-stone-400 block text-[9px]">Interface Mode</span>
-                      <span className="font-extrabold text-stone-900 uppercase font-mono text-xs">{themeMode}</span>
-                    </div>
-                    <div className="p-2 rounded-xl bg-stone-50">
-                      <span className="text-stone-400 block text-[9px]">Push Support</span>
-                      <span className="font-extrabold text-stone-900 uppercase font-mono text-xs">{pushPermissionStatus}</span>
-                    </div>
-                    <div className="p-2 rounded-xl bg-stone-50 col-span-2 flex items-center justify-between">
-                      <div>
-                        <span className="text-stone-400 block text-[9px]">Biometric App Lock</span>
-                        <span className={`font-extrabold font-mono text-xs ${appLockEnabled ? 'text-emerald-700' : 'text-stone-500'}`}>
-                          {appLockEnabled ? 'ENFORCED ON RESUME' : 'DISABLED'}
-                        </span>
-                      </div>
-                      <span className={`w-2 h-2 rounded-full ${appLockEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-stone-300'}`} />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tool 3: Member Profile Spotlight */}
-              {selectedHeroTool === 'session_info' && (
-                <div className="w-full max-w-sm bg-stone-900 text-stone-100 rounded-2xl p-4 border border-stone-800 shadow-2xs space-y-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={getUserAvatar(currentUser.profilePictureUrl)}
-                      alt={currentUser.name}
-                      onError={handleUserAvatarError}
-                      className="w-12 h-12 rounded-full object-cover border-2 border-[#8B181B]"
-                    />
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-white truncate">{currentUser.name}</h4>
-                      <p className="text-[11px] text-stone-400 truncate">{currentUser.email}</p>
-                      <div className="mt-1">
-                        <UserRoleBadge role={currentUser.role} size="xs" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="pt-2 border-t border-stone-800 flex items-center justify-between text-[11px] text-stone-400">
-                    <span>Batch: {currentUser.batch || 'Cecilian'}</span>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('profile')}
-                      className="text-amber-400 hover:underline font-semibold cursor-pointer"
-                    >
-                      View Profile
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Tool Switcher Rail */}
-              <div className="flex flex-col items-center gap-2 pl-3 border-l border-black/5 ml-2 relative">
-                <button
-                  type="button"
-                  onClick={() => setSelectedHeroTool('security_radar')}
-                  title="Security Radar"
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                    selectedHeroTool === 'security_radar'
-                      ? 'bg-stone-900 text-white shadow-2xs'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 stroke-[1.75]" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedHeroTool('channels_meter')}
-                  title="Alert Channels Meter"
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                    selectedHeroTool === 'channels_meter'
-                      ? 'bg-stone-900 text-white shadow-2xs'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                  }`}
-                >
-                  <Bell className="w-3.5 h-3.5 stroke-[1.75]" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedHeroTool('session_info')}
-                  title="Identity Spotlight"
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                    selectedHeroTool === 'session_info'
-                      ? 'bg-stone-900 text-white shadow-2xs'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
-                  }`}
-                >
-                  <User className="w-3.5 h-3.5 stroke-[1.75]" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* BOTTOM 3 BENTO TILES (CUSTOM CONSOLE WORKSPACE SUITE)                      */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* BENTO TILE 1: "Appearance & Theme Studio" */}
-        <div className="bg-white rounded-[32px] p-5 sm:p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <h4 className="text-base font-extrabold text-stone-900 tracking-tight flex items-center gap-2">
-                <Palette className="w-4 h-4 text-[#8B181B]" />
-                <span>Theme Studio</span>
-              </h4>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-800 uppercase font-mono">
-                {themeMode}
-              </span>
-            </div>
-            <p className="text-[11px] text-stone-400 font-medium mt-0.5">
-              Interface mode & visual contrast
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 py-4">
-            <button
-              type="button"
-              onClick={() => handleThemeChange('light')}
-              className={`p-2.5 rounded-2xl flex flex-col items-center gap-1.5 transition-all cursor-pointer border ${
-                themeMode === 'light'
-                  ? 'bg-amber-50/80 border-amber-400 text-amber-950 font-bold shadow-2xs ring-1 ring-amber-400/40'
-                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
-              }`}
-            >
-              <Sun className="w-4 h-4 text-amber-600" />
-              <span className="text-xs">Light</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleThemeChange('dark')}
-              className={`p-2.5 rounded-2xl flex flex-col items-center gap-1.5 transition-all cursor-pointer border ${
-                themeMode === 'dark'
-                  ? 'bg-stone-900 border-stone-700 text-white font-bold shadow-2xs ring-1 ring-stone-600'
-                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
-              }`}
-            >
-              <Moon className="w-4 h-4 text-amber-400" />
-              <span className="text-xs">Dark</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleThemeChange('system')}
-              className={`p-2.5 rounded-2xl flex flex-col items-center gap-1.5 transition-all cursor-pointer border ${
-                themeMode === 'system'
-                  ? 'bg-blue-50/80 border-blue-400 text-blue-950 font-bold shadow-2xs ring-1 ring-blue-400/40'
-                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
-              }`}
-            >
-              <Monitor className="w-4 h-4 text-blue-600" />
-              <span className="text-xs">System</span>
-            </button>
-          </div>
-
-          <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
-            <span className="text-stone-500 text-[10px] font-medium">
-              Applied automatically across sessions
-            </span>
-            <span className="text-[11px] font-bold text-[#8B181B]">
-              Active
-            </span>
-          </div>
-        </div>
-
-        {/* BENTO TILE 2: "24-Hour Push Notification Safeguard" */}
-        <div className="bg-white rounded-[32px] p-5 sm:p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <h4 className="text-base font-extrabold text-stone-900 tracking-tight flex items-center gap-2">
-                <Clock className="w-4 h-4 text-[#8B181B]" />
-                <span>24h Alert System</span>
-              </h4>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                  pushPermissionStatus === 'granted'
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                    : pushPermissionStatus === 'denied'
-                    ? 'bg-rose-50 text-rose-800 border-rose-200'
-                    : 'bg-amber-50 text-amber-800 border-amber-200'
-                }`}
-              >
-                {pushPermissionStatus === 'granted' ? 'Push Active' : pushPermissionStatus === 'denied' ? 'Blocked' : 'Default'}
-              </span>
-            </div>
-            <p className="text-[11px] text-stone-400 font-medium mt-0.5">
-              Campus event kick-off chime & alert
-            </p>
-          </div>
-
-          <div className="py-3 space-y-2">
-            {pushPermissionStatus !== 'granted' ? (
-              <button
-                type="button"
-                onClick={requestBrowserPushPermission}
-                className="w-full py-2 px-3 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                <span>Authorize OS Push Alerts</span>
-              </button>
-            ) : (
-              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-800 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Browser Push Notifications Authorized</span>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => sendTest24HourAlert()}
-              className="w-full py-2 px-3 bg-stone-900 hover:bg-black text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
-            >
-              <Volume2 className="w-3.5 h-3.5 text-amber-300" />
-              <span>Test Audio Chime & Push</span>
-            </button>
-          </div>
-
-          <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
-            <span className="text-stone-500 text-[10px] font-medium">
-              High Attendance Safeguard
-            </span>
-            <span className="text-[11px] font-bold text-stone-700 font-mono">
-              24h Advance
-            </span>
-          </div>
-        </div>
-
-        {/* BENTO TILE 3: "Governance & Support Desk" */}
-        <div className="bg-white rounded-[32px] p-5 sm:p-6 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <h4 className="text-base font-extrabold text-stone-900 tracking-tight flex items-center gap-2">
-                <HelpCircle className="w-4 h-4 text-[#8B181B]" />
-                <span>Governance & Help</span>
-              </h4>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-700">
-                v2.4.0
-              </span>
-            </div>
-            <p className="text-[11px] text-stone-400 font-medium mt-0.5">
-              Alumni policies, FAQ, & registrar support
-            </p>
-          </div>
-
-          <div className="py-2 divide-y divide-stone-100 text-xs">
-            {/* Share App Action */}
-            <div className="pb-2">
-              <button
-                type="button"
-                onClick={handleShareApp}
-                className="w-full py-2.5 px-3 bg-red-50 hover:bg-red-100/80 text-[#8B181B] rounded-xl font-bold flex items-center justify-between transition-colors cursor-pointer group shadow-2xs"
-              >
-                <div className="flex items-center gap-2">
-                  <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                  <span>Share App with Alumni</span>
-                </div>
-                <span className="text-[10px] bg-white px-2 py-0.5 rounded-full border border-red-200 font-semibold text-stone-700">
-                  Invite
-                </span>
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => openExternalUrl('https://stcecilia.edu.ph')}
-              className="w-full py-2 flex items-center justify-between text-stone-700 hover:text-[#8B181B] cursor-pointer"
-            >
-              <span className="flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-stone-400" />
-                Official College Website
-              </span>
-              <ExternalLink className="w-3.5 h-3.5 text-stone-400" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowFaqModal(true)}
-              className="w-full py-2 flex items-center justify-between text-stone-700 hover:text-[#8B181B] cursor-pointer"
-            >
-              <span>Frequently Asked Questions</span>
-              <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowPrivacyModal(true)}
-              className="w-full py-2 flex items-center justify-between text-stone-700 hover:text-[#8B181B] cursor-pointer"
-            >
-              <span>Directory Privacy Policy</span>
-              <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowAboutModal(true)}
-              className="w-full py-2 flex items-center justify-between text-stone-700 hover:text-[#8B181B] cursor-pointer"
-            >
-              <span>About Alumni Network</span>
-              <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
-            </button>
-          </div>
-
-          <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
-            <a
-              href="mailto:support@scc.edu.ph"
-              className="text-[#8B181B] hover:underline font-semibold text-[11px] flex items-center gap-1"
-            >
-              <Mail className="w-3 h-3" />
-              <span>Contact IT Registrar Support</span>
-            </a>
-            <ExternalLink className="w-3 h-3 text-stone-400" />
-          </div>
-        </div>
-
-      </div>
 
       {/* ========================================================================= */}
       {/* DETAILED SETTINGS CARDS (FILTERABLE COMMAND SECTIONS)                      */}
@@ -1141,41 +652,65 @@ export const SettingsView: React.FC = () => {
             </span>
           </div>
 
-          <div className="p-4 rounded-2xl bg-stone-50/80 border border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-stone-900">Active Institutional Clearance:</span>
-                <UserRoleBadge role={currentUser.role} size="sm" />
+          <div className="space-y-3">
+            <div className="p-4 rounded-2xl bg-stone-50/80 border border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-stone-900">Active Institutional Clearance:</span>
+                  <UserRoleBadge role={currentUser.role} size="sm" />
+                </div>
+                <p className="text-[11px] text-stone-500 max-w-xl">
+                  {currentUser.role === 'superadmin' && 'Full system root access: Architecture configurations, all role delegations, and security auditing.'}
+                  {currentUser.role === 'admin' && 'Administrative privileges: Manage alumni accounts, directory moderation, opportunity reviews, and announcements.'}
+                  {currentUser.role === 'registrar' && 'Registrar authority: Validate student credentials, verify alumni graduation registry records, and audit status.'}
+                  {currentUser.role === 'staff' && 'Institutional staff clearance: Departmental notices, campus career posts, and student event coordination.'}
+                  {currentUser.role === 'moderator' && 'Community moderator clearance: Review discussion submissions, forum items, and member report flags.'}
+                  {currentUser.role === 'employer' && 'Corporate employer clearance: Post job opportunities and browse qualified alumni candidates.'}
+                  {currentUser.role === 'alumni' && 'Verified alumni privileges: Discover alumni, connect with classmates, submit career applications, and access campus pass.'}
+                </p>
               </div>
-              <p className="text-[11px] text-stone-500 max-w-xl">
-                {currentUser.role === 'superadmin' && 'Full system root access: Architecture configurations, all role delegations, and security auditing.'}
-                {currentUser.role === 'admin' && 'Administrative privileges: Manage alumni accounts, directory moderation, opportunity reviews, and announcements.'}
-                {currentUser.role === 'registrar' && 'Registrar authority: Validate student credentials, verify alumni graduation registry records, and audit status.'}
-                {currentUser.role === 'staff' && 'Institutional staff clearance: Departmental notices, campus career posts, and student event coordination.'}
-                {currentUser.role === 'moderator' && 'Community moderator clearance: Review discussion submissions, forum items, and member report flags.'}
-                {currentUser.role === 'employer' && 'Corporate employer clearance: Post job opportunities and browse qualified alumni candidates.'}
-                {currentUser.role === 'alumni' && 'Verified alumni privileges: Discover alumni, connect with classmates, submit career applications, and access campus pass.'}
-              </p>
+
+              {(currentUser.role === 'admin' || currentUser.role === 'superadmin') ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedRoleUserUid(currentUser.uid);
+                    setSelectedRoleValue(currentUser.role as UserRole);
+                    setShowRoleModal(true);
+                  }}
+                  className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-2 cursor-pointer shrink-0 active:scale-95"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Modify Authority Role</span>
+                </button>
+              ) : (
+                <span className="text-[11px] text-stone-400 italic">
+                  Role managed by Administration
+                </span>
+              )}
             </div>
 
-            {(currentUser.role === 'admin' || currentUser.role === 'superadmin') ? (
+            {/* Account UID Verification Chip */}
+            <div className="p-3.5 rounded-2xl bg-stone-50/80 border border-stone-200/80 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="text-[11px] font-bold text-stone-800 block">
+                  Institutional Account UID
+                </span>
+                <span className="text-[10px] text-stone-500 font-mono truncate block">
+                  {currentUser.uid}
+                </span>
+              </div>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedRoleUserUid(currentUser.uid);
-                  setSelectedRoleValue(currentUser.role as UserRole);
-                  setShowRoleModal(true);
-                }}
-                className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-2 cursor-pointer shrink-0 active:scale-95"
+                onClick={handleCopyId}
+                className="px-3 py-1.5 bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 rounded-xl text-[10px] font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0 active:scale-95"
               >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Modify Authority Role</span>
+                {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
+                <span className={copiedId ? 'text-emerald-700 font-bold' : 'text-stone-700'}>
+                  {copiedId ? 'Copied' : 'Copy UID'}
+                </span>
               </button>
-            ) : (
-              <span className="text-[11px] text-stone-400 italic">
-                Role managed by Administration
-              </span>
-            )}
+            </div>
           </div>
         </div>
       )}
@@ -1429,6 +964,51 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div className="space-y-4">
+            {/* 24-Hour Push Notification Safeguard & Audio Chime Banner */}
+            <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-[#8B181B]" />
+                  <span className="text-xs font-bold text-stone-900">24h Event & Milestone Chime Safeguard</span>
+                  <span
+                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
+                      pushPermissionStatus === 'granted'
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        : pushPermissionStatus === 'denied'
+                        ? 'bg-rose-50 text-rose-800 border-rose-200'
+                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                    }`}
+                  >
+                    {pushPermissionStatus === 'granted' ? 'Push Active' : pushPermissionStatus === 'denied' ? 'Blocked' : 'Default'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-stone-600">
+                  Campus event kick-off chime & 24-hour advance high-attendance reminder alerts
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                {pushPermissionStatus !== 'granted' && (
+                  <button
+                    type="button"
+                    onClick={requestBrowserPushPermission}
+                    className="py-1.5 px-3 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    <span>Authorize OS Push Alerts</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => sendTest24HourAlert()}
+                  className="py-1.5 px-3 bg-stone-900 hover:bg-black text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+                >
+                  <Volume2 className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Test Audio Chime & Push</span>
+                </button>
+              </div>
+            </div>
+
             {/* Toggle 1: Push (Mobile Only) */}
             <PlatformOnly client="mobile">
               <div className="p-3.5 rounded-2xl bg-stone-50/70 border border-stone-200/70 space-y-3">
@@ -1611,6 +1191,186 @@ export const SettingsView: React.FC = () => {
                 <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
               </label>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION: APPEARANCE & THEME STUDIO */}
+      {(activeFilterPill === 'all' || activeFilterPill === 'appearance') && (
+        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                <Palette className="w-4 h-4 stroke-[2]" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-900">Appearance & Theme Studio</h3>
+                <p className="text-xs text-stone-500">Interface mode, visual contrast, and system theme preferences</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold uppercase border border-stone-200">
+              {themeMode}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => handleThemeChange('light')}
+              className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all cursor-pointer border ${
+                themeMode === 'light'
+                  ? 'bg-amber-50/80 border-amber-400 text-amber-950 font-bold shadow-2xs ring-1 ring-amber-400/40'
+                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
+              }`}
+            >
+              <Sun className="w-5 h-5 text-amber-600" />
+              <div className="text-center">
+                <span className="text-xs font-bold block">Light Theme</span>
+                <span className="text-[10px] text-stone-400 font-medium">Warm collegiate stone</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleThemeChange('dark')}
+              className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all cursor-pointer border ${
+                themeMode === 'dark'
+                  ? 'bg-stone-900 border-stone-700 text-white font-bold shadow-2xs ring-1 ring-stone-600'
+                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
+              }`}
+            >
+              <Moon className="w-5 h-5 text-amber-400" />
+              <div className="text-center">
+                <span className="text-xs font-bold block">Dark Theme</span>
+                <span className="text-[10px] text-stone-400 font-medium">High contrast obsidian</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleThemeChange('system')}
+              className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all cursor-pointer border ${
+                themeMode === 'system'
+                  ? 'bg-blue-50/80 border-blue-400 text-blue-950 font-bold shadow-2xs ring-1 ring-blue-400/40'
+                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
+              }`}
+            >
+              <Monitor className="w-5 h-5 text-blue-600" />
+              <div className="text-center">
+                <span className="text-xs font-bold block">System Default</span>
+                <span className="text-[10px] text-stone-400 font-medium">Sync with OS appearance</span>
+              </div>
+            </button>
+          </div>
+
+          <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
+            <span className="text-stone-500 text-[10px] font-medium">
+              Applied automatically across all Cecilian tabs and sessions
+            </span>
+            <span className="text-[11px] font-bold text-[#8B181B]">
+              Active Configuration
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* SECTION: INSTITUTIONAL GOVERNANCE, SUPPORT & POLICIES */}
+      {(activeFilterPill === 'all' || activeFilterPill === 'compliance') && (
+        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-red-50 text-[#8B181B] flex items-center justify-center">
+                <HelpCircle className="w-4 h-4 stroke-[2]" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-900">Institutional Governance & Support</h3>
+                <p className="text-xs text-stone-500">Alumni network charters, directory policies, FAQ, and registrar support</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold border border-stone-200">
+              v2.4.0
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            {/* Share App Action */}
+            <button
+              type="button"
+              onClick={handleShareApp}
+              className="p-4 bg-red-50/70 hover:bg-red-100/80 text-[#8B181B] rounded-2xl font-bold flex items-center justify-between transition-colors cursor-pointer group shadow-2xs border border-red-200/60"
+            >
+              <div className="flex items-center gap-2.5">
+                <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                <span>Share App with Alumni</span>
+              </div>
+              <span className="text-[10px] bg-white px-2 py-0.5 rounded-full border border-red-200 font-semibold text-stone-700">
+                Invite
+              </span>
+            </button>
+
+            {/* Official College Website */}
+            <button
+              type="button"
+              onClick={() => openExternalUrl('https://stcecilia.edu.ph')}
+              className="p-4 bg-stone-50 hover:bg-stone-100 text-stone-800 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80"
+            >
+              <span className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-stone-400" />
+                <span>Official College Website</span>
+              </span>
+              <ExternalLink className="w-3.5 h-3.5 text-stone-400" />
+            </button>
+
+            {/* FAQ */}
+            <button
+              type="button"
+              onClick={() => setShowFaqModal(true)}
+              className="p-4 bg-stone-50 hover:bg-stone-100 text-stone-800 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80"
+            >
+              <span className="flex items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-stone-400" />
+                <span>Frequently Asked Questions</span>
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
+            </button>
+
+            {/* Privacy Policy */}
+            <button
+              type="button"
+              onClick={() => setShowPrivacyModal(true)}
+              className="p-4 bg-stone-50 hover:bg-stone-100 text-stone-800 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80"
+            >
+              <span className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-stone-400" />
+                <span>Directory Privacy Policy</span>
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
+            </button>
+
+            {/* About */}
+            <button
+              type="button"
+              onClick={() => setShowAboutModal(true)}
+              className="p-4 bg-stone-50 hover:bg-stone-100 text-stone-800 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80"
+            >
+              <span className="flex items-center gap-2">
+                <Info className="w-4 h-4 text-stone-400" />
+                <span>About Alumni Network</span>
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-stone-400" />
+            </button>
+
+            {/* Contact Registrar Support */}
+            <a
+              href="mailto:support@scc.edu.ph"
+              className="p-4 bg-stone-50 hover:bg-stone-100 text-[#8B181B] rounded-2xl font-bold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80"
+            >
+              <span className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-[#8B181B]" />
+                <span>Contact IT Registrar Support</span>
+              </span>
+              <ExternalLink className="w-3.5 h-3.5 text-stone-400" />
+            </a>
           </div>
         </div>
       )}
