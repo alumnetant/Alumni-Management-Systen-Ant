@@ -14,7 +14,8 @@ import {
   Building
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
-import { UserProfile, Opportunity } from '../../types';
+import { Opportunity } from '../../types';
+import { isEmployerVisibleInDirectory } from '../../lib/employerValidation';
 
 interface PartneredCompaniesViewProps {
   onSelectCompanyJobs?: (companyName: string) => void;
@@ -28,25 +29,12 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
 
   // Filter approved & active partner companies
-  // Strict rule (Requirement 7 & 10):
-  // - Unapproved employers (pending verification) must NEVER appear
-  // - Declined/rejected companies must be automatically removed
+  // Task 2: The alumni directory shows ONLY employers with status approved (explicit allowlist).
+  // pending and rejected employers must never appear in the directory.
   const partneredCompanies = useMemo(() => {
     return users.filter((u) => {
       if (u.role !== 'employer') return false;
-
-      // Status check: Must be ACTIVE
-      const accountStatus = (u.accountStatus || u.status || 'ACTIVE').toUpperCase().trim();
-      if (accountStatus === 'PENDING_VERIFICATION' || accountStatus === 'SUSPENDED') {
-        return false;
-      }
-
-      // Verification check: Must be verified and active
-      const isApproved =
-        u.isVerified === true &&
-        u.employerVerificationStatus === 'verified';
-
-      return isApproved;
+      return isEmployerVisibleInDirectory(u);
     });
   }, [users]);
 

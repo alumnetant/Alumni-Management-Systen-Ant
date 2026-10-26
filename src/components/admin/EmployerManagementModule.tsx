@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { UserProfile } from '../../types';
+import { validateRejectionReason } from '../../lib/employerValidation';
+import { EmployerVerificationModal } from './EmployerVerificationModal';
 
 export const EmployerManagementModule: React.FC = () => {
   const {
@@ -45,6 +47,7 @@ export const EmployerManagementModule: React.FC = () => {
   const [rejectingEmployer, setRejectingEmployer] = useState<UserProfile | null>(null);
   const [rejectNotes, setRejectNotes] = useState('Business registration documentation incomplete or could not be validated.');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [auditEmployer, setAuditEmployer] = useState<UserProfile | null>(null);
 
   // Filter all employer role accounts
   const allEmployers = useMemo(() => {
@@ -114,8 +117,13 @@ export const EmployerManagementModule: React.FC = () => {
   const handleConfirmReject = (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectingEmployer) return;
+    const validation = validateRejectionReason(rejectNotes);
+    if (!validation.valid) {
+      showToast(validation.error || 'Rejection reason is invalid.', 'error');
+      return;
+    }
     setIsSubmitting(true);
-    verifyEmployer(rejectingEmployer.uid, false, rejectNotes.trim());
+    verifyEmployer(rejectingEmployer.uid, false, validation.trimmed);
     setIsSubmitting(false);
     setRejectingEmployer(null);
   };
@@ -490,6 +498,15 @@ export const EmployerManagementModule: React.FC = () => {
 
                   {/* Action Buttons */}
                   <div className="flex items-center justify-end gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setAuditEmployer(emp)}
+                      className="px-3 py-1.5 text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Inspect read-only credentials and verification audit"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-stone-500" />
+                      <span>Audit Credentials</span>
+                    </button>
                     {isPending ? (
                       <>
                         <button
@@ -561,6 +578,14 @@ export const EmployerManagementModule: React.FC = () => {
             );
           })}
         </div>
+      )}
+
+      {/* Read-Only Credentials Audit Modal */}
+      {auditEmployer && (
+        <EmployerVerificationModal
+          employer={auditEmployer}
+          onClose={() => setAuditEmployer(null)}
+        />
       )}
 
       {/* Reject Reason Modal */}

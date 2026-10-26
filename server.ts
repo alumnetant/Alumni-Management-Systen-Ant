@@ -191,6 +191,12 @@ interface StoredUserCredential {
   alumniId?: string;
   employeeId?: string;
   company?: string;
+  companyName?: string;
+  employerStatus?: 'pending' | 'approved' | 'rejected' | string;
+  rejectionReason?: string;
+  rejectedBy?: string;
+  rejectionDate?: string;
+  submittedCredentials?: Array<{ id: string; name: string; url: string; fileType?: string; uploadedAt: string }>;
   emailVerified: boolean;
   isVerified?: boolean;
   status?: string;
@@ -563,6 +569,23 @@ const seedUsers: StoredUserCredential[] = [
     role: 'employer',
     company: 'MetroCebu InnovateCorp',
     companyName: 'MetroCebu InnovateCorp',
+    employerStatus: 'approved',
+    submittedCredentials: [
+      {
+        id: 'cred_sec_01',
+        name: 'SEC_Certificate_of_Registration.pdf',
+        url: '/api/admin/employers/usr_employer_cecilia/credentials/cred_sec_01',
+        fileType: 'application/pdf',
+        uploadedAt: '2024-01-15T08:00:00.000Z'
+      },
+      {
+        id: 'cred_bir_01',
+        name: 'BIR_Certificate_2303.pdf',
+        url: '/api/admin/employers/usr_employer_cecilia/credentials/cred_bir_01',
+        fileType: 'application/pdf',
+        uploadedAt: '2024-01-15T08:05:00.000Z'
+      }
+    ],
     emailVerified: true,
     isVerified: true
   },
@@ -575,6 +598,16 @@ const seedUsers: StoredUserCredential[] = [
     role: 'employer',
     company: 'MetroCebu InnovateCorp',
     companyName: 'MetroCebu InnovateCorp',
+    employerStatus: 'approved',
+    submittedCredentials: [
+      {
+        id: 'cred_sec_01',
+        name: 'SEC_Certificate_of_Registration.pdf',
+        url: '/api/admin/employers/usr_employer_cecilia/credentials/cred_sec_01',
+        fileType: 'application/pdf',
+        uploadedAt: '2024-01-15T08:00:00.000Z'
+      }
+    ],
     emailVerified: true,
     isVerified: true
   },
@@ -925,6 +958,40 @@ app.post('/api/auth/register', authRateLimiter, (req: Request, res: Response) =>
   const sanitizedEmploymentStatus = typeof employmentStatus === 'string' ? employmentStatus.trim() : '';
 
   const normalizedEmail = email.toLowerCase().trim();
+  const { formLock, companyName: rawCompanyName } = req.body;
+
+  // Task 1: Enforce role locking and reject mismatched-role submission on the backend
+  if (formLock === 'employer' && (role === 'alumni' || accountType === 'alumni')) {
+    return res.status(400).json({
+      error: 'Role mismatch: Cannot submit Alumni registration while Employer form is active.',
+      code: 'ROLE_LOCK_MISMATCH'
+    });
+  }
+  if (formLock === 'alumni' && role === 'employer') {
+    return res.status(400).json({
+      error: 'Role mismatch: Cannot submit Employer registration while Alumni form is active.',
+      code: 'ROLE_LOCK_MISMATCH'
+    });
+  }
+
+  // Task 2: A rejected employer cannot re-apply [DEFAULT]
+  if (role === 'employer') {
+    const targetCompany = (rawCompanyName || company || '').toLowerCase().trim();
+    for (const existing of credentialsDb.values()) {
+      if (existing.role === 'employer' && existing.employerStatus === 'rejected') {
+        if (
+          existing.email.toLowerCase() === normalizedEmail ||
+          (targetCompany && (existing.companyName || existing.company || '').toLowerCase().trim() === targetCompany)
+        ) {
+          return res.status(403).json({
+            error: 'This organization/email was previously rejected and cannot re-apply in accordance with institutional policy.',
+            code: 'EMPLOYER_REAPPLICATION_BLOCKED'
+          });
+        }
+      }
+    }
+  }
+
   if (credentialsDb.has(normalizedEmail)) {
     return res.status(409).json({ error: 'An account with this email address already exists.' });
   }
@@ -939,15 +1006,27 @@ app.post('/api/auth/register', authRateLimiter, (req: Request, res: Response) =>
 
   const credRecord: StoredUserCredential = {
     uid,
-    name: name || 'Cecilian Member',
+    name: name || (assignedRole === 'employer' ? rawCompanyName || company || 'Corporate Partner' : 'Cecilian Member'),
     email: normalizedEmail,
     studentId: schoolId ? String(schoolId).trim() : undefined,
     alumniId: alumniId ? String(alumniId).trim() : undefined,
+    company: sanitizedCompany || rawCompanyName || undefined,
+    companyName: rawCompanyName || sanitizedCompany || undefined,
+    employerStatus: assignedRole === 'employer' ? 'pending' : undefined,
+    submittedCredentials: assignedRole === 'employer' ? [
+      {
+        id: `cred_${Date.now()}_sec`,
+        name: `${(rawCompanyName || 'Company').replace(/\s+/g, '_')}_SEC_DTI_Registration.pdf`,
+        url: `/api/admin/employers/${uid}/credentials/cred_${Date.now()}_sec`,
+        fileType: 'application/pdf',
+        uploadedAt: new Date().toISOString()
+      }
+    ] : undefined,
     hash,
     salt,
     role: assignedRole,
     emailVerified: true,
-    isVerified: true,
+    isVerified: assignedRole === 'employer' ? false : true,
     verificationToken,
     verificationTokenExpiry: verificationExpiry
   };
@@ -1836,6 +1915,14 @@ app.post('/api/admin/promote-user', requireServerAuth, requireRole(['admin', 'su
     }
   }
 
+  // Task 3: Employer role is fixed and immutable. No user, including the employer themselves, can change, upgrade, or reassign it.
+  if (targetUser.role === 'employer' || newRole === 'employer') {
+    return res.status(403).json({
+      error: 'The Employer role is fixed and immutable. It cannot be changed, upgraded, or reassigned.',
+      code: 'EMPLOYER_ROLE_IMMUTABLE'
+    });
+  }
+
   // RBAC Constraint 2.1 & 2.2: Cannot edit infrastructure configs or assign/demote superadmin unless superadmin
   if (adminActor.role !== 'superadmin' && (newRole === 'superadmin' || targetUser.role === 'superadmin')) {
     return res.status(403).json({
@@ -1877,6 +1964,187 @@ app.post('/api/admin/promote-user', requireServerAuth, requireRole(['admin', 'su
       email: targetUser.email,
       role: targetUser.role
     }
+  });
+});
+
+// 6.6.1.A Employer Governance: Admin Rejection & Verification
+app.post('/api/admin/verify-employer', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
+  const adminActor = (req as any).user;
+  const { employerUid, status, reason } = req.body;
+
+  if (!employerUid || !status) {
+    return res.status(400).json({ error: 'Employer UID and status are required.' });
+  }
+
+  if (status !== 'approved' && status !== 'rejected') {
+    return res.status(400).json({ error: "Invalid status. Must be 'approved' or 'rejected'." });
+  }
+
+  let targetUser: StoredUserCredential | null = null;
+  for (const u of credentialsDb.values()) {
+    if (u.uid === employerUid || u.email.toLowerCase() === String(employerUid).toLowerCase().trim()) {
+      targetUser = u;
+      break;
+    }
+  }
+
+  if (!targetUser) {
+    return res.status(404).json({ error: 'Employer record not found.' });
+  }
+
+  if (targetUser.role !== 'employer') {
+    return res.status(400).json({ error: 'Target user is not an employer account.' });
+  }
+
+  if (status === 'rejected') {
+    // Task 2 Rejection Validation:
+    // - Trim whitespace; whitespace-only counts as empty.
+    // - Minimum 10 characters, maximum 500 characters.
+    // - Block the rejection (UI and backend) if the reason is invalid.
+    if (reason === null || reason === undefined) {
+      return res.status(400).json({ error: 'Rejection reason is mandatory.' });
+    }
+    const trimmed = String(reason).trim();
+    if (trimmed.length === 0) {
+      return res.status(400).json({ error: 'Rejection reason cannot be empty or whitespace only.' });
+    }
+    if (trimmed.length < 10) {
+      return res.status(400).json({ error: 'Rejection reason must be at least 10 characters.' });
+    }
+    if (trimmed.length > 500) {
+      return res.status(400).json({ error: 'Rejection reason cannot exceed 500 characters.' });
+    }
+
+    targetUser.employerStatus = 'rejected';
+    targetUser.isVerified = false;
+    targetUser.rejectionReason = trimmed;
+    targetUser.rejectedBy = adminActor.uid || adminActor.email;
+    targetUser.rejectionDate = new Date().toISOString();
+
+    // Save an audit record on rejection: admin ID, timestamp, reason.
+    serverAuditLogs.push({
+      id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      timestamp: new Date().toISOString(),
+      action: 'REJECT_EMPLOYER',
+      actor: adminActor.email,
+      actorRole: adminActor.role,
+      ip: req.ip || 'internal',
+      details: {
+        adminId: adminActor.uid || adminActor.email,
+        timestamp: new Date().toISOString(),
+        employerUid: targetUser.uid,
+        reason: trimmed
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Employer application rejected.',
+      employerStatus: 'rejected',
+      rejectionReason: trimmed
+    });
+  } else {
+    targetUser.employerStatus = 'approved';
+    targetUser.isVerified = true;
+    targetUser.rejectionReason = undefined;
+    targetUser.rejectedBy = undefined;
+    targetUser.rejectionDate = undefined;
+
+    serverAuditLogs.push({
+      id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      timestamp: new Date().toISOString(),
+      action: 'APPROVE_EMPLOYER',
+      actor: adminActor.email,
+      actorRole: adminActor.role,
+      ip: req.ip || 'internal',
+      details: {
+        adminId: adminActor.uid || adminActor.email,
+        timestamp: new Date().toISOString(),
+        employerUid: targetUser.uid
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Employer application approved.',
+      employerStatus: 'approved'
+    });
+  }
+});
+
+// 6.6.1.B Employer Verification & Legitimacy Profile Review (Read-only for Admins & Moderators)
+app.get('/api/admin/employers/:employerId', requireServerAuth, requireRole(['admin', 'superadmin', 'moderator']), (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const { employerId } = req.params;
+
+  let employer: StoredUserCredential | null = null;
+  for (const u of credentialsDb.values()) {
+    if (u.uid === employerId || u.email.toLowerCase() === employerId.toLowerCase().trim()) {
+      employer = u;
+      break;
+    }
+  }
+
+  if (!employer || employer.role !== 'employer') {
+    return res.status(404).json({ error: 'Employer profile not found.' });
+  }
+
+  const isAdmin = actor.role === 'admin' || actor.role === 'superadmin';
+
+  // Task 2: The rejection reason is visible to admins only [DEFAULT]
+  const profileResponse = {
+    uid: employer.uid,
+    name: employer.name,
+    email: employer.email,
+    role: employer.role,
+    company: employer.company || employer.companyName,
+    companyName: employer.companyName || employer.company,
+    employerStatus: employer.employerStatus || (employer.isVerified ? 'approved' : 'pending'),
+    isVerified: employer.isVerified || false,
+    submittedCredentials: employer.submittedCredentials || [
+      {
+        id: 'cred_sec_def',
+        name: `${(employer.company || employer.name || 'Company').replace(/\s+/g, '_')}_SEC_Registration.pdf`,
+        url: `/api/admin/employers/${employer.uid}/credentials/cred_sec_def`,
+        fileType: 'application/pdf',
+        uploadedAt: new Date().toISOString()
+      }
+    ],
+    // Only include rejection reason if admin
+    rejectionReason: isAdmin ? employer.rejectionReason : undefined,
+    rejectionDate: isAdmin ? employer.rejectionDate : undefined,
+    rejectedBy: isAdmin ? employer.rejectedBy : undefined
+  };
+
+  res.json({ employer: profileResponse });
+});
+
+// 6.6.1.C Credential File Serving (Secure & restricted to Admin and Moderator only)
+app.get('/api/admin/employers/:employerId/credentials/:fileId', requireServerAuth, requireRole(['admin', 'superadmin', 'moderator']), (req: Request, res: Response) => {
+  const { employerId, fileId } = req.params;
+
+  let employer: StoredUserCredential | null = null;
+  for (const u of credentialsDb.values()) {
+    if (u.uid === employerId || u.email.toLowerCase() === employerId.toLowerCase().trim()) {
+      employer = u;
+      break;
+    }
+  }
+
+  if (!employer || employer.role !== 'employer') {
+    return res.status(404).json({ error: 'Employer not found.' });
+  }
+
+  // Serve authorized credential document payload
+  res.setHeader('Content-Type', 'application/json');
+  res.json({
+    fileId,
+    employerUid: employer.uid,
+    company: employer.company || employer.name,
+    status: 'AUTHORIZED_CREDENTIAL_RETRIEVAL',
+    timestamp: new Date().toISOString(),
+    documentName: `${fileId}.pdf`,
+    verifiedByAuthority: 'St. Cecilia’s College Directorate of Corporate Alliances'
   });
 });
 

@@ -27,9 +27,13 @@ import {
   User,
   GraduationCap,
   MapPin,
-  DollarSign
+  DollarSign,
+  FileText
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
+import { UserProfile } from '../../types';
+import { validateRejectionReason } from '../../lib/employerValidation';
+import { EmployerVerificationModal } from './EmployerVerificationModal';
 import {
   analyzeUserRegistryIntegrity,
   RegistryDiscrepancyAnalysis
@@ -63,6 +67,33 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
   const [reconciling, setReconciling] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleAlumniCount, setVisibleAlumniCount] = useState<number>(10);
+
+  // Employer rejection and audit states
+  const [rejectingEmployer, setRejectingEmployer] = useState<UserProfile | null>(null);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState('');
+  const [rejectionError, setRejectionError] = useState<string | null>(null);
+  const [auditEmployer, setAuditEmployer] = useState<UserProfile | null>(null);
+
+  const handleOpenRejectModal = (emp: UserProfile) => {
+    setRejectingEmployer(emp);
+    setRejectionReasonInput('Corporate verification failed: registration documentation could not be validated with regulatory authorities.');
+    setRejectionError(null);
+  };
+
+  const handleConfirmEmployerReject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rejectingEmployer) return;
+    const validation = validateRejectionReason(rejectionReasonInput);
+    if (!validation.valid) {
+      setRejectionError(validation.error || 'Rejection reason is invalid.');
+      return;
+    }
+    verifyEmployer(rejectingEmployer.uid, 'rejected', validation.trimmed);
+    showToast(`Rejected accreditation for ${rejectingEmployer.company || rejectingEmployer.name}`, 'info');
+    setRejectingEmployer(null);
+    setRejectionReasonInput('');
+    setRejectionError(null);
+  };
 
   // Sync activeFilter with viewMode prop when viewMode changes
   useEffect(() => {
@@ -571,6 +602,15 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          onClick={() => setAuditEmployer(emp)}
+                          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+                          title="Audit credentials (read-only)"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-stone-500" />
+                          <span>Audit</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
                             verifyEmployer(emp.uid, 'verified');
                             showToast(`Accredited corporate partner ${emp.company || emp.name}!`, 'success');
@@ -578,15 +618,12 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                           className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          <span>Approve Accreditation</span>
+                          <span>Approve</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            verifyEmployer(emp.uid, 'rejected');
-                            showToast(`Rejected accreditation for ${emp.company || emp.name}`, 'info');
-                          }}
-                          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-medium cursor-pointer"
+                          onClick={() => handleOpenRejectModal(emp)}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold cursor-pointer"
                         >
                           Reject
                         </button>
@@ -688,6 +725,101 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
           </>
         )}
       </div>
+
+      {/* Read-Only Credentials Audit Modal */}
+      {auditEmployer && (
+        <EmployerVerificationModal
+          employer={auditEmployer}
+          onClose={() => setAuditEmployer(null)}
+        />
+      )}
+
+      {/* Mandatory Rejection Reason Modal */}
+      {rejectingEmployer && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-stone-200 text-stone-900 my-auto animate-in fade-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-rose-100 text-rose-700">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-stone-900">
+                    Reject Employer Accreditation
+                  </h4>
+                  <p className="text-xs text-stone-500">
+                    {rejectingEmployer.company || rejectingEmployer.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectingEmployer(null);
+                  setRejectionError(null);
+                }}
+                className="text-stone-400 hover:text-stone-600 p-1 rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmEmployerReject} className="mt-4 space-y-3.5">
+              <p className="text-xs text-stone-600 leading-relaxed">
+                Rejection requires an administrative rationale (10–500 characters). This will be recorded in the audit trail and is restricted to administrators.
+              </p>
+
+              <div>
+                <label className="text-xs font-bold text-stone-700 block mb-1">
+                  Rejection Reason * (10–500 characters)
+                </label>
+                <textarea
+                  rows={3}
+                  value={rejectionReasonInput}
+                  onChange={(e) => {
+                    setRejectionReasonInput(e.target.value);
+                    if (rejectionError) setRejectionError(null);
+                  }}
+                  placeholder="State the reason for rejecting this employer (e.g. invalid SEC registration, unverifiable corporate presence)..."
+                  className={`w-full px-3 py-2 text-xs bg-stone-50 border rounded-xl focus:outline-hidden focus:ring-2 ${
+                    rejectionError
+                      ? 'border-rose-400 focus:ring-rose-400'
+                      : 'border-stone-300 focus:ring-rose-500'
+                  }`}
+                />
+                <div className="flex justify-between items-center mt-1 text-[11px]">
+                  <span className={rejectionError ? 'text-rose-600 font-semibold' : 'text-stone-400'}>
+                    {rejectionError || `${rejectionReasonInput.trim().length}/500 characters`}
+                  </span>
+                  <span className="text-stone-400">Min 10 characters</span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-stone-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRejectingEmployer(null);
+                    setRejectionError(null);
+                  }}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  Confirm Rejection
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

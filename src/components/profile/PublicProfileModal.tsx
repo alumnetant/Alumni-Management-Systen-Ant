@@ -28,6 +28,7 @@ import {
   handleUserAvatarError,
   handleCoverPhotoError
 } from '../../lib/defaultImages';
+import { isEmployerVisibleInDirectory } from '../../lib/employerValidation';
 
 export const PublicProfileModal: React.FC = () => {
   const {
@@ -54,6 +55,12 @@ export const PublicProfileModal: React.FC = () => {
 
   const targetUser = users.find((u) => u.uid === selectedUserIdForModal);
   if (!targetUser) return null;
+
+  // Task 2: pending and rejected employers must never appear in direct links accessible to alumni
+  const isAlumniViewer = !currentUser || currentUser.role === 'alumni';
+  if (targetUser.role === 'employer' && isAlumniViewer && !isEmployerVisibleInDirectory(targetUser)) {
+    return null;
+  }
 
   const isSelf = currentUser?.uid === targetUser.uid;
   const connected = isConnected(targetUser.uid);

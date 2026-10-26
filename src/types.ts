@@ -169,10 +169,15 @@ export interface UserProfile {
   privacyConsentDate?: string;
   zeroDisclosureAccepted?: boolean;
   zeroDisclosureDate?: string;
-  employerExpirationDate?: string;
-  employerStatus?: 'active' | 'expired' | 'pending_renewal' | 'pending_verification';
+  employerStatus?: 'pending' | 'approved' | 'rejected' | 'active' | 'expired' | 'pending_renewal' | 'pending_verification' | string;
+  rejectionReason?: string;
+  rejectedBy?: string;
+  rejectionDate?: string;
+  submittedCredentials?: Array<{ id: string; name: string; url: string; fileType?: string; uploadedAt: string }>;
   employerRenewalRequested?: boolean;
   employerRenewalNotes?: string;
+  employerExpirationDate?: string;
+  website?: string;
   // RBAC Lifecycle Status (Dual Gate Verification)
   accountStatus?: AccountLifecycleStatus;
   status?: AccountLifecycleStatus | string;

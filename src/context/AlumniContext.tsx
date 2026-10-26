@@ -166,6 +166,7 @@ import {
   vaultBiometricRefreshToken,
   wipeVaultedBiometricCredentials
 } from '../services/biometricAuthService';
+import { validateRejectionReason, isEmployerVisibleInDirectory } from '../lib/employerValidation';
 
 export interface ActiveSessionConflictInfo {
   identifier: string;
@@ -3153,6 +3154,30 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       role = 'alumni';
     }
 
+    const formLock = (data as any).formLock;
+    if (formLock && formLock !== role) {
+      showToast(`Form is locked to ${formLock}. Please reset or cancel the form before switching roles.`, 'error');
+      return false;
+    }
+
+    // Check if employer was previously rejected - block re-application
+    if (role === 'employer') {
+      const isRejected = users.some(
+        (u) =>
+          u.role === 'employer' &&
+          (u.employerStatus === 'rejected' || u.employerVerificationStatus === 'rejected') &&
+          (
+            (data.email && u.email?.toLowerCase().trim() === data.email.toLowerCase().trim()) ||
+            (data.companyName && u.companyName && u.companyName.toLowerCase().trim() === data.companyName.toLowerCase().trim()) ||
+            (data.companyName && u.company && u.company.toLowerCase().trim() === data.companyName.toLowerCase().trim())
+          )
+      );
+      if (isRejected) {
+        showToast('This organization registration was previously rejected and cannot re-apply in accordance with institutional policy.', 'error');
+        return false;
+      }
+    }
+
     // Check if email already exists
     if (data.email && users.some((u) => u.email.toLowerCase() === data.email!.toLowerCase())) {
       showToast('An account with this email already exists.', 'error');
@@ -3287,7 +3312,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         password: newUser.password,
         schoolId: newUser.studentId,
         alumniId: newUser.alumniId,
-        role: newUser.role
+        role: newUser.role,
+        companyName: newUser.companyName,
+        formLock: (data as any).formLock
       })
     }).catch((err) => console.warn('Backend server register notice:', err));
 
@@ -6479,26 +6506,97 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const verifyEmployer = (employerUid: string, verified: boolean | 'verified' | 'rejected', notes?: string) => {
     const isApproved = typeof verified === 'boolean' ? verified : verified === 'verified';
+    
+    // Task 2: Mandatory rejection reason validation
+    let validRejectionReason = '';
+    if (!isApproved) {
+      const validation = validateRejectionReason(notes);
+      if (!validation.valid) {
+        showToast(validation.error || 'Rejection reason is invalid.', 'error');
+        return { success: false, error: validation.error };
+      }
+      validRejectionReason = validation.trimmed;
+    }
+
     let updatedEmployer: UserProfile | undefined;
-    setUsers((prev) =>
-      prev.map((u) => {
+    setUsers((prev) => {
+      const nextUsers = prev.map((u) => {
         if (u.uid === employerUid) {
           updatedEmployer = {
             ...u,
             isVerified: isApproved,
+            verified: isApproved,
+            employerStatus: isApproved ? 'approved' : 'rejected',
             employerVerificationStatus: isApproved ? 'verified' : 'rejected',
+            verificationStatus: isApproved ? 'verified' : 'rejected',
             canPostJobs: isApproved,
-            employerVerificationNotes: notes || (isApproved ? 'Accredited by Alumni Office' : 'Application declined')
+            employerVerificationNotes: isApproved ? (notes || 'Accredited by Alumni Office') : validRejectionReason,
+            rejectionReason: isApproved ? undefined : validRejectionReason,
+            rejectionDate: isApproved ? undefined : new Date().toISOString(),
+            rejectedBy: isApproved ? undefined : (currentUser?.uid || 'admin')
           };
           return updatedEmployer;
         }
         return u;
-      })
-    );
+      });
+
+      try {
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
+      } catch {}
+
+      return nextUsers;
+    });
 
     if (updatedEmployer) {
       saveUserToFirestore(updatedEmployer).catch(() => {});
     }
+
+    // When an employer is rejected, also reject and close all their jobs across the network
+    if (!isApproved) {
+      setOpportunities((prevOpps) => {
+        const nextOpps = prevOpps.map((o) => {
+          const isTargetJob =
+            o.postedBy === employerUid ||
+            (updatedEmployer?.companyName && o.company?.toLowerCase() === updatedEmployer.companyName.toLowerCase()) ||
+            (updatedEmployer?.name && o.company?.toLowerCase() === updatedEmployer.name.toLowerCase());
+
+          if (isTargetJob) {
+            const rejectedJob = {
+              ...o,
+              approvalStatus: 'rejected' as const,
+              status: 'closed' as const,
+              rejectionReason: validRejectionReason || 'Employer partner accreditation declined.'
+            };
+            saveOpportunityToFirestore(rejectedJob).catch(() => {});
+            return rejectedJob;
+          }
+          return o;
+        });
+
+        try {
+          localStorage.setItem(STORAGE_KEYS.OPPORTUNITIES, JSON.stringify(nextOpps));
+        } catch {}
+
+        return nextOpps;
+      });
+    }
+
+    // Synchronize to backend credentials DB
+    try {
+      const token = getStoredSessionToken() || (currentUser ? createSessionToken(currentUser) : 'dev-admin-session-token');
+      fetch('/api/admin/verify-employer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          employerUid,
+          status: isApproved ? 'approved' : 'rejected',
+          reason: isApproved ? notes : validRejectionReason
+        })
+      }).catch((err) => console.warn('Backend verify-employer sync notice:', err));
+    } catch {}
 
     const notif: AppNotification = {
       id: `notif_emp_ver_${Date.now()}`,
@@ -6507,29 +6605,33 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       title: isApproved ? '🏢 Employer Verification Approved!' : 'Employer Verification Status Update',
       body: isApproved
         ? 'Congratulations! Your company registration has been approved and accredited by St. Cecilia’s College Alumni Office. You may now post career opportunities.'
-        : `Employer verification update: ${notes || 'Please contact the alumni office for accreditation details.'}`,
+        : `Employer verification update: Your partnership application was declined. Reason: ${validRejectionReason}`,
       read: false,
       createdAt: new Date().toISOString()
     };
     setNotifications((prev) => [notif, ...prev]);
     saveNotificationToFirestore(notif).catch(() => {});
 
+    // Save an audit record on rejection: admin ID, timestamp, reason
     addAuditLog({
       action: isApproved ? 'Employer Registration Approved' : 'Employer Registration Rejected',
       actorId: currentUser?.uid || 'admin',
       actorName: currentUser?.name || 'Administrator',
       actorRole: currentUser?.role || 'admin',
       category: 'admin',
-      details: `Company ${employerUid} verification status set to ${verified ? 'verified' : 'rejected'}. Job posting authorization: ${verified ? 'Active' : 'Disabled'}.${notes ? ` Notes: ${notes}` : ''}`,
-      severity: verified ? 'success' : 'warning'
+      details: isApproved
+        ? `Company ${employerUid} accredited by ${currentUser?.uid || 'admin'}. Status: approved.`
+        : `Employer ${employerUid} rejected by admin ${currentUser?.uid || 'admin'}. Timestamp: ${new Date().toISOString()}. Reason: "${validRejectionReason}"`,
+      severity: isApproved ? 'success' : 'warning'
     });
 
     showToast(
-      verified
+      isApproved
         ? 'Employer partner approved & accredited. Job posting permissions activated!'
         : 'Employer partner registration rejected.',
-      verified ? 'success' : 'info'
+      isApproved ? 'success' : 'info'
     );
+    return { success: true };
   };
 
   const toggleEmployerJobPosting = (employerUid: string, canPost: boolean) => {
@@ -6761,6 +6863,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const targetUser = users.find((u) => u.uid === uid) || (currentUser?.uid === uid ? currentUser : null);
     const previousRole = targetUser?.role || 'alumni';
+
+    // Task 3: The Employer role is fixed and immutable. No user, including the employer themselves, can change, upgrade, or reassign it.
+    if (previousRole === 'employer' || newRole === 'employer') {
+      showToast('The Employer role is fixed and immutable and cannot be changed or reassigned.', 'error');
+      return { success: false, message: 'The Employer role is fixed and immutable.' };
+    }
 
     // Superadmin protection: Only superadmin can assign superadmin or modify a superadmin account
     if (currentUser?.role !== 'superadmin' && (newRole === 'superadmin' || previousRole === 'superadmin')) {

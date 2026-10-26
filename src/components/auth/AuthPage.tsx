@@ -56,6 +56,7 @@ import {
 import { useAlumni } from '../../context/AlumniContext';
 import { useTheme } from '../../lib/theme';
 import { UserRole, UserProfile, StudentVerificationRecord, OFFICIAL_DEGREE_PROGRAMS } from '../../types';
+import { getStoredFormLock, setStoredFormLock, clearStoredFormLock } from '../../lib/employerValidation';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
 import { TwoFactorVerificationModal } from './TwoFactorVerificationModal';
 import {
@@ -534,6 +535,138 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setShowManualVerificationModal(true);
   };
 
+  // -------------------------------------------------------------
+  // REGISTRATION FORM LOCKING (SessionStorage-persisted across page refresh)
+  // When user starts filling either form, opposite role tab switch is disabled.
+  // Cleared ONLY by explicit Reset/Cancel buttons or successful submission.
+  // -------------------------------------------------------------
+  const [formLock, setFormLock] = useState<'alumni' | 'employer' | null>(() => getStoredFormLock());
+
+  // Restore stored session lock on mount
+  useEffect(() => {
+    const storedLock = getStoredFormLock();
+    if (storedLock) {
+      setFormLock(storedLock);
+      setRegistrationType(storedLock);
+    }
+  }, []);
+
+  // Detect "Started filling" on any registration form field
+  useEffect(() => {
+    if (mode !== 'register') return;
+
+    const alumniStarted = Boolean(
+      studentId.trim() ||
+      firstName.trim() ||
+      lastName.trim() ||
+      regEmail.trim() ||
+      regPassword.trim() ||
+      confirmPassword.trim() ||
+      headline.trim() ||
+      phone.trim() ||
+      regPosition.trim() ||
+      regCompany.trim() ||
+      step > 1 ||
+      studentVerificationStatus !== 'idle'
+    );
+
+    const employerStarted = Boolean(
+      companyName.trim() ||
+      companyWebsite.trim() ||
+      employerContactPerson.trim() ||
+      employerEmail.trim() ||
+      employerPhone.trim() ||
+      employerPassword.trim() ||
+      employerConfirmPassword.trim() ||
+      employerStep > 1
+    );
+
+    if (registrationType === 'alumni' && alumniStarted) {
+      if (formLock !== 'alumni') {
+        setFormLock('alumni');
+        setStoredFormLock('alumni');
+      }
+    } else if (registrationType === 'employer' && employerStarted) {
+      if (formLock !== 'employer') {
+        setFormLock('employer');
+        setStoredFormLock('employer');
+      }
+    }
+  }, [
+    mode,
+    registrationType,
+    studentId,
+    firstName,
+    lastName,
+    regEmail,
+    regPassword,
+    confirmPassword,
+    headline,
+    phone,
+    regPosition,
+    regCompany,
+    step,
+    studentVerificationStatus,
+    companyName,
+    companyWebsite,
+    employerContactPerson,
+    employerEmail,
+    employerPhone,
+    employerPassword,
+    employerConfirmPassword,
+    employerStep,
+    formLock
+  ]);
+
+  const handleResetAlumniForm = () => {
+    setStudentId('');
+    setScreeningError('');
+    setStudentVerificationStatus('idle');
+    setVerificationMessage('');
+    setVerifiedRecord(null);
+    setIsRegistryMatched(false);
+    setFirstName('');
+    setLastName('');
+    setRegEmail('');
+    setRegPassword('');
+    setConfirmPassword('');
+    setHeadline('');
+    setPhone('');
+    setRegPosition('');
+    setRegCompany('');
+    setStep2Error('');
+    setStep(1);
+    clearStoredFormLock();
+    setFormLock(null);
+    showToast('Alumni registration form cleared.', 'info');
+  };
+
+  const handleCancelAlumniForm = () => {
+    handleResetAlumniForm();
+    setMode('login');
+  };
+
+  const handleResetEmployerForm = () => {
+    setCompanyName('');
+    setCompanyWebsite('');
+    setCompanyAddress('Cebu City, Philippines');
+    setEmployerContactPerson('');
+    setEmployerEmail('');
+    setEmployerPhone('');
+    setEmployerPassword('');
+    setEmployerConfirmPassword('');
+    setEmployerError('');
+    setEmployerStep(1);
+    clearStoredFormLock();
+    setFormLock(null);
+    showToast('Employer registration form cleared.', 'info');
+  };
+
+  const handleCancelEmployerForm = () => {
+    handleResetEmployerForm();
+    setMode('login');
+  };
+
   // Submit ID Ownership Dispute & Conflict
   const handleDisputeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1000,12 +1133,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       phone: phone.trim() || '+63 917 123 4567',
       studentId: finalStudentId,
       alumniId: generatedAlumniId,
-      isVerified: isAutoVerified
-    });
+      isVerified: isAutoVerified,
+      formLock: formLock || 'alumni'
+    } as any);
 
     if (!registered) {
       return;
     }
+
+    clearStoredFormLock();
+    setFormLock(null);
 
     if (finalStudentId) {
       markRegistryRecordAsRegistered(finalStudentId, `user_${Date.now()}`);
@@ -1059,6 +1196,22 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       return;
     }
 
+    // Check if employer was previously rejected - block re-application
+    const isPreviouslyRejected = users.some(
+      (u) =>
+        u.role === 'employer' &&
+        (u.employerStatus === 'rejected' || u.employerVerificationStatus === 'rejected') &&
+        (
+          u.email?.toLowerCase().trim() === employerEmail.trim().toLowerCase() ||
+          (u.companyName && companyName && u.companyName.toLowerCase().trim() === companyName.toLowerCase().trim()) ||
+          (u.company && companyName && u.company.toLowerCase().trim() === companyName.toLowerCase().trim())
+        )
+    );
+    if (isPreviouslyRejected) {
+      setEmployerError('This organization registration was previously rejected and cannot re-apply in accordance with institutional policy.');
+      return;
+    }
+
     // Check duplicate email
     const existing = users.find((u) => u.email.toLowerCase() === employerEmail.trim().toLowerCase());
     if (existing) {
@@ -1073,6 +1226,23 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   // Step 2: Employer Final Submission -> Redirects straight to Sign In page
   const handleConfirmEmployerSubmit = () => {
     setIsSubmittingEmployer(true);
+
+    // Check if employer was previously rejected - block re-application
+    const isPreviouslyRejected = users.some(
+      (u) =>
+        u.role === 'employer' &&
+        (u.employerStatus === 'rejected' || u.employerVerificationStatus === 'rejected') &&
+        (
+          u.email?.toLowerCase().trim() === employerEmail.trim().toLowerCase() ||
+          (u.companyName && companyName && u.companyName.toLowerCase().trim() === companyName.toLowerCase().trim()) ||
+          (u.company && companyName && u.company.toLowerCase().trim() === companyName.toLowerCase().trim())
+        )
+    );
+    if (isPreviouslyRejected) {
+      setIsSubmittingEmployer(false);
+      setEmployerError('This organization registration was previously rejected and cannot re-apply in accordance with institutional policy.');
+      return;
+    }
 
     const formattedWebsite = companyWebsite.trim()
       ? companyWebsite.startsWith('http')
@@ -1096,14 +1266,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       headline: `Hiring Partner • ${companyName.trim()}`,
       isVerified: false,
       verified: false,
-      employerVerificationStatus: 'pending_verification'
-    });
+      employerVerificationStatus: 'pending_verification',
+      formLock: formLock || 'employer'
+    } as any);
 
     setIsSubmittingEmployer(false);
     if (!registered) {
       setEmployerError('Registration could not be completed. Please review your details.');
       return;
     }
+
+    clearStoredFormLock();
+    setFormLock(null);
 
     addAuditLog({
       action: 'EMPLOYER_REGISTER',
@@ -1799,18 +1973,22 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   </span>
                 </div>
 
-                {/* Separate, Distinct Registration Role Selector Tabs (Requirement 2) */}
-                <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 rounded-xl mb-6">
+                {/* Separate, Distinct Registration Role Selector Tabs with Form Locking Enforcement */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 rounded-xl mb-3">
                   <button
                     type="button"
+                    disabled={formLock === 'employer'}
                     onClick={() => {
+                      if (formLock === 'employer') return;
                       setRegistrationType('alumni');
                       setEmployerError('');
                     }}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       registrationType === 'alumni'
                         ? 'bg-white text-[#8B181B] shadow-xs'
                         : 'text-stone-600 hover:text-stone-900'
+                    } ${
+                      formLock === 'employer' ? 'opacity-40 cursor-not-allowed pointer-events-none' : 'cursor-pointer'
                     }`}
                   >
                     <GraduationCap className="w-3.5 h-3.5" />
@@ -1819,14 +1997,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
                   <button
                     type="button"
+                    disabled={formLock === 'alumni'}
                     onClick={() => {
+                      if (formLock === 'alumni') return;
                       setRegistrationType('employer');
                       setScreeningError('');
                     }}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       registrationType === 'employer'
                         ? 'bg-white text-[#8B181B] shadow-xs'
                         : 'text-stone-600 hover:text-stone-900'
+                    } ${
+                      formLock === 'alumni' ? 'opacity-40 cursor-not-allowed pointer-events-none' : 'cursor-pointer'
                     }`}
                   >
                     <Building2 className="w-3.5 h-3.5" />
@@ -2062,14 +2244,30 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                           </div>
                         </div>
 
-                        {/* Step 1 Action Button -> Proceeds to Step 2 Review */}
-                        <button
-                          type="submit"
-                          className="w-full py-3.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold tracking-widest uppercase transition-all shadow-md shadow-red-950/20 hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>REVIEW & VERIFY DETAILS</span>
-                        </button>
+                        {/* Step 1 Action Buttons with Reset & Cancel */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={handleResetEmployerForm}
+                            className="px-3.5 py-3.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            Reset
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEmployerForm}
+                            className="px-3.5 py-3.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="flex-1 py-3.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold tracking-widest uppercase transition-all shadow-md shadow-red-950/20 hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>REVIEW & VERIFY</span>
+                          </button>
+                        </div>
                       </form>
                     ) : (
                       /* STEP 2: INFORMATION VALIDATION & REVIEW STEP (Requirement 3) */
@@ -2124,14 +2322,28 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                           </span>
                         </div>
 
-                        {/* Step 2 Buttons: Edit or Confirm & Submit */}
-                        <div className="flex items-center gap-3 pt-2">
+                        {/* Step 2 Buttons: Edit or Confirm & Submit + Reset/Cancel */}
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 pt-2">
                           <button
                             type="button"
                             onClick={() => setEmployerStep(1)}
-                            className="flex-1 py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold tracking-wider uppercase transition-colors cursor-pointer"
+                            className="px-3.5 py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold tracking-wider uppercase transition-colors cursor-pointer"
                           >
-                            Edit Details
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleResetEmployerForm}
+                            className="px-3 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            Reset
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEmployerForm}
+                            className="px-3 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                          >
+                            Cancel
                           </button>
                           <button
                             type="button"
@@ -2497,6 +2709,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                           </button>
                         </div>
                       )}
+
+                      {/* Explicit Reset and Cancel Form Buttons */}
+                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-stone-100">
+                        <button
+                          type="button"
+                          onClick={handleResetAlumniForm}
+                          className="px-3 py-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors cursor-pointer"
+                        >
+                          Reset Form
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelAlumniForm}
+                          className="px-3 py-1.5 text-xs font-semibold text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
 
                       {/* Bottom Switcher */}
                       <div className="text-center pt-2 text-xs text-stone-500">
@@ -2939,20 +3169,34 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         </div>
                       </div>
 
-                      {/* Navigation Buttons */}
-                      <div className="flex gap-3 pt-3">
+                      {/* Navigation Buttons with Reset and Cancel */}
+                      <div className="flex flex-wrap sm:flex-nowrap gap-2 pt-3">
                         <button
                           type="button"
                           onClick={() => setStep(1)}
-                          className="w-1/3 py-3 border border-stone-300 hover:bg-stone-50 rounded-xl text-xs font-bold text-stone-700 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer"
+                          className="px-3.5 py-3 border border-stone-300 hover:bg-stone-50 rounded-xl text-xs font-bold text-stone-700 transition-all duration-200 cursor-pointer"
                         >
                           BACK
                         </button>
                         <button
-                          type="submit"
-                          className="flex-1 py-3 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold tracking-widest uppercase shadow-md hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2 group"
+                          type="button"
+                          onClick={handleResetAlumniForm}
+                          className="px-3 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                         >
-                          <span>Continue to Review & Pledge</span>
+                          Reset
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCancelAlumniForm}
+                          className="px-3 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 py-3 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold tracking-widest uppercase shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 group"
+                        >
+                          <span>Review & Pledge</span>
                           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                         </button>
                       </div>
@@ -3273,13 +3517,28 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex gap-3">
+                    {/* Action Buttons with Reset & Cancel */}
+                    <div className="flex flex-wrap sm:flex-nowrap gap-2">
                       <button
                         type="button"
                         onClick={() => setStep(2)}
-                        className="w-1/3 py-3.5 border border-stone-300 hover:bg-stone-50 rounded-xl text-xs font-bold text-stone-700 transition-colors cursor-pointer"
+                        className="px-3.5 py-3.5 border border-stone-300 hover:bg-stone-50 rounded-xl text-xs font-bold text-stone-700 transition-colors cursor-pointer"
                       >
                         BACK
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResetAlumniForm}
+                        className="px-3 py-3.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelAlumniForm}
+                        className="px-3 py-3.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                      >
+                        Cancel
                       </button>
                       <button
                         type="button"
@@ -3291,7 +3550,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                             : 'bg-stone-300 text-stone-500 cursor-not-allowed'
                         }`}
                       >
-                        {allConsentsAgreed ? 'COMPLETE ALUMNI REGISTRATION' : 'CONFIRM ALL CONSENTS TO FINISH'}
+                        {allConsentsAgreed ? 'COMPLETE REGISTRATION' : 'CONFIRM CONSENTS'}
                       </button>
                     </div>
                   </div>

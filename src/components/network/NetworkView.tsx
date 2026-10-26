@@ -47,6 +47,7 @@ import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
 import { getUserOnlineStatus } from '../../lib/userStatus';
 import { PartneredCompaniesView } from './PartneredCompaniesView';
+import { isEmployerVisibleInDirectory } from '../../lib/employerValidation';
 
 export const NetworkView: React.FC = () => {
   const {
@@ -190,6 +191,8 @@ export const NetworkView: React.FC = () => {
     if (!currentUser) return [];
     return users.filter((u) => {
       if (u.uid === currentUser.uid) return false;
+      if (u.role === 'employer' && !isEmployerVisibleInDirectory(u)) return false;
+      if (u.employerStatus === 'rejected' || u.employerVerificationStatus === 'rejected') return false;
       if ((connectionIds || []).includes(u.uid)) return false;
       const sameBatch = u.batch && currentUser.batch && u.batch === currentUser.batch;
       const sameCourse = u.course && currentUser.course && (u.course || '').toLowerCase() === (currentUser.course || '').toLowerCase();
@@ -201,8 +204,8 @@ export const NetworkView: React.FC = () => {
 
   // Spotlight Alumnus / Community Mentor: An inspiring Cecilian
   const spotlightAlumnus = useMemo(() => {
-    const candidates = users.filter((u) => u.uid !== currentUser?.uid && (u.isVerified || u.company || u.quickStatus === 'Mentoring' || u.quickStatus === 'Hiring'));
-    return candidates.length > 0 ? candidates[0] : users.find((u) => u.uid !== currentUser?.uid);
+    const candidates = users.filter((u) => u.uid !== currentUser?.uid && (u.isVerified || u.company || u.quickStatus === 'Mentoring' || u.quickStatus === 'Hiring') && (u.role !== 'employer' || isEmployerVisibleInDirectory(u)));
+    return candidates.length > 0 ? candidates[0] : users.find((u) => u.uid !== currentUser?.uid && (u.role !== 'employer' || isEmployerVisibleInDirectory(u)));
   }, [users, currentUser]);
 
   // Filtered Directory
@@ -217,9 +220,11 @@ export const NetworkView: React.FC = () => {
         return false;
       }
 
-      // If user is an employer, they must be approved and active
+      // Strict Directory Visibility (Task 2 Explicit Allowlist):
+      // The alumni directory shows ONLY employers with status 'approved'.
+      // 'pending' and 'rejected' employers must never appear in the directory, in any list, search result, or direct link accessible to alumni.
       if (u.role === 'employer') {
-        if (!u.isVerified || u.employerVerificationStatus !== 'verified') {
+        if (!isEmployerVisibleInDirectory(u)) {
           return false;
         }
       }
@@ -802,7 +807,7 @@ export const NetworkView: React.FC = () => {
                 : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200/80'
             }`}
           >
-            All Members ({users.filter((u) => u.uid !== currentUser?.uid).length})
+            All Members ({users.filter((u) => u.uid !== currentUser?.uid && (u.role !== 'employer' || isEmployerVisibleInDirectory(u))).length})
           </button>
 
           <button
