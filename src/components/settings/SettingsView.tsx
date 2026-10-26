@@ -464,128 +464,158 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="w-full space-y-6 antialiased pb-12">
       {/* ========================================================================= */}
-      {/* TOP HEADER SECTION (COMMAND CENTER AESTHETIC)                             */}
+      {/* HEADER: CLEAN INSTITUTIONAL SETTINGS HEADER                              */}
       {/* ========================================================================= */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-2">
-        <div className="flex flex-wrap items-center gap-6 sm:gap-10">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-stone-900 tracking-tight font-sans">
-              Console Settings
+      <div className="pb-5 border-b border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5 mb-1 flex-wrap">
+            <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 tracking-tight font-sans">
+              Settings
             </h1>
-            <p className="text-xs text-stone-500 font-medium mt-0.5">
-              St. Cecilia's College • Institutional System Governance, Credentials & Workspace Configurations
-            </p>
+            <UserRoleBadge role={currentUser.role} size="sm" />
           </div>
-
-          {/* Metric Pill 1: Account Authority */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full border border-stone-300 dark:border-stone-700 flex items-center justify-center text-stone-700 dark:text-stone-300 shrink-0">
-              <User className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-stone-500 dark:text-stone-400 block leading-tight font-medium">
-                  Authority Role
-                </span>
-                {(currentUser.role === 'admin' || currentUser.role === 'superadmin') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedRoleUserUid(currentUser.uid);
-                      setSelectedRoleValue(currentUser.role as UserRole);
-                      setShowRoleModal(true);
-                    }}
-                    className="text-[10px] font-bold text-[#8B181B] dark:text-red-400 hover:underline cursor-pointer"
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-lg font-extrabold text-stone-900 dark:text-stone-100 uppercase tracking-tight">
-                  {currentUser.role}
-                </span>
-                <span className="text-[10px] text-stone-400 font-medium">tier</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Metric Pill 2: Security & Protection Status */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full border border-stone-300 flex items-center justify-center text-stone-700 shrink-0">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div>
-              <span className="text-[11px] text-stone-500 block leading-tight font-medium">
-                Security Posture
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-extrabold text-emerald-700 tracking-tight">
-                  100%
-                </span>
-                <span className="text-[10px] text-stone-400 font-medium">Protected</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Metric Pill 3: Active Dispatch Channels */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full border border-stone-300 flex items-center justify-center text-stone-700 shrink-0">
-              <Bell className="w-4 h-4 text-amber-600" />
-            </div>
-            <div>
-              <span className="text-[11px] text-stone-500 block leading-tight font-medium">
-                Dispatch Channels
-              </span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-extrabold text-stone-900 tracking-tight">
-                  {activeChannelsCount}/5
-                </span>
-                <span className="text-[10px] text-stone-400 font-medium">active alerts</span>
-              </div>
-            </div>
-          </div>
+          <p className="text-xs text-stone-500 font-medium">
+            Manage your credentials, security preferences, and system alerts
+          </p>
         </div>
 
-        {/* Filter Pills + Profile Action (Command Center Style) */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="inline-flex items-center p-1 bg-stone-100/90 rounded-full border border-stone-200 shadow-2xs relative">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer active:scale-95 shrink-0"
+          >
+            <User className="w-3.5 h-3.5 text-stone-500" />
+            <span>View Profile</span>
+          </button>
+        </div>
+      </div>
+
+      {/* MOBILE SEGMENTED FILTER TABS (< lg) */}
+      <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setActiveFilterPill('all')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+            activeFilterPill === 'all'
+              ? 'bg-[#8B181B] text-white shadow-xs font-bold'
+              : 'bg-stone-100 hover:bg-stone-200/80 text-stone-700'
+          }`}
+        >
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          <span>All Settings</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveFilterPill('security')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+            activeFilterPill === 'security'
+              ? 'bg-[#8B181B] text-white shadow-xs font-bold'
+              : 'bg-stone-100 hover:bg-stone-200/80 text-stone-700'
+          }`}
+        >
+          <ShieldCheck className="w-3.5 h-3.5" />
+          <span>Security & Access</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveFilterPill('notifications')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+            activeFilterPill === 'notifications'
+              ? 'bg-[#8B181B] text-white shadow-xs font-bold'
+              : 'bg-stone-100 hover:bg-stone-200/80 text-stone-700'
+          }`}
+        >
+          <Bell className="w-3.5 h-3.5" />
+          <span>Notifications</span>
+          <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+            activeFilterPill === 'notifications' ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-700'
+          }`}>
+            {activeChannelsCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveFilterPill('appearance')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+            activeFilterPill === 'appearance'
+              ? 'bg-[#8B181B] text-white shadow-xs font-bold'
+              : 'bg-stone-100 hover:bg-stone-200/80 text-stone-700'
+          }`}
+        >
+          <Palette className="w-3.5 h-3.5" />
+          <span>Appearance</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveFilterPill('compliance')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
+            activeFilterPill === 'compliance'
+              ? 'bg-[#8B181B] text-white shadow-xs font-bold'
+              : 'bg-stone-100 hover:bg-stone-200/80 text-stone-700'
+          }`}
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+          <span>Governance</span>
+        </button>
+      </div>
+
+      {/* MASTER-DETAIL LAYOUT: SIDEBAR ON DESKTOP + CONTENT ON RIGHT */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* DESKTOP SIDEBAR NAVIGATION (lg:col-span-4 xl:col-span-3) */}
+        <aside className="hidden lg:block lg:col-span-4 xl:col-span-3 sticky top-6 space-y-4">
+          <div className="bg-white rounded-2xl border border-stone-200/90 p-2 shadow-2xs space-y-1">
             <button
               type="button"
               onClick={() => setActiveFilterPill('all')}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 activeFilterPill === 'all'
                   ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
+                  : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
               }`}
             >
-              <span>All Settings</span>
+              <div className="flex items-center gap-2.5">
+                <SlidersHorizontal className="w-4 h-4 shrink-0" />
+                <span>All Settings</span>
+              </div>
+              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'all' ? 'text-white/80' : 'text-stone-400'}`} />
             </button>
 
             <button
               type="button"
               onClick={() => setActiveFilterPill('security')}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 activeFilterPill === 'security'
                   ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
+                  : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
               }`}
             >
-              <span>Security</span>
+              <div className="flex items-center gap-2.5">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span>Security & Access</span>
+              </div>
+              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'security' ? 'text-white/80' : 'text-stone-400'}`} />
             </button>
 
             <button
               type="button"
               onClick={() => setActiveFilterPill('notifications')}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 activeFilterPill === 'notifications'
                   ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
+                  : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
               }`}
             >
-              <span>Alerts</span>
-              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                activeFilterPill === 'notifications' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
+              <div className="flex items-center gap-2.5">
+                <Bell className="w-4 h-4 shrink-0" />
+                <span>Notifications</span>
+              </div>
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                activeFilterPill === 'notifications' ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-600'
               }`}>
                 {activeChannelsCount}
               </span>
@@ -594,45 +624,71 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveFilterPill('appearance')}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 activeFilterPill === 'appearance'
                   ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
+                  : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
               }`}
             >
-              <span>Theme</span>
+              <div className="flex items-center gap-2.5">
+                <Palette className="w-4 h-4 shrink-0" />
+                <span>Appearance</span>
+              </div>
+              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'appearance' ? 'text-white/80' : 'text-stone-400'}`} />
             </button>
 
             <button
               type="button"
               onClick={() => setActiveFilterPill('compliance')}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 activeFilterPill === 'compliance'
                   ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-white/50'
+                  : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
               }`}
             >
-              <span>Governance</span>
+              <div className="flex items-center gap-2.5">
+                <HelpCircle className="w-4 h-4 shrink-0" />
+                <span>Governance & Info</span>
+              </div>
+              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'compliance' ? 'text-white/80' : 'text-stone-400'}`} />
             </button>
           </div>
 
-          {/* Quick Action: Edit Profile */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('profile')}
-            className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-full text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
-          >
-            <User className="w-3.5 h-3.5" />
-            <span>Profile Desk</span>
-          </button>
-        </div>
-      </div>
+          {/* Institutional Account Overview Card */}
+          <div className="p-4 rounded-2xl bg-stone-50/90 border border-stone-200/80 space-y-3">
+            <div className="flex items-center gap-3">
+              <img
+                src={getUserAvatar(currentUser.avatar)}
+                alt={currentUser.name || 'User'}
+                onError={handleUserAvatarError}
+                className="w-10 h-10 rounded-full object-cover border border-stone-300"
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-stone-900 truncate">
+                  {currentUser.name || 'Alumnus'}
+                </p>
+                <p className="text-[11px] text-stone-500 font-mono truncate">
+                  {currentUser.email}
+                </p>
+              </div>
+            </div>
+            <div className="pt-2.5 border-t border-stone-200/80 flex items-center justify-between text-[11px]">
+              <span className="text-stone-500">Clearance Tier</span>
+              <UserRoleBadge role={currentUser.role} size="sm" />
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              className="w-full py-2 bg-white hover:bg-stone-100 border border-stone-200 text-stone-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs active:scale-95"
+            >
+              <User className="w-3.5 h-3.5 text-stone-500" />
+              <span>Open Profile Desk</span>
+            </button>
+          </div>
+        </aside>
 
-
-
-      {/* ========================================================================= */}
-      {/* DETAILED SETTINGS CARDS (FILTERABLE COMMAND SECTIONS)                      */}
-      {/* ========================================================================= */}
+        {/* SETTINGS CARDS CONTENT COLUMN (lg:col-span-8 xl:col-span-9) */}
+        <div className="lg:col-span-8 xl:col-span-9 space-y-6">
       
       {/* SECTION: AUTHORITY ROLE & ACCESS GOVERNANCE */}
       {(activeFilterPill === 'all' || activeFilterPill === 'security' || activeFilterPill === 'compliance') && (
@@ -1423,6 +1479,9 @@ export const SettingsView: React.FC = () => {
           </div>
         </div>
       )}
+
+        </div>
+      </div>
 
       {/* ========================================================================= */}
       {/* CHANGE EMAIL MODAL                                                        */}

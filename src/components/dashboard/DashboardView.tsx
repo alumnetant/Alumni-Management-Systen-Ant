@@ -9,7 +9,6 @@ import {
   Calendar,
   MapPin,
   Clock,
-  Ticket,
   QrCode,
   Check,
   X,
@@ -40,8 +39,6 @@ export const DashboardView: React.FC = () => {
     events,
     announcements,
     opportunities,
-    reservations,
-    reserveEventSlot,
     setActiveTab,
     setActiveChatId,
     getOrCreateChat,
@@ -51,16 +48,12 @@ export const DashboardView: React.FC = () => {
 
   // Modals
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
-  const [reservationEventTarget, setReservationEventTarget] = useState<AlumniEvent | null>(null);
-  const [reservationGuests, setReservationGuests] = useState(1);
-  const [isReserving, setIsReserving] = useState(false);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
 
   // Reset dashboard state and scroll to top when Home/Dashboard is clicked
   useEffect(() => {
     const handleResetDashboard = () => {
       setSelectedAnnouncement(null);
-      setReservationEventTarget(null);
       setShowGalleryModal(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       const mainEl = document.querySelector('main');
@@ -118,14 +111,6 @@ export const DashboardView: React.FC = () => {
     return events.filter((e) => e.id !== featuredEvent.id).slice(0, 2);
   }, [events, featuredEvent]);
 
-  // Check if current user is reserved for an event
-  const isUserReserved = (eventId: string) => {
-    if (!currentUser) return false;
-    return reservations.some(
-      (r) => r.eventId === eventId && r.userId === currentUser.uid && r.status !== 'cancelled'
-    );
-  };
-
   // Classmates spotlight (prioritizes same batch)
   const batchmates = useMemo(() => {
     if (!currentUser) return users.slice(0, 4);
@@ -142,32 +127,7 @@ export const DashboardView: React.FC = () => {
     return opportunities.slice(0, 2);
   }, [opportunities]);
 
-  // Handle Seat Reservation
-  const handleConfirmReservation = async () => {
-    if (!reservationEventTarget || !currentUser) return;
-    setIsReserving(true);
-    try {
-      const res = await reserveEventSlot({
-        eventId: reservationEventTarget.id,
-        alumniName: currentUser.name || 'Cecilian Alumnus',
-        email: currentUser.email,
-        contactNumber: currentUser.phone || '0917-000-0000',
-        alumniId: currentUser.alumniId || currentUser.studentId || `SCC-ALUM-${currentUser.uid.slice(0, 6)}`,
-        graduationYear: currentUser.batch || '2023',
-        course: currentUser.course || 'Bachelor of Science',
-        numberOfGuests: Math.max(0, reservationGuests - 1),
-        specialRequests: 'Collegiate alumni reserved pass'
-      });
-      if (res.success) {
-        showToast('Your seat reservation is confirmed!', 'success');
-        setReservationEventTarget(null);
-      } else {
-        showToast(res.error || 'Unable to complete reservation.', 'error');
-      }
-    } finally {
-      setIsReserving(false);
-    }
-  };
+
 
   // Direct Peer Message Trigger
   const handleStartMessage = (peerUid: string) => {
@@ -407,21 +367,14 @@ export const DashboardView: React.FC = () => {
                   </div>
 
                   <div className="pt-2 flex items-center justify-end">
-                    {isUserReserved(featuredEvent.id) ? (
-                      <span className="px-3.5 py-2 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-bold border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5">
-                        <Check className="w-4 h-4 stroke-[2.5]" />
-                        <span>Seat Reserved</span>
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setReservationEventTarget(featuredEvent)}
-                        className="w-full sm:w-auto px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer min-h-[44px] flex items-center justify-center gap-1.5"
-                      >
-                        <Ticket className="w-3.5 h-3.5" />
-                        <span>Reserve Seat Pass</span>
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('events')}
+                      className="w-full sm:w-auto px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer min-h-[44px] flex items-center justify-center gap-1.5"
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>View Event Details</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -453,15 +406,9 @@ export const DashboardView: React.FC = () => {
                     </div>
 
                     <div className="shrink-0">
-                      {isUserReserved(ev.id) ? (
-                        <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                          Reserved
-                        </span>
-                      ) : (
-                        <span className="text-xs font-semibold text-[#8B181B] dark:text-rose-400 hover:underline">
-                          Details →
-                        </span>
-                      )}
+                      <span className="text-xs font-semibold text-[#8B181B] dark:text-rose-400 hover:underline">
+                        Details →
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -680,101 +627,7 @@ export const DashboardView: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* =========================================================================
-          MODAL: EVENT SEAT RESERVATION
-          ========================================================================= */}
-      <AnimatePresence>
-        {reservationEventTarget && (
-          <div
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
-            onClick={() => setReservationEventTarget(null)}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              className="bg-white dark:bg-[#181615] rounded-3xl shadow-2xl border border-stone-200 dark:border-stone-800 w-full max-w-md overflow-hidden flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-4 sm:p-5 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold text-[#8B181B] dark:text-rose-400 uppercase tracking-wider block">
-                    Reserve Event Seat
-                  </span>
-                  <h3 className="text-sm sm:text-base font-bold text-stone-900 dark:text-stone-100 truncate max-w-[260px]">
-                    {reservationEventTarget.title}
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setReservationEventTarget(null)}
-                  className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
 
-              <div className="p-5 space-y-4 text-xs text-stone-600 dark:text-stone-300">
-                <div className="p-3 bg-stone-50 dark:bg-stone-900 rounded-xl space-y-1 border border-stone-200/60 dark:border-stone-800">
-                  <div>
-                    <strong className="text-stone-900 dark:text-stone-100">Venue:</strong>{' '}
-                    {reservationEventTarget.location}
-                  </div>
-                  <div>
-                    <strong className="text-stone-900 dark:text-stone-100">Schedule:</strong>{' '}
-                    {new Date(reservationEventTarget.startDate).toLocaleDateString([], {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-stone-500 block mb-1.5">
-                    Number of Seats to Reserve:
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {[1, 2, 3].map((num) => (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => setReservationGuests(num)}
-                        className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer min-h-[44px] ${
-                          reservationGuests === num
-                            ? 'bg-[#8B181B] text-white border-[#8B181B] shadow-xs'
-                            : 'bg-stone-50 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700'
-                        }`}
-                      >
-                        {num} {num === 1 ? 'Seat (Personal)' : 'Seats'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 bg-stone-50 dark:bg-stone-900 border-t border-stone-100 dark:border-stone-800 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setReservationEventTarget(null)}
-                  className="px-4 py-2 bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300 rounded-xl text-xs font-semibold cursor-pointer min-h-[40px]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={isReserving}
-                  onClick={handleConfirmReservation}
-                  className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 min-h-[40px]"
-                >
-                  {isReserving ? 'Confirming...' : 'Confirm Reservation'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* CAMPUS HERITAGE GALLERY MODAL */}
       <CampusGalleryModal

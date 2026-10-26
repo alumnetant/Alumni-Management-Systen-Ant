@@ -108,11 +108,25 @@ export const MessagesView: React.FC = () => {
 
   // Message Management States: Unsend, Delete, Reactions
   const [activeMessageMenuId, setActiveMessageMenuId] = useState<string | null>(null);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const [reactionPickerMessageId, setReactionPickerMessageId] = useState<string | null>(null);
+  const [suppressedReactionMessageId, setSuppressedReactionMessageId] = useState<string | null>(null);
   const [messageToUnsend, setMessageToUnsend] = useState<ChatMessage | null>(null);
   const [messageToDelete, setMessageToDelete] = useState<ChatMessage | null>(null);
   const [inspectingReactionsMessage, setInspectingReactionsMessage] = useState<ChatMessage | null>(null);
   const [reactionDetailTab, setReactionDetailTab] = useState<string>('all');
   const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '👏', '🔥'];
+
+  // Smooth reaction handler: triggers reaction and immediately auto-hides reaction dock
+  const handleReactionClick = (msgId: string, emoji: string) => {
+    if (!activeChat) return;
+    reactToMessage(activeChat.id, msgId, emoji);
+    // Automatic hide reaction buttons immediately:
+    setReactionPickerMessageId(null);
+    setActiveMessageMenuId(null);
+    setSuppressedReactionMessageId(msgId);
+  };
+
 
   // Directory filter in zero-state
   const [contactDirectorySearch, setContactDirectorySearch] = useState('');
@@ -1198,13 +1212,25 @@ export const MessagesView: React.FC = () => {
 
                             const isMine = msg.senderId === currentUser?.uid;
                             const sender = !isMine ? users.find((u) => u.uid === msg.senderId) : null;
+                            const isSuppressed = suppressedReactionMessageId === msg.id;
+                            const isHovered = hoveredMessageId === msg.id && !isSuppressed;
+                            const isExplicitlyOpen = (reactionPickerMessageId === msg.id || activeMessageMenuId === msg.id) && !isSuppressed;
+                            const showReactionBar = isHovered || isExplicitlyOpen;
 
                             return (
                               <div
                                 key={msg.id}
                                 className={`group relative flex flex-col ${isMine ? 'items-end' : 'items-start'} mb-3`}
+                                onMouseEnter={() => {
+                                  if (suppressedReactionMessageId !== msg.id) {
+                                    setHoveredMessageId(msg.id);
+                                  }
+                                }}
                                 onMouseLeave={() => {
+                                  setHoveredMessageId((prev) => (prev === msg.id ? null : prev));
+                                  setSuppressedReactionMessageId((prev) => (prev === msg.id ? null : prev));
                                   if (activeMessageMenuId === msg.id) setActiveMessageMenuId(null);
+                                  if (reactionPickerMessageId === msg.id) setReactionPickerMessageId(null);
                                 }}
                               >
                                 {!isMine && (
@@ -1249,7 +1275,16 @@ export const MessagesView: React.FC = () => {
                                   ) : (
                                     <>
                                       <div
-                                        onClick={() => setActiveMessageMenuId(activeMessageMenuId === msg.id ? null : msg.id)}
+                                        onClick={() => {
+                                          if (showReactionBar) {
+                                            setReactionPickerMessageId(null);
+                                            setActiveMessageMenuId(null);
+                                            setSuppressedReactionMessageId(msg.id);
+                                          } else {
+                                            setSuppressedReactionMessageId(null);
+                                            setReactionPickerMessageId(msg.id);
+                                          }
+                                        }}
                                         style={{
                                           backgroundColor: isMine ? 'var(--dm-bubble-sent)' : 'var(--dm-bubble-received)',
                                           color: isMine ? 'var(--dm-bubble-sent-text)' : 'var(--dm-bubble-received-text)',
@@ -1264,125 +1299,191 @@ export const MessagesView: React.FC = () => {
                                         {msg.text}
                                       </div>
 
-                                      {/* Floating Actions on Hover / Menu for mobile */}
-                                      <div
-                                        className={`absolute -top-4 flex items-center gap-1 z-20 transition-all duration-150 ${
-                                          isMine ? 'right-1' : 'left-1'
-                                        } ${
-                                          activeMessageMenuId === msg.id
-                                            ? 'opacity-100 visible pointer-events-auto'
-                                            : 'opacity-0 invisible pointer-events-none group-hover/bubble:opacity-100 group-hover/bubble:visible group-hover/bubble:pointer-events-auto'
-                                        }`}
-                                      >
-                                        {/* Reaction Bar */}
-                                        <div
-                                          style={{
-                                            backgroundColor: 'var(--dm-bg-deck)',
-                                            borderColor: 'var(--dm-border)',
-                                          }}
-                                          className="flex items-center gap-1 p-1 rounded-full shadow-lg border"
-                                        >
-                                          {QUICK_EMOJIS.map((emoji) => {
-                                            const isUserReaction = msg.reactions?.[emoji]?.includes(currentUser.uid);
-                                            return (
-                                              <button
-                                                key={emoji}
-                                                type="button"
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  reactToMessage(activeChat.id, msg.id, emoji);
-                                                  setActiveMessageMenuId(null);
-                                                }}
-                                                className={`w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-sm sm:text-xs hover:scale-125 active:scale-95 transition-transform rounded-full cursor-pointer relative ${
-                                                  isUserReaction
-                                                    ? 'bg-rose-100 dark:bg-rose-950/80 ring-2 ring-[#8B181B] shadow-2xs'
-                                                    : 'hover:bg-stone-100 dark:hover:bg-stone-700'
-                                                }`}
-                                                title={isUserReaction ? `Remove ${emoji} reaction` : `React with ${emoji}`}
-                                              >
-                                                {emoji}
-                                              </button>
-                                            );
-                                          })}
-
-                                          {/* More Actions Dropdown Toggle */}
-                                          <div className="relative">
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setActiveMessageMenuId(
-                                                  activeMessageMenuId === msg.id ? null : msg.id
-                                                );
+                                      {/* Smooth Floating Reaction Dock with Framer Motion (Auto-hides on click) */}
+                                      <AnimatePresence>
+                                        {showReactionBar && (
+                                          <motion.div
+                                            initial={{ opacity: 0, scale: 0.75, y: 6 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.75, y: 4 }}
+                                            transition={{ type: 'spring', damping: 25, stiffness: 450 }}
+                                            className={`absolute -top-7 flex items-center gap-1 z-30 ${
+                                              isMine ? 'right-1 sm:right-2' : 'left-1 sm:left-2'
+                                            }`}
+                                          >
+                                            <div
+                                              style={{
+                                                backgroundColor: 'var(--dm-bg-deck)',
+                                                borderColor: 'var(--dm-border)',
                                               }}
-                                              style={{ color: 'var(--dm-text-secondary)' }}
-                                              className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-full hover:bg-[var(--dm-bg-item-hover)] cursor-pointer"
-                                              title="Message options"
+                                              className="flex items-center gap-0.5 p-1 rounded-full shadow-[0_6px_20px_rgba(0,0,0,0.14),0_1px_4px_rgba(0,0,0,0.06)] border backdrop-blur-md"
                                             >
-                                              <MoreVertical className="w-3.5 h-3.5" />
-                                            </button>
-
-                                            {activeMessageMenuId === msg.id && (
-                                              <div
-                                                style={{
-                                                  backgroundColor: 'var(--dm-modal-bg)',
-                                                  borderColor: 'var(--dm-modal-border)',
-                                                }}
-                                                className={`absolute bottom-full mb-1 ${
-                                                  isMine ? 'right-0' : 'left-0'
-                                                } w-44 rounded-xl shadow-xl border py-1 z-30 text-xs`}
-                                              >
-                                                {(isMine ||
-                                                  ['admin', 'superadmin', 'moderator'].includes(
-                                                    currentUser?.role || ''
-                                                  )) && (
-                                                  <button
+                                              {QUICK_EMOJIS.map((emoji) => {
+                                                const isUserReaction = msg.reactions?.[emoji]?.includes(currentUser.uid);
+                                                return (
+                                                  <motion.button
+                                                    key={emoji}
                                                     type="button"
-                                                    onClick={() => {
-                                                      setMessageToUnsend(msg);
-                                                      setActiveMessageMenuId(null);
+                                                    whileHover={{ scale: 1.35, y: -2 }}
+                                                    whileTap={{ scale: 0.9 }}
+                                                    transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      handleReactionClick(msg.id, emoji);
                                                     }}
-                                                    className="w-full px-3 py-2 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2 font-semibold cursor-pointer"
+                                                    className={`w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-sm sm:text-xs rounded-full cursor-pointer transition-colors relative ${
+                                                      isUserReaction
+                                                        ? 'bg-rose-100 dark:bg-rose-950/80 ring-2 ring-[#8B181B] shadow-2xs font-bold'
+                                                        : 'hover:bg-stone-100 dark:hover:bg-stone-700'
+                                                    }`}
+                                                    title={isUserReaction ? `Remove ${emoji} reaction` : `React with ${emoji}`}
                                                   >
-                                                    <Undo2 className="w-3.5 h-3.5" />
-                                                    <span>Unsend for everyone</span>
-                                                  </button>
-                                                )}
+                                                    <span className="select-none">{emoji}</span>
+                                                  </motion.button>
+                                                );
+                                              })}
+
+                                              {/* More Actions Dropdown Toggle */}
+                                              <div className="relative">
                                                 <button
                                                   type="button"
-                                                  onClick={() => {
-                                                    setMessageToDelete(msg);
-                                                    setActiveMessageMenuId(null);
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setActiveMessageMenuId(
+                                                      activeMessageMenuId === msg.id ? null : msg.id
+                                                    );
                                                   }}
-                                                  style={{ color: 'var(--dm-text-primary)' }}
-                                                  className="w-full px-3 py-2 text-left hover:bg-[var(--dm-bg-item-hover)] flex items-center gap-2 font-medium cursor-pointer"
+                                                  style={{ color: 'var(--dm-text-secondary)' }}
+                                                  className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-full hover:bg-[var(--dm-bg-item-hover)] cursor-pointer"
+                                                  title="Message options"
                                                 >
-                                                  <Trash2 className="w-3.5 h-3.5 opacity-60" />
-                                                  <span>Delete for me</span>
+                                                  <MoreVertical className="w-3.5 h-3.5" />
                                                 </button>
+
+                                                <AnimatePresence>
+                                                  {activeMessageMenuId === msg.id && (
+                                                    <motion.div
+                                                      initial={{ opacity: 0, scale: 0.9, y: 4 }}
+                                                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                      exit={{ opacity: 0, scale: 0.9, y: 4 }}
+                                                      transition={{ duration: 0.15 }}
+                                                      style={{
+                                                        backgroundColor: 'var(--dm-modal-bg)',
+                                                        borderColor: 'var(--dm-modal-border)',
+                                                      }}
+                                                      className={`absolute bottom-full mb-1 ${
+                                                        isMine ? 'right-0' : 'left-0'
+                                                      } w-44 rounded-xl shadow-xl border py-1 z-40 text-xs`}
+                                                    >
+                                                      {(isMine ||
+                                                        ['admin', 'superadmin', 'moderator'].includes(
+                                                          currentUser?.role || ''
+                                                        )) && (
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => {
+                                                            setMessageToUnsend(msg);
+                                                            setActiveMessageMenuId(null);
+                                                          }}
+                                                          className="w-full px-3 py-2 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2 font-semibold cursor-pointer"
+                                                        >
+                                                          <Undo2 className="w-3.5 h-3.5" />
+                                                          <span>Unsend for everyone</span>
+                                                        </button>
+                                                      )}
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                          setMessageToDelete(msg);
+                                                          setActiveMessageMenuId(null);
+                                                        }}
+                                                        style={{ color: 'var(--dm-text-primary)' }}
+                                                        className="w-full px-3 py-2 text-left hover:bg-[var(--dm-bg-item-hover)] flex items-center gap-2 font-medium cursor-pointer"
+                                                      >
+                                                        <Trash2 className="w-3.5 h-3.5 opacity-60" />
+                                                        <span>Delete for me</span>
+                                                      </button>
+                                                    </motion.div>
+                                                  )}
+                                                </AnimatePresence>
                                               </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
+                                            </div>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
                                     </>
                                   )}
                                 </div>
 
-                                {/* Messenger-Style Message Reactions Display Badge */}
+                                {/* Interactive Messenger/Slack-Style Message Reactions Display Pills */}
                                 {!msg.isUnsent && msg.reactions && Object.keys(msg.reactions).length > 0 && (() => {
                                   const activeEntries = Object.entries(msg.reactions).filter(
                                     ([_, uids]) => Array.isArray(uids) && uids.length > 0
                                   );
                                   if (activeEntries.length === 0) return null;
-                                  const totalCount = activeEntries.reduce((sum, [_, uids]) => sum + uids.length, 0);
-                                  const myReactionEntry = activeEntries.find(([_, uids]) => uids.includes(currentUser.uid));
-                                  const hasMyReaction = !!myReactionEntry;
 
                                   return (
                                     <div
-                                      className={`flex mt-1 px-0.5 ${isMine ? 'justify-end' : 'justify-start'}`}
+                                      className={`flex flex-wrap items-center gap-1 mt-1 px-0.5 ${
+                                        isMine ? 'justify-end' : 'justify-start'
+                                      }`}
                                     >
+                                      <AnimatePresence mode="popLayout">
+                                        {activeEntries.map(([em, uids]) => {
+                                          const hasMyReaction = uids.includes(currentUser.uid);
+                                          const reactorNames = uids
+                                            .map((uid) =>
+                                              uid === currentUser.uid
+                                                ? 'You'
+                                                : users.find((u) => u.uid === uid)?.name || 'Alumnus'
+                                            )
+                                            .join(', ');
+
+                                          return (
+                                            <motion.button
+                                              key={em}
+                                              type="button"
+                                              layout
+                                              initial={{ scale: 0.6, opacity: 0 }}
+                                              animate={{ scale: 1, opacity: 1 }}
+                                              exit={{ scale: 0.6, opacity: 0 }}
+                                              whileHover={{ scale: 1.08 }}
+                                              whileTap={{ scale: 0.92 }}
+                                              transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleReactionClick(msg.id, em);
+                                              }}
+                                              style={{
+                                                backgroundColor: hasMyReaction
+                                                  ? 'rgba(139,24,27,0.12)'
+                                                  : 'var(--dm-chip-bg)',
+                                                color: hasMyReaction
+                                                  ? 'var(--dm-bubble-sent)'
+                                                  : 'var(--dm-text-primary)',
+                                                borderColor: hasMyReaction
+                                                  ? 'var(--dm-bubble-sent)'
+                                                  : 'var(--dm-chip-border)',
+                                              }}
+                                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all cursor-pointer shadow-2xs select-none ${
+                                                hasMyReaction
+                                                  ? 'ring-1 ring-[#8B181B]/30 font-bold'
+                                                  : 'hover:border-stone-400'
+                                              }`}
+                                              title={`${reactorNames} reacted with ${em}. Click to ${
+                                                hasMyReaction ? 'remove' : 'add'
+                                              } reaction.`}
+                                            >
+                                              <span className="text-xs leading-none select-none">{em}</span>
+                                              <span className="text-[10px] font-mono tabular-nums font-bold">
+                                                {uids.length}
+                                              </span>
+                                            </motion.button>
+                                          );
+                                        })}
+                                      </AnimatePresence>
+
+                                      {/* Button to open reactions details breakdown */}
                                       <button
                                         type="button"
                                         onClick={(e) => {
@@ -1391,21 +1492,14 @@ export const MessagesView: React.FC = () => {
                                           setReactionDetailTab('all');
                                         }}
                                         style={{
-                                          backgroundColor: hasMyReaction ? 'rgba(139,24,27,0.1)' : 'var(--dm-chip-bg)',
-                                          color: hasMyReaction ? 'var(--dm-bubble-sent)' : 'var(--dm-text-primary)',
-                                          borderColor: hasMyReaction ? 'var(--dm-bubble-sent)' : 'var(--dm-chip-border)',
+                                          color: 'var(--dm-text-muted)',
+                                          backgroundColor: 'transparent',
+                                          borderColor: 'transparent'
                                         }}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-all cursor-pointer shadow-2xs active:scale-95 select-none"
-                                        title="View who reacted"
+                                        className="text-[10px] p-1 hover:text-[#8B181B] dark:hover:text-rose-400 cursor-pointer rounded-full transition-colors flex items-center justify-center"
+                                        title="View details of who reacted"
                                       >
-                                        <span className="flex items-center -space-x-1">
-                                          {activeEntries.slice(0, 3).map(([em]) => (
-                                            <span key={em} className="text-xs leading-none">{em}</span>
-                                          ))}
-                                        </span>
-                                        <span className="text-[10px] font-mono tabular-nums font-bold">
-                                          {totalCount}
-                                        </span>
+                                        <Info className="w-3 h-3" />
                                       </button>
                                     </div>
                                   );
