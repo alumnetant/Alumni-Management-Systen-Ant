@@ -167,6 +167,7 @@ import {
   wipeVaultedBiometricCredentials
 } from '../services/biometricAuthService';
 import { validateRejectionReason, isEmployerVisibleInDirectory } from '../lib/employerValidation';
+import { getEmployerAuthStatus, isEmployerApproved } from '../lib/employerAuthStatus';
 
 export interface ActiveSessionConflictInfo {
   identifier: string;
@@ -267,7 +268,7 @@ interface AlumniContextType {
   clearLoginPlatformError: () => void;
   // Strict Moderator Quota (MAX 3 ACTIVE ACCOUNTS)
   moderatorQuota: { activeCount: number; maxQuota: number; availableSlots: number; canCreateModerator: boolean };
-  logout: () => void;
+  logout: (options?: { revokeBiometrics?: boolean }) => void;
   switchUser: (uid: string) => void;
   resetPassword: (email: string) => boolean;
   resetUserPasswordByEmail: (email: string, newPass: string) => boolean;
@@ -2775,8 +2776,52 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
 
       if (serverRes.status === 401) {
-        showToast('Invalid email address/Student ID or password.', 'error');
-        return false;
+        // If not found in backend in-memory cache, check if user exists locally with matching credentials and auto-sync
+        const localUser = users.find(
+          (u) =>
+            u.email?.toLowerCase() === trimmed ||
+            (u.studentId && normalizeStudentId(u.studentId).toLowerCase() === normalizedInputId)
+        );
+        const localVault = findCredentialInVault(trimmed);
+
+        if (localUser && (localUser.password === pass || localVault?.password === pass)) {
+          await fetch('/api/auth/sync-credentials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ users: [localUser] })
+          }).catch(() => {});
+
+          const retryRes = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              identifier: trimmed,
+              password: pass,
+              platform: clientPlatform,
+              deviceInfo: getClientDeviceInfo()
+            })
+          });
+
+          if (retryRes.ok) {
+            const authData = await retryRes.json();
+            if (authData.token) {
+              sessionStorage.setItem('alumni_server_auth_token', authData.token);
+              localStorage.setItem('alumni_server_auth_token', authData.token);
+            }
+            setActiveSessionConflict(null);
+            setLoginPlatformError(null);
+          } else if (retryRes.status === 403) {
+            const errData = await retryRes.json();
+            showToast(errData.error || 'Access denied.', 'error');
+            return false;
+          } else {
+            showToast('Invalid email address/Student ID or password.', 'error');
+            return false;
+          }
+        } else {
+          showToast('Invalid email address/Student ID or password.', 'error');
+          return false;
+        }
       }
 
       if (serverRes.ok) {
@@ -2935,7 +2980,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('This account has been suspended by administration. Please contact institutional support.', 'error');
       return false;
     }
-    if (accountStatus === 'PENDING_VERIFICATION') {
+    if (accountStatus === 'PENDING_VERIFICATION' && user.role !== 'employer') {
       showToast('Your account is pending registrar verification. You will be notified once your graduation credentials are confirmed.', 'error');
       return false;
     }
@@ -2956,9 +3001,36 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
       }
     }
-    if (user.role === 'employer' && (!user.isVerified || user.employerVerificationStatus === 'rejected')) {
-      showToast('Login blocked: Your employer account has not been approved yet.', 'error');
-      return false;
+    if (user.role === 'employer') {
+      const authStatus = getEmployerAuthStatus({
+        ...user,
+        isVerified: user.isVerified || vaultCred?.isVerified
+      });
+
+      if (authStatus === 'SUSPENDED') {
+        showToast('This employer account has been suspended by administration. Please contact institutional support.', 'error');
+        return false;
+      }
+
+      if (authStatus === 'REJECTED') {
+        const rejectionMsg = (user as any).rejectionReason
+          ? `Accreditation declined: ${(user as any).rejectionReason}`
+          : 'Your employer accreditation request was reviewed and declined by the institutional administration.';
+        showToast(rejectionMsg, 'error');
+        return false;
+      }
+
+      if (authStatus === 'PENDING_APPROVAL') {
+        showToast('Login blocked: Your employer account has not been approved yet. Institutional accreditation takes 24–48 hours.', 'error');
+        return false;
+      }
+
+      user.isVerified = true;
+      user.verified = true;
+      user.employerStatus = 'approved';
+      user.employerVerificationStatus = 'verified';
+      user.accountStatus = 'ACTIVE';
+      user.status = 'ACTIVE';
     }
 
     // Ensure user profile in memory has the valid password and verified flags
@@ -3614,7 +3686,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     showToast('Post removed from feed.', 'info');
   };
 
-  const logout = useCallback(() => {
+  const logout = useCallback((options?: { revokeBiometrics?: boolean }) => {
+    const shouldRevokeBiometrics = options?.revokeBiometrics ?? false;
     try {
       const token =
         sessionStorage.getItem('alumni_server_auth_token') ||
@@ -3631,13 +3704,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {})
           },
-          body: JSON.stringify({ refreshToken })
+          body: JSON.stringify({
+            refreshToken,
+            revokeRefreshToken: shouldRevokeBiometrics
+          })
         }).catch(() => {});
       }
     } catch {}
 
-    // Wipe vaulted credentials from native Keystore & storage
-    wipeVaultedBiometricCredentials().catch(() => {});
+    // Only wipe vaulted credentials from native Keystore if explicitly requested or if biometrics is disabled
+    if (shouldRevokeBiometrics) {
+      wipeVaultedBiometricCredentials().catch(() => {});
+    }
 
     signOutUser().catch(() => {});
     clearStoredSession();
@@ -3648,12 +3726,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       localStorage.removeItem(STORAGE_KEYS.VIEW);
       localStorage.removeItem('alumni_server_auth_token');
       localStorage.removeItem('alumni_auth_token');
-      localStorage.removeItem('alumni_refresh_token');
-      localStorage.removeItem('alumni_latest_refresh_token');
-      sessionStorage.clear();
+      if (shouldRevokeBiometrics) {
+        localStorage.removeItem('alumni_refresh_token');
+        localStorage.removeItem('alumni_latest_refresh_token');
+        sessionStorage.clear();
+      } else {
+        sessionStorage.removeItem('alumni_server_auth_token');
+      }
     } catch {}
     setActiveTab('dashboard');
-    showToast('Logged out successfully.');
+    showToast(shouldRevokeBiometrics ? 'Logged out and biometric credentials revoked.' : 'Logged out successfully.');
   }, [showToast]);
 
   // Server-Authoritative Session Heartbeat Supervisor: Checks single active session validity
@@ -6529,6 +6611,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             employerStatus: isApproved ? 'approved' : 'rejected',
             employerVerificationStatus: isApproved ? 'verified' : 'rejected',
             verificationStatus: isApproved ? 'verified' : 'rejected',
+            accountStatus: isApproved ? 'ACTIVE' : 'REJECTED',
+            status: isApproved ? 'ACTIVE' : 'REJECTED',
             canPostJobs: isApproved,
             employerVerificationNotes: isApproved ? (notes || 'Accredited by Alumni Office') : validRejectionReason,
             rejectionReason: isApproved ? undefined : validRejectionReason,
@@ -6549,6 +6633,28 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     if (updatedEmployer) {
       saveUserToFirestore(updatedEmployer).catch(() => {});
+      saveCredentialToVault({
+        uid: updatedEmployer.uid,
+        name: updatedEmployer.name,
+        email: updatedEmployer.email,
+        password: updatedEmployer.password || 'Password123!',
+        role: 'employer',
+        isVerified: isApproved
+      });
+
+      // Synchronize backend credentials store
+      fetch('/api/admin/verify-employer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionStorage.getItem('alumni_server_auth_token') || localStorage.getItem('alumni_server_auth_token') || ''}`
+        },
+        body: JSON.stringify({
+          employerUid,
+          status: isApproved ? 'approved' : 'rejected',
+          reason: isApproved ? undefined : validRejectionReason
+        })
+      }).catch((err) => console.warn('Backend employer verification sync notice:', err));
     }
 
     // When an employer is rejected, also reject and close all their jobs across the network

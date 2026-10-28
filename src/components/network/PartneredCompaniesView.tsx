@@ -11,11 +11,13 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
-  Building
+  Building,
+  Eye
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
-import { Opportunity } from '../../types';
+import { Opportunity, UserProfile } from '../../types';
 import { isEmployerVisibleInDirectory } from '../../lib/employerValidation';
+import { EmployerAuditModal } from '../admin/EmployerVerificationModal';
 
 interface PartneredCompaniesViewProps {
   onSelectCompanyJobs?: (companyName: string) => void;
@@ -24,9 +26,15 @@ interface PartneredCompaniesViewProps {
 export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
   onSelectCompanyJobs
 }) => {
-  const { users, opportunities, setActiveTab } = useAlumni();
+  const { users, opportunities, setActiveTab, currentUser } = useAlumni();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
+  const [inspectingCompany, setInspectingCompany] = useState<UserProfile | null>(null);
+
+  const isAdminOrModerator =
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'superadmin' ||
+    currentUser?.role === 'moderator';
 
   // Filter approved & active partner companies
   // Task 2: The alumni directory shows ONLY employers with status approved (explicit allowlist).
@@ -169,10 +177,16 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
                       <Building2 className="w-6 h-6 stroke-[1.75]" />
                     </div>
 
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
-                      <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                      <span>Accredited Partner</span>
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        <span>Verified</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 shadow-2xs">
+                        <ShieldCheck className="w-3 h-3 text-[#8B181B] dark:text-red-400" />
+                        <span>Accredited Partner</span>
+                      </span>
+                    </div>
                   </div>
 
                   {/* Company Name & Industry */}
@@ -245,21 +259,42 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
                 </div>
 
                 {/* Footer Action */}
-                <div className="mt-5 pt-4 border-t border-stone-100 dark:border-stone-800">
+                <div className="mt-5 pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleViewJobs(compName)}
-                    className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-[#8B181B] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer group-hover:bg-[#8B181B]"
+                    className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-[#8B181B] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer group-hover:bg-[#8B181B]"
                   >
                     <span>View Career Opportunities</span>
                     <ArrowRight className="w-3.5 h-3.5 stroke-[1.75]" />
                   </button>
+
+                  {isAdminOrModerator && (
+                    <button
+                      type="button"
+                      onClick={() => setInspectingCompany(company)}
+                      title="Inspect Employer Credentials & Legitimacy"
+                      className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 hover:text-stone-900 text-xs font-semibold transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700 shrink-0"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Inspect</span>
+                    </button>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* Administrative Employer Audit Modal */}
+      {inspectingCompany && (
+        <EmployerAuditModal
+          employer={inspectingCompany}
+          onClose={() => setInspectingCompany(null)}
+        />
+      )}
     </div>
   );
 };
+

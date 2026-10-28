@@ -19,6 +19,7 @@ import {
   UserCheck,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Sparkles,
   ArrowRight,
   School,
@@ -541,6 +542,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   // Cleared ONLY by explicit Reset/Cancel buttons or successful submission.
   // -------------------------------------------------------------
   const [formLock, setFormLock] = useState<'alumni' | 'employer' | null>(() => getStoredFormLock());
+  const [switchRoleConfirmTarget, setSwitchRoleConfirmTarget] = useState<'alumni' | 'employer' | null>(null);
 
   // Restore stored session lock on mount
   useEffect(() => {
@@ -665,6 +667,37 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const handleCancelEmployerForm = () => {
     handleResetEmployerForm();
     setMode('login');
+  };
+
+  const handleRoleTabClick = (targetRole: 'alumni' | 'employer') => {
+    if (targetRole === registrationType) return;
+    if (formLock && formLock === registrationType) {
+      setSwitchRoleConfirmTarget(targetRole);
+    } else {
+      setRegistrationType(targetRole);
+      if (targetRole === 'alumni') {
+        setEmployerError('');
+      } else {
+        setScreeningError('');
+      }
+    }
+  };
+
+  const handleConfirmRoleSwitch = () => {
+    if (!switchRoleConfirmTarget) return;
+    const target = switchRoleConfirmTarget;
+    if (registrationType === 'alumni') {
+      handleResetAlumniForm();
+    } else {
+      handleResetEmployerForm();
+    }
+    setRegistrationType(target);
+    if (target === 'alumni') {
+      setEmployerError('');
+    } else {
+      setScreeningError('');
+    }
+    setSwitchRoleConfirmTarget(null);
   };
 
   // Submit ID Ownership Dispute & Conflict
@@ -1973,22 +2006,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   </span>
                 </div>
 
-                {/* Separate, Distinct Registration Role Selector Tabs with Form Locking Enforcement */}
-                <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 rounded-xl mb-3">
+                {/* Separate, Distinct Registration Role Selector Tabs with Confirmation on Form Switching */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl mb-3">
                   <button
                     type="button"
-                    disabled={formLock === 'employer'}
-                    onClick={() => {
-                      if (formLock === 'employer') return;
-                      setRegistrationType('alumni');
-                      setEmployerError('');
-                    }}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    onClick={() => handleRoleTabClick('alumni')}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                       registrationType === 'alumni'
-                        ? 'bg-white text-[#8B181B] shadow-xs'
-                        : 'text-stone-600 hover:text-stone-900'
-                    } ${
-                      formLock === 'employer' ? 'opacity-40 cursor-not-allowed pointer-events-none' : 'cursor-pointer'
+                        ? 'bg-white dark:bg-stone-900 text-[#8B181B] dark:text-red-400 shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
                     }`}
                   >
                     <GraduationCap className="w-3.5 h-3.5" />
@@ -1997,18 +2023,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
                   <button
                     type="button"
-                    disabled={formLock === 'alumni'}
-                    onClick={() => {
-                      if (formLock === 'alumni') return;
-                      setRegistrationType('employer');
-                      setScreeningError('');
-                    }}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    onClick={() => handleRoleTabClick('employer')}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                       registrationType === 'employer'
-                        ? 'bg-white text-[#8B181B] shadow-xs'
-                        : 'text-stone-600 hover:text-stone-900'
-                    } ${
-                      formLock === 'alumni' ? 'opacity-40 cursor-not-allowed pointer-events-none' : 'cursor-pointer'
+                        ? 'bg-white dark:bg-stone-900 text-[#8B181B] dark:text-red-400 shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
                     }`}
                   >
                     <Building2 className="w-3.5 h-3.5" />
@@ -4097,6 +4116,47 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Role Switch Confirmation Modal */}
+      {switchRoleConfirmTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-stone-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800 text-left">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
+                <AlertTriangle className="w-5 h-5 stroke-[1.75]" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">
+                  Switch to {switchRoleConfirmTarget === 'employer' ? 'Employer' : 'Alumni'} Registration?
+                </h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  Reset current registration progress
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed mb-6">
+              You have already started filling out the {registrationType === 'employer' ? 'employer accreditation' : 'alumni'} form. Switching to {switchRoleConfirmTarget === 'employer' ? 'employer' : 'alumni'} registration will clear any entered information.
+            </p>
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setSwitchRoleConfirmTarget(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200/80 dark:border-stone-700 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRoleSwitch}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#8B181B] hover:bg-[#721316] text-white shadow-xs transition-colors cursor-pointer"
+              >
+                Clear & Switch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

@@ -552,7 +552,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                           onClick={() => setSelectedUserIdForModal(u.uid)}
                           className="w-12 h-12 rounded-2xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer hover:opacity-90 transition-opacity shadow-2xs"
                         />
-                        {u.isVerified && (
+                        {u.role === 'alumni' && u.isVerified && (
                           <div className="absolute -bottom-1 -right-1 bg-emerald-600 text-white rounded-full p-0.5 border-2 border-white dark:border-stone-900 shadow-2xs" title="Verified Graduate">
                             <ShieldCheck className="w-3 h-3" />
                           </div>
@@ -582,7 +582,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                   <div className="mt-3.5 space-y-1.5 pt-3 border-t border-stone-100 dark:border-stone-800 text-xs">
                     <div className="flex items-center justify-between text-stone-600 dark:text-stone-400">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Role</span>
-                      {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && u.role !== 'employer' ? (
+                      {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && u.role !== 'employer' && u.role !== 'alumni' ? (
                         <div className="flex items-center gap-1.5">
                           {updatingRoleUid === u.uid && (
                             <Loader2 className="w-3 h-3 animate-spin text-[#8B181B]" />
@@ -595,7 +595,6 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                             }}
                             className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-200 hover:border-stone-400 focus:outline-hidden cursor-pointer disabled:opacity-60"
                           >
-                            <option value="alumni">Alumni</option>
                             <option value="moderator">Moderator</option>
                             <option value="staff">Staff</option>
                             <option value="registrar">Registrar</option>
@@ -614,8 +613,8 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                             : u.role === 'employer'
                             ? 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300'
                             : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700'
-                        }`} title={u.role === 'employer' ? 'The Employer role is fixed and immutable.' : undefined}>
-                          {u.role === 'employer' ? 'Employer (Fixed)' : u.role}
+                        }`}>
+                          {u.role}
                         </span>
                       )}
                     </div>
@@ -760,7 +759,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                               onClick={() => setSelectedUserIdForModal(u.uid)}
                               className="w-10 h-10 rounded-xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 cursor-pointer shadow-2xs"
                             />
-                            {u.isVerified && (
+                            {u.role === 'alumni' && u.isVerified && (
                               <div className="absolute -bottom-1 -right-1 bg-emerald-600 text-white rounded-full p-0.5 border border-white dark:border-stone-900" title="Verified Graduate">
                                 <ShieldCheck className="w-2.5 h-2.5" />
                               </div>
@@ -802,11 +801,13 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
 
                       {/* Clearance Status Column */}
                       <td className="py-3.5 px-4">
-                        {u.isVerified ? (
+                        {u.role === 'alumni' && u.isVerified ? (
                           <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold text-[11px]">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Verified</span>
                           </span>
+                        ) : u.role !== 'alumni' ? (
+                          <span className="text-stone-400 text-xs font-mono">—</span>
                         ) : (u.employerStatus === 'rejected' || u.employerVerificationStatus === 'rejected' || u.verificationStatus === 'rejected') ? (
                           <span
                             className="inline-flex items-center gap-1 text-red-700 dark:text-red-400 font-bold text-[11px] bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 px-2 py-0.5 rounded-full"
@@ -830,7 +831,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
 
                       {/* Role Column */}
                       <td className="py-3.5 px-4">
-                        {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && u.role !== 'employer' ? (
+                        {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && u.role !== 'employer' && u.role !== 'alumni' ? (
                           <div className="flex items-center gap-1.5">
                             {updatingRoleUid === u.uid && (
                               <Loader2 className="w-3.5 h-3.5 animate-spin text-[#8B181B]" />
@@ -843,7 +844,6 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                               }}
                               className="px-2 py-1 rounded-lg text-[11px] font-bold uppercase bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-stone-700 hover:border-stone-400 focus:outline-hidden cursor-pointer disabled:opacity-60"
                             >
-                              <option value="alumni">Alumni</option>
                               <option value="moderator">Moderator</option>
                               <option value="staff">Staff</option>
                               <option value="registrar">Registrar</option>
@@ -854,8 +854,8 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                             </select>
                           </div>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700" title={u.role === 'employer' ? 'The Employer role is fixed and immutable.' : undefined}>
-                            {u.role === 'employer' ? 'Employer (Fixed)' : u.role}
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
+                            {u.role}
                           </span>
                         )}
                       </td>

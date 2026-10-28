@@ -116,6 +116,7 @@ export const SettingsView: React.FC = () => {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [revokeBiometricsOnLogout, setRevokeBiometricsOnLogout] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Authority Role Management Modal state
@@ -937,32 +938,66 @@ export const SettingsView: React.FC = () => {
                 </div>
 
                 {/* 2. Primary Biometric Quick Sign-In */}
-                <div className="p-4 rounded-2xl bg-white border border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                  <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-stone-900 text-xs">Biometric Quick Sign-In</p>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                        biometricEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600'
-                      }`}>
-                        {biometricEnabled ? 'ACTIVE' : 'DISABLED'}
-                      </span>
+                <div className="p-4 rounded-2xl bg-white border border-stone-200/80 space-y-3 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-stone-900 text-xs">Biometric Quick Sign-In</p>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                          biometricEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600'
+                        }`}>
+                          {biometricEnabled ? 'ACTIVE' : 'DISABLED'}
+                        </span>
+                      </div>
+                      <p className="text-stone-500 text-[11px] mt-0.5">
+                        Store credentials in native Keychain / Keystore to sign in with your face or fingerprint from the login screen
+                      </p>
                     </div>
-                    <p className="text-stone-500 text-[11px] mt-0.5">
-                      Store credentials in native Keychain / Keystore to sign in with your face or fingerprint from the login screen
-                    </p>
+
+                    <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                      <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={biometricEnabled}
+                          onChange={(e) => handleToggleBiometrics(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
+                      </label>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={biometricEnabled}
-                        onChange={(e) => handleToggleBiometrics(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
-                    </label>
-                  </div>
+                  {biometricEnabled && (
+                    <div className="pt-2 border-t border-stone-100 flex items-center gap-2 flex-wrap text-xs">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!currentUser) return;
+                          const ok = await enableBiometricLogin(currentUser.uid, currentUser.email);
+                          if (ok) {
+                            showToast('Biometric credentials re-enrolled in hardware vault!', 'success');
+                          } else {
+                            showToast('Could not re-enroll biometric credentials.', 'error');
+                          }
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-semibold text-[#8B181B] bg-red-50 hover:bg-red-100 rounded-lg cursor-pointer transition-colors"
+                      >
+                        Re-enroll Biometrics
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!currentUser) return;
+                          await disableBiometricLogin(currentUser.uid);
+                          setBiometricEnabled(false);
+                          showToast('Biometric credentials revoked from hardware vault.', 'info');
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-medium text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-lg cursor-pointer transition-colors"
+                      >
+                        Revoke Vault
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* 3. Campus PIN Emergency Fallback Configuration */}
@@ -2039,6 +2074,19 @@ export const SettingsView: React.FC = () => {
               <p className="text-stone-500 leading-relaxed">
                 Are you sure you want to end your authenticated session on this workstation?
               </p>
+
+              {biometricEnabled && (
+                <label className="flex items-center gap-2 justify-center text-[11px] text-stone-600 cursor-pointer pt-1 select-none">
+                  <input
+                    type="checkbox"
+                    checked={revokeBiometricsOnLogout}
+                    onChange={(e) => setRevokeBiometricsOnLogout(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded border-stone-300 text-[#8B181B] focus:ring-[#8B181B]"
+                  />
+                  <span>Also revoke biometric quick unlock on this device</span>
+                </label>
+              )}
+
               <div className="pt-3 flex items-center justify-center gap-2">
                 <button
                   type="button"
@@ -2051,7 +2099,7 @@ export const SettingsView: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setShowLogoutConfirm(false);
-                    logout();
+                    logout({ revokeBiometrics: revokeBiometricsOnLogout });
                   }}
                   className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold shadow-2xs cursor-pointer"
                 >

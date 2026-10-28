@@ -3,7 +3,7 @@ export type OfficialSystemRole = 'superadmin' | 'admin' | 'staff' | 'moderator' 
 // UserRole includes the 6 core roles and legacy alias 'registrar' (merged into staff)
 export type UserRole = OfficialSystemRole | 'registrar';
 
-export type AccountLifecycleStatus = 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED';
+export type AccountLifecycleStatus = 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED' | 'REJECTED';
 
 export type PlatformType = 'mobile' | 'web';
 
@@ -138,6 +138,10 @@ export interface UserProfile {
   engagementScore?: number; // 0 - 100
   verificationStatus?: 'verified' | 'pending_review' | 'flagged' | 'rejected';
   verificationFlagReason?: string;
+  verificationProofUrl?: string;
+  verificationProofName?: string;
+  verificationNotes?: string;
+  verificationSubmittedAt?: string;
   failedLoginAttempts?: number;
   isLocked?: boolean;
   lockedUntil?: string;

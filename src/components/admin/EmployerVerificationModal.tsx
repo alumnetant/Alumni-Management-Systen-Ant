@@ -389,3 +389,5 @@ export const EmployerVerificationModal: React.FC<EmployerVerificationModalProps>
     </div>
   );
 };
+
+export const EmployerAuditModal = EmployerVerificationModal;

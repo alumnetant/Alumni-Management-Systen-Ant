@@ -1,136 +1,124 @@
-# Implementation Plan: Native Capacitor Biometric Authentication (Android Keystore Vault & BiometricPrompt)
+# St. Cecilia's College Alumni Network: Profile Verification, Employer Auth & Registry System
 
-Implement secure, production-grade biometric authentication (Fingerprint and Face Unlock) for the St. Cecilia's College - Cebu Alumni Management System Android APK using `@capgo/capacitor-native-biometric`.
+A targeted enhancement to resolve profile badge scoping, fix accredited employer authentication, streamline alumni role immutability, enable real OTP email delivery, fix Excel/CSV alumni registry name mapping, and introduce institutional graduation verification tracking.
 
 ---
 
-## 1. Architecture & Security Flow
+## User Review & Critical Decisions
+
+> [!IMPORTANT]
+> The following decisions were confirmed based on your requirements and clarification answers:
+> - **Excel/CSV Graduate Name Extraction**: Flexible auto-detection across all common name columns (`Name`, `Full Name`, `Graduate Full Name`, `Student Name`, or split `First Name` + `Last Name`) to eliminate the "Cecilian Graduate" fallback shown in the registry screenshot.
+> - **Password Reset OTP Email Delivery**: Real outbound email dispatch using server SMTP / Webhook with instant onscreen copy fallback and toast confirmation.
+> - **Alumni Verification Flow**: Self-service verification request modal for alumni to submit proof of graduation, backed by registrar/admin review queue and real-time status badges.
+> - **Verified Badge Scoping**: Strictly reserved for verified alumni; hidden completely from employers, students, and administrators.
+> - **Employer Login**: Fix session minting and credential checks so approved partner employers log in directly to their employer dashboard.
+
+---
+
+### 1. Overview & Core Concept
+
+- **What It Does**:
+  1. Restricts the "Verified Alumni" badge strictly to alumni users with confirmed institutional records, removing any badges from employers or other roles.
+  2. Resolves employer login blockers so verified/approved employers authenticate immediately into the employer job board and candidate portal.
+  3. Displays the alumni role cleanly without an artificial "Fixed" tag, while keeping the role immutable across profile and administrative views.
+  4. Delivers real password reset OTP codes via email (SMTP/Webhook) with an instantaneous onscreen code fallback so users are never blocked.
+  5. Corrects alumni registry file imports to detect and display the graduate's actual full name instead of falling back to default placeholder text.
+  6. Implements an institutional graduation verification pipeline: unverified alumni submit student credentials and proof for admin/registrar approval.
+
+- **Target Audience / Persona**:
+  - **Alumni**: Submit verification proof, track accreditation status, securely reset passwords via OTP email.
+  - **Partner Employers**: Register company profile, get approved by administration, and reliably log in to publish opportunities.
+  - **Institutional Administrators & Registrars**: Audit uploaded graduate registries with accurate names and review alumni verification queues with one-click approval.
+
+- **Key Value**:
+  Guarantees credential integrity, seamless employer onboarding, and trustworthy alumni recognition for St. Cecilia's College - Cebu, Inc.
+
+---
+
+### 2. User Experience & Visual Design
+
+- **Key User Flows**:
+  1. **Alumni Profile & Badge**:
+     - Alumnus views profile: if verified, shows deep crimson & gold "Verified Alumni" shield badge.
+     - Employer or non-alumni views profile: no alumni badge is shown; role is presented with clean institutional typography.
+     - Role field is read-only without cluttering labels like "[Fixed]".
+  2. **Employer Sign-In**:
+     - Verified employer submits credentials on login screen.
+     - Backend confirms password and verification state (`approved` / `verified`), issuing a session token and redirecting straight to the Partnered Companies / Postings workspace.
+  3. **Forgot Password with Real OTP**:
+     - User enters email on login dialog.
+     - System dispatches OTP email with institutional header ("St. Cecilia's College - Account Verification").
+     - Onscreen feedback displays delivery confirmation along with a direct copyable OTP fallback for testing/local environments.
+     - User inputs 6-digit OTP code, sets new password, and logs in.
+  4. **Excel/CSV Alumni Registry Import**:
+     - Registrar navigates to Admin Alumni Registry and drops Excel (`.xlsx`, `.xls`) or `.csv`.
+     - Parser dynamically detects candidate name columns: `Name`, `Full Name`, `Graduate Full Name`, `Student Name`, or concatenates `First Name` + `Last Name`.
+     - The table immediately populates with real student names (e.g. "Maria Santos", "John Rey Del Rosario") instead of "Cecilian Graduate".
+  5. **Alumni Verification Request Flow**:
+     - Unverified alumni click "Request Verification" on their profile banner.
+     - Modal requests Student ID Number, Degree Program, Cohort Year, and optional document attachment (diploma / ID photo).
+     - Status updates to "Pending Institutional Review".
+     - Administrator opens Verification Queue, reviews submitted credentials, and selects "Approve" (instantly granting Verified Alumni badge) or "Reject" (with explanation).
+
+- **Visual Identity & Theme (`AGENTS.md`)**:
+  - **Colors**: St. Cecilia's deep crimson (`#8B181B`), warm stone backgrounds (`bg-stone-50`), rich charcoal text (`#1c1917`), and emerald accents for verified accreditation.
+  - **Typography**: Clean tabular numbers for Student IDs (`font-mono text-xs`), crisp semi-bold display headers, balanced leading.
+  - **Icons**: Lucide icons (`CheckCircle2`, `ShieldCheck`, `FileSpreadsheet`, `Mail`, `KeyRound`) with uniform `strokeWidth={1.75}`. Zero raw emojis.
+
+---
+
+### 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1: Flexible Column Header Normalization for Registry Uploads**
+  - *Chosen Approach*: Auto-detect normalized column variations (`name`, `fullname`, `graduatefullname`, `studentname`, `alumniname`) plus split first/last name detection.
+  - *Why*: User-uploaded spreadsheets from campus departments frequently use different column headers. Flexible normalization ensures student names appear accurately without requiring manual file formatting.
+  - *Alternatives Considered*: Rigid schema requirement (rejected: fails on varied Excel column naming).
+
+- **Decision 2: Dual OTP Delivery (Real Email + Onscreen Fallback)**
+  - *Chosen Approach*: Server dispatches via SMTP / Webhook if configured, while returning the code in dev/preview mode with an onscreen toast.
+  - *Why*: Ensures production-grade email delivery while guaranteeing that users and developers in sandbox preview environments can always reset passwords without getting trapped by spam filters or unconfigured mail relays.
+
+- **Decision 3: Dedicated Verification Queue vs. Direct Profile Overrides**
+  - *Chosen Approach*: Structured `VerificationRequest` records linked to alumni profiles, enabling registrar inspection and historical status tracking.
+  - *Why*: Provides auditing accountability for institutional degree verification.
+
+---
+
+### 4. Technical Architecture & Data Strategy
 
 ```
-                      +---------------------------------------+
-                      | Alumnus Enters Email & Password Form  |
-                      +---------------------------------------+
-                                          |
-                                          v
-                      +---------------------------------------+
-                      | POST /api/auth/login                  |
-                      | Receives Access Token + Refresh Token |
-                      +---------------------------------------+
-                                          |
-                      +---------------------------------------+
-                      | Is Native Android? (Capacitor Native) |
-                      +---------------------------------------+
-                             /                         \
-                     [YES]  /                           \  [NO - Web]
-                           v                             v
-           +-------------------------------+    +------------------------+
-           | Prompt Modal:                 |    | Standard Web Session   |
-           | "Enable Biometric Login?"     |    | (No Native Storage)    |
-           +-------------------------------+    +------------------------+
-                   /               \
-           [Accept]                 [Skip]
-              |                        \
-              v                         v
-+-------------------------------+   +-----------------------------+
-| NativeBiometric.setCredentials|   | Continue to Dashboard       |
-| Hardware Android Keystore     |   +-----------------------------+
-| Refresh Token Encrypted Vault |
-+-------------------------------+
+┌────────────────────────────────────────────────────────────────────────┐
+│                        St. Cecilia's College UI                        │
+├─────────────────────┬───────────────────────┬──────────────────────────┤
+│    ProfileView      │  ForgotPasswordModal  │  AdminAlumniRegistryView │
+│  - Alumni Badge     │  - OTP Input          │  - Multi-column Parser   │
+│  - Request Modal    │  - Onscreen Fallback  │  - Accurate Name Display │
+└──────────┬──────────┴───────────┬───────────┴─────────────┬────────────┘
+           │                      │                         │
+           ▼                      ▼                         ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                      AlumniContext & State Engine                      │
+│ - user.role === 'alumni' badge guard                                   │
+│ - verifyEmployer() & login() auth synchronization                      │
+│ - submitVerificationRequest() & reviewQueue state                      │
+└─────────────────────────────────┬──────────────────────────────────────┘
+                                  │
+                                  ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                    Express Backend API (server.ts)                     │
+├────────────────────────────────────────────────────────────────────────┤
+│ POST /api/auth/login            -> Authenticate approved employers     │
+│ POST /api/auth/send-otp         -> Send OTP via SMTP / Webhook         │
+│ POST /api/auth/verify-otp       -> Validate code & update password     │
+│ POST /api/alumni/verify-request -> Store verification request record   │
+│ GET  /api/admin/verify-queue    -> Fetch pending alumni reviews        │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Subsequent Native Launch Flow:
-1. **Hardware & Enrollment Check:** When the mobile app initializes on native Android (`Capacitor.isNativePlatform()`), check `NativeBiometric.isAvailable()`.
-2. **Opt-in Status Check:** Verify if the user previously enabled biometric login for their account.
-3. **Auto-Trigger BiometricPrompt:**
-   - Display Android OS native `BiometricPrompt` with title `"Cecilian Biometric Access"`, subtitle `"Verify Fingerprint or Face"`, and `"Sign in with Password"` fallback button.
-4. **Token Exchange:**
-   - On success, decrypt the refresh token from Android Keystore via `NativeBiometric.getCredentials()`.
-   - Call backend `POST /api/auth/refresh` to validate the refresh token and exchange it for a fresh access token and verified user profile.
-   - Navigate directly to the Alumni Dashboard without asking for password entry.
-5. **Fallback:** If canceled, failed, or device locked, smoothly present the standard email/password form with instant access.
-
----
-
-## 2. Proposed File Changes & Implementations
-
-### A. Backend Route & Token Infrastructure (`server.ts`)
-- **Dual-Token Issuance in `/api/auth/login`:**
-  - In addition to standard session tokens, generate a secure, cryptographically signed refresh token (`refreshToken`) with 30-day longevity and specific refresh token scope.
-  - Return `{ token, accessToken, refreshToken, sessionId, user }`.
-- **New Token Refresh Endpoint (`POST /api/auth/refresh`):**
-  - Validates cryptographically signed refresh token.
-  - Ensures the user account is active, non-suspended, and alumni-authorized.
-  - Issues a fresh access token and returns updated session details.
-- **Token Invalidation in `/api/auth/logout` & `/api/auth/revoke-biometrics`:**
-  - Revokes both active session and associated refresh token on explicit user logout or biometric disabling.
-
-### B. Biometric & Vault Utility Helper (`src/services/biometricAuthService.ts`)
-- **Native Android Keystore Vault Management:**
-  - `vaultBiometricRefreshToken(userId: string, email: string, refreshToken: string): Promise<boolean>`:
-    Uses `NativeBiometric.setCredentials({ server: 'edu.stcecilia.alumni.auth', username: email, password: refreshToken })` guarded by `Capacitor.isNativePlatform()`.
-  - `retrieveVaultedRefreshToken(): Promise<{ email: string; refreshToken: string } | null>`:
-    Retrieves vaulted credentials safely from native Keystore.
-  - `wipeVaultedBiometricCredentials(userId?: string): Promise<boolean>`:
-    Calls `NativeBiometric.deleteCredentials()` and removes local device opt-in flags.
-- **Hardware & Enrollment Verification:**
-  - `isNativeBiometricAvailable(): Promise<{ available: boolean; biometryType: string; error?: string }>`:
-    Accurately detects whether biometric hardware is present and enrolled in Android system settings.
-- **Native Biometric Prompt Helper:**
-  - `promptNativeBiometricUnlock(reason?: string): Promise<{ success: boolean; canceled?: boolean; error?: string }>`:
-    Triggers native Android `BiometricPrompt` with localized Cecilian branding and clean fallback.
-
-### C. Alumni Authentication Component (`src/components/auth/AuthPage.tsx`)
-- **Post-Login Biometric Opt-in Modal:**
-  - When an alumnus successfully signs in on native Android and biometric unlock is not yet active, present an elegant bottom sheet/dialog:
-    *"Enable Biometric Quick Sign-in? Touch your fingerprint sensor or use Face Unlock for instant access next time."*
-  - If enabled: encrypt and vault the refresh token in Keystore.
-  - If skipped: remember choice gracefully without re-nagging.
-- **Auto-Prompt on Native Launch:**
-  - `useEffect` hook detecting `Capacitor.isNativePlatform() && isBiometricLoginEnabled()`.
-  - Auto-triggers native `BiometricPrompt`. On success, automatically invokes the refresh token exchange and logs in directly.
-  - "Sign in with Password" button cancels the prompt and exposes the standard login form.
-- **Platform Guard (Web Safety):**
-  - Pure web browsers bypass native calls completely with zero console errors or missing plugin exceptions.
-
-### D. Settings & User Profile (`src/components/settings/SettingsView.tsx` & `src/context/AlumniContext.tsx`)
-- **Profile / Security Toggle:**
-  - "Enable Biometric Unlock" toggle in Security & Access settings.
-  - Toggling on prompts the user to verify biometrics and stores credentials.
-  - Toggling off immediately executes `wipeVaultedBiometricCredentials()`.
-- **Session Logout Synchronization:**
-  - When user clicks "Log Out" in `AlumniContext.tsx` or `SettingsView.tsx`, also trigger `wipeVaultedBiometricCredentials()` to purge Keystore tokens and prevent unauthorized access if the device is handed off.
-
----
-
-## 3. Key Design Decisions
-
-1. **Hardware-Backed Android Keystore via Capgo Plugin:**
-   `@capgo/capacitor-native-biometric` delegates token storage directly to Android's `KeyStore` and iOS `Keychain`. Plaintext passwords are never stored in `localStorage` or `Preferences`.
-2. **Platform Segmentation:**
-   Strict isolation via `Capacitor.isNativePlatform()` ensures web users, mobile PWA users, and desktop users enjoy an identical responsive experience without native plugin stub crashes.
-3. **Institutional Taste & Micro-Interactions (AGENTS.md):**
-   The opt-in modal and biometric trigger UI adhere to St. Cecilia's deep crimson (`#8B181B`) and warm stone aesthetic, featuring Lucide icons (`Fingerprint`, `ScanFace`, `ShieldCheck`), crisp typography, and fluid micro-transitions.
-
----
-
-## 4. Potential Risks & Mitigations
-
-| Risk | Mitigation |
-| :--- | :--- |
-| **Plugin call in Web Browser** | Every call to `NativeBiometric` is wrapped in `if (Capacitor.isNativePlatform())` with safe web fallbacks. |
-| **Biometrics changed/wiped in OS** | If fingerprint is removed or modified in OS settings, `NativeBiometric.getCredentials()` will throw an invalid key error. The app catches this, purges the invalid vault, and asks for standard password login. |
-| **Revoked refresh token** | If refresh token fails validation on the backend (e.g. session terminated on another device), clear device vault and route user to password login with informative toast. |
-
----
-
-## 5. Verification Plan
-
-1. **Static Analysis & Linting:**
-   Run `lint_applet` to verify TypeScript typing across `biometricAuthService.ts`, `server.ts`, `AuthPage.tsx`, and `SettingsView.tsx`.
-2. **Build Compilation:**
-   Execute `compile_applet` to ensure Vite bundle and Express server compile cleanly.
-3. **Functional Workflow Testing:**
-   - Web mode verification: sign in with password, ensure no native errors appear.
-   - Dual-token exchange: verify `/api/auth/login` returns `accessToken` and `refreshToken`.
-   - Refresh flow: verify `/api/auth/refresh` responds with fresh tokens.
-   - Settings toggle: verify turning off biometrics cleans up stored state.
+- **Interactive Component & State Mapping**:
+  - `ProfileView.tsx`: Displays "Verified Alumni" shield only when `user.role === 'alumni' && user.isVerified`. Unverified alumni see interactive "Request Verification" CTA.
+  - `AlumniContext.tsx`: Aligns client login logic to accept `employerStatus === 'approved'` or `isVerified === true`, and eliminates false rejection gates.
+  - `ForgotPasswordModal.tsx`: Communicates with `/api/auth/send-otp` and `/api/auth/verify-otp` with clear countdown timers and fallback displays.
+  - `AdminAlumniRegistryView.tsx`: Enhanced Excel reader inspecting `Object.keys(row)` with fuzzy matching for first, last, and full name keys.
+  - `AdminVerificationQueueView.tsx`: Administrative interface for reviewing alumni graduation verification applications.

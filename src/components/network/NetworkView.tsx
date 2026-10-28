@@ -1069,7 +1069,7 @@ export const NetworkView: React.FC = () => {
                               <span className="font-bold text-sm text-stone-900 dark:text-white group-hover:text-[#8B181B] transition-colors truncate">
                                 {user.name}
                               </span>
-                              {user.isVerified && (
+                              {user.role === 'alumni' && user.isVerified && (
                                 <span title="Verified Alumnus" className="text-emerald-600 shrink-0">
                                   <ShieldCheck className="w-3.5 h-3.5" />
                                 </span>
@@ -1237,7 +1237,7 @@ export const NetworkView: React.FC = () => {
                                         >
                                           {user.name}
                                         </span>
-                                        {user.isVerified && (
+                                        {user.role === 'alumni' && user.isVerified && (
                                           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                         )}
                                       </div>
@@ -1275,13 +1275,17 @@ export const NetworkView: React.FC = () => {
                                 </td>
 
                                 <td className="py-3.5 px-4">
-                                  {user.isVerified ? (
-                                    <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold text-[11px]">
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                      <span>Verified</span>
-                                    </span>
+                                  {user.role === 'alumni' ? (
+                                    user.isVerified ? (
+                                      <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold text-[11px]">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>Verified</span>
+                                      </span>
+                                    ) : (
+                                      <span className="text-stone-400 text-[11px]">Unverified</span>
+                                    )
                                   ) : (
-                                    <span className="text-stone-400 text-[11px]">Unverified</span>
+                                    <span className="text-stone-400 text-[11px]">—</span>
                                   )}
                                 </td>
 
@@ -1419,7 +1423,7 @@ export const NetworkView: React.FC = () => {
                                 >
                                   {user.name}
                                 </h3>
-                                {user.isVerified && (
+                                {user.role === 'alumni' && user.isVerified && (
                                   <span title="Verified Alumnus" className="text-emerald-600 shrink-0">
                                     <ShieldCheck className="w-3.5 h-3.5" />
                                   </span>

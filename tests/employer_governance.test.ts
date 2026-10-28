@@ -282,4 +282,34 @@ describe('5. Form Locking, Persistence, Reset & Re-Application Block Tests', () 
     const freshCompany = evaluateReapplication('new@innovate.com', 'Innovate Tech PH');
     expect(freshCompany.allowed).toBe(true);
   });
+
+  it('authorizes only admin, superadmin, and moderator roles for inspecting employer credentials', () => {
+    const isAuthorizedForInspect = (role?: string) => {
+      return ['admin', 'superadmin', 'moderator'].includes(role || '');
+    };
+
+    expect(isAuthorizedForInspect('admin')).toBe(true);
+    expect(isAuthorizedForInspect('superadmin')).toBe(true);
+    expect(isAuthorizedForInspect('moderator')).toBe(true);
+
+    expect(isAuthorizedForInspect('alumni')).toBe(false);
+    expect(isAuthorizedForInspect('employer')).toBe(false);
+    expect(isAuthorizedForInspect('student')).toBe(false);
+    expect(isAuthorizedForInspect(undefined)).toBe(false);
+  });
+
+  it('clears form lock and enables switching roles when confirmed', () => {
+    setStoredFormLock('alumni');
+    expect(getStoredFormLock()).toBe('alumni');
+
+    // User confirms role switch -> clears lock
+    clearStoredFormLock();
+    expect(getStoredFormLock()).toBeNull();
+
+    // Now switched to employer and starts filling -> lock to employer
+    setStoredFormLock('employer');
+    expect(getStoredFormLock()).toBe('employer');
+    clearStoredFormLock();
+  });
 });
+

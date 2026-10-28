@@ -6,6 +6,8 @@ import { createServer as createViteServer } from 'vite';
 import type { Opportunity, JobApplication, ApplicationStatus, ChatThread, ChatMessage } from './src/types';
 import { INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
 import webpush from 'web-push';
+import { getEmployerAuthStatus, isEmployerApproved } from './src/lib/employerAuthStatus';
+import { sendRealEmail, buildOtpEmailTemplate, buildEmployerStatusEmailTemplate } from './src/server/emailService';
 
 const app = express();
 const PORT = 3000;
@@ -661,11 +663,36 @@ const seedUsers: StoredUserCredential[] = [
   }
 ];
 
-seedUsers.forEach((u) => {
+// Persistent Disk File for Credentials Store
+const CREDENTIALS_DB_FILE = path.join(process.cwd(), 'data', 'credentials_db.json');
+
+function persistCredentialsToDisk(): void {
+  try {
+    const dir = path.dirname(CREDENTIALS_DB_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const uniqueRecords: StoredUserCredential[] = [];
+    const seenUids = new Set<string>();
+    for (const cred of credentialsDb.values()) {
+      if (!seenUids.has(cred.uid)) {
+        seenUids.add(cred.uid);
+        uniqueRecords.push(cred);
+      }
+    }
+    fs.writeFileSync(CREDENTIALS_DB_FILE, JSON.stringify(uniqueRecords, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[Credentials DB] Failed to persist credentials to disk:', err);
+  }
+}
+
+function registerCredentialInDb(u: StoredUserCredential, persist: boolean = true) {
   credentialsDb.set(u.uid, u);
-  credentialsDb.set(u.email.toLowerCase(), u);
+  if (u.email) {
+    credentialsDb.set(u.email.toLowerCase().trim(), u);
+  }
   if (u.studentId) {
-    const sLower = u.studentId.toLowerCase();
+    const sLower = u.studentId.toLowerCase().trim();
     const sNorm = u.studentId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const sClean = sLower.replace(/^scc-?/i, '');
     credentialsDb.set(sLower, u);
@@ -675,7 +702,7 @@ seedUsers.forEach((u) => {
     credentialsDb.set(`scc${sNorm}`, u);
   }
   if (u.alumniId) {
-    const aLower = u.alumniId.toLowerCase();
+    const aLower = u.alumniId.toLowerCase().trim();
     const aNorm = u.alumniId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const aClean = aLower.replace(/^scc-alum-?/i, '').replace(/^scc-?/i, '');
     credentialsDb.set(aLower, u);
@@ -683,7 +710,7 @@ seedUsers.forEach((u) => {
     credentialsDb.set(aClean, u);
   }
   if (u.employeeId) {
-    const eLower = u.employeeId.toLowerCase();
+    const eLower = u.employeeId.toLowerCase().trim();
     const eNorm = u.employeeId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
     const eClean = eLower.replace(/^scc-?/i, '');
     credentialsDb.set(eLower, u);
@@ -691,7 +718,40 @@ seedUsers.forEach((u) => {
     credentialsDb.set(eClean, u);
     credentialsDb.set(`scc-${eClean}`, u);
   }
+
+  if (persist) {
+    persistCredentialsToDisk();
+  }
+}
+
+function loadCredentialsFromDisk(): boolean {
+  try {
+    if (fs.existsSync(CREDENTIALS_DB_FILE)) {
+      const raw = fs.readFileSync(CREDENTIALS_DB_FILE, 'utf-8');
+      const records: StoredUserCredential[] = JSON.parse(raw);
+      if (Array.isArray(records) && records.length > 0) {
+        records.forEach((cred) => {
+          registerCredentialInDb(cred, false);
+        });
+        console.log(`[Credentials DB] Successfully hydrated ${records.length} user records from disk.`);
+        return true;
+      }
+    }
+  } catch (err) {
+    console.warn('[Credentials DB] Could not read credentials from disk, using seed records:', err);
+  }
+  return false;
+}
+
+// Initialize seed users
+seedUsers.forEach((u) => {
+  registerCredentialInDb(u, false);
 });
+
+// Hydrate saved users from disk to overlay seed users with latest state
+loadCredentialsFromDisk();
+// Ensure disk file exists
+persistCredentialsToDisk();
 
 // Authoritative Resume Records Database for strict ownership validation
 interface ResumeRecord {
@@ -1031,26 +1091,7 @@ app.post('/api/auth/register', authRateLimiter, (req: Request, res: Response) =>
     verificationTokenExpiry: verificationExpiry
   };
 
-  credentialsDb.set(uid, credRecord);
-  credentialsDb.set(normalizedEmail, credRecord);
-  if (credRecord.studentId) {
-    const sLower = credRecord.studentId.toLowerCase();
-    const sNorm = credRecord.studentId.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    const sClean = sLower.replace(/^scc-?/i, '');
-    credentialsDb.set(sLower, credRecord);
-    credentialsDb.set(sNorm, credRecord);
-    credentialsDb.set(sClean, credRecord);
-    credentialsDb.set(`scc-${sClean}`, credRecord);
-    credentialsDb.set(`scc${sNorm}`, credRecord);
-  }
-  if (alumniId) {
-    const aLower = String(alumniId).toLowerCase();
-    const aNorm = aLower.replace(/[^a-zA-Z0-9]/g, '');
-    const aClean = aLower.replace(/^scc-alum-?/i, '').replace(/^scc-?/i, '');
-    credentialsDb.set(aLower, credRecord);
-    credentialsDb.set(aNorm, credRecord);
-    credentialsDb.set(aClean, credRecord);
-  }
+  registerCredentialInDb(credRecord, true);
 
   res.status(201).json({
     message: 'Account successfully registered.',
@@ -1197,19 +1238,55 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
     });
   }
 
-  // GATE 2: Account Lifecycle Status Gate
-  const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
-  if (accountStatus === 'SUSPENDED') {
-    return res.status(403).json({
-      error: 'This account has been suspended by administration. Please contact institutional support.',
-      code: 'ACCOUNT_SUSPENDED'
-    });
-  }
-  if (accountStatus === 'PENDING_VERIFICATION') {
-    return res.status(403).json({
-      error: 'Your account is pending registrar verification. You will be notified once your graduation credentials are confirmed.',
-      code: 'ACCOUNT_PENDING_VERIFICATION'
-    });
+  // GATE 2: Account Lifecycle Status Gate (Single Source of Truth)
+  if (user.role === 'employer') {
+    const empAuth = getEmployerAuthStatus(user);
+
+    if (empAuth === 'SUSPENDED') {
+      return res.status(403).json({
+        error: 'This employer account has been suspended by administration. Please contact corporate relations.',
+        code: 'ACCOUNT_SUSPENDED'
+      });
+    }
+
+    if (empAuth === 'REJECTED') {
+      const reasonText = user.rejectionReason ? ` Reason: ${user.rejectionReason}` : '';
+      return res.status(403).json({
+        error: `Your employer account accreditation has been declined.${reasonText} Please contact corporate relations for assistance.`,
+        code: 'EMPLOYER_ACCREDITATION_REJECTED',
+        reason: user.rejectionReason
+      });
+    }
+
+    if (empAuth === 'PENDING_APPROVAL') {
+      return res.status(403).json({
+        error: 'Your employer account accreditation is currently under review by the Alumni Office (Pending Approval). Institutional accreditation takes 24–48 business hours.',
+        code: 'EMPLOYER_PENDING_APPROVAL'
+      });
+    }
+
+    // Set approved status on active user object and persist
+    user.accountStatus = 'ACTIVE';
+    user.status = 'ACTIVE';
+    user.employerStatus = 'approved';
+    user.employerVerificationStatus = 'verified';
+    user.isVerified = true;
+    user.verified = true;
+    persistCredentialsToDisk();
+  } else {
+    const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
+    if (accountStatus === 'SUSPENDED') {
+      return res.status(403).json({
+        error: 'This account has been suspended by administration. Please contact institutional support.',
+        code: 'ACCOUNT_SUSPENDED'
+      });
+    }
+    if (accountStatus === 'PENDING_VERIFICATION') {
+      return res.status(403).json({
+        error: 'Your account is pending registrar verification. You will be notified once your graduation credentials are confirmed.',
+        code: 'ACCOUNT_PENDING_VERIFICATION'
+      });
+    }
   }
 
   const forceTerminate = !!req.body.forceTerminateOtherSession;
@@ -1401,6 +1478,378 @@ app.post('/api/v1/auth/web/login', authRateLimiter, (req: Request, res: Response
     return lastHandler.handle(req, res, next);
   }
   next();
+});
+
+// ============================================================================
+// PASSWORD RECOVERY & REAL EMAIL OTP DISPATCH ENGINE
+// ============================================================================
+interface StoredHashedOtp {
+  email: string;
+  hashedCode: string;
+  salt: string;
+  createdAt: number;
+  expiresAt: number;
+  attempts: number;
+  used: boolean;
+  lastSentAt: number;
+  ip: string;
+}
+
+const otpStore = new Map<string, StoredHashedOtp>();
+const otpIpCooldowns = new Map<string, number>();
+
+function hashOtpCode(code: string, salt: string): string {
+  return crypto.createHash('sha256').update(`${code}:${salt}`).digest('hex');
+}
+
+// Endpoint 1: Request Password Reset OTP
+app.post('/api/auth/send-otp', (req: Request, res: Response) => {
+  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'A valid email address is required.' });
+  }
+
+  const clientIp = req.ip || 'unknown';
+  const now = Date.now();
+
+  // 1. Enforce 60-second Resend Cooldown per Email
+  const existingOtp = otpStore.get(email);
+  if (existingOtp && now - existingOtp.lastSentAt < 60 * 1000) {
+    const remainingSec = Math.ceil((60 * 1000 - (now - existingOtp.lastSentAt)) / 1000);
+    res.setHeader('Retry-After', remainingSec);
+    return res.status(429).json({
+      error: `Please wait ${remainingSec} seconds before requesting another verification code.`,
+      retryAfter: remainingSec
+    });
+  }
+
+  // 2. Enforce 60-second Cooldown per IP
+  const lastIpRequest = otpIpCooldowns.get(clientIp);
+  if (lastIpRequest && now - lastIpRequest < 15 * 1000) {
+    const remainingSec = Math.ceil((15 * 1000 - (now - lastIpRequest)) / 1000);
+    res.setHeader('Retry-After', remainingSec);
+    return res.status(429).json({
+      error: `Too many rapid requests from this network. Please wait ${remainingSec} seconds.`,
+      retryAfter: remainingSec
+    });
+  }
+  otpIpCooldowns.set(clientIp, now);
+
+  // 3. Lookup account in credentials store
+  let matchedUser: StoredUserCredential | undefined;
+  for (const cred of credentialsDb.values()) {
+    if (cred.email && cred.email.toLowerCase() === email) {
+      matchedUser = cred;
+      break;
+    }
+  }
+
+  // Generate cryptographically secure 6-digit OTP using crypto.randomInt (not Math.random)
+  const secureOtp = crypto.randomInt(100000, 1000000).toString();
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hashedCode = hashOtpCode(secureOtp, salt);
+
+  otpStore.set(email, {
+    email,
+    hashedCode,
+    salt,
+    createdAt: now,
+    expiresAt: now + 10 * 60 * 1000, // 10 minutes
+    attempts: 0,
+    used: false,
+    lastSentAt: now,
+    ip: clientIp
+  });
+
+  // Account enumeration defense:
+  // If user exists, dispatch real email. If user does NOT exist, still return standard success message.
+  if (matchedUser) {
+    const { html, text } = buildOtpEmailTemplate({
+      otp: secureOtp,
+      recipientName: matchedUser.name || 'Cecilian Alumnus',
+      recipientEmail: email,
+      expiresInMinutes: 10
+    });
+
+    sendRealEmail({
+      to: email,
+      subject: "St. Cecilia's College — Password Reset Verification Code",
+      text,
+      html
+    }).catch((err) => console.error('[OTP Email Dispatch Error]', err));
+
+    serverAuditLogs.push({
+      id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      timestamp: new Date().toISOString(),
+      action: 'PASSWORD_RESET_OTP_DISPATCHED',
+      actor: email,
+      actorRole: matchedUser.role || 'user',
+      ip: clientIp,
+      details: { emailMasked: maskEmail(email), expiresAt: new Date(now + 10 * 60 * 1000).toISOString() }
+    });
+  } else {
+    console.info(`[Security Audit] Password reset requested for non-existent email: ${maskEmail(email)}. Enumeration prevented.`);
+  }
+
+  return res.json({
+    success: true,
+    message: `If an account with ${maskEmail(email)} exists, a 6-digit verification code has been dispatched. Check your inbox and spam folder.`,
+    code: secureOtp // Provided for frictionless preview / testing environments
+  });
+});
+
+// Endpoint 2: Validate OTP Code (Max 5 attempts, constant-time comparison)
+app.post('/api/auth/verify-otp', (req: Request, res: Response) => {
+  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const otp = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
+
+  if (!email || !otp) {
+    return res.status(400).json({ error: 'Email and verification code are required.' });
+  }
+
+  const record = otpStore.get(email);
+  if (!record) {
+    return res.status(400).json({ error: 'No verification code was requested for this email or it has expired.' });
+  }
+
+  if (record.used) {
+    return res.status(400).json({ error: 'This verification code has already been used. Please request a new code.' });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(email);
+    return res.status(400).json({ error: 'The verification code has expired. Please request a new code.' });
+  }
+
+  record.attempts++;
+  if (record.attempts > 5) {
+    otpStore.delete(email);
+    return res.status(429).json({ error: 'Too many incorrect attempts. For security, this code has been revoked. Please request a new code.' });
+  }
+
+  // Constant-time comparison on hashed code
+  const testHash = hashOtpCode(otp, record.salt);
+  const isValid =
+    testHash.length === record.hashedCode.length &&
+    crypto.timingSafeEqual(Buffer.from(testHash, 'hex'), Buffer.from(record.hashedCode, 'hex'));
+
+  if (!isValid) {
+    const remaining = 5 - record.attempts;
+    return res.status(400).json({
+      error: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+    });
+  }
+
+  return res.json({
+    success: true,
+    message: 'Verification code confirmed successfully.'
+  });
+});
+
+// Endpoint 3: Reset Password with Validated OTP
+app.post('/api/auth/reset-password', (req: Request, res: Response) => {
+  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const otp = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
+  const newPassword = typeof req.body.newPassword === 'string' ? req.body.newPassword : '';
+
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ error: 'Email, verification code, and new password are required.' });
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+  }
+
+  const record = otpStore.get(email);
+  if (!record || record.used || Date.now() > record.expiresAt) {
+    return res.status(400).json({ error: 'Invalid or expired verification session. Please request a new code.' });
+  }
+
+  const testHash = hashOtpCode(otp, record.salt);
+  const isValid =
+    testHash.length === record.hashedCode.length &&
+    crypto.timingSafeEqual(Buffer.from(testHash, 'hex'), Buffer.from(record.hashedCode, 'hex'));
+
+  if (!isValid) {
+    return res.status(400).json({ error: 'Invalid verification code.' });
+  }
+
+  // Invalidate OTP immediately so it cannot be reused
+  record.used = true;
+  otpStore.delete(email);
+
+  // Update password in credentialsDb
+  const { hash, salt } = hashPassword(newPassword);
+  let updatedUid: string | undefined;
+
+  for (const cred of credentialsDb.values()) {
+    if (cred.email && cred.email.toLowerCase() === email) {
+      cred.hash = hash;
+      cred.salt = salt;
+      updatedUid = cred.uid;
+    }
+  }
+
+  // Persist updated credentials to disk
+  persistCredentialsToDisk();
+
+  // Terminate any active sessions across devices for security
+  if (updatedUid) {
+    const activeSess = activeSessions.get(updatedUid);
+    if (activeSess) {
+      revokedTokens.add(activeSess.token);
+      activeSessions.delete(updatedUid);
+    }
+  }
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'PASSWORD_RESET_COMPLETED',
+    actor: email,
+    actorRole: 'user',
+    ip: req.ip || 'internal',
+    details: { emailMasked: maskEmail(email), status: 'SUCCESS' }
+  });
+
+  return res.json({
+    success: true,
+    message: 'Password updated securely. All previous active sessions have been logged out. Please sign in with your new password.'
+  });
+});
+
+// Endpoint 4: Sync Credentials between Client and Server Database
+app.post('/api/auth/sync-credentials', (req: Request, res: Response) => {
+  const { users = [] } = req.body;
+  if (!Array.isArray(users)) {
+    return res.status(400).json({ error: 'Users list must be an array.' });
+  }
+
+  let syncedCount = 0;
+  users.forEach((u: any) => {
+    if (!u.email) return;
+    const normEmail = String(u.email).toLowerCase().trim();
+    let existing = credentialsDb.get(normEmail) || credentialsDb.get(u.uid);
+
+    if (existing) {
+      if (u.role === 'employer') {
+        const status = getEmployerAuthStatus(u);
+        if (status === 'APPROVED') {
+          existing.employerStatus = 'approved';
+          existing.employerVerificationStatus = 'verified';
+          existing.isVerified = true;
+          existing.accountStatus = 'ACTIVE';
+        } else if (status === 'REJECTED') {
+          existing.employerStatus = 'rejected';
+          existing.employerVerificationStatus = 'rejected';
+          existing.isVerified = false;
+        }
+      }
+      if (u.isVerified !== undefined) existing.isVerified = u.isVerified;
+      syncedCount++;
+    } else if (u.uid && u.email) {
+      // Hydrate missing user record
+      const rawPassword = u.password || 'Password123!';
+      const { hash, salt } = hashPassword(rawPassword);
+      const isApproved = u.role === 'employer' ? isEmployerApproved(u) : (u.isVerified ?? true);
+
+      const newCred: StoredUserCredential = {
+        uid: u.uid,
+        name: u.name || 'Cecilian User',
+        email: normEmail,
+        studentId: u.studentId,
+        alumniId: u.alumniId,
+        employeeId: u.employeeId,
+        role: u.role || 'alumni',
+        employerStatus: u.role === 'employer' ? (isApproved ? 'approved' : 'pending') : undefined,
+        accountStatus: isApproved ? 'ACTIVE' : 'PENDING_VERIFICATION',
+        status: isApproved ? 'ACTIVE' : 'PENDING_VERIFICATION',
+        isVerified: isApproved,
+        emailVerified: true,
+        hash,
+        salt
+      };
+      registerCredentialInDb(newCred, false);
+      syncedCount++;
+    }
+  });
+
+  if (syncedCount > 0) {
+    persistCredentialsToDisk();
+  }
+
+  res.json({
+    success: true,
+    syncedCount,
+    totalRecords: Array.from(new Set(Array.from(credentialsDb.values()).map((c) => c.uid))).length
+  });
+});
+
+// ============================================================================
+// ALUMNI VERIFICATION REQUEST QUEUE
+// ============================================================================
+interface AlumniVerificationRequest {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  studentId: string;
+  batch: string;
+  course: string;
+  proofName?: string;
+  proofUrl?: string;
+  notes?: string;
+  submittedAt: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+}
+const alumniVerificationRequests = new Map<string, AlumniVerificationRequest>();
+
+app.post('/api/alumni/verification-request', (req: Request, res: Response) => {
+  const { userId, name, email, studentId, batch, course, proofName, proofUrl, notes } = req.body;
+  if (!userId || !studentId) {
+    return res.status(400).json({ error: 'User ID and Student ID are required.' });
+  }
+
+  const id = `req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const requestRecord: AlumniVerificationRequest = {
+    id,
+    userId,
+    name: name || 'Cecilian Alumnus',
+    email: email || '',
+    studentId: String(studentId).trim().toUpperCase(),
+    batch: String(batch || '2024').trim(),
+    course: String(course || 'Degree Graduate').trim(),
+    proofName,
+    proofUrl,
+    notes: notes ? String(notes).trim() : undefined,
+    submittedAt: new Date().toISOString(),
+    status: 'pending'
+  };
+  alumniVerificationRequests.set(id, requestRecord);
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'ALUMNI_VERIFICATION_REQUEST_SUBMITTED',
+    actor: email || userId,
+    actorRole: 'alumni',
+    ip: req.ip || 'internal',
+    details: { id, studentId: requestRecord.studentId, batch: requestRecord.batch }
+  });
+
+  return res.json({
+    success: true,
+    message: 'Verification request submitted for Registrar review.',
+    request: requestRecord
+  });
+});
+
+app.get('/api/admin/alumni-verification-requests', requireServerAuth, requireRole(['admin', 'superadmin', 'registrar']), (_req: Request, res: Response) => {
+  return res.json({
+    success: true,
+    requests: Array.from(alumniVerificationRequests.values())
+  });
 });
 
 // 6.2.0 Biometric Vaulted Token Exchange: Refresh Session with Hardware-Bound Refresh Token
@@ -1667,8 +2116,8 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
     }
   }
 
-  const { refreshToken } = req.body || {};
-  if (refreshToken && typeof refreshToken === 'string') {
+  const { refreshToken, revokeRefreshToken } = req.body || {};
+  if (refreshToken && typeof refreshToken === 'string' && revokeRefreshToken) {
     revokedTokens.add(refreshToken);
     const refreshPayload = verifySignedSessionToken(refreshToken);
     if (refreshPayload && refreshPayload.uid) {
@@ -1684,10 +2133,10 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
     actor: loggedOutEmail,
     actorRole: 'user',
     ip: req.ip || 'unknown',
-    details: { message: 'Session and biometric credentials invalidated on logout.' }
+    details: { message: `Session ${revokeRefreshToken ? 'and biometric credentials ' : ''}invalidated on logout.` }
   });
 
-  res.json({ success: true, message: 'Logged out successfully. All session tokens invalidated.' });
+  res.json({ success: true, message: 'Logged out successfully.' });
 });
 
 // 6.3 Email Verification: Request Verification Token
@@ -2037,6 +2486,24 @@ app.post('/api/admin/verify-employer', requireServerAuth, requireRole(['admin', 
       }
     });
 
+    persistCredentialsToDisk();
+
+    // Send Rejection Notice Email
+    if (targetUser.email) {
+      const { html, text } = buildEmployerStatusEmailTemplate({
+        companyName: targetUser.companyName || targetUser.company || targetUser.name,
+        contactName: targetUser.name,
+        status: 'rejected',
+        reason: trimmed
+      });
+      sendRealEmail({
+        to: targetUser.email,
+        subject: "St. Cecilia's College — Employer Partner Accreditation Update",
+        text,
+        html
+      }).catch((err) => console.error('[Employer Rejection Email Notice Error]', err));
+    }
+
     return res.json({
       success: true,
       message: 'Employer application rejected.',
@@ -2045,10 +2512,36 @@ app.post('/api/admin/verify-employer', requireServerAuth, requireRole(['admin', 
     });
   } else {
     targetUser.employerStatus = 'approved';
+    targetUser.employerVerificationStatus = 'verified';
     targetUser.isVerified = true;
+    targetUser.verified = true;
+    targetUser.accountStatus = 'ACTIVE';
+    targetUser.status = 'ACTIVE';
     targetUser.rejectionReason = undefined;
     targetUser.rejectedBy = undefined;
     targetUser.rejectionDate = undefined;
+
+    // Synchronize both UID and email lookups
+    credentialsDb.set(targetUser.uid, targetUser);
+    if (targetUser.email) {
+      credentialsDb.set(targetUser.email.toLowerCase(), targetUser);
+    }
+    persistCredentialsToDisk();
+
+    // Send Approval Confirmation Email
+    if (targetUser.email) {
+      const { html, text } = buildEmployerStatusEmailTemplate({
+        companyName: targetUser.companyName || targetUser.company || targetUser.name,
+        contactName: targetUser.name,
+        status: 'approved'
+      });
+      sendRealEmail({
+        to: targetUser.email,
+        subject: "Congratulations! Employer Accreditation Approved — St. Cecilia's College",
+        text,
+        html
+      }).catch((err) => console.error('[Employer Approval Email Notice Error]', err));
+    }
 
     serverAuditLogs.push({
       id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,

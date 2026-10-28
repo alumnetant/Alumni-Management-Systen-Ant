@@ -299,20 +299,30 @@ export const ProfileView: React.FC = () => {
                 <span className="whitespace-nowrap">Edit Profile</span>
               </button>
 
-              {/* Registrar Verification Status / Action */}
-              <button
-                type="button"
-                onClick={() => setShowRegistrarModal(true)}
-                className={`flex-1 sm:flex-none justify-center flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer min-h-[44px] ${
-                  isVerifiedUser
-                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800/60 shadow-2xs'
-                    : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs font-bold'
-                }`}
-                title={isVerifiedUser ? 'Official Office of the Registrar Verified Alum' : 'Verify academic standing with Registrar'}
-              >
-                <ShieldCheck className={`w-4 h-4 shrink-0 ${isVerifiedUser ? 'text-emerald-700 dark:text-emerald-400' : 'text-white'}`} />
-                <span className="truncate">{isVerifiedUser ? 'Registrar Verified' : 'Verify with Registrar'}</span>
-              </button>
+              {/* Registrar Verification Status / Action - Strictly for Alumni */}
+              {currentUser.role === 'alumni' && (
+                <button
+                  type="button"
+                  onClick={() => setShowRegistrarModal(true)}
+                  className={`flex-1 sm:flex-none justify-center flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer min-h-[44px] ${
+                    isVerifiedUser
+                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800/60 shadow-2xs'
+                      : currentUser.verificationStatus === 'pending_review'
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs font-bold'
+                      : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs font-bold'
+                  }`}
+                  title={isVerifiedUser ? 'Official Office of the Registrar Verified Alum' : 'Verify academic standing with Registrar'}
+                >
+                  <ShieldCheck className={`w-4 h-4 shrink-0 ${isVerifiedUser ? 'text-emerald-700 dark:text-emerald-400' : 'text-white'}`} />
+                  <span className="truncate">
+                    {isVerifiedUser
+                      ? 'Registrar Verified'
+                      : currentUser.verificationStatus === 'pending_review'
+                      ? 'Verification Pending'
+                      : 'Verify with Registrar'}
+                  </span>
+                </button>
+              )}
 
               {/* Export PDF Resume */}
               <button
@@ -371,7 +381,8 @@ export const ProfileView: React.FC = () => {
                 {currentUser.name}
               </h1>
 
-              {isVerifiedUser && (
+              {/* Verified Alum Badge: strictly displayed for accounts with role === 'alumni' */}
+              {currentUser.role === 'alumni' && isVerifiedUser && (
                 <span className="px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-full inline-flex items-center gap-1 shadow-2xs">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span>Verified Alum</span>
@@ -390,7 +401,7 @@ export const ProfileView: React.FC = () => {
             </div>
 
             <p className="text-sm sm:text-base font-medium text-stone-600 dark:text-stone-300 mt-2 leading-relaxed max-w-3xl">
-              {currentUser.headline || 'St. Cecilia’s College Alumnus'}
+              {currentUser.headline || (currentUser.role === 'employer' ? 'Corporate Industry Partner • St. Cecilia’s College' : 'St. Cecilia’s College Alumnus')}
             </p>
 
             {/* Academic & Location Metadata Pills */}
@@ -422,19 +433,43 @@ export const ProfileView: React.FC = () => {
               )}
             </div>
 
-            {/* Unverified Alumni Guidance Callout */}
+            {/* Alumni Verification Status Guidance Callout */}
             {!isVerifiedUser && currentUser.role === 'alumni' && (
-              <div className="mt-5 p-4 sm:p-5 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/90 dark:border-amber-900/60 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 shadow-2xs transition-colors">
+              <div className={`mt-5 p-4 sm:p-5 border rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 shadow-2xs transition-colors ${
+                currentUser.verificationStatus === 'pending_review'
+                  ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-200/90 dark:border-blue-900/60'
+                  : currentUser.verificationStatus === 'rejected'
+                  ? 'bg-red-50/80 dark:bg-red-950/30 border-red-200/90 dark:border-red-900/60'
+                  : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200/90 dark:border-amber-900/60'
+              }`}>
                 <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 shrink-0 mt-0.5">
-                    <GraduationCap className="w-4 h-4" />
+                  <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${
+                    currentUser.verificationStatus === 'pending_review'
+                      ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200'
+                      : currentUser.verificationStatus === 'rejected'
+                      ? 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200'
+                      : 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200'
+                  }`}>
+                    {currentUser.verificationStatus === 'pending_review' ? (
+                      <Clock className="w-4 h-4" />
+                    ) : (
+                      <GraduationCap className="w-4 h-4" />
+                    )}
                   </div>
                   <div>
-                    <h3 className="text-xs sm:text-sm font-bold text-amber-950 dark:text-amber-200">
-                      Official Degree Verification Required
+                    <h3 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100">
+                      {currentUser.verificationStatus === 'pending_review'
+                        ? 'Verification Request Under Review'
+                        : currentUser.verificationStatus === 'rejected'
+                        ? 'Institutional Verification Declined'
+                        : 'Official Degree Verification Required'}
                     </h3>
-                    <p className="text-[11px] sm:text-xs text-amber-800 dark:text-amber-300/90 mt-0.5 leading-relaxed">
-                      Cross-reference your student ID with the Office of the Registrar to earn the Verified Alum credential, unlock private peer messaging, and validate your Digital Pass.
+                    <p className="text-[11px] sm:text-xs text-stone-600 dark:text-stone-300 mt-0.5 leading-relaxed">
+                      {currentUser.verificationStatus === 'pending_review'
+                        ? 'Your verification request and proof documents were submitted to the Office of the Registrar. Reviews are typically completed within 24–48 business hours.'
+                        : currentUser.verificationStatus === 'rejected'
+                        ? (currentUser.verificationNotes || 'Your submitted graduation credentials could not be validated. You may re-submit with updated documentation.')
+                        : 'Cross-reference your student ID with the Office of the Registrar to earn the Verified Alum credential, unlock private peer messaging, and validate your Digital Pass.'}
                     </p>
                   </div>
                 </div>
@@ -443,7 +478,11 @@ export const ProfileView: React.FC = () => {
                   onClick={() => setShowRegistrarModal(true)}
                   className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer"
                 >
-                  Verify Now →
+                  {currentUser.verificationStatus === 'pending_review'
+                    ? 'Check Status →'
+                    : currentUser.verificationStatus === 'rejected'
+                    ? 'Re-apply with Documents →'
+                    : 'Verify Now →'}
                 </button>
               </div>
             )}

@@ -95,6 +95,32 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
     setRejectionError(null);
   };
 
+  // Alumni proof inspection & decline states
+  const [viewingProof, setViewingProof] = useState<{
+    uid: string;
+    userName: string;
+    name: string;
+    url: string;
+    notes?: string;
+  } | null>(null);
+  const [decliningAlumni, setDecliningAlumni] = useState<UserProfile | null>(null);
+  const [declineReason, setDeclineReason] = useState('');
+
+  const handleConfirmDeclineAlumni = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!decliningAlumni) return;
+    const reason =
+      declineReason.trim() ||
+      'Submitted documentation was insufficient or could not be validated with registrar archives.';
+    updateAlumniProfile(decliningAlumni.uid, {
+      verificationStatus: 'rejected',
+      verificationFlagReason: reason
+    });
+    showToast(`Verification declined for ${decliningAlumni.name}.`, 'info');
+    setDecliningAlumni(null);
+    setDeclineReason('');
+  };
+
   // Sync activeFilter with viewMode prop when viewMode changes
   useEffect(() => {
     setVisibleAlumniCount(10);
@@ -548,6 +574,55 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                               <span>{analysis.discrepancyDetails[0]}</span>
                             </div>
                           )}
+
+                          {/* Formal Proof & Verification Request Banner */}
+                          {(u.verificationProofUrl || u.verificationStatus === 'pending_review' || u.verificationNotes) && (
+                            <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-stone-900">
+                                  <FileText className="w-3.5 h-3.5 text-[#8B181B]" />
+                                  <span>Submitted Proof of Graduation</span>
+                                </div>
+                                <span className="text-[10px] font-semibold text-stone-500">
+                                  {u.verificationSubmittedAt
+                                    ? new Date(u.verificationSubmittedAt).toLocaleDateString()
+                                    : 'Awaiting Inspection'}
+                                </span>
+                              </div>
+                              {u.verificationNotes && (
+                                <p className="text-xs text-stone-600 bg-white p-2 rounded-lg border border-stone-100 italic">
+                                  "{u.verificationNotes}"
+                                </p>
+                              )}
+                              <div className="flex items-center gap-2 pt-0.5">
+                                {u.verificationProofUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setViewingProof({
+                                        uid: u.uid,
+                                        userName: u.name,
+                                        name: u.verificationProofName || 'Graduation Proof Document',
+                                        url: u.verificationProofUrl!,
+                                        notes: u.verificationNotes
+                                      })
+                                    }
+                                    className="px-2.5 py-1 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    <span>Inspect Proof Document</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setDecliningAlumni(u)}
+                                  className="px-2.5 py-1 bg-white hover:bg-stone-100 text-stone-700 border border-stone-200 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                                >
+                                  Decline / Clarify
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -814,6 +889,157 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                   className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer"
                 >
                   Confirm Rejection
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Proof Document Inspection Modal */}
+      {viewingProof && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-xl border border-stone-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-stone-700">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-stone-900">{viewingProof.name}</h4>
+                  <p className="text-xs text-stone-500">Submitted by {viewingProof.userName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingProof(null)}
+                className="p-1 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {viewingProof.notes && (
+              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs text-stone-700 space-y-1">
+                <span className="font-bold uppercase tracking-wider text-[10px] text-stone-400 block">
+                  Applicant Registrar Notes
+                </span>
+                <p className="italic">"{viewingProof.notes}"</p>
+              </div>
+            )}
+
+            <div className="bg-stone-100 rounded-xl overflow-hidden flex items-center justify-center min-h-[300px] max-h-[500px] p-2 border border-stone-200">
+              {viewingProof.url.startsWith('data:image/') || viewingProof.url.includes('.png') || viewingProof.url.includes('.jpg') || viewingProof.url.includes('.webp') ? (
+                <img
+                  src={viewingProof.url}
+                  alt={viewingProof.name}
+                  className="max-h-[480px] max-w-full object-contain rounded-lg shadow-2xs"
+                />
+              ) : (
+                <div className="text-center p-8 space-y-3">
+                  <FileText className="w-12 h-12 text-stone-400 mx-auto" />
+                  <p className="text-xs font-semibold text-stone-700">{viewingProof.name}</p>
+                  <a
+                    href={viewingProof.url}
+                    download={viewingProof.name}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-stone-900 text-white rounded-xl text-xs font-bold hover:bg-stone-800 transition-colors cursor-pointer"
+                  >
+                    <span>Download / Open PDF Document</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-stone-100">
+              <button
+                type="button"
+                onClick={() => setViewingProof(null)}
+                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl cursor-pointer"
+              >
+                Close
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetU = users.find((u) => u.uid === viewingProof.uid);
+                    setViewingProof(null);
+                    if (targetU) setDecliningAlumni(targetU);
+                  }}
+                  className="px-3.5 py-2 text-xs font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-xl cursor-pointer"
+                >
+                  Decline / Clarify
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserVerified(viewingProof.uid, true);
+                    showToast(`✓ Verified ${viewingProof.userName} with submitted documentation!`, 'success');
+                    setViewingProof(null);
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Approve Verification</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Decline Alumni Verification Request Modal */}
+      {decliningAlumni && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-xl border border-stone-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <span>Decline Verification Request</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDecliningAlumni(null)}
+                className="p-1 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmDeclineAlumni} className="space-y-3.5">
+              <p className="text-xs text-stone-600">
+                Provide feedback to <strong className="text-stone-900">{decliningAlumni.name}</strong> regarding why their verification request could not be validated. They will see this note and may resubmit with additional documentation.
+              </p>
+
+              <div>
+                <label className="text-xs font-bold text-stone-700 block mb-1">
+                  Reason / Registrar Feedback
+                </label>
+                <textarea
+                  rows={3}
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  placeholder="e.g. Student ID does not match records, or diploma image was illegible. Please re-upload a clear copy of your Official Transcript of Records (TOR) or Diploma."
+                  className="w-full px-3 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:bg-white focus:outline-hidden focus:ring-1 focus:ring-[#8B181B]"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-stone-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDecliningAlumni(null)}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  Confirm Decline
                 </button>
               </div>
             </form>

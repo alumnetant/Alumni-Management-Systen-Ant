@@ -191,11 +191,13 @@ export function setPreferredBiometricModality(modality: 'face' | 'fingerprint'):
  */
 export function isBiometricLoginEnabled(userId?: string): boolean {
   if (typeof window === 'undefined') return false;
+  if (userId) {
+    const userSpecificKey = `${BIOMETRIC_PREF_KEY}_${userId}`;
+    const userVal = localStorage.getItem(userSpecificKey);
+    if (userVal !== null) return userVal === 'true';
+  }
   const stored = localStorage.getItem(BIOMETRIC_PREF_KEY);
-  if (!stored) return false;
-  if (!userId) return stored === 'true';
-  const userSpecificKey = `${BIOMETRIC_PREF_KEY}_${userId}`;
-  return localStorage.getItem(userSpecificKey) === 'true' || stored === 'true';
+  return stored === 'true';
 }
 
 /**
