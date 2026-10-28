@@ -8,5 +8,5 @@
     <string name="gcm_defaultSenderId">858059582688</string>
     <string name="default_web_client_id">858059582688-j9qe1d86nmt2ddn7q2a2n6ms6pu7nbcr.apps.googleusercontent.com</string>
     <string name="project_id">handy-pier-cvxch</string>
-    <string name="google_api_key">AIzaSyD3cdrGqfhQ_2XPYRjEnylH5aZY5sM1xwo</string>
+    <string name="google_api_key">YOUR_GOOGLE_API_KEY</string>
 </resources>

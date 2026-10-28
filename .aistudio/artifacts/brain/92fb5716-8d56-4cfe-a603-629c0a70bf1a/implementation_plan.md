@@ -1,124 +1,65 @@
-# St. Cecilia's College Alumni Network: Profile Verification, Employer Auth & Registry System
+# Implementation Plan: GitHub Security Alerts & Vulnerability Remediation
 
-A targeted enhancement to resolve profile badge scoping, fix accredited employer authentication, streamline alumni role immutability, enable real OTP email delivery, fix Excel/CSV alumni registry name mapping, and introduce institutional graduation verification tracking.
-
----
-
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The following decisions were confirmed based on your requirements and clarification answers:
-> - **Excel/CSV Graduate Name Extraction**: Flexible auto-detection across all common name columns (`Name`, `Full Name`, `Graduate Full Name`, `Student Name`, or split `First Name` + `Last Name`) to eliminate the "Cecilian Graduate" fallback shown in the registry screenshot.
-> - **Password Reset OTP Email Delivery**: Real outbound email dispatch using server SMTP / Webhook with instant onscreen copy fallback and toast confirmation.
-> - **Alumni Verification Flow**: Self-service verification request modal for alumni to submit proof of graduation, backed by registrar/admin review queue and real-time status badges.
-> - **Verified Badge Scoping**: Strictly reserved for verified alumni; hidden completely from employers, students, and administrators.
-> - **Employer Login**: Fix session minting and credential checks so approved partner employers log in directly to their employer dashboard.
+## Executive Summary
+This plan addresses the two categories of security alerts reported by GitHub:
+1. **Secret Scanning Alerts (3 Open Alerts)**: Public leak warnings on Google API keys in `firebase-applet-config.json`, Android `strings.xml`, and built iOS web bundle `ios/.../assets/index-Cm0BVnYY.js`.
+2. **Dependabot Vulnerability Alerts (45 Open Alerts)**: Transitive and direct dependency vulnerabilities including DOMPurify template bypass, SheetJS prototype pollution & ReDoS, proxy-addr IP spoofing, Zod memory exhaustion, Vite launch-editor, and body-parser DoS.
 
 ---
 
-### 1. Overview & Core Concept
+## Part 1: Resolving Secret Scanning Alerts (Google API Key Leaks)
 
-- **What It Does**:
-  1. Restricts the "Verified Alumni" badge strictly to alumni users with confirmed institutional records, removing any badges from employers or other roles.
-  2. Resolves employer login blockers so verified/approved employers authenticate immediately into the employer job board and candidate portal.
-  3. Displays the alumni role cleanly without an artificial "Fixed" tag, while keeping the role immutable across profile and administrative views.
-  4. Delivers real password reset OTP codes via email (SMTP/Webhook) with an instantaneous onscreen code fallback so users are never blocked.
-  5. Corrects alumni registry file imports to detect and display the graduate's actual full name instead of falling back to default placeholder text.
-  6. Implements an institutional graduation verification pipeline: unverified alumni submit student credentials and proof for admin/registrar approval.
+### Understanding the Alert
+- The flagged strings (`AIzaSy...`) are Firebase client-side identifiers used to route requests to your Firebase project. In Firebase architecture, web and mobile client keys are technically public client identifiers, but GitHub Secret Scanning alerts on any string matching the Google API key pattern.
+- Committing these in plaintext directly to a public GitHub repo triggers automated alerts and exposes your Firebase project quota if keys lack API restrictions.
 
-- **Target Audience / Persona**:
-  - **Alumni**: Submit verification proof, track accreditation status, securely reset passwords via OTP email.
-  - **Partner Employers**: Register company profile, get approved by administration, and reliably log in to publish opportunities.
-  - **Institutional Administrators & Registrars**: Audit uploaded graduate registries with accurate names and review alumni verification queues with one-click approval.
+### Proposed Changes:
+1. **Update `.gitignore` to Exclude Sensitive Configurations & Built Assets**:
+   - Add `firebase-applet-config.json` to `.gitignore`.
+   - Add built web assets copied into mobile platforms (`ios/App/App/public/`, `android/app/src/main/assets/public/`, `dist/`) to `.gitignore` so minified JS files (like `index-Cm0BVnYY.js`) are never committed.
+   - Provide a sanitized `firebase-applet-config.example.json` for template reference without real keys.
 
-- **Key Value**:
-  Guarantees credential integrity, seamless employer onboarding, and trustworthy alumni recognition for St. Cecilia's College - Cebu, Inc.
+2. **Move Keys to Environment Variables in `firebase.ts`**:
+   - Ensure `src/lib/firebase.ts` reads `import.meta.env.VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`, etc., falling back gracefully.
+   - Update `.env.example` with clear documentation for all `VITE_FIREBASE_*` variables.
 
----
+3. **Sanitize Android `strings.xml`**:
+   - Replace the hardcoded `google_api_key` in `android/app/src/main/res/values/strings.xml` with placeholder text or extract to untracked `res/values/secrets.xml` / environment variables.
 
-### 2. User Experience & Visual Design
-
-- **Key User Flows**:
-  1. **Alumni Profile & Badge**:
-     - Alumnus views profile: if verified, shows deep crimson & gold "Verified Alumni" shield badge.
-     - Employer or non-alumni views profile: no alumni badge is shown; role is presented with clean institutional typography.
-     - Role field is read-only without cluttering labels like "[Fixed]".
-  2. **Employer Sign-In**:
-     - Verified employer submits credentials on login screen.
-     - Backend confirms password and verification state (`approved` / `verified`), issuing a session token and redirecting straight to the Partnered Companies / Postings workspace.
-  3. **Forgot Password with Real OTP**:
-     - User enters email on login dialog.
-     - System dispatches OTP email with institutional header ("St. Cecilia's College - Account Verification").
-     - Onscreen feedback displays delivery confirmation along with a direct copyable OTP fallback for testing/local environments.
-     - User inputs 6-digit OTP code, sets new password, and logs in.
-  4. **Excel/CSV Alumni Registry Import**:
-     - Registrar navigates to Admin Alumni Registry and drops Excel (`.xlsx`, `.xls`) or `.csv`.
-     - Parser dynamically detects candidate name columns: `Name`, `Full Name`, `Graduate Full Name`, `Student Name`, or concatenates `First Name` + `Last Name`.
-     - The table immediately populates with real student names (e.g. "Maria Santos", "John Rey Del Rosario") instead of "Cecilian Graduate".
-  5. **Alumni Verification Request Flow**:
-     - Unverified alumni click "Request Verification" on their profile banner.
-     - Modal requests Student ID Number, Degree Program, Cohort Year, and optional document attachment (diploma / ID photo).
-     - Status updates to "Pending Institutional Review".
-     - Administrator opens Verification Queue, reviews submitted credentials, and selects "Approve" (instantly granting Verified Alumni badge) or "Reject" (with explanation).
-
-- **Visual Identity & Theme (`AGENTS.md`)**:
-  - **Colors**: St. Cecilia's deep crimson (`#8B181B`), warm stone backgrounds (`bg-stone-50`), rich charcoal text (`#1c1917`), and emerald accents for verified accreditation.
-  - **Typography**: Clean tabular numbers for Student IDs (`font-mono text-xs`), crisp semi-bold display headers, balanced leading.
-  - **Icons**: Lucide icons (`CheckCircle2`, `ShieldCheck`, `FileSpreadsheet`, `Mail`, `KeyRound`) with uniform `strokeWidth={1.75}`. Zero raw emojis.
+4. **Security Advisory & Key Restriction Guidance**:
+   - Provide step-by-step instructions for Google Cloud Console:
+     - Restrict the Web API key by HTTP referrers (e.g., your app's domain).
+     - Restrict the Android API key by Package Name (`com.aistudio.applet.cnztsm`) and SHA-1 fingerprint.
+     - Guide the user on closing/resolving the 3 alerts in GitHub's "Security and quality" tab.
 
 ---
 
-### 3. Key Product Decisions & Trade-Offs
+## Part 2: Remediating Dependabot Vulnerability Alerts (45 Dependencies)
 
-- **Decision 1: Flexible Column Header Normalization for Registry Uploads**
-  - *Chosen Approach*: Auto-detect normalized column variations (`name`, `fullname`, `graduatefullname`, `studentname`, `alumniname`) plus split first/last name detection.
-  - *Why*: User-uploaded spreadsheets from campus departments frequently use different column headers. Flexible normalization ensures student names appear accurately without requiring manual file formatting.
-  - *Alternatives Considered*: Rigid schema requirement (rejected: fails on varied Excel column naming).
-
-- **Decision 2: Dual OTP Delivery (Real Email + Onscreen Fallback)**
-  - *Chosen Approach*: Server dispatches via SMTP / Webhook if configured, while returning the code in dev/preview mode with an onscreen toast.
-  - *Why*: Ensures production-grade email delivery while guaranteeing that users and developers in sandbox preview environments can always reset passwords without getting trapped by spam filters or unconfigured mail relays.
-
-- **Decision 3: Dedicated Verification Queue vs. Direct Profile Overrides**
-  - *Chosen Approach*: Structured `VerificationRequest` records linked to alumni profiles, enabling registrar inspection and historical status tracking.
-  - *Why*: Provides auditing accountability for institutional degree verification.
+### Targeted Vulnerability Fixes:
+1. **DOMPurify (`SAFE_FOR_TEMPLATES` & `IN_PLACE` bypasses)**:
+   - Upgrade `dompurify` and `@types/dompurify` to `^3.2.4` (or latest patched release).
+2. **SheetJS `xlsx` (Prototype Pollution & ReDoS)**:
+   - Add package override or upgrade `xlsx` to a patched release, or wrap ingestion with strict prototype sanitization.
+3. **Zod (Memory Exhaustion on Oversized Collections)**:
+   - Upgrade `zod` to `>= 3.23.8` (or `^3.24.0`).
+4. **Express / Body-Parser / Proxy-Addr (DoS & IP Spoofing)**:
+   - Upgrade `body-parser` (`>= 1.20.3`), `express` (`>= 4.21.1`), and `proxy-addr` (`>= 2.0.7`) in `package.json` and via npm `overrides`.
+5. **Vite / launch-editor (Windows path existence bypass)**:
+   - Upgrade `vite` to latest compatible patch version.
+6. **Execute Automated Fix**:
+   - Run `npm audit fix` to automatically resolve non-breaking transitive dependency vulnerabilities.
+   - Add targeted `overrides` in `package.json` for transitive dependencies that require specific minimum secure versions.
 
 ---
 
-### 4. Technical Architecture & Data Strategy
+## Part 3: Verification & Quality Assurance
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        St. Cecilia's College UI                        │
-├─────────────────────┬───────────────────────┬──────────────────────────┤
-│    ProfileView      │  ForgotPasswordModal  │  AdminAlumniRegistryView │
-│  - Alumni Badge     │  - OTP Input          │  - Multi-column Parser   │
-│  - Request Modal    │  - Onscreen Fallback  │  - Accurate Name Display │
-└──────────┬──────────┴───────────┬───────────┴─────────────┬────────────┘
-           │                      │                         │
-           ▼                      ▼                         ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                      AlumniContext & State Engine                      │
-│ - user.role === 'alumni' badge guard                                   │
-│ - verifyEmployer() & login() auth synchronization                      │
-│ - submitVerificationRequest() & reviewQueue state                      │
-└─────────────────────────────────┬──────────────────────────────────────┘
-                                  │
-                                  ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                    Express Backend API (server.ts)                     │
-├────────────────────────────────────────────────────────────────────────┤
-│ POST /api/auth/login            -> Authenticate approved employers     │
-│ POST /api/auth/send-otp         -> Send OTP via SMTP / Webhook         │
-│ POST /api/auth/verify-otp       -> Validate code & update password     │
-│ POST /api/alumni/verify-request -> Store verification request record   │
-│ GET  /api/admin/verify-queue    -> Fetch pending alumni reviews        │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-- **Interactive Component & State Mapping**:
-  - `ProfileView.tsx`: Displays "Verified Alumni" shield only when `user.role === 'alumni' && user.isVerified`. Unverified alumni see interactive "Request Verification" CTA.
-  - `AlumniContext.tsx`: Aligns client login logic to accept `employerStatus === 'approved'` or `isVerified === true`, and eliminates false rejection gates.
-  - `ForgotPasswordModal.tsx`: Communicates with `/api/auth/send-otp` and `/api/auth/verify-otp` with clear countdown timers and fallback displays.
-  - `AdminAlumniRegistryView.tsx`: Enhanced Excel reader inspecting `Object.keys(row)` with fuzzy matching for first, last, and full name keys.
-  - `AdminVerificationQueueView.tsx`: Administrative interface for reviewing alumni graduation verification applications.
+1. **Type Checking & Linting**:
+   - Run `lint_applet` (`tsc --noEmit`) to verify zero TypeScript compilation issues.
+2. **Build Validation**:
+   - Run `compile_applet` (`npm run build`) to confirm the Vite bundle builds cleanly with upgraded packages.
+3. **Dependency Audit Re-check**:
+   - Run `npm audit` to verify the drop in critical and high vulnerabilities.
+4. **Deliverables Summary**:
+   - Provide summary of updated files, `.gitignore` entries, `.env.example` keys, and the exact steps to close the alerts on GitHub.

@@ -22,8 +22,15 @@ yarn-error.log*
 credentials*.json
 serviceAccount*.json
 service-account*.json
+firebase-applet-config.json
+firebase-debug.log*
+firestore-debug.log*
 
-# Mobile build artifacts and keystores
+# Mobile build artifacts, web sync bundles, and keystores
+ios/App/App/public/
+android/app/src/main/assets/public/
+ios/App/App/capacitor.config.json
+android/app/src/main/assets/capacitor.config.json
 *.jks
 *.keystore
 key.properties
