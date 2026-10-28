@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, Mail, RefreshCw, ArrowLeft, KeyRound, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { generateSecureNumericCode } from '../../lib/secureId';
 
 interface TwoFactorVerificationModalProps {
   isOpen: boolean;
@@ -25,9 +26,10 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+
   // Generate a cryptographically styled 6-digit OTP
   const generateNewCode = () => {
-    const freshCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const freshCode = generateSecureNumericCode(100000, 999999).toString();
     setGeneratedCode(freshCode);
     setCodeDigits(['', '', '', '', '', '']);
     setErrorMessage('');

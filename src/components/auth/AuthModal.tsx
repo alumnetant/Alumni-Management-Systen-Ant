@@ -23,6 +23,7 @@ import {
   X
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
+import { generateSecureNumericCode } from '../../lib/secureId';
 import { UserRole } from '../../types';
 import {
   findRegistryMatch,
@@ -132,7 +133,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
     let isAutoVerified = false;
     let finalCourse = course;
-    const finalStudentId = role === 'alumni' ? (studentId.trim() || `SC-${batch}-${Math.floor(1000 + Math.random() * 9000)}`) : undefined;
+    const finalStudentId = role === 'alumni' ? (studentId.trim() || `SC-${batch}-${generateSecureNumericCode(1000, 9999)}`) : undefined;
 
     if (role === 'alumni') {
       const evaluation = evaluateIncomingRegistration(

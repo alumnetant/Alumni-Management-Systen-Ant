@@ -7,6 +7,7 @@ import {
   markRegistryRecordRegisteredInFirestore,
   deleteRegistryRecordFromFirestore
 } from '../lib/firebase';
+import { generateSecureNumericCode, generateSecureId } from '../lib/secureId';
 
 /**
  * Storage Key for Registrar-uploaded masterlist
@@ -253,7 +254,7 @@ export function generateAlumniId(batchYear: string = '2024', studentId?: string,
     }
   }
   if (!seq) {
-    seq = Math.floor(1000 + Math.random() * 9000).toString();
+    seq = generateSecureNumericCode(1000, 9999).toString();
   }
   return `SCC-ALUM-${cleanBatch}-${seq}`;
 }
@@ -968,7 +969,7 @@ function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
     // Only add if at least student ID or Name is present
     if (studentId || fullName) {
       records.push({
-        studentId: studentId || `SCC-${batchYear || '2024'}-${Math.floor(1000 + Math.random() * 9000)}`,
+        studentId: studentId || `SCC-${batchYear || '2024'}-${generateSecureNumericCode(1000, 9999)}`,
         fullName: fullName || 'Accredited Graduate',
         batchYear: batchYear || '2024',
         course: course || 'Bachelor Degree Program',
@@ -1372,7 +1373,7 @@ export function addRegistrationConflict(
   const current = getRegistrationConflicts();
   const newConflict: RegistrationConflictRecord = {
     ...data,
-    id: `conflict_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    id: generateSecureId('conflict'),
     flaggedAt: new Date().toISOString(),
     status: 'pending'
   };

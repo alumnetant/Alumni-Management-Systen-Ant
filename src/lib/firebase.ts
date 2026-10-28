@@ -29,7 +29,13 @@ import {
   deleteDoc,
   writeBatch
 } from 'firebase/firestore';
-import rawFirebaseConfig from '../../firebase-applet-config.json';
+// Safely load local firebase config file if present, without crashing remote CI or Vercel builds
+const localConfigModules: Record<string, any> = import.meta.glob('../../firebase-applet-config.json', { eager: true });
+const localConfigKey = Object.keys(localConfigModules)[0];
+const rawFirebaseConfig: Record<string, any> = localConfigKey
+  ? (localConfigModules[localConfigKey]?.default || localConfigModules[localConfigKey] || {})
+  : {};
+
 import {
   UserProfile,
   FriendRequest,
@@ -53,13 +59,13 @@ export const FIRESTORE_DATABASE_ID =
 
 // Unified Firebase configuration supporting both local config file and Vercel/production environment variables
 export const firebaseConfig = {
-  projectId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_PROJECT_ID) || rawFirebaseConfig.projectId,
-  appId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_APP_ID) || rawFirebaseConfig.appId,
-  apiKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_API_KEY) || rawFirebaseConfig.apiKey,
-  authDomain: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN) || rawFirebaseConfig.authDomain,
+  projectId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_PROJECT_ID) || rawFirebaseConfig.projectId || 'gen-lang-client-0856157514',
+  appId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_APP_ID) || rawFirebaseConfig.appId || '1:1009258374587:web:54ceb8986fca911019d09e',
+  apiKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_API_KEY) || rawFirebaseConfig.apiKey || '',
+  authDomain: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN) || rawFirebaseConfig.authDomain || 'gen-lang-client-0856157514.firebaseapp.com',
   firestoreDatabaseId: FIRESTORE_DATABASE_ID,
-  storageBucket: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET) || rawFirebaseConfig.storageBucket,
-  messagingSenderId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID) || rawFirebaseConfig.messagingSenderId,
+  storageBucket: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET) || rawFirebaseConfig.storageBucket || 'gen-lang-client-0856157514.firebasestorage.app',
+  messagingSenderId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID) || rawFirebaseConfig.messagingSenderId || '1009258374587',
   measurementId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_MEASUREMENT_ID) || rawFirebaseConfig.measurementId || '',
   oAuthClientId: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_OAUTH_CLIENT_ID) || rawFirebaseConfig.oAuthClientId || '',
   recaptchaSiteKey: (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_RECAPTCHA_SITE_KEY) || rawFirebaseConfig.recaptchaSiteKey || ''

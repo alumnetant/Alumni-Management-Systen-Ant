@@ -3101,6 +3101,12 @@ app.post('/api/events/rsvp', requireServerAuth, authRateLimiter, (req: Request, 
   });
 });
 
+function sanitizePlainText(input: unknown, maxLength?: number): string {
+  if (input === null || input === undefined) return '';
+  const cleaned = String(input).replace(/[<>]/g, '').trim();
+  return maxLength ? cleaned.slice(0, maxLength) : cleaned;
+}
+
 // 6.6.6 Anti-Abuse: Job Posting Validation & Integrity
 const handleOpportunityPost = (req: Request, res: Response) => {
   const actor = (req as any).user;
@@ -3119,10 +3125,10 @@ const handleOpportunityPost = (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Title, company name, and job description are required.' });
   }
 
-  // Sanitize text against XSS
-  const safeTitle = String(title).replace(/<[^>]*>/g, '').trim().slice(0, 150);
-  const safeCompany = String(company).replace(/<[^>]*>/g, '').trim().slice(0, 100);
-  const safeLocation = String(location || 'Cebu, Philippines').replace(/<[^>]*>/g, '').trim().slice(0, 100);
+  // Sanitize text against XSS with non-backtracking linear sanitizer (CodeQL ReDoS prevention)
+  const safeTitle = sanitizePlainText(title, 150);
+  const safeCompany = sanitizePlainText(company, 100);
+  const safeLocation = sanitizePlainText(location || 'Cebu, Philippines', 100);
 
   const newOpp: Opportunity = {
     id: req.body.id || `opp_${Date.now()}`,
@@ -3181,8 +3187,8 @@ app.post('/api/messages/validate', requireServerAuth, (req: Request, res: Respon
     return res.status(400).json({ error: 'Message exceeds maximum length of 2,000 characters.' });
   }
 
-  // Sanitize against XSS HTML injection
-  const safeText = text.replace(/<[^>]*>/g, '').trim();
+  // Sanitize against XSS HTML injection with linear non-backtracking sanitizer
+  const safeText = sanitizePlainText(text, 2000);
 
   res.json({
     valid: true,
@@ -3516,9 +3522,9 @@ app.post('/api/messages/send', async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Message exceeds maximum length of 2,000 characters.' });
   }
 
-  const cleanText = text.replace(/<[^>]*>/g, '').trim();
+  const cleanText = sanitizePlainText(text, 2000);
   const cleanMsg: ChatMessage = {
-    id: message.id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    id: message.id || `msg_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
     chatId,
     senderId: message.senderId || 'usr_anonymous',
     senderName: message.senderName || 'Cecilian Member',
@@ -3735,11 +3741,11 @@ app.post('/api/messages/sync', (req: Request, res: Response) => {
   for (const rawMsg of messages) {
     try {
       if (!rawMsg || !rawMsg.chatId || !rawMsg.text) continue;
-      const cleanText = String(rawMsg.text).replace(/<[^>]*>/g, '').trim().slice(0, 2000);
+      const cleanText = sanitizePlainText(rawMsg.text, 2000);
       if (!cleanText) continue;
 
       const cleanMsg: ChatMessage = {
-        id: rawMsg.id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        id: rawMsg.id || `msg_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
         chatId: rawMsg.chatId,
         senderId: rawMsg.senderId || 'usr_anonymous',
         senderName: rawMsg.senderName || 'Cecilian Member',

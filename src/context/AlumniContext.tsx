@@ -168,6 +168,7 @@ import {
 } from '../services/biometricAuthService';
 import { validateRejectionReason, isEmployerVisibleInDirectory } from '../lib/employerValidation';
 import { getEmployerAuthStatus, isEmployerApproved } from '../lib/employerAuthStatus';
+import { generateSecureId, generateSecureNumericCode } from '../lib/secureId';
 
 export interface ActiveSessionConflictInfo {
   identifier: string;
@@ -1396,7 +1397,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const showToast = useCallback((msg: string, type: ToastType = 'info') => {
-    const id = `toast_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const id = generateSecureId('toast');
     const newToast: ToastNotification = { id, message: msg, type };
 
     setToastMessage(msg);
@@ -3582,7 +3583,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     const newPost: InstitutionalFeedPost = {
-      id: `post_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      id: generateSecureId('post'),
       authorId: currentUser.uid,
       authorName: currentUser.name || "St. Cecilia's College Alumnus",
       authorRole: (currentUser.role as any) || 'alumni',
@@ -3648,7 +3649,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (!text.trim()) return;
 
     const newComment: FeedComment = {
-      id: `comm_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+      id: generateSecureId('comm'),
       authorId: currentUser.uid,
       authorName: currentUser.name,
       authorAvatar: currentUser.profilePictureUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
@@ -4339,7 +4340,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     // Offline Handling: Queue message locally and present immediately in thread
     if (!isDeviceOnline) {
       const offlineMsg: ChatMessage = {
-        id: `msg_offline_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        id: generateSecureId('msg_offline'),
         chatId,
         senderId: currentUser.uid,
         senderName: currentUser.name,
@@ -4381,7 +4382,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     // Online Handling: Optimistically display and dispatch to Firestore and backend
     const newMsg: ChatMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      id: generateSecureId('msg'),
       chatId,
       senderId: currentUser.uid,
       senderName: currentUser.name,
@@ -4869,7 +4870,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const addAuditLog = useCallback((entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) => {
     const newLog: AuditLogEntry = {
-      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      id: generateSecureId('log'),
       timestamp: new Date().toISOString(),
       ...entry
     };
@@ -5496,7 +5497,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     eventId: string,
     attendee: Partial<EventAttendee> & { name: string; email: string }
   ) => {
-    const newUid = attendee.uid || `usr_manual_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const newUid = attendee.uid || generateSecureId('usr_manual');
     const newAttendee: EventAttendee = {
       id: `att_${eventId}_${newUid}`,
       uid: newUid,
@@ -5596,7 +5597,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     // Reservation Code generation
-    const randomSuffix = Math.floor(10000 + Math.random() * 90000);
+    const randomSuffix = generateSecureNumericCode(10000, 99999);
     const reservationId = `ALM-2026-${randomSuffix}`;
 
     const newReservation: EventReservation = {
@@ -7555,7 +7556,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       id: `snap_${Date.now()}`,
       timestamp: new Date().toISOString(),
       recordCount: users.length,
-      sizeKb: Math.round(128 + Math.random() * 20),
+      sizeKb: 128 + users.length * 2,
       status: 'verified',
       type
     };

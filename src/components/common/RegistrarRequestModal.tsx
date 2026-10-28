@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
+import { generateSecureNumericCode } from '../../lib/secureId';
 
 interface DocumentRequest {
   id: string;
@@ -96,7 +97,7 @@ export const RegistrarRequestModal: React.FC<{
     e.preventDefault();
     setIsSubmitting(true);
 
-    const randomSuffix = Math.floor(10000 + Math.random() * 90000);
+    const randomSuffix = generateSecureNumericCode(10000, 99999);
     const newReq: DocumentRequest = {
       id: `REQ-2026-${randomSuffix}`,
       documentType: docType,

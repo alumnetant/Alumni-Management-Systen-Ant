@@ -1,65 +1,70 @@
-# Implementation Plan: GitHub Security Alerts & Vulnerability Remediation
+# Implementation Plan: Vercel Build, CodeQL Code Scanning & Security Remediation
 
 ## Executive Summary
-This plan addresses the two categories of security alerts reported by GitHub:
-1. **Secret Scanning Alerts (3 Open Alerts)**: Public leak warnings on Google API keys in `firebase-applet-config.json`, Android `strings.xml`, and built iOS web bundle `ios/.../assets/index-Cm0BVnYY.js`.
-2. **Dependabot Vulnerability Alerts (45 Open Alerts)**: Transitive and direct dependency vulnerabilities including DOMPurify template bypass, SheetJS prototype pollution & ReDoS, proxy-addr IP spoofing, Zod memory exhaustion, Vite launch-editor, and body-parser DoS.
+This plan resolves all 4 issues identified across the user's dashboard images:
+1. **Vercel & GitHub Actions Build Failures** (`All checks have failed`):
+   - **Root Cause**: `src/lib/firebase.ts` had a hard static import `import rawFirebaseConfig from '../../firebase-applet-config.json'`. When `firebase-applet-config.json` was gitignored, remote CI environments (Vercel and GitHub Actions) failed to resolve the module and aborted the build. Additionally, an obsolete `shadcn/tailwind.css` import in `src/index.css` failed Vite styling transformation.
+   - **Fix**: Replace static file import with `import.meta.glob` safe loader so builds never fail when config files are absent in CI, and configure environment variable fallbacks for Vercel.
+2. **CodeQL Code Scanning Alerts (117 Open Alerts)**:
+   - **ReDoS in `server.ts`**: High-severity polynomial regular expression alerts (#114, #115, #116, #117) caused by uncontrolled `/<[^>]*>/g` replaces in endpoints. Replace with safe, linear sanitizers.
+   - **Insecure Randomness (`Math.random()`)**: High-severity alerts (#110, #111, #112, #113) across `AlumniContext.tsx`, `studentVerificationService.ts`, and `AdminQuickActionBar.tsx`. Replace with cryptographically secure `crypto.randomUUID()` and `crypto.getRandomValues()` utilities in `src/lib/secureId.ts`.
+3. **Dependabot Vulnerability Alerts (4 Remaining Open Alerts)**:
+   - Patch `qs` (DoS via Attacker Controlled isBuffer & arrayFormat), `deepmerge` (prototype poisoning), and `zod` by locking overrides and updating the dependency tree.
+4. **Google API Key Secret Scanning Alerts (3 Open Alerts)**:
+   - Provide exact verification and GitHub UI steps to mark false-positive/revoked and configure Google Cloud Console API restrictions.
 
 ---
 
-## Part 1: Resolving Secret Scanning Alerts (Google API Key Leaks)
+## User Review Required
 
-### Understanding the Alert
-- The flagged strings (`AIzaSy...`) are Firebase client-side identifiers used to route requests to your Firebase project. In Firebase architecture, web and mobile client keys are technically public client identifiers, but GitHub Secret Scanning alerts on any string matching the Google API key pattern.
-- Committing these in plaintext directly to a public GitHub repo triggers automated alerts and exposes your Firebase project quota if keys lack API restrictions.
-
-### Proposed Changes:
-1. **Update `.gitignore` to Exclude Sensitive Configurations & Built Assets**:
-   - Add `firebase-applet-config.json` to `.gitignore`.
-   - Add built web assets copied into mobile platforms (`ios/App/App/public/`, `android/app/src/main/assets/public/`, `dist/`) to `.gitignore` so minified JS files (like `index-Cm0BVnYY.js`) are never committed.
-   - Provide a sanitized `firebase-applet-config.example.json` for template reference without real keys.
-
-2. **Move Keys to Environment Variables in `firebase.ts`**:
-   - Ensure `src/lib/firebase.ts` reads `import.meta.env.VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`, etc., falling back gracefully.
-   - Update `.env.example` with clear documentation for all `VITE_FIREBASE_*` variables.
-
-3. **Sanitize Android `strings.xml`**:
-   - Replace the hardcoded `google_api_key` in `android/app/src/main/res/values/strings.xml` with placeholder text or extract to untracked `res/values/secrets.xml` / environment variables.
-
-4. **Security Advisory & Key Restriction Guidance**:
-   - Provide step-by-step instructions for Google Cloud Console:
-     - Restrict the Web API key by HTTP referrers (e.g., your app's domain).
-     - Restrict the Android API key by Package Name (`com.aistudio.applet.cnztsm`) and SHA-1 fingerprint.
-     - Guide the user on closing/resolving the 3 alerts in GitHub's "Security and quality" tab.
+> [!IMPORTANT]
+> - In Vercel Project Settings > **Environment Variables**, ensure you add `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_PROJECT_ID`, and `VITE_FIREBASE_APP_ID` if your production deployment relies on client-side Firebase.
+> - For the 3 Secret Scanning alerts on GitHub, because GitHub maintains historical commit scan records, navigate to **Security and quality** > **Secret scanning** and click **Close alert** > **Revoked / False positive**.
 
 ---
 
-## Part 2: Remediating Dependabot Vulnerability Alerts (45 Dependencies)
+## Proposed Changes
 
-### Targeted Vulnerability Fixes:
-1. **DOMPurify (`SAFE_FOR_TEMPLATES` & `IN_PLACE` bypasses)**:
-   - Upgrade `dompurify` and `@types/dompurify` to `^3.2.4` (or latest patched release).
-2. **SheetJS `xlsx` (Prototype Pollution & ReDoS)**:
-   - Add package override or upgrade `xlsx` to a patched release, or wrap ingestion with strict prototype sanitization.
-3. **Zod (Memory Exhaustion on Oversized Collections)**:
-   - Upgrade `zod` to `>= 3.23.8` (or `^3.24.0`).
-4. **Express / Body-Parser / Proxy-Addr (DoS & IP Spoofing)**:
-   - Upgrade `body-parser` (`>= 1.20.3`), `express` (`>= 4.21.1`), and `proxy-addr` (`>= 2.0.7`) in `package.json` and via npm `overrides`.
-5. **Vite / launch-editor (Windows path existence bypass)**:
-   - Upgrade `vite` to latest compatible patch version.
-6. **Execute Automated Fix**:
-   - Run `npm audit fix` to automatically resolve non-breaking transitive dependency vulnerabilities.
-   - Add targeted `overrides` in `package.json` for transitive dependencies that require specific minimum secure versions.
+### Phase 1: Vercel & CI Build Resiliency (`src/lib/firebase.ts`)
+- Replace the direct static import `import rawFirebaseConfig from '../../firebase-applet-config.json'` with Vite's safe glob loader:
+  ```ts
+  const localConfigModules = import.meta.glob('../../firebase-applet-config.json', { eager: true });
+  ```
+- If the file is gitignored or absent on Vercel/GitHub Actions, it defaults gracefully to empty object `{}` and consumes `import.meta.env.VITE_FIREBASE_*` without failing the Vite build.
+
+### Phase 2: CodeQL ReDoS Regular Expression Remediation (`server.ts`)
+- In `server.ts` lines 3123–3125 and line 3738, replace the polynomial regex `/<[^>]*>/g` with a safe, non-backtracking text sanitization utility:
+  ```ts
+  function sanitizePlainText(input: unknown, maxLength: number): string {
+    if (!input) return '';
+    return String(input)
+      .replace(/&[a-z0-9]+;/gi, ' ')
+      .replace(/[<>]/g, '')
+      .trim()
+      .slice(0, maxLength);
+  }
+  ```
+- This eliminates CodeQL alerts #114, #115, #116, #117.
+
+### Phase 3: Cryptographic Randomness Remediation (`src/lib/secureId.ts`)
+- Create `src/lib/secureId.ts`:
+  - `generateSecureId(prefix)`: Uses `crypto.randomUUID()` or `crypto.getRandomValues()`.
+  - `generateSecureNumericCode(digits)`: Generates cryptographically secure numeric codes.
+- Replace `Math.random()` in:
+  - `src/context/AlumniContext.tsx` (lines 1399, 3585, 3651, 4342, 4384, 4872, 5499, 5599)
+  - `src/services/studentVerificationService.ts` (lines 197, 971)
+  - `src/components/admin/AdminQuickActionBar.tsx` (line 46)
+  - `server.ts` (lines 3742, etc.)
+
+### Phase 4: Finalize Dependabot Overrides (`package.json`)
+- Add root overrides for `qs: "^6.14.0"` and `deepmerge: "^4.3.1"`.
+- Run `npm install` and verify `npm audit` shows 0 high/critical application vulnerabilities.
 
 ---
 
-## Part 3: Verification & Quality Assurance
+## Verification Plan
 
-1. **Type Checking & Linting**:
-   - Run `lint_applet` (`tsc --noEmit`) to verify zero TypeScript compilation issues.
-2. **Build Validation**:
-   - Run `compile_applet` (`npm run build`) to confirm the Vite bundle builds cleanly with upgraded packages.
-3. **Dependency Audit Re-check**:
-   - Run `npm audit` to verify the drop in critical and high vulnerabilities.
-4. **Deliverables Summary**:
-   - Provide summary of updated files, `.gitignore` entries, `.env.example` keys, and the exact steps to close the alerts on GitHub.
+### Automated Verification
+1. Run `lint_applet` (`tsc --noEmit`) to verify zero TypeScript errors.
+2. Run `compile_applet` (`npm run build`) with and without `firebase-applet-config.json` to prove Vercel and GitHub Actions will succeed.
+3. Run `npm audit` to verify vulnerabilities are cleared.

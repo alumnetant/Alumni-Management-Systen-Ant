@@ -16,6 +16,7 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
+import { generateSecureNumericCode } from '../../lib/secureId';
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
@@ -105,7 +106,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
     }
 
     setIsSending(true);
-    const localOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const localOtp = generateSecureNumericCode(100000, 999999).toString();
 
     try {
       const res = await fetch('/api/auth/send-otp', {
