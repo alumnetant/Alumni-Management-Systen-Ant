@@ -298,7 +298,7 @@ export type EventTemporalStatus = 'upcoming' | 'ongoing' | 'completed';
 
 export interface EventLifecycleInfo {
   status: EventTemporalStatus;
-  label: 'Upcoming' | 'Ongoing' | 'Completed';
+  label: 'Upcoming' | 'Ongoing' | 'Completed' | 'Ended';
   color: 'emerald' | 'amber' | 'stone';
   badgeClass: string;
   isUpcoming: boolean;
@@ -352,7 +352,7 @@ export function getEventLifecycleStatus(
 
   return {
     status: 'completed',
-    label: 'Completed',
+    label: 'Ended',
     color: 'stone',
     badgeClass: 'bg-stone-100 text-stone-700 border-stone-200/80 dark:bg-stone-800 dark:text-stone-300 dark:border-stone-700',
     isUpcoming: false,

@@ -134,17 +134,8 @@ export async function sendRealEmail(options: EmailOptions): Promise<{
     }
   }
 
-  // 4. Log to console fallback (guaranteed trace for development inspection)
-  console.log(`
-======================================================
-[EMAIL DISPATCH - CONSOLE TRACE & AUDIT]
-To: ${options.to}
-From: ${fromAddress}
-Subject: ${options.subject}
----
-${options.text}
-======================================================
-`);
+  // 4. Log to console fallback (sanitized trace without exposing plaintext security OTP)
+  console.log(`[Email Service] Dispatched "${options.subject}" to ${options.to}`);
 
   return {
     success: true,

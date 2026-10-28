@@ -394,44 +394,15 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 </button>
               </div>
 
-              {/* Email Notice Alert with 1-Click Autofill */}
-              <div className="mb-4 p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs shadow-xs">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-1.5 font-bold text-[11px] uppercase tracking-wider text-amber-800">
-                    <Mail className="w-3.5 h-3.5 text-amber-700" />
-                    <span>Campus Email Notice</span>
-                  </div>
-                  <span className="text-[10px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded-md font-mono">
-                    Official Notice
-                  </span>
+              {/* Institutional Email Instruction Banner (No plaintext OTP display) */}
+              <div className="mb-4 p-3 rounded-xl bg-stone-50 border border-stone-200 text-stone-700 text-xs shadow-2xs">
+                <div className="flex items-center gap-1.5 font-bold text-[11px] uppercase tracking-wider text-stone-800 mb-1">
+                  <Mail className="w-3.5 h-3.5 text-[#8B181B]" />
+                  <span>Security Code Dispatched</span>
                 </div>
-                <p className="text-[11px] text-amber-800 leading-relaxed mb-2">
-                  St. Cecilia’s Identity Protection has generated code:
-                  <strong className="font-mono text-sm tracking-widest text-[#8B181B] ml-1 px-1.5 py-0.5 bg-white rounded border border-amber-200">
-                    {generatedCode}
-                  </strong>
+                <p className="text-[11px] text-stone-600 leading-relaxed">
+                  Please check your inbox or spam folder for your 6-digit verification code. For security, one-time passcodes are never displayed on this screen.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setVerificationCode(generatedCode);
-                    setCopiedCode(true);
-                    setTimeout(() => setCopiedCode(false), 2000);
-                  }}
-                  className="w-full py-1.5 px-3 bg-white hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs"
-                >
-                  {copiedCode ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Autofilled Code!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5 text-amber-700" />
-                      <span>Click to Autofill Code</span>
-                    </>
-                  )}
-                </button>
               </div>
 
               <form onSubmit={handleVerifyCode} className="space-y-4">

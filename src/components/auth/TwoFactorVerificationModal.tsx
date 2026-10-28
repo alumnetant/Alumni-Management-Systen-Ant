@@ -37,7 +37,7 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
 
     // Show institutional email dispatch simulation notification
     const masked = maskEmail(userEmail);
-    setCodeNotification(`One-time security code: ${freshCode} (Dispatched to ${masked})`);
+    setCodeNotification(`A 6-digit security verification code has been dispatched to ${masked}.`);
 
     // Auto-focus first input
     setTimeout(() => {

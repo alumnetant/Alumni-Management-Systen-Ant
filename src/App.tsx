@@ -104,8 +104,9 @@ function AppContent() {
   const [showProfileSetupModal, setShowProfileSetupModal] = useState(false);
   const lastBackPressRef = React.useRef<number>(0);
 
-  // Secondary Face Detection Biometric Authentication Layer (Face ID App Lock)
+  // Secondary Face Detection Biometric Authentication Layer (Native Mobile APK Only)
   const [isAppBiometricallyLocked, setIsAppBiometricallyLocked] = useState<boolean>(() => {
+    if (!Capacitor.isNativePlatform()) return false;
     try {
       const savedUserId = localStorage.getItem(STORAGE_KEYS.USER_ID) || localStorage.getItem('alumni_auth_session_real_v1');
       if (savedUserId && isBiometricAppLockEnabled(savedUserId)) {
@@ -586,8 +587,8 @@ function AppContent() {
             />
           </motion.div>
         )
-      ) : isAppBiometricallyLocked ? (
-        /* Optical Face Detection Biometric Recognition Gate Before Accessing Main Dashboard */
+      ) : (isAppBiometricallyLocked && Capacitor.isNativePlatform()) ? (
+        /* Optical Face Detection Biometric Recognition Gate (Native Mobile APK Only) */
         <motion.div
           key="view-portal-biometric-gate"
           initial={{ opacity: 0 }}

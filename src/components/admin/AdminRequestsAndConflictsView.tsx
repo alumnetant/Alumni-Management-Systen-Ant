@@ -40,7 +40,8 @@ import {
   Layers,
   Globe,
   Radio,
-  Plus
+  Plus,
+  KeyRound
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import {
@@ -443,6 +444,93 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
       setResolvingConflictId(null);
       setSingleNote('');
     }
+  };
+
+  // Dedicated Duplicate Conflict Solution 1: Merge Accounts
+  const handleMergeConflict = async (conflict: RegistrationConflictRecord) => {
+    const actorName = currentUser?.name || 'Registrar Officer';
+    const normId = conflict.applicantStudentId ? normalizeStudentId(conflict.applicantStudentId).toUpperCase() : '';
+    const existingPrimary = users.find(
+      (u) => u.studentId && normalizeStudentId(u.studentId).toUpperCase() === normId
+    );
+
+    if (!existingPrimary) {
+      showToast('Could not locate primary verified account to merge into.', 'error');
+      return;
+    }
+
+    const note = singleNote.trim() || `Merged duplicate applicant (${conflict.applicantEmail}) into primary verified account (${existingPrimary.email}).`;
+
+    // 1. Update primary profile with note of alternate contact info
+    const mergedUpdates: Partial<UserProfile> = {};
+    if (conflict.applicantEmail && conflict.applicantEmail.toLowerCase() !== existingPrimary.email.toLowerCase()) {
+      mergedUpdates.bio = `${existingPrimary.bio || ''}\n[Merged Record: Alt email ${conflict.applicantEmail}]`.trim();
+    }
+    if (Object.keys(mergedUpdates).length > 0) {
+      await updateAlumniProfile(existingPrimary.uid, mergedUpdates);
+    }
+
+    // 2. Mark conflict resolved as rejected/merged
+    resolveConflictRecord(conflict.id, 'resolved_rejected', actorName, note);
+
+    addAuditLog({
+      action: 'CONFLICT_RESOLUTION_MERGED',
+      actorId: currentUser?.uid || 'registrar',
+      actorName,
+      actorRole: currentUser?.role || 'registrar',
+      category: 'conflict_resolution',
+      details: `Merged duplicate registration for ${conflict.applicantName} into verified member ${existingPrimary.name} (${existingPrimary.studentId}). Note: ${note}`,
+      severity: 'success'
+    });
+
+    showToast(`✓ Accounts merged. ${existingPrimary.name} remains the verified primary account.`);
+    loadConflicts();
+    setResolvingConflictId(null);
+    setSingleNote('');
+  };
+
+  // Dedicated Duplicate Conflict Solution 2: Reassign Student ID & Approve
+  const [reassignModalConflict, setReassignModalConflict] = useState<RegistrationConflictRecord | null>(null);
+  const [newReassignedId, setNewReassignedId] = useState<string>('');
+
+  const executeReassignAndApprove = async () => {
+    if (!reassignModalConflict || !newReassignedId.trim()) return;
+    const actorName = currentUser?.name || 'Registrar Officer';
+    const cleanId = newReassignedId.trim().toUpperCase();
+    const note = singleNote.trim() || `Student ID corrected to ${cleanId} to resolve clerical collision with existing record.`;
+
+    const targetUser = users.find(
+      (u) =>
+        (reassignModalConflict.applicantUid && u.uid === reassignModalConflict.applicantUid) ||
+        u.email.toLowerCase() === reassignModalConflict.applicantEmail.toLowerCase()
+    );
+
+    if (targetUser) {
+      await updateAlumniProfile(targetUser.uid, {
+        studentId: cleanId,
+        isVerified: true
+      });
+      setUserVerified(targetUser.uid, true);
+    }
+
+    resolveConflictRecord(reassignModalConflict.id, 'resolved_verified', actorName, note);
+
+    addAuditLog({
+      action: 'CONFLICT_RESOLUTION_REASSIGNED',
+      actorId: currentUser?.uid || 'registrar',
+      actorName,
+      actorRole: currentUser?.role || 'registrar',
+      category: 'conflict_resolution',
+      details: `Reassigned Student ID for ${reassignModalConflict.applicantName} to ${cleanId} and approved verification.`,
+      severity: 'success'
+    });
+
+    showToast(`✓ Student ID updated to ${cleanId} and applicant approved!`, 'success');
+    setReassignModalConflict(null);
+    setNewReassignedId('');
+    setResolvingConflictId(null);
+    setSingleNote('');
+    loadConflicts();
   };
 
   // Multi-select for conflicts
@@ -1226,47 +1314,82 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (resolvingConflictId !== conflict.id) {
-                                    setResolvingConflictId(conflict.id);
-                                  } else {
-                                    handleResolveConflict(conflict, 'resolved_rejected');
-                                  }
-                                }}
-                                className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                              >
-                                Reject Duplicate
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (resolvingConflictId !== conflict.id) {
-                                    setResolvingConflictId(conflict.id);
-                                  } else {
-                                    handleResolveConflict(conflict, 'dismissed');
-                                  }
-                                }}
-                                className="px-3 py-1.5 text-stone-500 hover:text-stone-800 text-xs font-medium cursor-pointer"
-                              >
-                                Dismiss
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (resolvingConflictId !== conflict.id) {
-                                    setResolvingConflictId(conflict.id);
-                                  } else {
-                                    handleResolveConflict(conflict, 'resolved_verified');
-                                  }
-                                }}
-                                className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
-                              >
-                                <UserCheck className="w-3.5 h-3.5" />
-                                <span>Approve & Verify</span>
-                              </button>
+                            <div className="flex flex-wrap items-center gap-2 shrink-0">
+                              {conflict.conflictType === 'duplicate_id' ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleResolveConflict(conflict, 'resolved_rejected')}
+                                    className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                    title="Keep original account 1 and reject applicant 2"
+                                  >
+                                    Keep Original (Reject)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMergeConflict(conflict)}
+                                    className="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                    title="Merge applicant contact data into primary verified account"
+                                  >
+                                    Merge Accounts
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setReassignModalConflict(conflict);
+                                      setNewReassignedId(conflict.applicantStudentId || 'SCC-2024-');
+                                    }}
+                                    className="px-3 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                                    title="Fix clerical ID typo and verify applicant"
+                                  >
+                                    <KeyRound className="w-3.5 h-3.5" />
+                                    <span>Reassign ID & Approve</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (resolvingConflictId !== conflict.id) {
+                                        setResolvingConflictId(conflict.id);
+                                      } else {
+                                        handleResolveConflict(conflict, 'resolved_rejected');
+                                      }
+                                    }}
+                                    className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    Reject
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (resolvingConflictId !== conflict.id) {
+                                        setResolvingConflictId(conflict.id);
+                                      } else {
+                                        handleResolveConflict(conflict, 'dismissed');
+                                      }
+                                    }}
+                                    className="px-3 py-1.5 text-stone-500 hover:text-stone-800 text-xs font-medium cursor-pointer"
+                                  >
+                                    Dismiss
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (resolvingConflictId !== conflict.id) {
+                                        setResolvingConflictId(conflict.id);
+                                      } else {
+                                        handleResolveConflict(conflict, 'resolved_verified');
+                                      }
+                                    }}
+                                    className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                                  >
+                                    <UserCheck className="w-3.5 h-3.5" />
+                                    <span>Approve & Verify</span>
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1408,6 +1531,77 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
             )}
         </div>
       </div>
+
+      {/* Reassign Student ID Hearing Dialog */}
+      {reassignModalConflict && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-5 py-4 bg-stone-50 border-b border-stone-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-[#8B181B]" />
+                <h3 className="font-bold text-sm text-stone-900">Reassign Student ID & Verify</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReassignModalConflict(null)}
+                className="p-1 rounded-lg text-stone-400 hover:text-stone-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <p className="text-stone-600 leading-relaxed">
+                If applicant <strong className="text-stone-900">{reassignModalConflict.applicantName}</strong> encountered an ID collision due to a clerical typo, assign their correct unique student identifier below. This will update their account profile and grant verified status.
+              </p>
+
+              <div>
+                <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                  Corrected Student ID <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newReassignedId}
+                  onChange={(e) => setNewReassignedId(e.target.value)}
+                  placeholder="e.g. SCC-2024-9876"
+                  className="w-full px-3 py-2 font-mono font-semibold bg-stone-50 border border-stone-200 rounded-xl text-sm uppercase focus:bg-white focus:border-[#8B181B]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                  Hearing Deliberation Note
+                </label>
+                <input
+                  type="text"
+                  value={singleNote}
+                  onChange={(e) => setSingleNote(e.target.value)}
+                  placeholder="e.g. Verified official transcript; corrected typo in registration ID."
+                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setReassignModalConflict(null)}
+                  className="px-3.5 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={executeReassignAndApprove}
+                  className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Reassign & Approve</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

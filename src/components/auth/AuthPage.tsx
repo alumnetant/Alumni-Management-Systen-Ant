@@ -1866,8 +1866,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   : 'SIGN IN'}
               </button>
 
-              {/* Multi-Modal Biometric Quick Login (Face Detection & Fingerprint Sensor) */}
-              {biometricAvail.isAvailable && (
+              {/* Multi-Modal Biometric Quick Login (Native Android APK / iOS Only) */}
+              {biometricAvail.isAvailable && Capacitor.isNativePlatform() && (
                 <div className="pt-2">
                   <div className="relative flex py-2 items-center">
                     <div className="flex-grow border-t border-stone-200"></div>
@@ -2778,304 +2778,182 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       </p>
                     </div>
 
-                    {/* Official Verified Identity Card - Read Only / Locked Name */}
-                    <div className="mb-5 p-4 bg-stone-50/90 border border-stone-200 rounded-2xl relative shadow-2xs space-y-3">
-                      <div className="flex items-center justify-between pb-2 border-b border-stone-200/80">
+                    {/* Section 1: Official Verified Identity (Streamlined Compact Card) */}
+                    <div className="mb-4 p-3.5 bg-stone-50 border border-stone-200/90 rounded-2xl shadow-2xs">
+                      <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-stone-200/70">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-stone-800">
                           <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                          <span>Official Verified Identity</span>
+                          <span>Registrar Verified Identity</span>
                         </div>
-                        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-stone-200/80 text-[10px] font-bold text-stone-700">
-                          <Lock className="w-3 h-3 text-stone-500" />
-                          <span>Locked to Registrar</span>
-                        </div>
-                      </div>
-
-                      {/* Official Alumnus Name Display - Cannot be modified */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <label className="block text-[10px] font-bold text-stone-600 uppercase tracking-wider">
-                              OFFICIAL ALUMNUS NAME
-                            </label>
-
-                            {/* Hover Tooltip explaining locked name */}
-                            <div className="relative group/tooltip">
-                              <button
-                                type="button"
-                                className="text-stone-400 hover:text-stone-700 transition-colors p-0.5 rounded cursor-help"
-                                aria-label="Why name is locked"
-                              >
-                                <HelpCircle className="w-3 h-3 text-stone-400" />
-                              </button>
-                              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-72 p-3 bg-stone-900 text-stone-100 text-[11px] rounded-xl shadow-xl pointer-events-none opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-50 transform translate-y-1 group-hover/tooltip:translate-y-0 border border-stone-800">
-                                <div className="font-semibold text-white mb-1 flex items-center gap-1">
-                                  <Lock className="w-3 h-3 text-amber-400" />
-                                  <span>Registrar-Bound Official Name</span>
-                                </div>
-                                <p className="text-stone-300 leading-snug">
-                                  Your legal full name is permanently locked to match official St. Cecilia’s College graduation records to preserve verified institutional credentialing.
-                                </p>
-                                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-stone-900" />
-                              </div>
-                            </div>
-                          </div>
-
-                          <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            Registrar Verified
-                          </span>
-                        </div>
-
-                        <div className="relative">
-                          <input
-                            type="text"
-                            readOnly
-                            disabled
-                            value={verifiedRecord?.fullName || `${firstName} ${lastName}`.trim()}
-                            className="w-full pl-9 pr-10 py-2.5 bg-stone-100/90 border border-stone-200/90 text-stone-900 font-semibold rounded-xl text-sm cursor-not-allowed select-none shadow-2xs"
-                          />
-                          <User className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-stone-400">
-                            <Lock className="w-3.5 h-3.5" />
-                          </div>
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-200/80 text-[10px] font-bold text-stone-700">
+                          <Lock className="w-2.5 h-2.5 text-stone-500" />
+                          <span>Locked</span>
                         </div>
                       </div>
 
-                      {/* Degree Program & Graduation Batch (Read-Only from ID Record) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-0.5">
-                        <div className="p-2.5 bg-white border border-stone-200/80 rounded-xl">
-                          <span className="text-[10px] text-stone-400 font-semibold uppercase block">
-                            Degree Program
-                          </span>
-                          <span className="font-semibold text-stone-800 line-clamp-1">
-                            {verifiedRecord?.course || course}
+                      <div className="space-y-1">
+                        <div className="text-sm font-bold text-stone-900 tracking-tight">
+                          {verifiedRecord?.fullName || `${firstName} ${lastName}`.trim()}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-stone-600">
+                          <span className="font-medium">Class of {verifiedRecord?.batchYear || batch}</span>
+                          <span className="text-stone-300">•</span>
+                          <span className="font-medium text-stone-700 truncate">{verifiedRecord?.course || course}</span>
+                        </div>
+                        <div className="pt-1 flex items-center justify-between text-[11px]">
+                          <span className="text-stone-500">Official Alumni ID:</span>
+                          <span className="font-mono font-bold text-[#8B181B] bg-red-50 px-2 py-0.5 rounded border border-red-200/60">
+                            {previewAlumniId}
                           </span>
                         </div>
-                        <div className="p-2.5 bg-white border border-stone-200/80 rounded-xl">
-                          <span className="text-[10px] text-stone-400 font-semibold uppercase block">
-                            Graduation Batch
-                          </span>
-                          <span className="font-semibold text-stone-800">
-                            Class of {verifiedRecord?.batchYear || batch}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Official Alumni ID Preview */}
-                      <div className="flex items-center justify-between pt-1 px-1 text-[11px] text-stone-500">
-                        <span>Generated Alumni ID:</span>
-                        <span className="font-mono font-bold text-[#8B181B] bg-red-50 px-2 py-0.5 rounded border border-red-200/70">
-                          {previewAlumniId}
-                        </span>
                       </div>
                     </div>
 
                     {step2Error && (
-                      <div className="mb-4 p-3.5 rounded-xl bg-red-50 text-red-800 text-xs border border-red-200/80 flex items-center gap-2">
+                      <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-800 text-xs border border-red-200/80 flex items-center gap-2">
                         <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                         <span>{step2Error}</span>
                       </div>
                     )}
 
-                    <form onSubmit={handleProceedFromStep2ToStep3} className="space-y-3.5">
-                      {/* Email Address */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                          Portal Email Address <span className="text-red-600">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="email"
-                            required
-                            value={regEmail}
-                            onChange={(e) => setRegEmail(e.target.value)}
-                            placeholder="e.g. juan.delacruz@alumni.stcecilia.edu"
-                            className="w-full pl-9 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
-                          />
-                          <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        </div>
-                      </div>
+                    <form onSubmit={handleProceedFromStep2ToStep3} className="space-y-4">
+                      {/* Section 2: Account Login Credentials */}
+                      <div className="p-4 bg-white rounded-2xl border border-stone-200/90 shadow-2xs space-y-3.5">
+                        <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+                          <KeyRound className="w-3.5 h-3.5 text-[#8B181B]" />
+                          <span>Portal Login Credentials</span>
+                        </h4>
 
-                      {/* Password with Hover Checklist Tooltip */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider">
-                              Create Password <span className="text-red-600">*</span>
-                            </label>
-
-                            {/* Hover Tooltip for Password Rules */}
-                            <div className="relative group/tooltip">
-                              <button
-                                type="button"
-                                className="text-stone-400 hover:text-[#8B181B] transition-colors p-0.5 rounded cursor-help"
-                                aria-label="Password rules"
-                              >
-                                <HelpCircle className="w-3.5 h-3.5" />
-                              </button>
-                              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-64 p-3 bg-stone-900 text-stone-100 text-[11px] rounded-xl shadow-xl pointer-events-none opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-50 transform translate-y-1 group-hover/tooltip:translate-y-0 border border-stone-800">
-                                <div className="font-semibold text-white mb-1.5 flex items-center gap-1">
-                                  <KeyRound className="w-3 h-3 text-amber-400" />
-                                  <span>Password Security Criteria</span>
-                                </div>
-                                <div className="space-y-1 text-stone-300">
-                                  <div
-                                    className={`flex items-center gap-1.5 ${
-                                      hasMinLength ? 'text-emerald-400 font-semibold' : ''
-                                    }`}
-                                  >
-                                    <span>{hasMinLength ? '✓' : '•'}</span>
-                                    <span>At least 8 characters</span>
-                                  </div>
-                                  <div
-                                    className={`flex items-center gap-1.5 ${
-                                      hasUppercase ? 'text-emerald-400 font-semibold' : ''
-                                    }`}
-                                  >
-                                    <span>{hasUppercase ? '✓' : '•'}</span>
-                                    <span>At least one uppercase letter (A-Z)</span>
-                                  </div>
-                                  <div
-                                    className={`flex items-center gap-1.5 ${
-                                      hasNumber ? 'text-emerald-400 font-semibold' : ''
-                                    }`}
-                                  >
-                                    <span>{hasNumber ? '✓' : '•'}</span>
-                                    <span>At least one number (0-9)</span>
-                                  </div>
-                                </div>
-                                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-stone-900" />
-                              </div>
-                            </div>
+                        {/* Email Address */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                            Email Address <span className="text-red-600">*</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="email"
+                              required
+                              value={regEmail}
+                              onChange={(e) => setRegEmail(e.target.value)}
+                              placeholder="e.g. juan.delacruz@alumni.stcecilia.edu"
+                              className="w-full pl-9 pr-4 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 rounded-xl text-sm focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
+                            />
+                            <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                           </div>
                         </div>
 
-                        <div className="relative">
-                          <input
-                            type={showRegPassword ? 'text' : 'password'}
-                            required
-                            value={regPassword}
-                            onChange={(e) => setRegPassword(e.target.value)}
-                            placeholder="••••••••••••"
-                            className="w-full pl-9 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
-                          />
-                          <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <button
-                            type="button"
-                            onClick={() => setShowRegPassword(!showRegPassword)}
-                            style={{
-                              position: 'absolute',
-                              top: 0,
-                              bottom: 0,
-                              right: '10px',
-                              marginTop: 'auto',
-                              marginBottom: 'auto',
-                              height: '32px',
-                              width: '32px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              transform: 'none',
-                              translate: 'none'
-                            }}
-                            className="no-gooey text-stone-400 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 cursor-pointer z-10"
-                            aria-label={showRegPassword ? 'Hide password' : 'Show password'}
-                          >
-                            {showRegPassword ? <EyeOff className="w-4.5 h-4.5" strokeWidth={1.75} /> : <Eye className="w-4.5 h-4.5" strokeWidth={1.75} />}
-                          </button>
-                        </div>
-                      </div>
+                        {/* Password with clean inline criteria */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                            Create Password <span className="text-red-600">*</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showRegPassword ? 'text' : 'password'}
+                              required
+                              value={regPassword}
+                              onChange={(e) => setRegPassword(e.target.value)}
+                              placeholder="••••••••••••"
+                              className="w-full pl-9 pr-10 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 rounded-xl text-sm focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
+                            />
+                            <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <button
+                              type="button"
+                              onClick={() => setShowRegPassword(!showRegPassword)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                              aria-label={showRegPassword ? 'Hide password' : 'Show password'}
+                            >
+                              {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
 
-                      {/* Confirm Password */}
-                      <div>
-                        <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                          Confirm Password <span className="text-red-600">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showConfirmPassword ? 'text' : 'password'}
-                            required
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            placeholder="••••••••••••"
-                            className="w-full pl-9 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
-                          />
-                          <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <button
-                            type="button"
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            style={{
-                              position: 'absolute',
-                              top: 0,
-                              bottom: 0,
-                              right: '10px',
-                              marginTop: 'auto',
-                              marginBottom: 'auto',
-                              height: '32px',
-                              width: '32px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              transform: 'none',
-                              translate: 'none'
-                            }}
-                            className="no-gooey text-stone-400 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200 cursor-pointer z-10"
-                            aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                          >
-                            {showConfirmPassword ? <EyeOff className="w-4.5 h-4.5" strokeWidth={1.75} /> : <Eye className="w-4.5 h-4.5" strokeWidth={1.75} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Account Type Selector (Alumnus vs Student) */}
-                      <div className="pt-1">
-                        <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                          Account Classification
-                        </label>
-                        <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100 rounded-xl">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRegAccountType('alumni');
-                              if (regEmploymentStatus === 'Student') setRegEmploymentStatus('Employed');
-                            }}
-                            className={`py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                              regAccountType === 'alumni'
-                                ? 'bg-white text-stone-900 shadow-xs'
-                                : 'text-stone-600 hover:text-stone-900'
-                            }`}
-                          >
-                            <GraduationCap className="w-3.5 h-3.5 text-[#8B181B]" />
-                            <span>Graduated Alumnus</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRegAccountType('student');
-                              setRegEmploymentStatus('Student');
-                            }}
-                            className={`py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                              regAccountType === 'student'
-                                ? 'bg-white text-stone-900 shadow-xs'
-                                : 'text-stone-600 hover:text-stone-900'
-                            }`}
-                          >
-                            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Current Student</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Optional Job / Employment Information Card */}
-                      <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200/90 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Briefcase className="w-4 h-4 text-[#8B181B]" />
-                            <span className="text-xs font-bold text-stone-800 uppercase tracking-wider">
-                              Employment Information <span className="font-normal text-stone-500 normal-case">(Optional)</span>
+                          {/* Inline requirement indicators */}
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 px-0.5 text-[11px]">
+                            <span className={`inline-flex items-center gap-1 ${hasMinLength ? 'text-emerald-700 font-semibold' : 'text-stone-400'}`}>
+                              <span>{hasMinLength ? '✓' : '•'}</span> 8+ chars
+                            </span>
+                            <span className={`inline-flex items-center gap-1 ${hasUppercase ? 'text-emerald-700 font-semibold' : 'text-stone-400'}`}>
+                              <span>{hasUppercase ? '✓' : '•'}</span> Uppercase
+                            </span>
+                            <span className={`inline-flex items-center gap-1 ${hasNumber ? 'text-emerald-700 font-semibold' : 'text-stone-400'}`}>
+                              <span>{hasNumber ? '✓' : '•'}</span> Number
                             </span>
                           </div>
+                        </div>
+
+                        {/* Confirm Password */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                            Confirm Password <span className="text-red-600">*</span>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showConfirmPassword ? 'text' : 'password'}
+                              required
+                              value={confirmPassword}
+                              onChange={(e) => setConfirmPassword(e.target.value)}
+                              placeholder="••••••••••••"
+                              className="w-full pl-9 pr-10 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 rounded-xl text-sm focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
+                            />
+                            <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                              aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                            >
+                              {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Account Classification */}
+                        <div className="pt-1">
+                          <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                            Account Classification
+                          </label>
+                          <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100 rounded-xl">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRegAccountType('alumni');
+                                if (regEmploymentStatus === 'Student') setRegEmploymentStatus('Employed');
+                              }}
+                              className={`py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                regAccountType === 'alumni'
+                                  ? 'bg-white text-stone-900 shadow-xs'
+                                  : 'text-stone-600 hover:text-stone-900'
+                              }`}
+                            >
+                              <GraduationCap className="w-3.5 h-3.5 text-[#8B181B]" />
+                              <span>Graduated Alumnus</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRegAccountType('student');
+                                setRegEmploymentStatus('Student');
+                              }}
+                              className={`py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                regAccountType === 'student'
+                                  ? 'bg-white text-stone-900 shadow-xs'
+                                  : 'text-stone-600 hover:text-stone-900'
+                              }`}
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Current Student</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Section 3: Professional & Contact Details (Optional) */}
+                      <div className="p-4 bg-stone-50/70 rounded-2xl border border-stone-200/80 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider flex items-center gap-1.5">
+                            <Briefcase className="w-3.5 h-3.5 text-[#8B181B]" />
+                            <span>Professional Profile <span className="font-normal text-stone-500 normal-case">(Optional)</span></span>
+                          </h4>
                           <button
                             type="button"
                             onClick={() => {
@@ -3085,105 +2963,61 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                             }}
                             className="text-[11px] text-stone-500 hover:text-[#8B181B] font-semibold underline cursor-pointer"
                           >
-                            Leave Blank / N/A
+                            Skip / N/A
                           </button>
                         </div>
 
-                        <p className="text-[11px] text-stone-600 leading-relaxed">
-                          {regAccountType === 'student'
-                            ? 'Students who select the Student account type are allowed to register without entering employment information.'
-                            : 'Currently unemployed or have no job? You may leave this blank or select/enter N/A. Registration proceeds successfully.'}
-                        </p>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           <div>
-                            <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">
-                              Current Job Title / Position <span className="text-stone-400 font-normal">(optional)</span>
+                            <label className="block text-[11px] font-medium text-stone-600 mb-1">
+                              Current Role / Position
                             </label>
-                            <div className="relative">
-                              <input
-                                type="text"
-                                value={regPosition}
-                                onChange={(e) => setRegPosition(e.target.value)}
-                                placeholder={regAccountType === 'student' ? 'e.g. Student or leave blank' : 'e.g. Software Dev, N/A, or blank'}
-                                className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
-                              />
-                              <Briefcase className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            </div>
+                            <input
+                              type="text"
+                              value={regPosition}
+                              onChange={(e) => setRegPosition(e.target.value)}
+                              placeholder="e.g. Software Engineer, Teacher, N/A"
+                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
+                            />
                           </div>
-
                           <div>
-                            <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1">
-                              Company / Organization <span className="text-stone-400 font-normal">(optional)</span>
+                            <label className="block text-[11px] font-medium text-stone-600 mb-1">
+                              Company / Organization
                             </label>
-                            <div className="relative">
-                              <input
-                                type="text"
-                                value={regCompany}
-                                onChange={(e) => setRegCompany(e.target.value)}
-                                placeholder={regAccountType === 'student' ? 'e.g. St. Cecilia’s College or blank' : 'e.g. Company name, N/A, or blank'}
-                                className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
-                              />
-                              <Building className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                            </div>
+                            <input
+                              type="text"
+                              value={regCompany}
+                              onChange={(e) => setRegCompany(e.target.value)}
+                              placeholder="e.g. DepEd, Tech Corp, N/A"
+                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
+                            />
                           </div>
                         </div>
 
-                        {/* Employment Status Selector Chips */}
-                        <div>
-                          <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1.5">
-                            Status <span className="text-stone-400 font-normal">(optional)</span>
-                          </label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {['Student', 'Employed', 'Self-Employed', 'Unemployed', 'N/A'].map((st) => (
-                              <button
-                                key={st}
-                                type="button"
-                                onClick={() => setRegEmploymentStatus(st)}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
-                                  regEmploymentStatus === st
-                                    ? 'bg-[#8B181B] text-white shadow-xs'
-                                    : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-100'
-                                }`}
-                              >
-                                {st}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Optional Phone & Location */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0.5">
-                        <div>
-                          <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1.5">
-                            Contact Number <span className="text-stone-400 font-normal">(optional)</span>
-                          </label>
-                          <div className="relative">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-medium text-stone-600 mb-1">
+                              Phone Number <span className="text-stone-400 font-normal">(optional)</span>
+                            </label>
                             <input
                               type="text"
                               value={phone}
                               onChange={(e) => setPhone(e.target.value)}
                               placeholder="+63 917 123 4567"
-                              className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-xl text-sm"
+                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
                             />
-                            <Phone className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                           </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider mb-1.5">
-                            Residence / City <span className="text-stone-400 font-normal">(optional)</span>
-                          </label>
-                          <div className="relative">
+                          <div>
+                            <label className="block text-[11px] font-medium text-stone-600 mb-1">
+                              City / Residence <span className="text-stone-400 font-normal">(optional)</span>
+                            </label>
                             <input
                               type="text"
                               value={location}
                               onChange={(e) => setLocation(e.target.value)}
-                              placeholder="Cebu, Philippines"
-                              className="w-full pl-9 pr-3 py-2 bg-white border border-stone-200 rounded-xl text-sm"
+                              placeholder="Minglanilla, Cebu"
+                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
                             />
-                            <MapPin className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                           </div>
                         </div>
                       </div>

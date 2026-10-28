@@ -80,7 +80,7 @@ export const EventsView: React.FC = () => {
     showToast
   } = useAlumni();
 
-  const [filterType, setFilterType] = useState<'upcoming' | 'ongoing' | 'past' | 'all'>('all');
+  const [filterType, setFilterType] = useState<'upcoming' | 'ongoing' | 'past' | 'all'>('upcoming');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'reunion' | 'workshop' | 'networking' | 'webinar' | 'social'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
@@ -168,6 +168,8 @@ export const EventsView: React.FC = () => {
       const isOngoing = eventStart < nowMs && eventEnd >= nowMs;
       const isPast = eventEnd < nowMs;
 
+      // Ensure passed events never display alongside upcoming gatherings
+      if ((filterType === 'upcoming' || filterType === 'all') && isPast) return false;
       if (filterType === 'upcoming' && !isUpcoming) return false;
       if (filterType === 'ongoing' && !isOngoing) return false;
       if (filterType === 'past' && !isPast) return false;
@@ -549,7 +551,7 @@ export const EventsView: React.FC = () => {
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
-              <span>Completed ({events.filter((e) => getEventLifecycleStatus(e, now).status === 'completed').length})</span>
+              <span>Ended ({events.filter((e) => getEventLifecycleStatus(e, now).status === 'completed').length})</span>
             </button>
 
             <button
