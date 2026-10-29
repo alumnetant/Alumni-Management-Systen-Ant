@@ -1266,7 +1266,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(true);
   const [isFirestoreSyncing, setIsFirestoreSyncing] = useState<boolean>(false);
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(() => auth.currentUser);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(() => auth?.currentUser || null);
   const [authReady, setAuthReady] = useState<boolean>(false);
 
   // Automation datasets

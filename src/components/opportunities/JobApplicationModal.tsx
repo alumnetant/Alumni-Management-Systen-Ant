@@ -55,7 +55,7 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
       .filter(Boolean);
 
     const dynamicCandidate = {
-      ...currentUser,
+      ...(currentUser || {}),
       course: applicantCourse || currentUser?.course,
       skills: mySkillsList,
       location: applicantLocation || currentUser?.location,
