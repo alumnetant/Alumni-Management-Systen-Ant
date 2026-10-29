@@ -6,7 +6,8 @@ const config: CapacitorConfig = {
   appName: 'Cecilian Alumnet',
   webDir: 'dist',
   server: {
-    androidScheme: 'https'
+    androidScheme: 'https',
+    cleartext: true
   },
   plugins: {
     SplashScreen: {

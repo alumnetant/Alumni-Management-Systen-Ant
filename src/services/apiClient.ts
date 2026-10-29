@@ -4,10 +4,36 @@
  *
  * Injects:
  * - 'Authorization: Bearer <server_auth_token>'
+ * - Resolves remote backend URL when running inside native Android APK
  *
- * Ensures all outbound API communication carries the authenticated session context
- * across all devices (desktop web, mobile web, tablet, PWA, and native Android APK).
+ * Ensures all outbound API communication carries authenticated session context
+ * and reaches the live server across all devices (desktop web, mobile web, tablet, PWA, and native Android APK).
  */
+
+import { Capacitor } from '@capacitor/core';
+
+export const REMOTE_API_FALLBACK = 'https://ais-pre-js4yzqo7mj7uozlkhn6ayj-399985038754.asia-northeast1.run.app';
+
+export function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
+    return envUrl.trim().replace(/\/+$/, '');
+  }
+  if (Capacitor.isNativePlatform()) {
+    return REMOTE_API_FALLBACK.replace(/\/+$/, '');
+  }
+  return '';
+}
+
+export function resolveApiUrl(path: string): string {
+  // If already absolute URL with http(s), return as is
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const baseUrl = getApiBaseUrl();
+  return baseUrl ? `${baseUrl}${normalizedPath}` : normalizedPath;
+}
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
@@ -25,11 +51,20 @@ export function getAuthToken(): string | null {
 
 /**
  * Enhanced fetch wrapper that automatically attaches the bearer auth header
+ * and resolves absolute remote URLs when on native platforms.
  */
 export async function apiFetch(
   input: RequestInfo | URL,
   init?: RequestInit
 ): Promise<Response> {
+  const urlString =
+    typeof input === 'string'
+      ? input
+      : input instanceof URL
+      ? input.toString()
+      : (input as Request).url || '';
+
+  const targetUrl = resolveApiUrl(urlString);
   const token = getAuthToken();
   const headers = new Headers(init?.headers || {});
 
@@ -38,7 +73,7 @@ export async function apiFetch(
     headers.set('Authorization', `Bearer ${token}`);
   }
 
-  return fetch(input, {
+  return fetch(targetUrl, {
     ...init,
     headers
   });
@@ -50,6 +85,7 @@ let isInterceptorInstalled = false;
  * Installs a safe fetch interceptor on window.fetch
  * All relative or local requests to /api/* automatically receive:
  * - 'Authorization: Bearer <token>'
+ * - Remote URL resolution on native Android APK
  */
 export function installFetchInterceptor(): void {
   if (typeof window === 'undefined' || isInterceptorInstalled) return;
@@ -79,6 +115,11 @@ export function installFetchInterceptor(): void {
             urlString.includes('/api/'));
 
         if (isApiRoute) {
+          const rawPath = typeof window !== 'undefined' && urlString.startsWith(window.location.origin)
+            ? urlString.slice(window.location.origin.length)
+            : urlString;
+
+          const resolvedTarget = resolveApiUrl(rawPath);
           const token = getAuthToken();
           const headers = new Headers(
             init?.headers || (input instanceof Request ? input.headers : {})
@@ -89,14 +130,14 @@ export function installFetchInterceptor(): void {
           }
 
           if (input instanceof Request) {
-            const modifiedRequest = new Request(input, {
+            const modifiedRequest = new Request(resolvedTarget, {
               ...init,
               headers
             });
             return originalFetch(modifiedRequest);
           }
 
-          return originalFetch(input, {
+          return originalFetch(resolvedTarget, {
             ...init,
             headers
           });

@@ -662,15 +662,29 @@ export const MessagesView: React.FC = () => {
                 className="p-3.5 border-b space-y-2.5"
               >
                 <div className="flex items-center justify-between">
-                  <span className="editorial-kicker">
-                    DISPATCH CHANNELS
-                  </span>
-                  <span
-                    style={{ color: 'var(--dm-text-muted)' }}
-                    className="text-[11px] font-mono tabular-nums"
+                  <div className="flex items-center gap-2">
+                    <span className="editorial-kicker">
+                      DISPATCH CHANNELS
+                    </span>
+                    <span
+                      style={{ color: 'var(--dm-text-muted)' }}
+                      className="text-[11px] font-mono tabular-nums"
+                    >
+                      ({filteredChats.length})
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContactDirectorySearch('');
+                      setShowNewChatModal(true);
+                    }}
+                    title="Start new conversation"
+                    className="p-1 rounded-lg text-[#8B181B] dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors flex items-center gap-1 text-xs font-semibold cursor-pointer"
                   >
-                    {filteredChats.length} showing
-                  </span>
+                    <Plus className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">New</span>
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1871,130 +1885,155 @@ export const MessagesView: React.FC = () => {
                 </div>
               </>
             ) : (
-              /* ZERO-STATE: ALUMNI DISPATCH DIRECTORY DESK */
+              /* ZERO-STATE: MINIMALIST INSTITUTIONAL WELCOME VIEW */
               <div
                 style={{ backgroundColor: 'var(--dm-bg-chat)' }}
-                className="flex-1 p-4 sm:p-5 lg:p-6 overflow-y-auto space-y-4"
+                className="flex-1 p-6 sm:p-8 lg:p-12 overflow-y-auto flex items-center justify-center min-h-[500px]"
               >
-                <div className="w-full space-y-4">
-                  {/* Filter & Search Bar */}
-                  <div
-                    style={{
-                      backgroundColor: 'var(--dm-card-bg)',
-                      borderColor: 'var(--dm-card-border)',
-                    }}
-                    className="p-3 sm:p-3.5 rounded-2xl border shadow-2xs"
-                  >
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                      <div className="relative flex-1">
-                        <Search
-                          style={{ color: 'var(--dm-text-muted)' }}
-                          className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                        />
-                        <input
-                          type="text"
-                          value={contactDirectorySearch}
-                          onChange={(e) => setContactDirectorySearch(e.target.value)}
-                          placeholder="Search alumni by name, course, batch, or company..."
-                          style={{
-                            backgroundColor: 'var(--dm-input-bg)',
-                            borderColor: 'var(--dm-input-border)',
-                            color: 'var(--dm-input-text)',
-                          }}
-                          className="w-full pl-9 pr-8 py-2 text-xs border rounded-xl focus:outline-hidden focus:border-[#8B181B] transition-colors"
-                        />
-                      </div>
-
-                      <div
-                        style={{ backgroundColor: 'var(--dm-input-bg)' }}
-                        className="flex items-center gap-1 p-0.5 rounded-xl text-xs shrink-0"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setContactFilter('all')}
-                          style={{
-                            backgroundColor: contactFilter === 'all' ? 'var(--dm-card-bg)' : 'transparent',
-                            color: contactFilter === 'all' ? 'var(--dm-text-primary)' : 'var(--dm-text-secondary)',
-                          }}
-                          className="px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer shadow-2xs"
-                        >
-                          All ({users.length - 1})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setContactFilter('staff')}
-                          style={{
-                            backgroundColor: contactFilter === 'staff' ? 'var(--dm-card-bg)' : 'transparent',
-                            color: contactFilter === 'staff' ? 'var(--dm-text-primary)' : 'var(--dm-text-secondary)',
-                          }}
-                          className="px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer shadow-2xs"
-                        >
-                          Staff & Officers
-                        </button>
-                      </div>
+                <div className="max-w-xl w-full mx-auto text-center space-y-8 animate-in fade-in duration-200">
+                  {/* Institutional Seal / Icon Lockup */}
+                  <div className="relative inline-flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-3xl bg-stone-100 dark:bg-stone-800/80 border border-stone-200/80 dark:border-stone-700/80 flex items-center justify-center shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)]">
+                      <MessageSquare className="w-9 h-9 text-[#8B181B] dark:text-rose-400" strokeWidth={1.75} />
+                    </div>
+                    <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-xl bg-[#8B181B] text-white flex items-center justify-center shadow-xs">
+                      <ShieldCheck className="w-4 h-4 text-white" strokeWidth={2} />
                     </div>
                   </div>
 
-                  {/* Directory Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3">
-                    {directoryContacts.map((contact) => (
-                      <div
-                        key={contact.uid}
+                  {/* Editorial Typography */}
+                  <div className="space-y-3">
+                    <div className="inline-flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-stone-500 dark:text-stone-400">
+                      <span>Cecilian Alumni Communications</span>
+                      <span>·</span>
+                      <span>Private & Encrypted</span>
+                    </div>
+                    <h3
+                      style={{ color: 'var(--dm-text-primary)' }}
+                      className="text-2xl sm:text-3xl font-bold tracking-tight"
+                    >
+                      Institutional Direct Dispatch
+                    </h3>
+                    <p
+                      style={{ color: 'var(--dm-text-secondary)' }}
+                      className="text-sm leading-relaxed max-w-md mx-auto"
+                    >
+                      Select an ongoing channel from the left stream, or initiate a new direct inquiry with verified alumni, batch officers, and institutional personnel.
+                    </p>
+                  </div>
+
+                  {/* Primary & Secondary Action Cluster */}
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContactDirectorySearch('');
+                        setShowNewChatModal(true);
+                      }}
+                      className="w-full sm:w-auto px-5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(139,24,27,0.2)] transition-all cursor-pointer active:scale-[0.99]"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Start New Conversation</span>
+                    </button>
+
+                    {chatCounts.unread > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setActiveFilterPill('unread')}
                         style={{
                           backgroundColor: 'var(--dm-card-bg)',
                           borderColor: 'var(--dm-card-border)',
+                          color: 'var(--dm-text-primary)',
                         }}
-                        className="p-4 rounded-2xl border shadow-2xs flex flex-col justify-between space-y-3 hover:border-[#8B181B]/40 transition-colors"
+                        className="w-full sm:w-auto px-4 py-2.5 border rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[var(--dm-bg-item-hover)] transition-colors cursor-pointer"
                       >
-                        <div className="flex items-start gap-3">
-                          <img
-                            src={getUserAvatar(contact.profilePictureUrl)}
-                            alt={contact.name}
-                            onError={handleUserAvatarError}
-                            style={{ borderColor: 'var(--dm-border)' }}
-                            className="w-10 h-10 rounded-full object-cover border shrink-0"
-                          />
-                          <div className="min-w-0">
-                            <h4
-                              style={{ color: 'var(--dm-text-primary)' }}
-                              className="text-xs font-bold truncate"
-                            >
-                              {contact.name}
-                            </h4>
-                            <p
-                              style={{ color: 'var(--dm-text-secondary)' }}
-                              className="text-[11px] truncate mt-0.5"
-                            >
-                              {contact.batch ? `Class of ${contact.batch}` : contact.role}
-                              {contact.course ? ` · ${contact.course}` : ''}
-                            </p>
-                            {contact.company && (
-                              <p
-                                style={{ color: 'var(--dm-text-muted)' }}
-                                className="text-[10px] truncate"
-                              >
-                                {contact.currentPosition ? `${contact.currentPosition} at ` : ''}{contact.company}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+                        <Inbox className="w-4 h-4 text-[#8B181B] dark:text-rose-400" />
+                        <span>View {chatCounts.unread} Unread</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setActiveFilterPill('direct')}
+                        style={{
+                          backgroundColor: 'var(--dm-card-bg)',
+                          borderColor: 'var(--dm-card-border)',
+                          color: 'var(--dm-text-secondary)',
+                        }}
+                        className="w-full sm:w-auto px-4 py-2.5 border rounded-xl text-sm font-semibold flex items-center justify-center gap-2 hover:bg-[var(--dm-bg-item-hover)] hover:text-[var(--dm-text-primary)] transition-colors cursor-pointer"
+                      >
+                        <User className="w-4 h-4" />
+                        <span>Filter Direct Lines</span>
+                      </button>
+                    )}
+                  </div>
 
-                        <div
-                          style={{ borderColor: 'var(--dm-border-subtle)' }}
-                          className="pt-2 border-t flex items-center justify-between"
-                        >
-                          <UserRoleBadge role={contact.role} size="xs" />
-                          <button
-                            type="button"
-                            onClick={() => handleStartConversationWith(contact)}
-                            className="px-3 py-1 bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                          >
-                            <Send className="w-3 h-3" />
-                            <span>Dispatch</span>
-                          </button>
+                  {/* Institutional Communication Pillars */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 text-left">
+                    <div
+                      style={{
+                        backgroundColor: 'var(--dm-card-bg)',
+                        borderColor: 'var(--dm-card-border)',
+                      }}
+                      className="p-4 rounded-2xl border transition-colors hover:border-[#8B181B]/40"
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-6 h-6 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 flex items-center justify-center">
+                          <User className="w-3.5 h-3.5" />
                         </div>
+                        <span style={{ color: 'var(--dm-text-primary)' }} className="text-xs font-bold">
+                          Peer Inquiries
+                        </span>
                       </div>
-                    ))}
+                      <p style={{ color: 'var(--dm-text-secondary)' }} className="text-[11px] leading-relaxed">
+                        1-on-1 private messaging with fellow alumni across classes and departments.
+                      </p>
+                    </div>
+
+                    <div
+                      style={{
+                        backgroundColor: 'var(--dm-card-bg)',
+                        borderColor: 'var(--dm-card-border)',
+                      }}
+                      className="p-4 rounded-2xl border transition-colors hover:border-[#8B181B]/40"
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-6 h-6 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 flex items-center justify-center">
+                          <CalendarCheck className="w-3.5 h-3.5" />
+                        </div>
+                        <span style={{ color: 'var(--dm-text-primary)' }} className="text-xs font-bold">
+                          Event Lounges
+                        </span>
+                      </div>
+                      <p style={{ color: 'var(--dm-text-secondary)' }} className="text-[11px] leading-relaxed">
+                        Engage in cohort lounges for registered alumni events and reunions.
+                      </p>
+                    </div>
+
+                    <div
+                      style={{
+                        backgroundColor: 'var(--dm-card-bg)',
+                        borderColor: 'var(--dm-card-border)',
+                      }}
+                      className="p-4 rounded-2xl border transition-colors hover:border-[#8B181B]/40"
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-6 h-6 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 flex items-center justify-center">
+                          <ShieldCheck className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
+                        </div>
+                        <span style={{ color: 'var(--dm-text-primary)' }} className="text-xs font-bold">
+                          Official Desk
+                        </span>
+                      </div>
+                      <p style={{ color: 'var(--dm-text-secondary)' }} className="text-[11px] leading-relaxed">
+                        Reach verified alumni coordinators, registrar, and administrators.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Institutional Trust Footnote */}
+                  <div className="pt-2 flex items-center justify-center gap-2 text-[11px] text-stone-400 dark:text-stone-500">
+                    <ShieldCheck className="w-3.5 h-3.5 text-stone-400" />
+                    <span>St. Cecilia's College - Cebu, Inc. Verified Communications Channel</span>
                   </div>
                 </div>
               </div>
