@@ -12,6 +12,7 @@ import { LandingPage } from './components/landing/LandingPage';
 import { ToastContainer } from './components/common/ToastContainer';
 import { CecilianLoader } from './components/common/CecilianLoader';
 import { PlatformRestrictedGuard } from './components/common/PlatformRestrictedGuard';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // Conservative Performance Optimization: Lazy-load heavy workspace layouts and modals
 const AdminWorkspaceLayout = React.lazy(() =>
@@ -477,6 +478,15 @@ function AppContent() {
     }
   };
 
+  // Safety timeout so the initial loader screen never hangs for more than 400ms
+  const [localSafetyReady, setLocalSafetyReady] = useState(false);
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setLocalSafetyReady(true);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Protected Member Portal View Check: ensure authentication state is verified before protected pages are rendered
   const hasStoredSession =
     typeof window !== 'undefined' &&
@@ -486,9 +496,9 @@ function AppContent() {
      !!sessionStorage.getItem('alumni_server_auth_token') ||
      !!localStorage.getItem('alumni_auth_token'));
 
-  if (!authReady && (currentView === 'portal' || hasStoredSession)) {
+  if (!authReady && !localSafetyReady && (currentView === 'portal' || hasStoredSession)) {
     return (
-      <div className="min-h-screen bg-[#F9FAFB] flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#121316] flex flex-col items-center justify-center p-4">
         <CecilianLoader text="Restoring your Cecilian session..." />
       </div>
     );
@@ -718,9 +728,11 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AlumniProvider>
-      <AppContent />
-      <ToastContainer />
-    </AlumniProvider>
+    <ErrorBoundary>
+      <AlumniProvider>
+        <AppContent />
+        <ToastContainer />
+      </AlumniProvider>
+    </ErrorBoundary>
   );
 }

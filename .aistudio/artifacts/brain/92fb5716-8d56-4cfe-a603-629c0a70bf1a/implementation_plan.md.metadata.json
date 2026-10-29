@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan for redesigning Direct Messages into a professional layout with a minimalist institutional welcome view (removing public people cards from the front), and fixing Vercel and Android APK network connectivity with a unified API client and CORS/Capacitor configuration.",
-  "updatedAt":  "2026-10-29T07:30:34.551699029Z",
+  "summary":  "Implementation plan to eliminate white screen crashes across web and native APK environments, implement offline-first instant session restoration, configure resilient hybrid network routing with local fallback, add top-level React ErrorBoundary shields, and enable CORS and relaxed CSP on the backend.",
+  "updatedAt":  "2026-10-29T08:08:46.709717386Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

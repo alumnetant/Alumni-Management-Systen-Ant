@@ -1,32 +1,42 @@
 /**
  * St. Cecilia's College - Cecilian Alumnet
- * Centralized API Client & Fetch Interceptor
+ * Centralized Resilient API Client
  *
- * Injects:
- * - 'Authorization: Bearer <server_auth_token>'
- * - Resolves remote backend URL when running inside native Android APK
- *
- * Ensures all outbound API communication carries authenticated session context
- * and reaches the live server across all devices (desktop web, mobile web, tablet, PWA, and native Android APK).
+ * Provides:
+ * - Scoped 'Authorization: Bearer <token>' header injection
+ * - Native Android APK (Capacitor) remote backend URL resolution
+ * - Fast timeout & offline resilience to prevent UI hangs on startup
  */
 
 import { Capacitor } from '@capacitor/core';
 
 export const REMOTE_API_FALLBACK = 'https://ais-pre-js4yzqo7mj7uozlkhn6ayj-399985038754.asia-northeast1.run.app';
 
+/**
+ * Resolves the appropriate base URL for API endpoints.
+ */
 export function getApiBaseUrl(): string {
+  if (typeof window === 'undefined') return '';
+  
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
     return envUrl.trim().replace(/\/+$/, '');
   }
+  
+  // On native Android APK (Capacitor), route to remote Cloud Run backend
   if (Capacitor.isNativePlatform()) {
     return REMOTE_API_FALLBACK.replace(/\/+$/, '');
   }
+  
+  // In standard web browser, relative URLs route to same origin
   return '';
 }
 
+/**
+ * Resolves an API path (e.g. '/api/auth/session') to an absolute URL if running inside native APK.
+ */
 export function resolveApiUrl(path: string): string {
-  // If already absolute URL with http(s), return as is
+  if (!path || typeof path !== 'string') return '';
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }
@@ -35,6 +45,9 @@ export function resolveApiUrl(path: string): string {
   return baseUrl ? `${baseUrl}${normalizedPath}` : normalizedPath;
 }
 
+/**
+ * Retrieve active authorization token from browser or app storage
+ */
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -50,12 +63,14 @@ export function getAuthToken(): string | null {
 }
 
 /**
- * Enhanced fetch wrapper that automatically attaches the bearer auth header
- * and resolves absolute remote URLs when on native platforms.
+ * Robust fetch wrapper that attaches Bearer authentication,
+ * resolves remote backend URLs on native APK, and enforces a safety timeout
+ * to prevent hanging requests from blocking the UI.
  */
 export async function apiFetch(
   input: RequestInfo | URL,
-  init?: RequestInit
+  init?: RequestInit,
+  timeoutMs: number = 3500
 ): Promise<Response> {
   const urlString =
     typeof input === 'string'
@@ -68,171 +83,79 @@ export async function apiFetch(
   const token = getAuthToken();
   const headers = new Headers(init?.headers || {});
 
-  // Inject Authorization Bearer token if present and not provided
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
+  if (!headers.has('X-Client-Platform')) {
+    headers.set('X-Client-Platform', Capacitor.isNativePlatform() ? 'android-apk' : 'web');
+  }
 
-  return fetch(targetUrl, {
-    ...init,
-    headers
-  });
-}
-
-let isInterceptorInstalled = false;
-
-/**
- * Installs a safe fetch interceptor on window.fetch
- * All relative or local requests to /api/* automatically receive:
- * - 'Authorization: Bearer <token>'
- * - Remote URL resolution on native Android APK
- */
-export function installFetchInterceptor(): void {
-  if (typeof window === 'undefined' || isInterceptorInstalled) return;
+  // Set up safety timeout controller to avoid infinite hangs on cold starts
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
 
   try {
-    const originalFetch = typeof window.fetch === 'function' ? window.fetch.bind(window) : null;
-    if (!originalFetch) return;
-
-    const wrappedFetch = async function (
-      input: RequestInfo | URL,
-      init?: RequestInit
-    ): Promise<Response> {
-      try {
-        const urlString =
-          typeof input === 'string'
-            ? input
-            : input instanceof URL
-            ? input.toString()
-            : (input as Request).url || '';
-
-        // Intercept local or relative /api/* endpoints
-        const isApiRoute =
-          urlString.startsWith('/api/') ||
-          urlString.includes('/api/') ||
-          (typeof window !== 'undefined' &&
-            urlString.startsWith(window.location.origin) &&
-            urlString.includes('/api/'));
-
-        if (isApiRoute) {
-          const rawPath = typeof window !== 'undefined' && urlString.startsWith(window.location.origin)
-            ? urlString.slice(window.location.origin.length)
-            : urlString;
-
-          const resolvedTarget = resolveApiUrl(rawPath);
-          const token = getAuthToken();
-          const headers = new Headers(
-            init?.headers || (input instanceof Request ? input.headers : {})
-          );
-
-          if (token && !headers.has('Authorization')) {
-            headers.set('Authorization', `Bearer ${token}`);
-          }
-
-          if (input instanceof Request) {
-            const modifiedRequest = new Request(resolvedTarget, {
-              ...init,
-              headers
-            });
-            return originalFetch(modifiedRequest);
-          }
-
-          return originalFetch(resolvedTarget, {
-            ...init,
-            headers
-          });
-        }
-      } catch {
-        // Fall through to original fetch on any error
-      }
-
-      return originalFetch(input, init);
-    };
-
-    // Safely assign without throwing if window.fetch only has a getter
-    let assigned = false;
-    try {
-      window.fetch = wrappedFetch;
-      assigned = true;
-    } catch {}
-
-    if (!assigned) {
-      try {
-        Object.defineProperty(window, 'fetch', {
-          value: wrappedFetch,
-          writable: true,
-          configurable: true,
-          enumerable: true
-        });
-        assigned = true;
-      } catch {
-        try {
-          (globalThis as any).fetch = wrappedFetch;
-          assigned = true;
-        } catch {}
-      }
-    }
-
-    isInterceptorInstalled = assigned;
-  } catch (err) {
-    console.warn(
-      '[apiClient] Safe notice: Fetch interceptor could not be mounted on window.fetch; apiFetch and apiClient continue to function directly.',
-      err
-    );
+    const response = await fetch(targetUrl, {
+      ...init,
+      headers,
+      signal: init?.signal || controller.signal
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
 /**
- * Centralized API helper methods
+ * Safe fetch interceptor helper.
+ * On native Android APK, intercepts relative /api/* string calls cleanly.
+ * Leaves standard browser window.fetch untouched to prevent breaking Vite, React, or Service Workers.
  */
-export const apiClient = {
-  get: async <T = any>(url: string, headers?: Record<string, string>): Promise<T> => {
-    const res = await apiFetch(url, { method: 'GET', headers });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(errData.error || `HTTP ${res.status}`);
-    }
-    return res.json();
-  },
+export function installFetchInterceptor(): void {
+  if (typeof window === 'undefined') return;
 
-  post: async <T = any>(url: string, body?: any, headers?: Record<string, string>): Promise<T> => {
-    const res = await apiFetch(url, {
+  // Only apply scoped interceptor in native Capacitor environment where relative /api doesn't have a local server
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const originalFetch = window.fetch.bind(window);
+      window.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+        if (typeof input === 'string' && input.startsWith('/api')) {
+          const resolvedUrl = resolveApiUrl(input);
+          return originalFetch(resolvedUrl, init);
+        }
+        return originalFetch(input, init);
+      };
+      console.info('[Network] Native Android APK routing configured ->', REMOTE_API_FALLBACK);
+    } catch (err) {
+      console.warn('[Network] Native interceptor notice:', err);
+    }
+  }
+}
+
+// Re-export convenience apiClient object
+export const apiClient = {
+  get: (url: string, init?: RequestInit) => apiFetch(url, { ...init, method: 'GET' }),
+  post: (url: string, body?: any, init?: RequestInit) =>
+    apiFetch(url, {
+      ...init,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...headers
+        ...(init?.headers || {})
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(errData.error || `HTTP ${res.status}`);
-    }
-    return res.json();
-  },
-
-  put: async <T = any>(url: string, body?: any, headers?: Record<string, string>): Promise<T> => {
-    const res = await apiFetch(url, {
+      body: body ? JSON.stringify(body) : undefined
+    }),
+  put: (url: string, body?: any, init?: RequestInit) =>
+    apiFetch(url, {
+      ...init,
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        ...headers
+        ...(init?.headers || {})
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined
-    });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(errData.error || `HTTP ${res.status}`);
-    }
-    return res.json();
-  },
-
-  delete: async <T = any>(url: string, headers?: Record<string, string>): Promise<T> => {
-    const res = await apiFetch(url, { method: 'DELETE', headers });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(errData.error || `HTTP ${res.status}`);
-    }
-    return res.json();
-  }
+      body: body ? JSON.stringify(body) : undefined
+    }),
+  delete: (url: string, init?: RequestInit) => apiFetch(url, { ...init, method: 'DELETE' })
 };

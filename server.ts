@@ -19,23 +19,32 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // ============================================================================
-// 1. SECURITY HEADERS (CSP, HSTS, Sniffing, Frame Protections)
+// 1. CORS & SECURITY HEADERS (CORS for Android APK, CSP, HSTS, Sniffing)
 // ============================================================================
-app.use((_req: Request, res: Response, next: NextFunction) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // Full cross-origin support for native Android APK (https://localhost) and PWA
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Client-Platform, X-Requested-With');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
   // Prevent MIME type sniffing
   res.setHeader('X-Content-Type-Options', 'nosniff');
   // Allow iframe rendering for AI Studio while blocking unauthorized cross-origin framing
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-  // CSP: Allow self, Google fonts, Firebase, and safe data/blob for images
+  // CSP: Allow self, Google fonts, Firebase, Cloud Run, and native APK origins
   const cspDirectives = [
-    "default-src 'self'",
+    "default-src 'self' data: blob:",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://*.firebaseapp.com https://*.googleapis.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com https://*.firebasestorage.app https://handy-pier-cvxch.firebasestorage.app",
-    "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com",
+    "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.run.app https://localhost:* capacitor://localhost http://localhost:*",
     "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com"
   ].join('; ');
 

@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import {registerSW} from 'virtual:pwa-register';
 import {installFetchInterceptor} from './services/apiClient';
+import {ErrorBoundary} from './components/common/ErrorBoundary';
 
 // Bundled Plus Jakarta Sans font assets (offline parity for Android APK & web)
 import '@fontsource/plus-jakarta-sans/300.css';
@@ -40,6 +41,8 @@ if (import.meta.env.PROD) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

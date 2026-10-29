@@ -169,6 +169,7 @@ import {
 import { validateRejectionReason, isEmployerVisibleInDirectory } from '../lib/employerValidation';
 import { getEmployerAuthStatus, isEmployerApproved } from '../lib/employerAuthStatus';
 import { generateSecureId, generateSecureNumericCode } from '../lib/secureId';
+import { apiFetch } from '../services/apiClient';
 
 export interface ActiveSessionConflictInfo {
   identifier: string;
@@ -1800,6 +1801,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => {
     let isCancelled = false;
 
+    // Safety fallback: if anything stalls or takes > 300ms, mark authReady true so UI NEVER hangs
+    const safetyTimer = setTimeout(() => {
+      if (!isCancelled) {
+        setAuthReady((prev) => (prev ? prev : true));
+      }
+    }, 300);
+
     const restoreActiveSession = async () => {
       try {
         const storedToken = getStoredSessionToken();
@@ -1918,36 +1926,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           } catch {}
         }
 
-        // E. Validate against backend server endpoint if token exists
-        if (storedToken) {
-          try {
-            const res = await fetch('/api/auth/session', {
-              headers: { Authorization: `Bearer ${storedToken}` }
-            });
-            if (res.ok) {
-              const data = await res.json();
-              if (data.user) {
-                if (resolvedUser) {
-                  resolvedUser = { ...resolvedUser, ...data.user };
-                } else {
-                  resolvedUser = data.user;
-                }
-              }
-            } else if (res.status === 401 && !resolvedUser) {
-              // Token invalid and no local record exists -> session invalid
-              if (!isCancelled) {
-                clearStoredSession();
-                setCurrentUserId(null);
-                setAuthReady(true);
-                showToast('Your session is no longer valid. Please sign in again.', 'info');
-              }
-              return;
-            }
-          } catch {
-            // Backend offline or standalone mode: rely on valid cryptographically encoded token
-          }
-        }
-
+        // INSTANT ACTIVATION (Offline-First):
+        // If user was resolved locally from storage, vault, or seed, activate session IMMEDIATELY
         if (resolvedUser && !isCancelled) {
           const canonicalUser = { ...resolvedUser, uid: normalizeUid(resolvedUser.uid) || resolvedUser.uid };
 
@@ -1970,10 +1950,48 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
           setCurrentUserId(canonicalUser.uid);
           saveActiveSession(canonicalUser, storedToken || undefined);
-          if (!isCancelled) {
-            setAuthReady(true);
+          setAuthReady(true);
+
+          // Non-blocking background sync with backend server with 3000ms safety timeout
+          if (storedToken) {
+            apiFetch('/api/auth/session', {
+              headers: { Authorization: `Bearer ${storedToken}` }
+            }, 3000)
+              .then(async (res) => {
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data?.user && !isCancelled) {
+                    setUsers((prev) =>
+                      prev.map((u) => (u.uid === canonicalUser.uid ? { ...u, ...data.user } : u))
+                    );
+                  }
+                }
+              })
+              .catch(() => {
+                // Server offline or APK cold-start: local verified session remains fully valid
+              });
           }
           return;
+        }
+
+        // If candidate cannot be found locally, query backend endpoint with quick 2500ms timeout
+        if (storedToken) {
+          try {
+            const res = await apiFetch('/api/auth/session', {
+              headers: { Authorization: `Bearer ${storedToken}` }
+            }, 2500);
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.user && !isCancelled) {
+                const srvUser = data.user;
+                setUsers((prev) => [srvUser, ...prev.filter((u) => u.uid !== srvUser.uid)]);
+                setCurrentUserId(srvUser.uid);
+                saveActiveSession(srvUser, storedToken);
+                setAuthReady(true);
+                return;
+              }
+            }
+          } catch {}
         }
 
         // If candidate cannot be found anywhere
@@ -1992,6 +2010,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     return () => {
       isCancelled = true;
+      clearTimeout(safetyTimer);
     };
   }, []);
 
