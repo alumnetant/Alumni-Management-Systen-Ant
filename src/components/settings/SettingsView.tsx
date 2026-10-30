@@ -76,6 +76,7 @@ import {
 } from '../../services/pushNotificationService';
 import { openExternalUrl } from '../../services/externalLinkService';
 import { shareAlumniPortal } from '../../services/nativeShareService';
+import { sendPasswordResetLinkEmail } from '../../services/emailNotificationService';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -111,6 +112,8 @@ export const SettingsView: React.FC = () => {
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [isSendingResetEmail, setIsSendingResetEmail] = useState(false);
+  const [resetEmailStatus, setResetEmailStatus] = useState<string | null>(null);
 
   const [showFaqModal, setShowFaqModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
@@ -241,7 +244,7 @@ export const SettingsView: React.FC = () => {
   const handleSaveCampusPin = async () => {
     setPinDialogError(null);
     if (!newCampusPin || newCampusPin.length < 4 || newCampusPin.length > 6 || !/^\d+$/.test(newCampusPin)) {
-      setPinDialogError('Campus PIN must be 4 to 6 numeric digits.');
+      setPinDialogError('Emergency PIN must be 4 to 6 numeric digits.');
       return;
     }
     if (newCampusPin !== confirmCampusPin) {
@@ -250,12 +253,12 @@ export const SettingsView: React.FC = () => {
     }
     const success = await setCampusPin(newCampusPin, currentUser?.uid);
     if (success) {
-      showToast('Campus PIN updated successfully!', 'success');
+      showToast('Emergency PIN updated successfully!', 'success');
       setShowPinModal(false);
       setNewCampusPin('');
       setConfirmCampusPin('');
     } else {
-      setPinDialogError('Failed to update Campus PIN.');
+      setPinDialogError('Failed to update Emergency PIN.');
     }
   };
 
@@ -388,10 +391,34 @@ export const SettingsView: React.FC = () => {
     setConfirmPassword('');
     setPasswordError(null);
     setPasswordSuccess(null);
+    setResetEmailStatus(null);
     setShowOldPass(false);
     setShowNewPass(false);
     setShowConfirmPass(false);
     setShowPasswordModal(true);
+  };
+
+  const handleSendResetEmail = async () => {
+    if (!currentUser?.email) {
+      setPasswordError('No registered email address found for your account.');
+      return;
+    }
+    setIsSendingResetEmail(true);
+    setResetEmailStatus(null);
+    setPasswordError(null);
+    try {
+      const email = sendPasswordResetLinkEmail(currentUser);
+      if (email) {
+        setResetEmailStatus(`A password change link and authorization token have been sent to ${currentUser.email}.`);
+        showToast(`Password change instructions sent to ${currentUser.email}`, 'success');
+      } else {
+        setPasswordError('Failed to dispatch password email.');
+      }
+    } catch (err: any) {
+      setPasswordError(err?.message || 'Failed to dispatch password email.');
+    } finally {
+      setIsSendingResetEmail(false);
+    }
   };
 
   const handleChangePassword = (e: React.FormEvent) => {
@@ -422,14 +449,18 @@ export const SettingsView: React.FC = () => {
       return;
     }
 
-    setPasswordSuccess('Your password has been changed successfully!');
+    setPasswordSuccess(
+      `Your password has been changed successfully! A security confirmation email was dispatched to ${currentUser.email}.`
+    );
+    showToast(`Password updated! Security confirmation sent to ${currentUser.email}`, 'success');
     setTimeout(() => {
       setShowPasswordModal(false);
       setPasswordSuccess(null);
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    }, 1800);
+      setResetEmailStatus(null);
+    }, 2400);
   };
 
   const handleUpdateRole = async (e: React.FormEvent) => {
@@ -844,7 +875,7 @@ export const SettingsView: React.FC = () => {
                       </span>
                     </h4>
                     <p className="text-[11px] text-stone-500">
-                      Configure Face Detection, hardware Fingerprint / Touch ID sensors, and Campus PIN fallback
+                      Configure Face Detection, hardware Fingerprint / Touch ID sensors, and Emergency PIN fallback
                     </p>
                   </div>
                 </div>
@@ -874,7 +905,7 @@ export const SettingsView: React.FC = () => {
                         </span>
                       </div>
                       <p className="text-stone-500 dark:text-stone-400 text-[11px] mt-1 leading-relaxed">
-                        Protects collegiate records with optical Face Detection, hardware Touch ID / Fingerprint sensor, and Campus PIN fallback before entering the portal.
+                        Protects collegiate records with optical Face Detection, hardware Touch ID / Fingerprint sensor, and Emergency PIN fallback before entering the portal.
                       </p>
                     </div>
 
@@ -1000,13 +1031,13 @@ export const SettingsView: React.FC = () => {
                   )}
                 </div>
 
-                {/* 3. Campus PIN Emergency Fallback Configuration */}
+                {/* 3. Emergency PIN Fallback Configuration */}
                 <div className="p-4 rounded-2xl bg-white border border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
                   <div className="min-w-0 pr-2">
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-stone-900 text-xs flex items-center gap-1.5">
                         <KeyRound className="w-3.5 h-3.5 text-[#8B181B]" />
-                        <span>Campus Emergency PIN</span>
+                        <span>Emergency PIN</span>
                       </p>
                       <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
                         {getCampusPinConfig(currentUser.uid).isConfigured ? 'CUSTOM CONFIGURED' : 'DEFAULT 1973'}
@@ -1716,6 +1747,34 @@ export const SettingsView: React.FC = () => {
                     </div>
                   </div>
 
+                  {resetEmailStatus && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{resetEmailStatus}</span>
+                    </div>
+                  )}
+
+                  {/* Send Password Reset Link by Email Option */}
+                  <div className="p-3 rounded-xl bg-stone-50 border border-stone-200/80 text-[11px] text-stone-600 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-stone-700">
+                      <Mail className="w-3.5 h-3.5 text-[#8B181B] shrink-0" />
+                      <span>Prefer to change via email instructions?</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSendResetEmail}
+                      disabled={isSendingResetEmail}
+                      className="text-xs font-bold text-[#8B181B] hover:text-[#721316] hover:underline cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
+                    >
+                      {isSendingResetEmail ? 'Sending...' : 'Email Reset Link'}
+                    </button>
+                  </div>
+
+                  {/* Security Policy Reminder */}
+                  <p className="text-[10px] text-stone-500 leading-relaxed">
+                    🔒 Institutional Security Protocol: Changing your password automatically dispatches a verified security confirmation email to <strong className="text-stone-700">{currentUser.email}</strong>.
+                  </p>
+
                   <div className="pt-3 border-t border-stone-100 flex items-center justify-end gap-2">
                     <button
                       type="button"
@@ -2174,7 +2233,7 @@ export const SettingsView: React.FC = () => {
                     <KeyRound className="w-4 h-4 stroke-[2]" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900">Campus Emergency PIN</h3>
+                    <h3 className="text-sm font-bold text-stone-900">Emergency PIN</h3>
                     <p className="text-[11px] text-stone-500">4 to 6 digit backup passcode</p>
                   </div>
                 </div>
@@ -2232,7 +2291,7 @@ export const SettingsView: React.FC = () => {
                 </div>
 
                 <p className="text-[10px] text-stone-400 leading-relaxed">
-                  Default collegiate founding year PIN is <strong>1973</strong>. Customizing this PIN protects your account if cameras or fingerprint sensors are unavailable.
+                  Default collegiate founding year PIN is <strong>1973</strong>. Customizing this Emergency PIN protects your account if cameras or fingerprint sensors are unavailable.
                 </p>
               </div>
 
@@ -2249,7 +2308,7 @@ export const SettingsView: React.FC = () => {
                   onClick={handleSaveCampusPin}
                   className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold transition-all shadow-2xs cursor-pointer"
                 >
-                  Save Campus PIN
+                  Save Emergency PIN
                 </button>
               </div>
             </motion.div>

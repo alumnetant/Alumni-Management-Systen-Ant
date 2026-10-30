@@ -682,3 +682,63 @@ export function sendAnnouncementEmail(
 
   return { dispatchedCount: count };
 }
+
+/**
+ * Send password reset link email to user
+ */
+export function sendPasswordResetLinkEmail(
+  user: UserProfile | { email: string; name?: string }
+): DispatchedEmail | null {
+  if (!user || !user.email) return null;
+
+  const resetToken = Math.random().toString(36).substring(2, 10).toUpperCase();
+  const resetLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/#reset-password?token=${resetToken}&email=${encodeURIComponent(user.email)}`;
+  const subject = `🔑 Password Reset Request - St. Cecilia's College Alumni Network`;
+  const previewText = `A password reset link was requested for your Cecilian Alumni Network account. Use this secure token to update your password.`;
+
+  const contentHtml = `
+    <p>We received an institutional request to change or reset the password for your Cecilian Alumni Network account associated with <strong>${user.email}</strong>.</p>
+    <div class="card" style="border-left: 4px solid #8B181B;">
+      <h3 style="margin: 0 0 8px 0; font-size: 15px; color: #1c1917;">Password Reset Authorization</h3>
+      <p style="margin: 0 0 12px 0; font-size: 13px; color: #44403c; line-height: 1.6;">
+        If you initiated this request, please use the authorization code below or tap the button to proceed with changing your password.
+      </p>
+      <div style="background: #fdf2f2; border: 1px dashed #f87171; padding: 12px; border-radius: 8px; margin: 12px 0; text-align: center;">
+        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #991b1b; font-weight: 700; margin-bottom: 4px;">Security Authorization Token</div>
+        <div style="font-family: monospace; font-size: 20px; font-weight: 800; letter-spacing: 3px; color: #8B181B;">
+          SCC-${resetToken}
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 12px; color: #78716c;">
+        This token is valid for 15 minutes. If you did not make this request, your account remains secure and no further action is necessary.
+      </p>
+    </div>
+  `;
+
+  const html = wrapInInstitutionalEmailTemplate({
+    title: 'Password Change Request',
+    recipientName: user.name || 'Valued Cecilian Alumnus',
+    badgeText: 'Password Security',
+    badgeColor: '#8B181B',
+    contentHtml,
+    actionText: 'Proceed to Change Password',
+    actionUrl: resetLink
+  });
+
+  const email: DispatchedEmail = {
+    id: `email_reset_${Date.now()}`,
+    toEmail: user.email,
+    toName: user.name || 'Valued Cecilian Alumnus',
+    subject,
+    category: 'security',
+    previewText,
+    htmlContent: html,
+    sentAt: new Date().toISOString(),
+    status: 'delivered',
+    metadata: { action: 'password_reset_request', resetToken }
+  };
+
+  logDispatchedEmail(email);
+  return email;
+}
+

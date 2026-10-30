@@ -332,7 +332,7 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
           onUnlocked();
         }, 500);
       } else {
-        setErrorMsg(res.error || 'Incorrect Campus PIN.');
+        setErrorMsg(res.error || 'Incorrect Emergency PIN.');
         setPinDigits('');
         if (res.remainingAttempts !== undefined) {
           setPinRemainingAttempts(res.remainingAttempts);
@@ -437,7 +437,7 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
               ? 'Face Recognition'
               : activeModality === 'fingerprint'
               ? 'Fingerprint Sensor'
-              : 'Campus PIN Entry'}
+              : 'Emergency PIN Entry'}
           </h2>
           <p className="text-xs text-stone-200 font-semibold mt-0.5">
             {currentUser.name}
@@ -757,7 +757,7 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
                 </div>
               ) : (
                 <p className="text-[10px] text-stone-400 mb-2 font-mono">
-                  Default Campus PIN: <strong className="text-stone-300">1973</strong> (Founding Year)
+                  Default Emergency PIN: <strong className="text-stone-300">1973</strong> (Founding Year)
                 </p>
               )}
 
@@ -863,7 +863,7 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
                 className="w-full py-2 px-3 bg-stone-850 hover:bg-stone-800 text-stone-300 hover:text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <KeyRound className="w-3 h-3 text-amber-400" />
-                <span>Use Campus PIN Fallback (1973)</span>
+                <span>Use Emergency PIN Fallback (1973)</span>
               </button>
             ) : (
               <button

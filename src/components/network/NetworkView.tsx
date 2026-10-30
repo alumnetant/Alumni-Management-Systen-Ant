@@ -77,7 +77,13 @@ export const NetworkView: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [requestToCancel, setRequestToCancel] = useState<{ id: string; name: string } | null>(null);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [optimisticSentUids, setOptimisticSentUids] = useState<Set<string>>(new Set());
   const filterDropdownRef = useRef<HTMLDivElement>(null);
+
+  const handleConnect = (targetUid: string) => {
+    setOptimisticSentUids((prev) => new Set([...prev, targetUid]));
+    sendFriendRequest(targetUid);
+  };
 
   // Progressive "See More" visibility limits
   const [visibleDirectoryCount, setVisibleDirectoryCount] = useState<number>(12);
@@ -1041,6 +1047,7 @@ export const NetworkView: React.FC = () => {
                   {filteredDirectory.slice(0, visibleDirectoryCount).map((user) => {
                     const connected = isConnected(user.uid);
                     const reqState = hasPendingRequestWith(user.uid);
+                    const isReqSent = reqState === 'sent' || optimisticSentUids.has(user.uid);
                     const statusConfig = getStatusConfig(user.quickStatus);
                     const onlineStatus = getUserOnlineStatus(user);
 
@@ -1132,7 +1139,7 @@ export const NetworkView: React.FC = () => {
                               <MessageSquare className="w-3.5 h-3.5" />
                               <span className="hidden sm:inline">Message</span>
                             </button>
-                          ) : reqState === 'sent' ? (
+                          ) : isReqSent ? (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1144,10 +1151,17 @@ export const NetworkView: React.FC = () => {
                                   cancelFriendRequest(req.id);
                                   showToast(`Connection request cancelled`, 'info');
                                 }
+                                setOptimisticSentUids((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(user.uid);
+                                  return next;
+                                });
                               }}
-                              className="px-2.5 py-1.5 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl transition-colors cursor-pointer"
+                              className="px-2.5 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/90 dark:border-amber-800/60 rounded-xl flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Click to cancel connection request"
                             >
-                              Pending
+                              <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                              <span>Request Sent</span>
                             </button>
                           ) : reqState === 'received' ? (
                             <button
@@ -1168,7 +1182,7 @@ export const NetworkView: React.FC = () => {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                sendFriendRequest(user.uid);
+                                handleConnect(user.uid);
                               }}
                               className="px-3 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl flex items-center gap-1 shadow-2xs transition-all cursor-pointer active:scale-95"
                             >
@@ -1208,6 +1222,7 @@ export const NetworkView: React.FC = () => {
                           {filteredDirectory.slice(0, visibleDirectoryCount).map((user) => {
                             const connected = isConnected(user.uid);
                             const reqState = hasPendingRequestWith(user.uid);
+                            const isReqSent = reqState === 'sent' || optimisticSentUids.has(user.uid);
                             const statusConfig = getStatusConfig(user.quickStatus);
 
                             return (
@@ -1311,7 +1326,7 @@ export const NetworkView: React.FC = () => {
                                         <MessageSquare className="w-3 h-3" />
                                         <span>Chat</span>
                                       </button>
-                                    ) : reqState === 'sent' ? (
+                                    ) : isReqSent ? (
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -1322,11 +1337,17 @@ export const NetworkView: React.FC = () => {
                                             cancelFriendRequest(req.id);
                                             showToast(`Connection request cancelled`, 'info');
                                           }
+                                          setOptimisticSentUids((prev) => {
+                                            const next = new Set(prev);
+                                            next.delete(user.uid);
+                                            return next;
+                                          });
                                         }}
-                                        className="px-2.5 py-1 text-[11px] font-semibold text-amber-800 bg-amber-50 hover:bg-red-50 hover:text-red-700 border border-amber-200 rounded-lg transition-colors cursor-pointer"
-                                        title="Cancel request"
+                                        className="px-2.5 py-1 text-[11px] font-semibold text-amber-900 bg-amber-50 hover:bg-red-50 hover:text-red-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/90 dark:border-amber-800/60 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                                        title="Click to cancel connection request"
                                       >
-                                        Pending
+                                        <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                                        <span>Request Sent</span>
                                       </button>
                                     ) : reqState === 'received' ? (
                                       <button
@@ -1344,7 +1365,7 @@ export const NetworkView: React.FC = () => {
                                     ) : (
                                       <button
                                         type="button"
-                                        onClick={() => sendFriendRequest(user.uid)}
+                                        onClick={() => handleConnect(user.uid)}
                                         className="px-3 py-1 text-[11px] font-bold text-white bg-[#8B181B] hover:bg-[#721316] rounded-lg shadow-2xs flex items-center gap-1 transition-all cursor-pointer active:scale-95"
                                       >
                                         <UserPlus className="w-3 h-3" />
@@ -1370,6 +1391,7 @@ export const NetworkView: React.FC = () => {
                     {filteredDirectory.slice(0, visibleDirectoryCount).map((user) => {
                       const connected = isConnected(user.uid);
                       const reqState = hasPendingRequestWith(user.uid);
+                      const isReqSent = reqState === 'sent' || optimisticSentUids.has(user.uid);
                       const statusConfig = getStatusConfig(user.quickStatus);
                       const onlineStatus = getUserOnlineStatus(user);
 
@@ -1474,7 +1496,7 @@ export const NetworkView: React.FC = () => {
                                 <MessageSquare className="w-3.5 h-3.5" />
                                 <span>Chat</span>
                               </button>
-                            ) : reqState === 'sent' ? (
+                            ) : isReqSent ? (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1485,12 +1507,17 @@ export const NetworkView: React.FC = () => {
                                     cancelFriendRequest(req.id);
                                     showToast(`Connection request cancelled`, 'info');
                                   }
+                                  setOptimisticSentUids((prev) => {
+                                    const next = new Set(prev);
+                                    next.delete(user.uid);
+                                    return next;
+                                  });
                                 }}
-                                className="flex-1 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-red-50 hover:text-red-700 border border-amber-200/80 hover:border-red-200 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                className="flex-1 py-1.5 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-red-50 hover:text-red-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 hover:border-red-200 rounded-xl flex items-center justify-center gap-1 transition-colors cursor-pointer"
                                 title="Cancel connection request"
                               >
-                                <Clock className="w-3.5 h-3.5 text-amber-600" />
-                                <span>Sent</span>
+                                <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                <span>Request Sent</span>
                               </button>
                             ) : reqState === 'received' ? (
                               <div className="flex-1 flex items-center gap-1">
@@ -1525,7 +1552,7 @@ export const NetworkView: React.FC = () => {
                             ) : (
                               <button
                                 type="button"
-                                onClick={() => sendFriendRequest(user.uid)}
+                                onClick={() => handleConnect(user.uid)}
                                 className="flex-1 py-1.5 text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl flex items-center justify-center gap-1 transition-all shadow-2xs hover:shadow-xs cursor-pointer active:scale-95"
                               >
                                 <UserPlus className="w-3.5 h-3.5" />

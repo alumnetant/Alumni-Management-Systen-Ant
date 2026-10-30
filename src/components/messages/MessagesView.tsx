@@ -26,6 +26,7 @@ import {
   Briefcase,
   Clock,
   ChevronRight,
+  ChevronLeft,
   ChevronDown,
   Plus,
   Filter,
@@ -134,6 +135,14 @@ export const MessagesView: React.FC = () => {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatListScrollRef = useRef<HTMLDivElement>(null);
+  const promptsScrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollPrompts = (direction: 'left' | 'right') => {
+    if (promptsScrollRef.current) {
+      const scrollAmount = direction === 'left' ? -220 : 220;
+      promptsScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
 
   // Auto-reset scroll position when returning to Messages page or changing filter
   useEffect(() => {
@@ -1212,7 +1221,7 @@ export const MessagesView: React.FC = () => {
                             </div>
                           </div>
                         ) : (
-                          activeChatMessages.map((msg) => {
+                          activeChatMessages.map((msg, msgIndex) => {
                             if (msg.isSystemMessage) {
                               return (
                                 <div key={msg.id} className="flex justify-center my-2">
@@ -1385,7 +1394,9 @@ export const MessagesView: React.FC = () => {
                                                         backgroundColor: 'var(--dm-modal-bg)',
                                                         borderColor: 'var(--dm-modal-border)',
                                                       }}
-                                                      className={`absolute bottom-full mb-1 ${
+                                                      className={`absolute ${
+                                                        msgIndex < 2 ? 'top-full mt-1' : 'bottom-full mb-1'
+                                                      } ${
                                                         isMine ? 'right-0' : 'left-0'
                                                       } w-44 rounded-xl shadow-xl border py-1 z-40 text-xs`}
                                                     >
@@ -1574,41 +1585,70 @@ export const MessagesView: React.FC = () => {
                         <div ref={messagesEndRef} />
                       </div>
 
-                      {/* Quick Response Prompt Suggestions */}
+                      {/* Quick Response Prompt Suggestions with Horizontal Slide Controls */}
                       <div
                         style={{
                           backgroundColor: 'var(--dm-bg-header)',
                           borderColor: 'var(--dm-border)',
                         }}
-                        className="px-3.5 py-1.5 border-t flex items-center gap-1.5 overflow-x-auto scrollbar-none"
+                        className="relative px-2 py-1.5 border-t flex items-center gap-1 group/prompts"
                       >
+                        <button
+                          type="button"
+                          onClick={() => scrollPrompts('left')}
+                          className="p-1 rounded-full hover:bg-[var(--dm-bg-item-hover)] text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors shrink-0 cursor-pointer shadow-2xs"
+                          title="Slide left to view previous prompts"
+                          aria-label="Slide prompts left"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+
                         <span
                           style={{ color: 'var(--dm-text-muted)' }}
-                          className="text-[10px] font-semibold uppercase tracking-wider shrink-0 flex items-center gap-1"
+                          className="text-[10px] font-semibold uppercase tracking-wider shrink-0 flex items-center gap-1 pl-0.5"
                         >
                           <Sparkles className="w-3 h-3 text-amber-500" />
-                          <span>Prompt:</span>
+                          <span className="hidden xs:inline">Prompt:</span>
                         </span>
-                        {[
-                          '👋 Greetings fellow Cecilian!',
-                          '🎓 Are you attending the next campus homecoming?',
-                          '🎉 Congratulations on your career advancement!',
-                          '💼 Would love to connect regarding opportunities.'
-                        ].map((prompt, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => handleInsertQuickReply(prompt)}
-                            style={{
-                              backgroundColor: 'var(--dm-chip-bg)',
-                              borderColor: 'var(--dm-chip-border)',
-                              color: 'var(--dm-chip-text)',
-                            }}
-                            className="px-2.5 py-1 rounded-full border hover:opacity-80 text-[11px] whitespace-nowrap cursor-pointer transition-colors shadow-2xs"
-                          >
-                            {prompt}
-                          </button>
-                        ))}
+
+                        <div
+                          ref={promptsScrollRef}
+                          className="flex items-center gap-1.5 overflow-x-auto scroll-smooth scrollbar-none py-0.5 px-1 flex-1 touch-pan-x"
+                        >
+                          {[
+                            '👋 Greetings fellow Cecilian!',
+                            '🎓 Are you attending the next campus homecoming?',
+                            '🎉 Congratulations on your career advancement!',
+                            '💼 Would love to connect regarding opportunities.',
+                            '🤝 Open to collaborating on upcoming projects?',
+                            '📚 How has your post-graduation transition been?',
+                            '☕ Let us catch up over coffee when you visit Cebu!'
+                          ].map((prompt, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handleInsertQuickReply(prompt)}
+                              style={{
+                                backgroundColor: 'var(--dm-chip-bg)',
+                                borderColor: 'var(--dm-chip-border)',
+                                color: 'var(--dm-chip-text)',
+                              }}
+                              className="px-2.5 py-1 rounded-full border hover:opacity-80 text-[11px] whitespace-nowrap cursor-pointer transition-all shadow-2xs shrink-0 select-none active:scale-95"
+                            >
+                              {prompt}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => scrollPrompts('right')}
+                          className="p-1 rounded-full hover:bg-[var(--dm-bg-item-hover)] text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors shrink-0 cursor-pointer shadow-2xs"
+                          title="Slide right to view more prompts"
+                          aria-label="Slide prompts right"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
                       </div>
 
                       {/* Offline Status & Pending Queue Banner */}

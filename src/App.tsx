@@ -620,7 +620,7 @@ function AppContent() {
             />
           </React.Suspense>
         </motion.div>
-      ) : isAdministrativeOrStaffRole(currentUser.role) ? (
+      ) : (currentUser && isAdministrativeOrStaffRole(currentUser.role)) ? (
         /* Reference-Inspired Administrative Management & Dashboard Workspace (Admin, Registrar, Employer, Staff, Moderator, Super Admin) */
         <motion.div
           key="view-portal-admin"

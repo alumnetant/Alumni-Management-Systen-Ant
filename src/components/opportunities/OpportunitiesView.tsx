@@ -1118,28 +1118,25 @@ export const OpportunitiesView: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="shrink-0 flex items-center gap-3">
-                    <div className="text-right">
-                      <span
-                        className={`text-xs font-bold px-3 py-1 rounded-xl border ${
-                          app.status === 'Hired'
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : app.status === 'Interview'
-                            ? 'bg-amber-50 text-amber-700 border-amber-200'
-                            : app.status === 'Rejected'
-                            ? 'bg-rose-50 text-rose-700 border-rose-200'
-                            : 'bg-blue-50 text-blue-700 border-blue-200'
-                        }`}
-                      >
-                        {app.status}
-                      </span>
-                      <div className="text-[10px] text-stone-400 mt-1">Current Candidate Stage</div>
-                    </div>
+                  <div className="shrink-0 flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end self-stretch sm:self-center">
+                    <span
+                      className={`inline-flex items-center text-xs font-bold px-3 py-1.5 rounded-xl border ${
+                        app.status === 'Hired'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : app.status === 'Interview'
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : app.status === 'Rejected'
+                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                          : 'bg-blue-50 text-blue-700 border-blue-200'
+                      }`}
+                    >
+                      {app.status}
+                    </span>
                     {app.status !== 'Hired' && (
                       <button
                         type="button"
                         onClick={() => setApplicationToWithdraw({ id: app.id, jobTitle: app.jobTitle, companyName: app.companyName })}
-                        className="px-3 py-1.5 text-xs text-stone-500 hover:text-red-700 hover:bg-red-50 border border-stone-200 hover:border-red-200 rounded-xl font-medium transition-colors cursor-pointer"
+                        className="px-3.5 py-1.5 text-xs text-stone-600 hover:text-red-700 hover:bg-red-50 border border-stone-200 hover:border-red-200 rounded-xl font-semibold transition-colors cursor-pointer inline-flex items-center justify-center min-h-[30px]"
                         title="Withdraw this application"
                       >
                         Withdraw

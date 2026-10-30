@@ -13,8 +13,13 @@ import {
   ChevronRight,
   ExternalLink,
   Sparkles,
-  Inbox
+  Inbox,
+  AlertTriangle,
+  ShieldAlert,
+  X,
+  ArrowRight
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
 import { AppNotification, NotificationType } from '../../types';
 
@@ -33,6 +38,30 @@ export const NotificationsView: React.FC = () => {
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'job' | 'event' | 'message' | 'announcement' | 'system'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDetailNotif, setSelectedDetailNotif] = useState<AppNotification | null>(null);
+
+  const isUrgentNotification = (n: AppNotification): boolean => {
+    const text = `${n.title} ${n.body}`.toLowerCase();
+    return (
+      n.type === 'security' ||
+      text.includes('urgent') ||
+      text.includes('critical') ||
+      text.includes('emergency') ||
+      text.includes('action required') ||
+      text.includes('security notice') ||
+      text.includes('password') ||
+      text.includes('unauthorized') ||
+      text.includes('24h') ||
+      text.includes('cancellation')
+    );
+  };
+
+  const openNotificationDetail = (notif: AppNotification) => {
+    if (!notif.read) {
+      markNotificationAsRead(notif.id);
+    }
+    setSelectedDetailNotif(notif);
+  };
 
   const filteredNotifications = useMemo(() => {
     return userNotifications.filter((n) => {
@@ -320,13 +349,17 @@ export const NotificationsView: React.FC = () => {
         <div className="space-y-3">
           {filteredNotifications.map((notif) => {
             const isUnread = !notif.read;
+            const isUrgent = isUrgentNotification(notif);
             return (
               <div
                 key={notif.id}
-                className={`group rounded-2xl border transition-all duration-200 p-4 sm:p-5 flex items-start gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${
-                  isUnread
+                onClick={() => openNotificationDetail(notif)}
+                className={`group rounded-2xl border transition-all duration-200 p-4 sm:p-5 flex items-start gap-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] cursor-pointer active:scale-[0.99] ${
+                  isUrgent
+                    ? 'bg-red-50/40 dark:bg-red-950/20 border-red-200 dark:border-red-900/60 hover:border-red-300 ring-1 ring-red-500/15'
+                    : isUnread
                     ? 'bg-white dark:bg-[#1c1917] border-rose-200 dark:border-rose-900/50 hover:border-rose-300 dark:hover:border-rose-800 ring-1 ring-rose-500/10'
-                    : 'bg-white dark:bg-[#181615] border-stone-200/80 dark:border-stone-800/80 hover:border-stone-300 dark:hover:border-stone-700'
+                    : 'bg-white dark:bg-[#181615] border-stone-200/80 dark:border-stone-800/80 hover:border-stone-300 dark:hover:stone-700'
                 }`}
               >
                 {/* Category Icon */}
@@ -340,6 +373,12 @@ export const NotificationsView: React.FC = () => {
                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${getNotificationBadgeColor(notif.type)}`}>
                       {notif.type.replace('_', ' ')}
                     </span>
+                    {isUrgent && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-red-100 text-red-800 dark:bg-red-950/70 dark:text-red-300 border border-red-200 dark:border-red-800 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-red-600" />
+                        Urgent
+                      </span>
+                    )}
                     <span className="text-[11px] text-stone-400 dark:text-stone-500 font-medium">
                       {formatTimestamp(notif.createdAt)}
                     </span>
@@ -349,8 +388,7 @@ export const NotificationsView: React.FC = () => {
                   </div>
 
                   <h3
-                    onClick={() => handleNotificationAction(notif)}
-                    className={`text-sm tracking-tight cursor-pointer hover:text-[#8B181B] dark:hover:text-rose-400 transition-colors ${
+                    className={`text-sm tracking-tight hover:text-[#8B181B] dark:hover:text-rose-400 transition-colors ${
                       isUnread
                         ? 'font-bold text-stone-900 dark:text-stone-100'
                         : 'font-semibold text-stone-700 dark:text-stone-300'
@@ -359,7 +397,7 @@ export const NotificationsView: React.FC = () => {
                     {notif.title}
                   </h3>
 
-                  <p className="text-xs text-stone-600 dark:text-stone-400 mt-1 leading-relaxed whitespace-pre-line">
+                  <p className="text-xs text-stone-600 dark:text-stone-400 mt-1 leading-relaxed whitespace-pre-line line-clamp-2">
                     {notif.body}
                   </p>
 
@@ -367,17 +405,23 @@ export const NotificationsView: React.FC = () => {
                   <div className="flex items-center gap-3 mt-3 pt-2.5 border-t border-stone-100 dark:border-stone-800/80 flex-wrap">
                     <button
                       type="button"
-                      onClick={() => handleNotificationAction(notif)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openNotificationDetail(notif);
+                      }}
                       className="text-xs font-semibold text-[#8B181B] dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer"
                     >
-                      <span>View Details</span>
+                      <span>View Full Details</span>
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
 
                     {isUnread && (
                       <button
                         type="button"
-                        onClick={() => markNotificationAsRead(notif.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markNotificationAsRead(notif.id);
+                        }}
                         className="text-xs font-medium text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 text-stone-400" />
@@ -387,7 +431,10 @@ export const NotificationsView: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => deleteNotification(notif.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteNotification(notif.id);
+                      }}
                       className="text-xs font-medium text-stone-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1 cursor-pointer transition-colors ml-auto"
                       title="Delete notification"
                     >
@@ -401,6 +448,98 @@ export const NotificationsView: React.FC = () => {
           })}
         </div>
       )}
+
+      {/* Full Alert Details Modal */}
+      <AnimatePresence>
+        {selectedDetailNotif && (
+          <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-7 w-full max-w-lg shadow-2xl border border-stone-200 dark:border-stone-800 space-y-4"
+            >
+              <div className="flex items-start justify-between gap-3 border-b border-stone-100 dark:border-stone-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border ${getNotificationBadgeColor(selectedDetailNotif.type)}`}>
+                    {getNotificationIcon(selectedDetailNotif.type)}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${getNotificationBadgeColor(selectedDetailNotif.type)}`}>
+                        {selectedDetailNotif.type.replace('_', ' ')}
+                      </span>
+                      {isUrgentNotification(selectedDetailNotif) && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border border-red-200 dark:border-red-900/60 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-red-600" />
+                          Urgent Notice
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-stone-400 dark:text-stone-500 font-medium mt-1">
+                      {new Date(selectedDetailNotif.createdAt).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetailNotif(null)}
+                  className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-white leading-snug">
+                  {selectedDetailNotif.title}
+                </h3>
+                <div className="mt-3 p-4 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700 text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed whitespace-pre-line max-h-64 overflow-y-auto">
+                  {selectedDetailNotif.body}
+                </div>
+              </div>
+
+              {selectedDetailNotif.metadata && Object.keys(selectedDetailNotif.metadata).length > 0 && (
+                <div className="p-3 rounded-xl bg-stone-100/60 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-700/60 text-[11px] text-stone-500 flex flex-wrap gap-2">
+                  {Object.entries(selectedDetailNotif.metadata).map(([k, v]) => (
+                    <span key={k} className="font-mono">
+                      <strong>{k}:</strong> {String(v)}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-between gap-3 border-t border-stone-100 dark:border-stone-800">
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetailNotif(null)}
+                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = selectedDetailNotif;
+                    setSelectedDetailNotif(null);
+                    handleNotificationAction(target);
+                  }}
+                  className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>Proceed to Section</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

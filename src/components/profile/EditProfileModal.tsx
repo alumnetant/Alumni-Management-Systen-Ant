@@ -40,11 +40,34 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
   const [about, setAbout] = useState(currentUser?.about || '');
   const [location, setLocation] = useState(currentUser?.location || '');
   const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [profilePictureUrl, setProfilePictureUrl] = useState(currentUser?.profilePictureUrl || '');
   const [coverPhotoUrl, setCoverPhotoUrl] = useState(currentUser?.coverPhotoUrl || '');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const validatePhilippinePhone = (rawPhone: string): { isValid: boolean; formatted: string; error?: string } => {
+    const cleaned = rawPhone.replace(/[\s\-()]/g, '');
+    if (!cleaned) {
+      return { isValid: false, formatted: '', error: 'Philippine contact number is required.' };
+    }
+    const phRegex = /^(\+639|639|09)\d{9}$/;
+    if (!phRegex.test(cleaned)) {
+      return {
+        isValid: false,
+        formatted: cleaned,
+        error: 'Please enter a valid Philippine mobile number (e.g. 0917 123 4567 or +63 917 123 4567).'
+      };
+    }
+    let standardized = cleaned;
+    if (standardized.startsWith('639')) {
+      standardized = '+639' + standardized.slice(3);
+    } else if (standardized.startsWith('09')) {
+      standardized = '+639' + standardized.slice(2);
+    }
+    return { isValid: true, formatted: standardized };
+  };
 
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isDraggingCover, setIsDraggingCover] = useState(false);
@@ -182,9 +205,19 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    setPhoneError(null);
+
     if (!name.trim()) {
       triggerHaptic('warning');
       showToast('Please enter your full name.', 'error');
+      return;
+    }
+
+    const phoneValidation = validatePhilippinePhone(phone);
+    if (!phoneValidation.isValid) {
+      triggerHaptic('warning');
+      setPhoneError(phoneValidation.error || 'Invalid Philippine contact number.');
+      showToast(phoneValidation.error || 'Please enter a valid Philippine mobile number.', 'error');
       return;
     }
 
@@ -195,7 +228,7 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
         headline: headline.trim(),
         about: about.trim(),
         location: location.trim(),
-        phone: phone.trim(),
+        phone: phoneValidation.formatted,
         profilePictureUrl,
         coverPhotoUrl,
         experience,
@@ -527,16 +560,32 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
-                Contact Phone
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block">
+                  Contact Phone (Philippine Mobile) *
+                </label>
+                <span className="text-[10px] text-stone-400 font-mono">09XX / +63 9XX</span>
+              </div>
               <input
                 type="tel"
+                required
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+63 917 123 4567"
-                className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-stone-100"
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  if (phoneError) setPhoneError(null);
+                }}
+                placeholder="0917 123 4567 or +63 917 123 4567"
+                className={`w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border rounded-lg text-xs text-stone-900 dark:text-stone-100 transition-colors ${
+                  phoneError
+                    ? 'border-red-500 focus:ring-1 focus:ring-red-500'
+                    : 'border-stone-200 dark:border-stone-700 focus:ring-1 focus:ring-[#8B181B]'
+                }`}
               />
+              {phoneError && (
+                <p className="text-[11px] text-red-600 dark:text-red-400 font-medium mt-1">
+                  {phoneError}
+                </p>
+              )}
             </div>
 
             <div>

@@ -509,7 +509,7 @@ export async function verifyCapacitorBiometrics(
       description: isFace
         ? 'Align your face inside the viewfinder to authenticate.'
         : 'Place your registered finger on the sensor to unlock.',
-      negativeButtonText: 'Use Campus PIN',
+      negativeButtonText: 'Use Emergency PIN',
       maxAttempts: 3
     });
 
@@ -525,14 +525,29 @@ export async function verifyCapacitorBiometrics(
 }
 
 /**
- * Simple SHA-256 hash generator for Campus PIN comparison
+ * Simple SHA-256 hash generator for Emergency PIN comparison
  */
 async function hashPin(pin: string): Promise<string> {
-  const enc = new TextEncoder();
-  const data = enc.encode(`st_cecilia_alumni_pin_${pin}`);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  try {
+    if (typeof crypto !== 'undefined' && crypto?.subtle?.digest) {
+      const enc = new TextEncoder();
+      const data = enc.encode(`st_cecilia_alumni_pin_${pin}`);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+  } catch {
+    // Non-secure context or crypto error fallback
+  }
+
+  // Resilient fallback hash for non-secure webviews or test environments
+  let hash = 0;
+  const str = `st_cecilia_alumni_pin_${pin}`;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return `pin_fallback_${Math.abs(hash)}`;
 }
 
 /**
@@ -642,7 +657,7 @@ export async function verifyCampusPin(
     localStorage.setItem(lockoutKey, lockUntil.toString());
     return {
       success: false,
-      error: 'Too many incorrect attempts. Campus PIN locked for 60 seconds.',
+      error: 'Too many incorrect attempts. Emergency PIN locked for 60 seconds.',
       remainingAttempts: 0,
       lockedUntil: lockUntil
     };
@@ -651,7 +666,7 @@ export async function verifyCampusPin(
   const remaining = 5 - currentFailed;
   return {
     success: false,
-    error: `Incorrect Campus PIN. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
+    error: `Incorrect Emergency PIN. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`,
     remainingAttempts: remaining
   };
 }
@@ -669,7 +684,7 @@ export async function verifyBiometricForDashboardAccess(options?: {
 
   if (modality === 'pin') {
     if (!options?.pin) {
-      return { success: false, error: 'Campus PIN is required.' };
+      return { success: false, error: 'Emergency PIN is required.' };
     }
     const pinRes = await verifyCampusPin(options.pin, options.userId);
     return {
