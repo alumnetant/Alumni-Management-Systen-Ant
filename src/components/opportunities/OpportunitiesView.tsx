@@ -36,6 +36,7 @@ import { JobApplicantsTrackerModal } from './JobApplicantsTrackerModal';
 import { JobModerationQueue } from './JobModerationQueue';
 import { ShareModal, ShareItem } from '../common/ShareModal';
 import { ConfirmationModal } from '../common/ConfirmationModal';
+import { PaginationControl } from '../common/PaginationControl';
 import {
   computePreciseJobMatch,
   isSkillMatch,
@@ -73,6 +74,8 @@ export const OpportunitiesView: React.FC = () => {
   const [matchOnly, setMatchOnly] = useState(false);
   const [filterByMySkills, setFilterByMySkills] = useState(false);
   const [selectedSkillTag, setSelectedSkillTag] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 10;
 
   // Verified skills from current user profile
   const userVerifiedSkills = useMemo(() => {
@@ -780,7 +783,7 @@ export const OpportunitiesView: React.FC = () => {
 
           {/* Job Postings Bento Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {publishedOpportunities.map((opp, idx) => {
+            {publishedOpportunities.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((opp, idx) => {
               const match = computeUserMatch(opp);
               const hasApplied = myApplications.some((a) => a.jobId === opp.id);
 
@@ -1020,6 +1023,17 @@ export const OpportunitiesView: React.FC = () => {
               );
             })}
           </div>
+
+          {/* Pagination Controls */}
+          {publishedOpportunities.length > 0 && (
+            <PaginationControl
+              currentPage={currentPage}
+              totalItems={publishedOpportunities.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+              itemLabel="job openings"
+            />
+          )}
 
           {publishedOpportunities.length === 0 && (
             <div className="bg-white border border-stone-200 rounded-2xl p-12 text-center shadow-2xs space-y-3">

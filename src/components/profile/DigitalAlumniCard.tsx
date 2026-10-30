@@ -44,6 +44,10 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
 
   if (!user) return null;
 
+  // Digital Alumni Card is strictly for alumni, student, and academic staff
+  // Partner employer companies do not receive digital alumni ID cards
+  if (user.role === 'employer') return null;
+
   const getFormattedId = (u: UserProfile) => {
     // Official Alumni have their own distinct Alumni ID (not the student ID)
     if (u.role === 'alumni') {

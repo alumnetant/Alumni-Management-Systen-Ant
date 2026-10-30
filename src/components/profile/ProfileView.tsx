@@ -33,6 +33,7 @@ import { ContactMask } from '../common/ContactMask';
 import { RegistrarSelfVerificationModal } from './RegistrarSelfVerificationModal';
 import { ImageViewerModal } from '../common/ImageViewerModal';
 import { exportProfileToPdfResume } from '../../services/pdfResumeService';
+import { PdfResumePreviewModal } from './PdfResumePreviewModal';
 import { compressImage } from '../../lib/utils';
 import {
   getUserAvatar,
@@ -49,6 +50,7 @@ export const ProfileView: React.FC = () => {
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isDraggingCover, setIsDraggingCover] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [showResumePreview, setShowResumePreview] = useState(false);
   const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
   const avatarFileInputRef = React.useRef<HTMLInputElement>(null);
   const coverFileInputRef = React.useRef<HTMLInputElement>(null);
@@ -327,39 +329,29 @@ export const ProfileView: React.FC = () => {
               {/* Export PDF Resume */}
               <button
                 type="button"
-                disabled={isExportingPdf}
-                onClick={async () => {
-                  if (isExportingPdf) return;
-                  setIsExportingPdf(true);
-                  try {
-                    await exportProfileToPdfResume(currentUser, currentUser);
-                    showToast('Official PDF Resume downloaded successfully!', 'success');
-                  } catch (err: any) {
-                    showToast(err?.message || 'Could not export PDF resume.', 'error');
-                  } finally {
-                    setIsExportingPdf(false);
-                  }
-                }}
-                className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-stone-50 hover:bg-white text-stone-700 hover:text-stone-900 border border-stone-200/90 hover:border-stone-300 dark:bg-stone-800 dark:hover:bg-stone-750 dark:text-stone-200 dark:hover:text-white dark:border-stone-700 rounded-xl text-xs sm:text-sm font-semibold shadow-2xs transition-all cursor-pointer min-h-[44px] disabled:opacity-60"
-                title="Download your profile formatted as an official PDF resume"
+                onClick={() => setShowResumePreview(true)}
+                className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-stone-50 hover:bg-white text-stone-700 hover:text-stone-900 border border-stone-200/90 hover:border-stone-300 dark:bg-stone-800 dark:hover:bg-stone-750 dark:text-stone-200 dark:hover:text-white dark:border-stone-700 rounded-xl text-xs sm:text-sm font-semibold shadow-2xs transition-all cursor-pointer min-h-[44px]"
+                title="Review and download official PDF resume"
               >
-                <FileDown className={`w-4 h-4 text-stone-500 dark:text-stone-400 shrink-0 ${isExportingPdf ? 'animate-bounce' : ''}`} />
-                <span className="truncate">{isExportingPdf ? 'Generating...' : 'PDF Resume'}</span>
+                <FileDown className="w-4 h-4 text-stone-500 dark:text-stone-400 shrink-0" />
+                <span className="truncate">PDF Resume</span>
               </button>
 
-              {/* Digital Pass / ID Jump */}
-              <button
-                type="button"
-                onClick={() => {
-                  const el = document.getElementById('digital-id-section');
-                  el?.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-stone-50 hover:bg-white text-stone-700 hover:text-stone-900 border border-stone-200/90 hover:border-amber-300/80 dark:bg-stone-800 dark:hover:bg-stone-750 dark:text-stone-200 dark:hover:text-white dark:border-stone-700 rounded-xl text-xs sm:text-sm font-semibold shadow-2xs transition-all cursor-pointer group min-h-[44px]"
-                title="Jump to Official Digital Alumni Pass"
-              >
-                <CreditCard className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 group-hover:scale-105 transition-transform" />
-                <span className="truncate">Digital Pass</span>
-              </button>
+              {/* Digital Pass / ID Jump (Alumni, Students, Staff only) */}
+              {currentUser.role !== 'employer' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('digital-id-section');
+                    el?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-stone-50 hover:bg-white text-stone-700 hover:text-stone-900 border border-stone-200/90 hover:border-amber-300/80 dark:bg-stone-800 dark:hover:bg-stone-750 dark:text-stone-200 dark:hover:text-white dark:border-stone-700 rounded-xl text-xs sm:text-sm font-semibold shadow-2xs transition-all cursor-pointer group min-h-[44px]"
+                  title="Jump to Official Digital Alumni Pass"
+                >
+                  <CreditCard className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 group-hover:scale-105 transition-transform" />
+                  <span className="truncate">Digital Pass</span>
+                </button>
+              )}
 
               {/* Share Profile */}
               <button
@@ -519,35 +511,37 @@ export const ProfileView: React.FC = () => {
           {/* ========================================================
               OFFICIAL ALUMNI DIGITAL PASS
               Interactive metallic pass with QR turnstile verification
-              Accessible across web and mobile
+              Accessible across web and mobile (Alumni, Student, Staff only)
               ======================================================== */}
-          <div
-            id="digital-id-section"
-            className="mt-8 p-6 bg-gradient-to-br from-stone-900 via-stone-950 to-stone-900 dark:from-stone-950 dark:via-black dark:to-stone-950 rounded-2xl border border-stone-800 dark:border-stone-800/90 text-white shadow-xl scroll-mt-20 transition-colors"
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-6 border-b border-stone-800">
-              <div>
-                <div className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-amber-400" />
-                  <h2 className="text-sm sm:text-base font-bold text-white uppercase tracking-wider font-mono">
-                    Official Alumni Digital Pass
-                  </h2>
+          {currentUser.role !== 'employer' && (
+            <div
+              id="digital-id-section"
+              className="mt-8 p-6 bg-gradient-to-br from-stone-900 via-stone-950 to-stone-900 dark:from-stone-950 dark:via-black dark:to-stone-950 rounded-2xl border border-stone-800 dark:border-stone-800/90 text-white shadow-xl scroll-mt-20 transition-colors"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-6 border-b border-stone-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-amber-400" />
+                    <h2 className="text-sm sm:text-base font-bold text-white uppercase tracking-wider font-mono">
+                      Official Alumni Digital Pass
+                    </h2>
+                  </div>
+                  <p className="text-xs text-stone-400 mt-1">
+                    Interactive metallic access card with EMV chip, contactless gate verification, and QR turnstile code.
+                  </p>
                 </div>
-                <p className="text-xs text-stone-400 mt-1">
-                  Interactive metallic access card with EMV chip, contactless gate verification, and QR turnstile code.
-                </p>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 shadow-xs">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    ACTIVE MEMBERSHIP
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 shadow-xs">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  ACTIVE MEMBERSHIP
-                </span>
-              </div>
+              <DigitalAlumniCard user={currentUser} />
             </div>
-
-            <DigitalAlumniCard user={currentUser} />
-          </div>
+          )}
 
           {/* ========================================================
               BENTO GRID: ABOUT + ACADEMIC RECORD + EXPERIENCE + EDUCATION
@@ -731,6 +725,15 @@ export const ProfileView: React.FC = () => {
         title={viewerImage?.title || 'Image Viewer'}
         onClose={() => setViewerImage(null)}
       />
+
+      {/* Official PDF Resume Preview & Verification Modal */}
+      {currentUser && (
+        <PdfResumePreviewModal
+          isOpen={showResumePreview}
+          onClose={() => setShowResumePreview(false)}
+          targetUser={currentUser}
+        />
+      )}
     </div>
   );
 };

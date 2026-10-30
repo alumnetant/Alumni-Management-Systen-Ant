@@ -922,57 +922,23 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
 
         {/* ================= COLUMN C (3 cols): ACCREDITATION DESK & ALUMNI TRACERS ================= */}
         <div className="lg:col-span-3 space-y-5">
-          {/* Partner Accreditation Desk */}
+          {/* Corporate Placement & Industry Governance Summary */}
           <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs space-y-4">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div className="flex items-center gap-2 text-xs font-bold text-stone-900 uppercase tracking-wider">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#8B181B]" />
-                <span>Accreditation Desk</span>
+                <span>Moderator Governance</span>
               </div>
-              <span className="text-[11px] font-semibold text-stone-500">
-                {pendingEmployers.length} pending
-              </span>
             </div>
 
-            {pendingEmployers.length === 0 ? (
-              <div className="text-center py-4 space-y-1.5">
-                <CheckCircle2 className="w-7 h-7 text-emerald-600 mx-auto" />
-                <p className="text-xs font-bold text-stone-900">All Corporate Partners Accredited</p>
-                <p className="text-[11px] text-stone-500 leading-normal">
-                  All registered employer organizations meet SCC institutional verification standards.
-                </p>
+            <div className="p-3.5 rounded-xl bg-stone-50 border border-stone-200/80 space-y-2 text-xs">
+              <p className="text-stone-700 font-medium leading-relaxed">
+                Partner accreditation and corporate credential verification are routed exclusively to the <strong>Moderator Dashboard</strong> with automated RDAP and SEC registry audits.
+              </p>
+              <div className="text-[11px] text-stone-500">
+                Institutional Policy: Accreditation separation active.
               </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingEmployers.slice(0, 3).map((emp) => (
-                  <div
-                    key={emp.uid}
-                    className="p-3 rounded-xl bg-amber-50/60 border border-amber-200/80 space-y-2"
-                  >
-                    <div className="space-y-0.5">
-                      <div className="text-xs font-bold text-stone-900">{emp.company || emp.name}</div>
-                      <div className="text-[11px] text-stone-500 truncate">{emp.email}</div>
-                    </div>
-                    <div className="flex items-center justify-end gap-1.5 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setEmployerToDecline({ uid: emp.uid, name: emp.company || emp.name })}
-                        className="px-2 py-1 rounded-md text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer"
-                      >
-                        Decline
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEmployerToAccredit({ uid: emp.uid, name: emp.company || emp.name })}
-                        className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-white bg-emerald-700 hover:bg-emerald-800 transition-colors cursor-pointer"
-                      >
-                        Accredit
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            </div>
           </div>
 
         </div>

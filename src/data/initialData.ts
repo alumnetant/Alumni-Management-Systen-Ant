@@ -317,11 +317,102 @@ export const INITIAL_USERS: UserProfile[] = [
     isVerified: true,
     isProfileSetupCompleted: true,
     profileCompleted: true,
-    followersCount: 0,
-    followingCount: 0,
-    connectionsCount: 0,
-    experience: [],
-    education: [],
+    followersCount: 42,
+    followingCount: 19,
+    connectionsCount: 26,
+    skills: ['TypeScript', 'React', 'Node.js', 'Kubernetes', 'Docker', 'PostgreSQL', 'Tailwind CSS', 'Cloud Architecture'],
+    experience: [
+      {
+        id: 'exp_julian_1',
+        title: 'Lead Full-Stack Cloud Engineer',
+        company: 'Archipelagic Cloud Systems',
+        location: 'Cebu IT Park, Cebu City',
+        startDate: '2023-08',
+        current: true,
+        description: 'Architecting scalable serverless pipelines and resilient microservices. Mentoring student developers from St. Cecilia’s College.'
+      },
+      {
+        id: 'exp_julian_2',
+        title: 'Cloud Infrastructure Intern',
+        company: 'MetroCebu InnovateCorp',
+        location: 'Cebu City, Philippines',
+        startDate: '2022-06',
+        endDate: '2023-04',
+        current: false,
+        description: 'Developed automated CI/CD deployment routines using GitHub Actions and managed Docker container clusters.'
+      }
+    ],
+    education: [
+      {
+        id: 'edu_julian_1',
+        degree: 'Bachelor of Science in Information Technology',
+        institution: 'St. Cecilia’s College - Cebu, Inc.',
+        fieldOfStudy: 'Cloud Computing & Enterprise Systems',
+        startYear: '2019',
+        endYear: '2023',
+        honors: 'Magna Cum Laude'
+      }
+    ],
+    createdAt: '2024-01-01T00:00:00.000Z'
+  },
+  {
+    uid: 'usr_alumni_rafael_villanueva',
+    name: 'Engr. Rafael D. Villanueva',
+    email: 'rafael.villanueva@alumni.stcecilia.edu.ph',
+    password: 'Password123!',
+    role: 'alumni',
+    batch: '2020',
+    course: 'BS in Information Technology',
+    studentId: 'SCC-2016-0418',
+    alumniId: 'SCC-ALUM-2020-0418',
+    location: 'Cebu City, Philippines',
+    profilePictureUrl: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&auto=format&fit=crop&q=80',
+    coverPhotoUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&auto=format&fit=crop&q=80',
+    headline: 'Senior Cloud Solutions Architect • Accenture Philippines • SCC Batch 2020 Valedictorian',
+    about: 'Summa Cum Laude graduate of St. Cecilia’s College (Class of 2020). AWS Certified Solutions Architect Professional and DevOps consultant with 5+ years building enterprise fintech and healthcare platforms.',
+    phone: '+63 917 555 8899',
+    company: 'Accenture Technology Solutions',
+    currentPosition: 'Senior Cloud Solutions Architect',
+    industry: 'Enterprise Software & Cloud Platforms',
+    isVerified: true,
+    isProfileSetupCompleted: true,
+    profileCompleted: true,
+    followersCount: 88,
+    followingCount: 35,
+    connectionsCount: 64,
+    skills: ['AWS Cloud', 'Terraform', 'Kubernetes', 'Enterprise Architecture', 'Go', 'Python', 'DevSecOps', 'System Design'],
+    experience: [
+      {
+        id: 'exp_rafael_1',
+        title: 'Senior Cloud Solutions Architect',
+        company: 'Accenture Technology Solutions',
+        location: 'Cebu IT Park, Cebu City',
+        startDate: '2022-09',
+        current: true,
+        description: 'Leading multi-region cloud migrations and infrastructure-as-code automation for international financial institutions.'
+      },
+      {
+        id: 'exp_rafael_2',
+        title: 'Cloud DevOps Engineer',
+        company: 'Lexmark Research & Development Corp',
+        location: 'Cebu Business Park',
+        startDate: '2020-07',
+        endDate: '2022-08',
+        current: false,
+        description: 'Engineered automated observability pipelines and secured container registries for global firmware release systems.'
+      }
+    ],
+    education: [
+      {
+        id: 'edu_rafael_1',
+        degree: 'Bachelor of Science in Information Technology',
+        institution: 'St. Cecilia’s College - Cebu, Inc.',
+        fieldOfStudy: 'Software Engineering & Network Systems',
+        startYear: '2016',
+        endYear: '2020',
+        honors: 'Summa Cum Laude (Centenary Valedictorian)'
+      }
+    ],
     createdAt: '2024-01-01T00:00:00.000Z'
   }
 ];

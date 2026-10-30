@@ -39,6 +39,7 @@ import { AdminEventsManager } from './AdminEventsManager';
 import { JobModerationQueue } from '../opportunities/JobModerationQueue';
 import { EmployerManagementModule } from './EmployerManagementModule';
 import { AdminEmployersAndJobsView } from './AdminEmployersAndJobsView';
+import { ModeratorPanelView } from './ModeratorPanelView';
 import { AuditLogView } from './AuditLogView';
 import { getRegistrationConflicts } from '../../services/studentVerificationService';
 import { compressImage } from '../../lib/utils';
@@ -682,10 +683,10 @@ export const AdminPanelView: React.FC = () => {
           {/* TAB: EVENTS & GATHERINGS */}
           {(activeTab === 'events' || activeTab === 'attendance') && <AdminEventsManager />}
 
-          {/* TAB: EMPLOYERS & JOBS (MERGED SINGLE PAGE) */}
-          {(activeTab === 'jobs' || activeTab === 'employers') && (
-            (permissions.canManageJobModeration || permissions.canAccessEmployerAccreditation) ? (
-              <AdminEmployersAndJobsView initialSubTab={activeTab === 'employers' ? 'employers' : 'jobs'} />
+          {/* TAB: EMPLOYER ACCREDITATION (MODERATOR DESK) */}
+          {activeTab === 'employers' && (
+            (permissions.canAccessEmployerAccreditation || currentUser?.role === 'moderator' || currentUser?.role === 'admin' || currentUser?.role === 'superadmin') ? (
+              <ModeratorPanelView />
             ) : (
               <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center max-w-lg mx-auto shadow-2xs space-y-3 my-8">
                 <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
@@ -693,7 +694,24 @@ export const AdminPanelView: React.FC = () => {
                 </div>
                 <h3 className="text-base font-bold text-stone-900 font-sans">Access Restricted</h3>
                 <p className="text-xs text-stone-600 leading-relaxed">
-                  Career opportunities and employer accreditation management is restricted to authorized moderators and administrators.
+                  Employer accreditation management is routed exclusively to authorized moderators.
+                </p>
+              </div>
+            )
+          )}
+
+          {/* TAB: JOBS & CAREERS */}
+          {activeTab === 'jobs' && (
+            (permissions.canManageJobModeration || currentUser?.role === 'admin' || currentUser?.role === 'superadmin') ? (
+              <AdminEmployersAndJobsView initialSubTab="jobs" />
+            ) : (
+              <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center max-w-lg mx-auto shadow-2xs space-y-3 my-8">
+                <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
+                  <ShieldAlert className="w-6 h-6 text-amber-600" />
+                </div>
+                <h3 className="text-base font-bold text-stone-900 font-sans">Access Restricted</h3>
+                <p className="text-xs text-stone-600 leading-relaxed">
+                  Career opportunities management is restricted to authorized personnel.
                 </p>
               </div>
             )

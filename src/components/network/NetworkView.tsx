@@ -46,8 +46,9 @@ import { ConfirmationModal } from '../common/ConfirmationModal';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
 import { getUserOnlineStatus } from '../../lib/userStatus';
-import { PartneredCompaniesView } from './PartneredCompaniesView';
 import { isEmployerVisibleInDirectory } from '../../lib/employerValidation';
+import { PaginationControl } from '../common/PaginationControl';
+import { PartneredCompaniesView } from './PartneredCompaniesView';
 
 export const NetworkView: React.FC = () => {
   const {
@@ -85,8 +86,9 @@ export const NetworkView: React.FC = () => {
     sendFriendRequest(targetUid);
   };
 
-  // Progressive "See More" visibility limits
-  const [visibleDirectoryCount, setVisibleDirectoryCount] = useState<number>(12);
+  // Pagination state (10 per page default)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 10;
   const [visibleRecommendedCount, setVisibleRecommendedCount] = useState<number>(8);
   const [visibleConnectionsCount, setVisibleConnectionsCount] = useState<number>(12);
 
@@ -152,7 +154,7 @@ export const NetworkView: React.FC = () => {
 
   // Reset directory pagination when any filter changes
   useEffect(() => {
-    setVisibleDirectoryCount(12);
+    setCurrentPage(1);
   }, [searchQuery, selectedBatch, selectedCourse, selectedRole, selectedStatus]);
 
   // Distinct batches and courses for filter dropdowns
@@ -1044,7 +1046,7 @@ export const NetworkView: React.FC = () => {
                  ======================================================== */}
               <div className="block lg:hidden">
                 <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] divide-y divide-stone-100 dark:divide-stone-800 overflow-hidden">
-                  {filteredDirectory.slice(0, visibleDirectoryCount).map((user) => {
+                  {filteredDirectory.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((user) => {
                     const connected = isConnected(user.uid);
                     const reqState = hasPendingRequestWith(user.uid);
                     const isReqSent = reqState === 'sent' || optimisticSentUids.has(user.uid);
@@ -1219,7 +1221,7 @@ export const NetworkView: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-stone-100 dark:divide-stone-800 text-xs">
-                          {filteredDirectory.slice(0, visibleDirectoryCount).map((user) => {
+                          {filteredDirectory.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((user) => {
                             const connected = isConnected(user.uid);
                             const reqState = hasPendingRequestWith(user.uid);
                             const isReqSent = reqState === 'sent' || optimisticSentUids.has(user.uid);
@@ -1388,7 +1390,7 @@ export const NetworkView: React.FC = () => {
                     animate="show"
                     className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
                   >
-                    {filteredDirectory.slice(0, visibleDirectoryCount).map((user) => {
+                    {filteredDirectory.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((user) => {
                       const connected = isConnected(user.uid);
                       const reqState = hasPendingRequestWith(user.uid);
                       const isReqSent = reqState === 'sent' || optimisticSentUids.has(user.uid);
@@ -1569,39 +1571,15 @@ export const NetworkView: React.FC = () => {
             </>
           )}
 
-          {/* Progressive "Show More" Controls */}
-          {filteredDirectory.length > visibleDirectoryCount && (
-            <div className="mt-8 pt-6 border-t border-stone-200/80 dark:border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-stone-900 p-5 rounded-[28px] border border-stone-200/90 shadow-2xs">
-              <div className="text-xs text-stone-600 dark:text-stone-400 text-center sm:text-left">
-                Showing <strong className="text-stone-900 dark:text-white font-bold">{Math.min(visibleDirectoryCount, filteredDirectory.length)}</strong> of{' '}
-                <strong className="text-stone-900 dark:text-white font-bold">{filteredDirectory.length}</strong> alumni
-                <div className="w-48 sm:w-64 bg-stone-200 dark:bg-stone-700 rounded-full h-1.5 mt-1.5 overflow-hidden mx-auto sm:mx-0">
-                  <div
-                    className="bg-[#8B181B] h-full rounded-full transition-all duration-300"
-                    style={{
-                      width: `${(Math.min(visibleDirectoryCount, filteredDirectory.length) / filteredDirectory.length) * 100}%`
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2.5 flex-wrap justify-center">
-                <button
-                  type="button"
-                  onClick={() => setVisibleDirectoryCount((prev) => prev + 12)}
-                  className="px-5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer active:scale-95"
-                >
-                  Show More (+{Math.min(12, filteredDirectory.length - visibleDirectoryCount)})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVisibleDirectoryCount(filteredDirectory.length)}
-                  className="px-4 py-2.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 font-semibold text-xs rounded-xl transition-all cursor-pointer"
-                >
-                  Show All
-                </button>
-              </div>
-            </div>
+          {/* Standard Pagination Controls */}
+          {filteredDirectory.length > 0 && (
+            <PaginationControl
+              currentPage={currentPage}
+              totalItems={filteredDirectory.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+              itemLabel="alumni"
+            />
           )}
         </div>
       )}

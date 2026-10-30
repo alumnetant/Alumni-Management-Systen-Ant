@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { exportProfileToPdfResume } from '../../services/pdfResumeService';
+import { PdfResumePreviewModal } from './PdfResumePreviewModal';
 import { ImageViewerModal } from '../common/ImageViewerModal';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import {
@@ -50,6 +51,7 @@ export const PublicProfileModal: React.FC = () => {
 
   const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
   const [showCancelRequestConfirm, setShowCancelRequestConfirm] = useState(false);
+  const [showResumePreview, setShowResumePreview] = useState(false);
 
   if (!selectedUserIdForModal) return null;
 
@@ -138,16 +140,9 @@ export const PublicProfileModal: React.FC = () => {
                   {isSelf && (
                     <button
                       type="button"
-                      onClick={async () => {
-                        try {
-                          await exportProfileToPdfResume(targetUser, currentUser);
-                          showToast('Official PDF Resume downloaded successfully!', 'success');
-                        } catch (err: any) {
-                          showToast(err?.message || 'Could not export PDF resume.', 'error');
-                        }
-                      }}
+                      onClick={() => setShowResumePreview(true)}
                       className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs cursor-pointer transition-colors min-h-[42px]"
-                      title="Download verified resume as PDF"
+                      title="Review and download official PDF resume"
                     >
                       <FileDown className="w-4 h-4 text-amber-300 shrink-0" />
                       <span className="whitespace-nowrap">Export PDF Resume</span>
@@ -361,6 +356,13 @@ export const PublicProfileModal: React.FC = () => {
         confirmLabel="Withdraw Request"
         cancelLabel="Keep Request"
         variant="warning"
+      />
+
+      {/* Official PDF Resume Preview & Verification Modal */}
+      <PdfResumePreviewModal
+        isOpen={showResumePreview}
+        onClose={() => setShowResumePreview(false)}
+        targetUser={targetUser}
       />
     </>
   );

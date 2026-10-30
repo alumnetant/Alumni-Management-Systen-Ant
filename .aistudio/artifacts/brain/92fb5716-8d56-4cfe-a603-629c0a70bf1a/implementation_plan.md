@@ -1,135 +1,152 @@
-# System Issues & Quality-of-Life Enhancements Plan
+# Implementation Plan: Automated Employer Verification Engine & Multi-Module System Updates
 
-Comprehensive resolution plan addressing the 9 reported bugs and workflow improvements across Web and Mobile surfaces for St. Cecilia's College - Cebu Alumni Network (Cecilian Alumnet).
+## 1. Executive Summary & Architectural Overview
+This plan outlines the architecture, database schema, backend services, and frontend UI/UX enhancements required to implement the **Automated Employer Verification Module** alongside the core web application updates across the Alumni, Employer, Admin, and Moderator modules for **St. Cecilia's College - Cebu, Inc.**
 
----
-
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The following key decisions were confirmed during the interactive clarification phase:
-
-- **Confirmed Decision 1 (Emergency PIN)**: Renamed all instances of "Campus Emergency PIN" to **"Emergency PIN"** across security settings, lock modals, and verification dialogs, maintaining accurate 4-to-6 digit credential validation and reset fallback.
-- **Confirmed Decision 2 (Password Update Email)**: Upon changing the account password, an immediate institutional security confirmation email is dispatched to the user's registered email address with timestamp, IP/device snapshot, and security contact links.
-- **Confirmed Decision 3 (Unsent Message Visibility)**: When a message is unsent, it is replaced with a discreet institutional notice reading *"This message was unsent"* with an italicized muted style for all participants, and the dropdown menu positioning is dynamically calculated (`top-full mt-1` vs `bottom-full mb-1`) so top messages are never clipped.
+The solution combines:
+- A full-stack Express verification engine running domain health, WHOIS/RDAP age checks, lookalike brand detection, and pluggable corporate registry lookups (e.g., SEC Philippines).
+- Zero-lockout employer registration validation with OTP-styled approval emails.
+- Standardized numbered pagination (10 items/page) replacing all "Show More" triggers.
+- An interactive in-app PDF Resume Review modal before downloading.
+- An Awards & Recognitions milestone section with auto-populated company names.
+- Complete relocation of Partner Accreditation to the Moderator Dashboard and deprecation of Partner Digital IDs.
 
 ---
 
-## 1. Overview & Core Concept
+## 2. General & System-Wide Updates
 
-- **What It Does**: Resolves 9 functional and visual inconsistencies across Direct Messages, Alumni Directory, Member Profile, Job Applications, Notification Alerts, and Account Security.
-- **Target Audience**: St. Cecilia's College alumni, faculty, and administrative members accessing the portal via modern web browsers and the Android APK.
-- **Key Value**: Delivers seamless messaging ergonomics, reliable connection state feedback, strict local Philippine phone validation, unified action button alignment, full visibility into urgent alerts, and verifiable account security workflows.
+### Task 1: Fix Memoranda Search Bar Text Visibility
+- **Root Cause**: The search input in `AnnouncementsView.tsx` lacks explicit dark/light mode font color classes and sits under layered glassmorphism overlays without explicit z-index/opacity hierarchy, making typed text invisible in certain viewports and themes.
+- **Frontend Changes**:
+  - Update `AnnouncementsView.tsx` search input container with `relative z-10`, `text-stone-900 dark:text-stone-100`, `bg-white dark:bg-stone-850`, and high-contrast placeholder styling.
+  - Add explicit clear (`X`) button and keypress handlers.
 
----
+### Task 2: Standard Pagination Across Core Features (Replace "Show More")
+- **Architecture**: Create a reusable, accessible `PaginationControl.tsx` component supporting:
+  - 10 items per page default (configured via user preference).
+  - Numbered page pills with smart truncation ellipses (`1, 2, ... 5, 6`), previous/next arrow buttons, and item count indicator (`Showing 1–10 of 48 items`).
+- **Integration Points**:
+  1. **Alumni Directory** (`NetworkView.tsx`): Replace infinite scroll / show more with `PaginationControl`.
+  2. **Job Board / Opportunities** (`OpportunitiesView.tsx`): Replace 6-item "Show More" with 10-item pagination.
+  3. **Memoranda & Announcements** (`AnnouncementsView.tsx`): Paginate active, important, and archived circulars.
+  4. **Campus Events & Reunions** (`EventsView.tsx`): Paginate upcoming and past event catalogs.
+  5. **Admin / Moderator Roster & Audit Tables** (`AdminPanelView.tsx`): Standardize registry record tables.
 
-## 2. User Experience & Visual Design
-
-### Key User Flows
-
-1. **Unsend Message & Menu Visibility (Web/Mobile)**
-   - User hovers or taps the top-most message in a thread.
-   - Menu opens downward (`top-full mt-1`) instead of getting clipped off the top screen boundary.
-   - User taps "Unsend Message"; message body transitions smoothly to a quiet `This message was unsent` notice with a muted flag icon.
-
-2. **Horizontal Prompt Sliding (Messages Bar)**
-   - When viewing quick prompt chips in Direct Messages, left and right chevron navigation buttons appear when overflowing.
-   - Touch drag, mouse wheel tilt, and click-to-slide smoothly scroll through all predefined conversation starters without clipping.
-
-3. **Inspect Profile Streamlining**
-   - In `PublicProfileModal`, the redundant standalone "Message" button is removed from the inspection header, keeping the focus clean on credentials, affiliations, and existing connection status.
-
-4. **Instant Alumni Directory "Request Sent" Feedback**
-   - User clicks "Connect" on any alumnus card in Browse Directory (`NetworkView`).
-   - The button optimistically transitions instantly to a subdued, verified button state: `Request Sent` with a checkmark and subtle clock icon, persisting across grid, table, and list modes.
-
-5. **Philippine Contact Number Validation**
-   - In `EditProfileModal`, the phone input enforces standard Philippine mobile formats (`09XXXXXXXXX` or `+639XXXXXXXXX`).
-   - Real-time feedback displays formatting guidance; invalid submissions trigger clear error state without submitting dirty state.
-
-6. **My Applications Action Alignment**
-   - In `OpportunitiesView` under "My Applications", the "Withdraw" action button is aligned vertically and horizontally with the application stage status pill (e.g., "Under Review", "Interview", "Offer"), preserving visual rhythm.
-
-7. **Urgent Notification Deep-Dive Modal (Mobile/Web)**
-   - Tapping an urgent or critical push/notification card opens `UrgentNotificationDetailModal`.
-   - Displays full institutional alert copy, issuing department, priority badge, timestamp, and relevant action links (e.g., review security, view opportunity, campus emergency guidance).
-
-8. **Password Update Security Alert Email**
-   - In `SettingsView`, updating the account password triggers an immediate backend email dispatch via `/api/email/security-alert` confirming the credential change and providing immediate escalation links if unauthorized.
-
-9. **Emergency PIN Verification & Renaming**
-   - Replaced all "Campus Emergency PIN" text with "Emergency PIN".
-   - Verified that PIN creation, numeric entry masking, and emergency bypass unlock function accurately across `SettingsView` and `BiometricAppLockModal`.
-
-### Visual Identity & Theme (AGENTS.md Compliance)
-- **Palette**: Deep Cecilian Crimson (`#8B181B`), warm institutional stone neutrals (`stone-50` to `stone-900`), verified emerald badges, and restrained amber warning indicators.
-- **Typography**: Clean tracking (`tracking-tight` for display, `leading-relaxed` for copy) using Lucide SVG icons (`strokeWidth={1.75}`).
-- **Zero-Pill Discipline**: Geometric, proportional rounded corners (`rounded-xl` for cards, `rounded-lg` for interactive buttons).
+### Task 3: Multi-Module Batch Year Filtering System
+- **Frontend Changes**:
+  - Update `NetworkView.tsx` and `AdminPanelView.tsx` filter drawers with a dedicated Centenary Batch Year selector (1968 to present).
+  - Add multi-batch selection and "All Batches" quick toggle.
+  - Connect batch filtering to server-side query parameters (`/api/alumni?batch=2024`).
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
+## 3. Alumni Module Updates
 
-- **Decision 1: Dynamic Dropdown Positioning for Chat Actions**
-  - *Chosen Approach*: Inspect message index within the conversation thread; indices `< 2` anchor to `top-full mt-1`, while later messages anchor to `bottom-full mb-1`.
-  - *Why*: Eliminates overflow clipping without requiring expensive floating UI libraries or portals.
+### Task 4: Sample Profile Seeding (Reference & Test Data)
+- **Data Schema & Seeding**:
+  - Add a comprehensive reference alumnus profile (`Alumnus Laureate - Engr. Rafael D. Villanueva`, Batch 2020, BSIT, Senior Cloud Architect at Accenture Philippines) with verified status, employment history, awards, skills, and portfolio links in `src/data/initialData.ts` and `src/services/databaseSampleSeederService.ts`.
 
-- **Decision 2: Optimistic UI for Connection Requests**
-  - *Chosen Approach*: Optimistically append target alumni ID to local `pendingConnections` set and update button copy to "Request Sent" immediately upon click.
-  - *Why*: Eliminates network latency delays and gives instant tactile confirmation to users.
+### Task 5: PDF Resume Review / Preview Modal Before Download
+- **Frontend Changes**:
+  - Create `src/components/profile/PdfResumePreviewModal.tsx`:
+    - Renders a high-fidelity visual layout preview of the generated resume (Personal Bio, Contact, Verified Batch/Course, Work Experience timeline, Education, and Skills).
+    - Includes an explicit **"Confirm & Download PDF"** primary button and **"Edit Profile"** secondary jump button.
+  - Update `ProfileView.tsx` and `PublicProfileModal.tsx` so clicking "PDF Resume" opens `PdfResumePreviewModal` rather than immediately executing document download.
 
-- **Decision 3: Non-Destructive Phone Number Sanitization**
-  - *Chosen Approach*: Strip spaces, hyphens, and parenthesis before regex testing against `/^(09|\+639)\d{9}$/`.
-  - *Why*: Accommodates common user entry styles (`0917-123-4567` or `+63 917 123 4567`) while strictly enforcing valid Philippine carrier prefixes.
-
----
-
-## 4. Technical Architecture & Component Mapping
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Cecilian Alumnet Frontend                       │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-    ┌───────────────────────────────┼──────────────────────────────┐
-    ▼                               ▼                              ▼
-┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
-│     MessagesView     │  │     NetworkView      │  │  OpportunitiesView   │
-│ - Dynamic Menu Drop  │  │ - "Request Sent"     │  │ - Align "Withdraw"   │
-│ - Prompt Scroll/Drag │  │   Optimistic State   │  │   with Stage Status  │
-│ - "Unsent" notice    │  └──────────────────────┘  └──────────────────────┘
-└──────────────────────┘
-    │
-    ├───────────────────────────────┬──────────────────────────────┐
-    ▼                               ▼                              ▼
-┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
-│  PublicProfileModal  │  │   EditProfileModal   │  │  NotificationsView   │
-│ - Remove Redundant   │  │ - Philippine Mobile  │  │ - Urgent Notification│
-│   "Message" button   │  │   Regex Validation   │  │   Detail Modal View  │
-└──────────────────────┘  └──────────────────────┘  └──────────────────────┘
-    │
-    └───────────────────────────────┬──────────────────────────────┐
-                                    ▼                              ▼
-                          ┌──────────────────────┐  ┌──────────────────────┐
-                          │     SettingsView     │  │ BiometricAppLockModal│
-                          │ - "Emergency PIN"    │  │ - "Emergency PIN"    │
-                          │ - Password Email API │  │ - Numeric PIN unlock │
-                          └──────────┬───────────┘  └──────────────────────┘
-                                     │
-                                     ▼
-                          ┌──────────────────────┐
-                          │   Express Backend    │
-                          │ - /api/email/        │
-                          │   security-alert     │
-                          └──────────────────────┘
-```
+### Task 6: Student Awards & Recognitions Milestones with Auto-Company Detection
+- **Frontend Changes**:
+  - In `src/types.ts`, extend `CareerMilestone` to support `awardLevel` (`National`, `Regional`, `Collegiate`, `Corporate`), `issuingOrganization`, and `awardDate`.
+  - In Milestone creation dialogs (`AdminWorkspaceLayout.tsx`, `InstitutionalSocialFeed.tsx`), add a dedicated **"Awards & Recognitions"** category.
+  - Implement auto-lookup logic: When an alumnus selects or creates an Award milestone, automatically inspect `user.experience` for the `current === true` employer or fallback to `user.company` to prefill the awarding organization.
 
 ---
 
-## 5. Verification Plan
+## 4. Automated Employer Verification Module & Employer Overhaul
 
-1. **Compilation & Linter**: Run `tsc --noEmit` and `npm run build` to verify 0 syntax or type errors.
-2. **Messages**: Test top message unsend dropdown visibility; verify unsend replaces content with quiet indicator; test horizontal prompt scrolling with chevrons.
-3. **Profile**: Verify removal of redundant message button in `PublicProfileModal`; test phone validation with invalid formats (`12345`) and valid Philippine formats (`09171234567`, `+639171234567`).
-4. **Directory & Applications**: Verify clicking "Connect" renders "Request Sent"; verify "Withdraw" button alignment in My Applications.
-5. **Notifications & Security**: Test tapping urgent notification opens detailed modal; test password change triggers security alert confirmation; verify "Emergency PIN" label and unlock workflow.
+### Task 7: Registration Validation Fix (Zero Accidental Account Lockouts)
+- **Problem**: Input validation errors during employer registration (e.g. typing mismatched corporate emails or URLs) were incorrectly registered as failed authentication attempts, triggering the security lockout countdown.
+- **Frontend & Logic Fixes**:
+  - Decouple registration form field validation from login brute-force trackers (`LOCKOUT_STORAGE_KEYS`).
+  - Provide inline, non-destructive validation hints without locking inputs or setting global lockout states.
+
+### Task 8: Automated Verification Engine Architecture (`src/server/employerVerification/`)
+- **Backend Verification Pipeline**:
+  1. **Work Email Verification (`emailCheck.ts`)**:
+     - Reject free email domains (`gmail.com`, `yahoo.com`, `outlook.com`, `hotmail.com`, `icloud.com`, `proton.me`, etc.) and disposable email domains from editable JSON config lists (`config/disposableEmails.json`).
+     - Generate secure 24-hour single-use verification tokens hashed via SHA-256 at rest (`/api/employer/verify-email?token=...`).
+  2. **Domain Matching & Normalization (`domainMatch.ts`)**:
+     - Normalize email domain and company website URL: lowercase, strip protocol (`https://`), strip `www.`, remove path and port.
+     - Validate that email domain strictly equals the website domain or is a valid subdomain (e.g. `careers.company.com`).
+     - Reject shared hosting domains (`wixsite.com`, `blogspot.com`, `github.io`, `weebly.com`, `wordpress.com`).
+  3. **Domain Health & Lookalike Checks (`domainHealth.ts`)**:
+     - RDAP / WHOIS domain age inspection: Domain registered `< 90 days` or unknown flagged for human review (`NEEDS_REVIEW`).
+     - Reachability probe: HTTP/HTTPS GET request verifying HTTP 200 with non-empty HTML content (reject parked or empty pages).
+     - Homoglyph & Levenshtein lookalike check against top tech/corporate brands list (`config/knownBrands.json`). Matches within edit distance $\le 2$ or homoglyphs flagged for review.
+     - Banned domain / IP blacklist lookup.
+  4. **Pluggable Corporate Registry Interface (`registry/`)**:
+     - Define `IRegistryProvider` interface:
+       ```ts
+       export interface IRegistryProvider {
+         countryCode: string;
+         queryCompany(legalName: string, regNumber?: string): Promise<RegistryQueryResult>;
+       }
+       ```
+     - Implement `SecPhilippinesRegistryProvider` (handling SEC/DTI business name normalization, stripping `Inc.`, `Corp.`, `Ltd.`, fuzzy Levenshtein match, and status validation).
+     - Fallback graceful handling: If timeout or provider missing, mark `registry_unchecked` and route to `NEEDS_REVIEW` (never auto-approve on failure).
+  5. **Decision Engine & Status Matrix**:
+     - `AUTO_VERIFIED`: Email confirmed + domain matches + not free/shared + age $\ge$ 90d + site healthy + no lookalike + not banned. (Tier: Basic Email-Verified Employer, max 3 active jobs, daily cap).
+     - `VERIFIED`: Basic criteria + verified active registry record (or 30 days without user reports, or admin approval). Full badges & normal limits.
+     - `AUTO_REJECTED`: Disposable/free email, banned domain/email, or dissolved entity in registry.
+     - `NEEDS_REVIEW`: Everything else (new domain, site unreachable, lookalike suspicion, registry discrepancy).
+  6. **Multiple Users per Domain**:
+     - First verified user for a domain is granted `Company Admin` rights.
+     - Subsequent signups under the same domain are queued as `join_requests` requiring approval from the existing company admin.
+  7. **Job Post Safeguards & Content Filter**:
+     - Pre-publish regex filter scanning for:
+       - Upfront fee/payment demands ("registration fee", "pay for training", "cash deposit").
+       - Telegram/WhatsApp-only contact details.
+       - Personal contact emails on free email providers.
+     - "Report Job" feature: 3 unique user reports automatically suspend the employer and return them to the review queue.
+
+### Task 9: Email Notifications for Approved & Accredited Employers
+- **Service Integration**:
+  - Format approval and accreditation emails using the exact institutional brand template as OTP emails (`buildEmployerStatusEmailTemplate` in `src/server/emailService.ts`).
+  - Includes official institutional crest, deep crimson branding (`#8B181B`), accreditation expiration date, and immediate "Access Employer Portal" call-to-action.
+
+---
+
+## 5. Admin & Moderator Module Realignment
+
+### Task 10: Rebuild & Route Partner Accreditation into Moderator Dashboard
+- **Changes**:
+  - Remove Partner Accreditation Desk controls from the main Admin dashboard (`AdminEmployersAndJobsView.tsx`).
+  - Embed the Partner Accreditation Desk and Employer Verification Queue into the **Moderator Dashboard** (`src/components/admin/ModeratorPanelView.tsx`), allowing moderators to audit company registration documents, review automated check logs, and grant accreditation.
+  - Create the **Admin Review Queue UI** displaying:
+    - Company legal name, trade name, domain age, website probe status, lookalike flags, registry match score, and reason breakdown.
+    - One-click actions: "Approve & Accredit", "Request Additional Documents", "Reject with Preset Template".
+    - Decision audit logs (`adminId`, `timestamp`, `reason`).
+
+---
+
+## 6. Deprecating Partner Digital ID
+
+### Task 11: Removal of Digital ID for Partner Companies
+- **UI & Controller Changes**:
+  - In `ProfileView.tsx` and `DigitalAlumniCard.tsx`, restrict digital pass rendering exclusively to `role === 'alumni' | 'student' | 'staff'`.
+  - For `role === 'employer'`, completely remove Digital Pass buttons, jump anchors, and QR pass generators.
+  - In `server.ts`, remove or disable any endpoint generating partner digital IDs.
+
+---
+
+## 7. Verification & Testing Strategy
+1. **Automated Unit Tests (`tests/employerVerification.test.ts`)**:
+   - Matching domain & enterprise email -> `AUTO_VERIFIED`.
+   - Free provider email (`@gmail.com`) -> `AUTO_REJECTED`.
+   - Domain mismatch (`user@tech.com` vs `https://company.org`) -> `NEEDS_REVIEW`.
+   - Brand lookalike spoofing (`micros0ft.com`) -> `NEEDS_REVIEW`.
+   - Domain $< 90$ days old -> `NEEDS_REVIEW`.
+   - External registry timeout/failure -> `NEEDS_REVIEW` (failsafe).
+   - Content filter blocks job posts requesting upfront fees.
+2. **Build Verification**:
+   - Run `lint_applet` (`tsc --noEmit`) to verify zero type or import errors.
+   - Run `compile_applet` (`npm run build`) to confirm production bundle integrity.

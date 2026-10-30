@@ -55,6 +55,7 @@ import { EventReminderToggle } from './EventReminderToggle';
 import { getEventLifecycleStatus } from '../../services/eventReservationService';
 import { shareEventViaCapacitor } from '../../services/nativeShareService';
 import { EventCheckInModal } from './EventCheckInModal';
+import { PaginationControl } from '../common/PaginationControl';
 
 export const EventsView: React.FC = () => {
   const {
@@ -99,6 +100,8 @@ export const EventsView: React.FC = () => {
   const [modalTab, setModalTab] = useState<'details' | 'attendees'>('details');
   const [attendeeSearchQuery, setAttendeeSearchQuery] = useState('');
   const [attendeeStatusFilter, setAttendeeStatusFilter] = useState<'all' | 'going' | 'interested'>('all');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 10;
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState('');
@@ -671,7 +674,7 @@ export const EventsView: React.FC = () => {
       ) : viewMode === 'timeline' ? (
         /* Timeline Agenda View */
         <div className="space-y-3.5">
-          {filteredEvents.map((evt, idx) => {
+          {filteredEvents.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((evt, idx) => {
             const eventDate = new Date(evt.startDate);
             const isLiked = currentUser ? (evt.likes || []).includes(currentUser.uid) : false;
 
@@ -757,7 +760,7 @@ export const EventsView: React.FC = () => {
       ) : (
         /* Bento Card Grid View */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {filteredEvents.map((evt, idx) => {
+          {filteredEvents.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((evt, idx) => {
             const eventDate = new Date(evt.startDate);
             const isLiked = currentUser ? (evt.likes || []).includes(currentUser.uid) : false;
 
@@ -1014,6 +1017,17 @@ export const EventsView: React.FC = () => {
             );
           })}
         </div>
+      )}
+
+      {/* Pagination Controls */}
+      {filteredEvents.length > 0 && (
+        <PaginationControl
+          currentPage={currentPage}
+          totalItems={filteredEvents.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+          itemLabel="campus events"
+        />
       )}
 
       {/* EVENT DETAIL MODAL */}

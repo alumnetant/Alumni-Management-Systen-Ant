@@ -73,6 +73,7 @@ import { AdminRequestsAndConflictsView } from './AdminRequestsAndConflictsView';
 import { AdminAnnouncementsManager } from './AdminAnnouncementsManager';
 import { AdminEventsManager } from './AdminEventsManager';
 import { AdminEmployersAndJobsView } from './AdminEmployersAndJobsView';
+import { ModeratorPanelView } from './ModeratorPanelView';
 import { AdminCampusGalleryView } from './AdminCampusGalleryView';
 import { AdminGovernancePoliciesView } from './AdminGovernancePoliciesView';
 import { AuditLogView } from './AuditLogView';
@@ -96,6 +97,7 @@ export type WorkspaceModuleId =
   | 'registry'
   | 'conflicts'
   | 'jobs'
+  | 'moderation'
   | 'employer_portal'
   | 'announcements'
   | 'events'
@@ -523,10 +525,10 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               ]
             : [
                 {
-                  id: 'jobs' as WorkspaceModuleId,
-                  label: 'Jobs & Employers',
-                  shortLabel: 'Careers',
-                  icon: Briefcase,
+                  id: (isModerator ? 'moderation' : 'jobs') as WorkspaceModuleId,
+                  label: isModerator ? 'Moderator Accreditation' : 'Jobs & Careers',
+                  shortLabel: isModerator ? 'Accreditation' : 'Careers',
+                  icon: isModerator ? ShieldCheck : Briefcase,
                   badge: (pendingJobsCount + pendingEmployersCount) > 0 ? (pendingJobsCount + pendingEmployersCount) : null,
                   badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
                   visible: permissions.canManageJobModeration || permissions.canAccessEmployerAccreditation || isModerator
@@ -1195,9 +1197,16 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               <AdminRequestsAndConflictsView initialSubTab={conflictSubTab} key={conflictSubTab} />
             )}
 
-            {/* MODULE: Jobs & Employers */}
+            {/* MODULE: Jobs & Employers / Moderator Accreditation */}
+            {currentModule === 'moderation' && (
+              <ModeratorPanelView />
+            )}
             {currentModule === 'jobs' && (
-              <AdminEmployersAndJobsView initialSubTab={jobSubTab} key={jobSubTab} />
+              currentUser?.role === 'moderator' ? (
+                <ModeratorPanelView />
+              ) : (
+                <AdminEmployersAndJobsView initialSubTab="jobs" key={jobSubTab} />
+              )
             )}
 
             {/* MODULE: Employer Portal for Employer Role */}
@@ -1770,7 +1779,18 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                 <label className="text-xs font-bold text-stone-700 block mb-1">Select Alumnus *</label>
                 <select
                   value={mAlumnusId}
-                  onChange={(e) => setMAlumnusId(e.target.value)}
+                  onChange={(e) => {
+                    const selectedUid = e.target.value;
+                    setMAlumnusId(selectedUid);
+                    const alumnus = users.find((u) => u.uid === selectedUid);
+                    if (alumnus) {
+                      const curExp = (alumnus.experience || []).find((exp) => exp.current || !exp.endDate);
+                      const currentComp = curExp?.company || alumnus.company || '';
+                      if (currentComp) {
+                        setMCompany(currentComp);
+                      }
+                    }
+                  }}
                   required
                   className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-medium text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 cursor-pointer"
                 >
@@ -1788,24 +1808,35 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                   <label className="text-xs font-bold text-stone-700 block mb-1">Category *</label>
                   <select
                     value={mCategory}
-                    onChange={(e) => setMCategory(e.target.value as any)}
+                    onChange={(e) => {
+                      const newCat = e.target.value as any;
+                      setMCategory(newCat);
+                      if (newCat === 'award' && mAlumnusId) {
+                        const alumnus = users.find((u) => u.uid === mAlumnusId);
+                        const curExp = (alumnus?.experience || []).find((exp) => exp.current || !exp.endDate);
+                        const currentComp = curExp?.company || alumnus?.company || '';
+                        if (currentComp && !mCompany) {
+                          setMCompany(currentComp);
+                        }
+                      }
+                    }}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 cursor-pointer"
                   >
                     <option value="promotion">Executive Promotion</option>
                     <option value="startup">Startup Founding & Funding</option>
-                    <option value="award">Industry / Civic Award</option>
+                    <option value="award">Awards & Recognitions</option>
                     <option value="publication">Research Publication</option>
                     <option value="honor">Institutional Honor</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Company / Organization</label>
+                  <label className="text-xs font-bold text-stone-700 block mb-1">Awarding Company / Org</label>
                   <input
                     type="text"
                     value={mCompany}
                     onChange={(e) => setMCompany(e.target.value)}
-                    placeholder="e.g. Google, Microsoft, Ayala"
+                    placeholder="Auto-detected from career experience"
                     className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs text-stone-900"
                   />
                 </div>

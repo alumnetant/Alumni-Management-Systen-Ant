@@ -8,6 +8,18 @@ import { INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL
 import webpush from 'web-push';
 import { getEmployerAuthStatus, isEmployerApproved } from './src/lib/employerAuthStatus';
 import { sendRealEmail, buildOtpEmailTemplate, buildEmployerStatusEmailTemplate } from './src/server/emailService';
+import {
+  executeAutomatedVerification,
+  registerCompanyDomainUser,
+  getCompanyMembershipByDomain
+} from './src/server/employerVerification/decisionEngine';
+import {
+  generateVerificationToken,
+  verifyTokenHash,
+  isFreeOrDisposableEmail
+} from './src/server/employerVerification/emailCheck';
+import { filterJobContent, recordJobReport } from './src/server/employerVerification/jobContentFilter';
+import { normalizeDomain, extractEmailDomain } from './src/server/employerVerification/domainMatch';
 
 const app = express();
 const PORT = 3000;
@@ -4503,6 +4515,362 @@ app.post('/api/webhooks/alumni-events', webhookRateLimiter, (req: Request, res: 
 
   console.info(`[WEBHOOK VERIFIED] Event received: ${req.body.eventType || 'generic'}`);
   res.json({ received: true, eventId: eventId || 'ack' });
+});
+
+// ============================================================================
+// AUTOMATED EMPLOYER VERIFICATION MODULE ENDPOINTS
+// ============================================================================
+
+interface PendingEmployerVerification {
+  id: string;
+  token: string;
+  hashedToken: string;
+  expiresAt: Date;
+  fullName: string;
+  workEmail: string;
+  passwordHash: string;
+  companyLegalName: string;
+  tradeName?: string;
+  websiteUrl: string;
+  country?: string;
+  registrationNumber?: string;
+  documentUploaded?: boolean;
+  createdAt: string;
+}
+
+const pendingEmployerVerifications = new Map<string, PendingEmployerVerification>();
+const companyVerificationDecisions = new Map<string, any>();
+
+// 1. Employer Signup with Automated Pre-screening and Email Confirmation Token
+app.post('/api/employer/register', async (req: Request, res: Response) => {
+  try {
+    const {
+      fullName,
+      workEmail,
+      password,
+      companyLegalName,
+      tradeName,
+      websiteUrl,
+      country = 'PH',
+      registrationNumber,
+      documentUploaded = false
+    } = req.body;
+
+    if (!fullName || !workEmail || !password || !companyLegalName || !websiteUrl) {
+      return res.status(400).json({
+        error: 'Missing required employer registration fields: fullName, workEmail, password, companyLegalName, websiteUrl.',
+        code: 'MISSING_REGISTRATION_FIELDS'
+      });
+    }
+
+    // Step 1 Check: Reject free/disposable email providers immediately
+    if (isFreeOrDisposableEmail(workEmail)) {
+      return res.status(400).json({
+        error: `Corporate email provider cannot be a free consumer service (gmail, yahoo, hotmail, etc.) or disposable email address. Please use your official organization domain.`,
+        code: 'FREE_EMAIL_REJECTED'
+      });
+    }
+
+    // Step 2 Check: Reject shared/hosted domains immediately
+    const normWebsite = normalizeDomain(websiteUrl);
+    const emailDomain = extractEmailDomain(workEmail);
+    if (!normWebsite || !emailDomain) {
+      return res.status(400).json({
+        error: 'Invalid website URL or email format.',
+        code: 'INVALID_DOMAIN_FORMAT'
+      });
+    }
+
+    // Generate single-use, 24h expiring token hashed at rest
+    const { token, hashedToken, expiresAt } = generateVerificationToken(workEmail);
+    const verificationId = `emp_verif_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+
+    const pendingRecord: PendingEmployerVerification = {
+      id: verificationId,
+      token,
+      hashedToken,
+      expiresAt,
+      fullName: fullName.trim(),
+      workEmail: workEmail.toLowerCase().trim(),
+      passwordHash,
+      companyLegalName: companyLegalName.trim(),
+      tradeName: tradeName?.trim(),
+      websiteUrl: normWebsite,
+      country,
+      registrationNumber: registrationNumber?.trim(),
+      documentUploaded: Boolean(documentUploaded),
+      createdAt: new Date().toISOString()
+    };
+
+    pendingEmployerVerifications.set(hashedToken, pendingRecord);
+
+    // Send verification link email
+    const verificationLink = `${req.protocol}://${req.get('host')}/api/employer/verify-email?token=${token}`;
+    const emailText = `Dear ${fullName},\n\nPlease confirm your corporate email for ${companyLegalName} by visiting the link below within 24 hours:\n\n${verificationLink}\n\nAutomated domain and registry verification checks will execute upon confirmation.\n\nSt. Cecilia's College Placement Bureau`;
+    const emailHtml = `<div style="font-family: sans-serif; padding: 20px;">
+      <h2>Confirm Your Corporate Email</h2>
+      <p>Dear <strong>${fullName}</strong>,</p>
+      <p>Thank you for registering <strong>${companyLegalName}</strong> on the Cecilian Alumnet corporate platform. Please click below to confirm your email and initiate automated verification:</p>
+      <p><a href="${verificationLink}" style="display: inline-block; background-color: #8B181B; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px;">Confirm Corporate Email</a></p>
+      <p style="font-size: 12px; color: #666;">This link expires in 24 hours.</p>
+    </div>`;
+
+    await sendRealEmail({
+      to: workEmail,
+      subject: `Confirm Work Email for ${companyLegalName} — St. Cecilia's College`,
+      text: emailText,
+      html: emailHtml
+    }).catch((err) => console.error('[Verification Email Error]', err));
+
+    return res.status(201).json({
+      success: true,
+      message: 'Employer registered successfully. Please click the confirmation link sent to your work email (valid for 24h).',
+      verificationId,
+      verificationToken: token
+    });
+  } catch (err: any) {
+    console.error('[Employer Register Error]', err);
+    return res.status(500).json({ error: 'Failed to process employer registration.', code: 'REGISTRATION_FAILED' });
+  }
+});
+
+// 2. Email Confirmation & Automated Background Verification Pipeline
+app.get('/api/employer/verify-email', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.query;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Missing token parameter.', code: 'MISSING_TOKEN' });
+    }
+
+    const providedHash = crypto.createHash('sha256').update(token).digest('hex');
+    const pending = pendingEmployerVerifications.get(providedHash);
+
+    if (!pending) {
+      return res.status(404).json({
+        error: 'Invalid or expired confirmation link. Please request a new registration link.',
+        code: 'TOKEN_NOT_FOUND'
+      });
+    }
+
+    if (new Date() > new Date(pending.expiresAt)) {
+      pendingEmployerVerifications.delete(providedHash);
+      return res.status(410).json({
+        error: 'This verification token has expired (>24 hours). Please register again.',
+        code: 'TOKEN_EXPIRED'
+      });
+    }
+
+    pendingEmployerVerifications.delete(providedHash);
+
+    const decision = await executeAutomatedVerification({
+      fullName: pending.fullName,
+      workEmail: pending.workEmail,
+      emailConfirmed: true,
+      companyLegalName: pending.companyLegalName,
+      tradeName: pending.tradeName,
+      websiteUrl: pending.websiteUrl,
+      country: pending.country,
+      registrationNumber: pending.registrationNumber,
+      documentUploaded: pending.documentUploaded
+    });
+
+    const newUid = `usr_emp_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const domainRouting = registerCompanyDomainUser(pending.websiteUrl, {
+      uid: newUid,
+      email: pending.workEmail,
+      name: pending.fullName
+    });
+
+    const isApprovedTier = decision.status === 'AUTO_VERIFIED' || decision.status === 'VERIFIED';
+    const employerProfile = {
+      uid: newUid,
+      name: pending.fullName,
+      email: pending.workEmail,
+      role: 'employer',
+      companyName: pending.companyLegalName,
+      company: pending.companyLegalName,
+      companyWebsite: `https://${pending.websiteUrl}`,
+      isVerified: isApprovedTier,
+      verified: isApprovedTier,
+      employerStatus: isApprovedTier ? 'approved' : decision.status === 'AUTO_REJECTED' ? 'rejected' : 'pending',
+      employerVerificationStatus: decision.status === 'VERIFIED' ? 'verified' : isApprovedTier ? 'email_verified' : 'pending_review',
+      companyDomainRole: domainRouting.role,
+      verificationDecision: decision,
+      createdAt: new Date().toISOString()
+    };
+
+    credentialsDb.set(newUid, employerProfile);
+    credentialsDb.set(pending.workEmail.toLowerCase(), employerProfile);
+    companyVerificationDecisions.set(newUid, decision);
+    persistCredentialsToDisk();
+
+    if (isApprovedTier) {
+      const { html, text } = buildEmployerStatusEmailTemplate({
+        companyName: pending.companyLegalName,
+        contactName: pending.fullName,
+        status: 'approved'
+      });
+      sendRealEmail({
+        to: pending.workEmail,
+        subject: "Congratulations! Employer Accreditation Approved — St. Cecilia's College",
+        text,
+        html
+      }).catch((e) => console.error('[Approval Email Error]', e));
+    }
+
+    return res.json({
+      success: true,
+      status: decision.status,
+      tier: decision.tier,
+      limits: decision.limits,
+      reasons: decision.reasons,
+      companyDomainRole: domainRouting.role,
+      message: domainRouting.message,
+      checksRun: decision.checksRun
+    });
+  } catch (err: any) {
+    console.error('[Verify Email Pipeline Error]', err);
+    return res.status(500).json({ error: 'Automated verification failed.', code: 'VERIFICATION_ERROR' });
+  }
+});
+
+// 3. Admin & Moderator Review Queue Endpoint (NEEDS_REVIEW companies)
+app.get('/api/employer/review-queue', requireServerAuth, requireRole(['admin', 'superadmin', 'moderator']), (_req: Request, res: Response) => {
+  const queue = Array.from(credentialsDb.values())
+    .filter((u: any) => u.role === 'employer' && (u.employerVerificationStatus === 'pending_review' || !u.isVerified && u.employerStatus !== 'rejected'))
+    .map((u: any) => ({
+      uid: u.uid,
+      companyLegalName: u.companyName || u.name,
+      websiteUrl: u.companyWebsite,
+      workEmail: u.email,
+      emailDomain: u.email?.split('@')[1] || '',
+      verificationDecision: u.verificationDecision || null,
+      employerStatus: u.employerStatus,
+      createdAt: u.createdAt
+    }));
+
+  res.json({ success: true, count: queue.length, queue });
+});
+
+// 4. One-Click Decision (Approve, Reject, Request Docs) with Audit Logging
+app.post('/api/employer/review-queue/:id/decision', requireServerAuth, requireRole(['admin', 'superadmin', 'moderator']), (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const { id } = req.params;
+  const { decision, reason = 'Administrative verification decision' } = req.body;
+
+  const targetEmployer = credentialsDb.get(id);
+  if (!targetEmployer || targetEmployer.role !== 'employer') {
+    return res.status(404).json({ error: 'Employer organization not found.', code: 'EMPLOYER_NOT_FOUND' });
+  }
+
+  const timestamp = new Date().toISOString();
+
+  if (decision === 'approve') {
+    targetEmployer.employerStatus = 'approved';
+    targetEmployer.employerVerificationStatus = 'verified';
+    targetEmployer.isVerified = true;
+    targetEmployer.verified = true;
+    targetEmployer.decidedBy = actor.uid || actor.email;
+    targetEmployer.decidedAt = timestamp;
+  } else if (decision === 'reject') {
+    targetEmployer.employerStatus = 'rejected';
+    targetEmployer.employerVerificationStatus = 'rejected';
+    targetEmployer.isVerified = false;
+    targetEmployer.verified = false;
+    targetEmployer.rejectionReason = reason;
+    targetEmployer.decidedBy = actor.uid || actor.email;
+    targetEmployer.decidedAt = timestamp;
+  }
+
+  credentialsDb.set(targetEmployer.uid, targetEmployer);
+  if (targetEmployer.email) {
+    credentialsDb.set(targetEmployer.email.toLowerCase(), targetEmployer);
+  }
+  persistCredentialsToDisk();
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp,
+    action: decision === 'approve' ? 'APPROVE_EMPLOYER' : decision === 'reject' ? 'REJECT_EMPLOYER' : 'REQUEST_EMPLOYER_DOCUMENTS',
+    actor: actor.email,
+    actorRole: actor.role,
+    ip: req.ip || 'internal',
+    details: {
+      employerId: targetEmployer.uid,
+      company: targetEmployer.companyName || targetEmployer.name,
+      reason
+    }
+  });
+
+  if (targetEmployer.email) {
+    const { html, text } = buildEmployerStatusEmailTemplate({
+      companyName: targetEmployer.companyName || targetEmployer.name,
+      contactName: targetEmployer.name,
+      status: decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'needs_info',
+      reason
+    });
+    sendRealEmail({
+      to: targetEmployer.email,
+      subject: `St. Cecilia's College — Employer Status: ${decision.toUpperCase()}`,
+      text,
+      html
+    }).catch((e) => console.error('[Decision Email Error]', e));
+  }
+
+  res.json({ success: true, message: `Employer decision "${decision}" recorded successfully.`, employer: targetEmployer });
+});
+
+// 5. Job Post Content Filter Safeguard
+app.post('/api/jobs/validate', (req: Request, res: Response) => {
+  const { title, description, requirements, contactEmail, howToApply } = req.body;
+  const filterResult = filterJobContent({ title, description, requirements, contactEmail, howToApply });
+  res.json(filterResult);
+});
+
+// 6. Job Reporting & Auto-Suspension Trigger (3 Reports Auto-Suspends)
+app.post('/api/jobs/:id/report', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { employerId, reporterUid, reason = 'Suspicious or non-compliant job opportunity' } = req.body;
+
+  if (!employerId || !reporterUid) {
+    return res.status(400).json({ error: 'employerId and reporterUid are required to report a job.', code: 'MISSING_REPORT_PARAMS' });
+  }
+
+  const report = recordJobReport({
+    jobId: id,
+    employerId,
+    reporterUid,
+    reason
+  });
+
+  if (report.shouldAutoSuspend) {
+    const employer = credentialsDb.get(employerId);
+    if (employer) {
+      employer.employerStatus = 'suspended';
+      employer.employerVerificationStatus = 'pending_review';
+      employer.isVerified = false;
+      credentialsDb.set(employerId, employer);
+      persistCredentialsToDisk();
+
+      serverAuditLogs.push({
+        id: `audit_suspend_${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        action: 'AUTO_SUSPEND_EMPLOYER_JOB_REPORTS',
+        actor: 'system',
+        actorRole: 'security_daemon',
+        ip: 'internal',
+        details: { employerId, jobId: id, reportCount: report.totalReports }
+      });
+    }
+  }
+
+  res.json({
+    success: true,
+    message: 'Report received. Our moderation team reviews all flagged opportunities.',
+    totalReports: report.totalReports,
+    suspended: report.shouldAutoSuspend
+  });
 });
 
 // ============================================================================

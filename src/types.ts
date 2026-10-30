@@ -532,6 +532,9 @@ export interface CareerMilestone {
   title: string;
   company?: string;
   category: 'Promotion' | 'Startup' | 'Award' | 'Publication' | 'Leadership' | 'Campus Gallery' | 'Achievement' | string;
+  awardLevel?: 'National' | 'Regional' | 'Collegiate' | 'Corporate' | string;
+  issuingOrganization?: string;
+  awardDate?: string;
   date?: string;
   description: string;
   images?: string[];

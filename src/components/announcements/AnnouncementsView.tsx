@@ -27,6 +27,7 @@ import { Announcement } from '../../types';
 import { ShareModal, ShareItem } from '../common/ShareModal';
 import { AnnouncementCard } from './AnnouncementCard';
 import { compressImage } from '../../lib/utils';
+import { PaginationControl } from '../common/PaginationControl';
 
 const ARCHIVED_STORAGE_KEY = 'sc_alumni_archived_announcements_v1';
 
@@ -44,6 +45,8 @@ export const AnnouncementsView: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'important_first'>('newest');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [shareItem, setShareItem] = useState<ShareItem | null>(null);
@@ -345,19 +348,25 @@ export const AnnouncementsView: React.FC = () => {
           {/* Search, Category, and Sort controls */}
           <div className="flex items-center gap-2 flex-1 md:max-w-xl">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 z-20 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Search circulars by keyword, title, or author..."
-                className="w-full pl-9 pr-8 py-1.5 bg-stone-50 border border-stone-200/90 rounded-xl text-xs text-stone-800 placeholder-stone-400 focus:bg-white focus:border-[#8B181B] focus:ring-1 focus:ring-[#8B181B] outline-none transition-all"
+                className="w-full pl-9 pr-8 py-2 bg-white dark:bg-stone-850 border border-stone-300 dark:border-stone-700 rounded-xl text-xs font-medium text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 focus:bg-white dark:focus:bg-stone-800 focus:border-[#8B181B] dark:focus:border-red-400 focus:ring-1 focus:ring-[#8B181B] outline-hidden transition-all shadow-2xs relative z-10"
               />
               {searchQuery && (
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer z-20 p-1"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -419,19 +428,29 @@ export const AnnouncementsView: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredAnnouncements.map((ann, idx) => (
-            <AnnouncementCard
-              key={ann.id}
-              announcement={ann}
-              isArchived={archivedIds.includes(ann.id)}
-              canManage={permissions.canDeleteAnnouncements}
-              onSelect={(selected) => setSelectedAnnouncement(selected)}
-              onDelete={(id) => deleteAnnouncement(id)}
-              onToggleArchive={(id) => toggleArchive(id)}
-              onTogglePin={(id) => togglePinAnnouncement(id)}
-            />
-          ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredAnnouncements.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((ann, idx) => (
+              <AnnouncementCard
+                key={ann.id}
+                announcement={ann}
+                isArchived={archivedIds.includes(ann.id)}
+                canManage={permissions.canDeleteAnnouncements}
+                onSelect={(selected) => setSelectedAnnouncement(selected)}
+                onDelete={(id) => deleteAnnouncement(id)}
+                onToggleArchive={(id) => toggleArchive(id)}
+                onTogglePin={(id) => togglePinAnnouncement(id)}
+              />
+            ))}
+          </div>
+
+          <PaginationControl
+            currentPage={currentPage}
+            totalItems={filteredAnnouncements.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+            itemLabel="circulars"
+          />
         </div>
       )}
 
