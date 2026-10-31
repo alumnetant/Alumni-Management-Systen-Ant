@@ -43,7 +43,7 @@ export const VerificationGate: React.FC<VerificationGateProps> = ({
       setVerificationResult({
         isVerified: false,
         status: 'unconfirmed',
-        message: "Student ID 'None' could not be confirmed in St. Cecilia's College registrar records. Expected format: SC-YYYY-XXXX (e.g. SC-2020-0192)."
+        message: "Alumni Record ID 'None' could not be confirmed in St. Cecilia's College registrar records. Expected format: SC-YYYY-XXXX (e.g. SC-2020-0192)."
       });
       return;
     }
@@ -59,7 +59,7 @@ export const VerificationGate: React.FC<VerificationGateProps> = ({
         isVerified: false,
         status: 'not_found',
         studentId: studentIdInput,
-        message: `Student ID '${studentIdInput.trim()}' could not be confirmed in St. Cecilia's College registrar records. Expected format: SC-YYYY-XXXX (e.g. SC-2020-0192).`
+        message: `Alumni Record ID '${studentIdInput.trim()}' could not be confirmed in St. Cecilia's College registrar records. Expected format: SC-YYYY-XXXX (e.g. SC-2020-0192).`
       });
     } finally {
       setIsVerifying(false);
@@ -89,7 +89,7 @@ export const VerificationGate: React.FC<VerificationGateProps> = ({
                 Academic Record Verification Required
               </h1>
               <p className="text-xs sm:text-sm text-red-100 mt-1">
-                Access to <strong className="text-white font-semibold">{routeName}</strong> requires a verified graduate or student academic record.
+                Access to <strong className="text-white font-semibold">{routeName}</strong> requires a verified graduate academic record.
               </p>
             </div>
           </div>
@@ -112,7 +112,7 @@ export const VerificationGate: React.FC<VerificationGateProps> = ({
           <form onSubmit={handleVerify} className="space-y-4">
             <div>
               <label htmlFor="student-id-input" className="block text-xs font-bold text-stone-800 uppercase tracking-wider mb-2">
-                Official Student ID Number
+                Official Alumni ID / Graduate Record Number
               </label>
               <div className="flex flex-col sm:flex-row gap-2">
                 <input

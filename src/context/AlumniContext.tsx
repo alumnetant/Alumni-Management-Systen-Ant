@@ -440,7 +440,7 @@ interface AlumniContextType {
   unlockUserAccount: (uid: string) => void;
   verifyAndApproveAlumni: (uid: string, approve: boolean, flagReason?: string) => void;
   sendEmergencyAnnouncement: (title: string, content: string) => void;
-  updateEmploymentStatus: (status: 'Employed' | 'Self-employed' | 'Unemployed' | 'Student' | 'Retired') => void;
+  updateEmploymentStatus: (status: 'Employed' | 'Self-employed' | 'Seeking Opportunities' | 'Unemployed' | 'Retired' | 'N/A') => void;
 
   // Toast / System Feedback
   toasts: ToastNotification[];
@@ -3358,11 +3358,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       companyAddress: data.companyAddress,
       contactPerson: data.contactPerson,
       contactPhone: data.contactPhone,
-      employerVerificationStatus: role === 'employer' ? 'pending_verification' : undefined,
-      accountType: data.accountType || (role === 'alumni' ? 'alumni' : (role === 'employer' ? 'employer' : 'student')),
-      currentPosition: data.currentPosition || (data.accountType === 'student' ? 'Student' : ''),
+      accountType: data.accountType || (role === 'employer' ? 'employer' : 'alumni'),
+      currentPosition: data.currentPosition || '',
       company: data.company || '',
-      employmentStatus: data.employmentStatus || (data.accountType === 'student' ? 'Student' : (data.currentPosition ? 'Employed' : 'Unemployed')),
+      employmentStatus: data.employmentStatus || (data.currentPosition ? 'Employed' : 'Seeking Opportunities'),
       profilePictureUrl: data.profilePictureUrl || (role === 'employer' ? DEFAULT_COLLEGE_SEAL : DEFAULT_USER_AVATAR),
       coverPhotoUrl: data.coverPhotoUrl || DEFAULT_COVER_PHOTO,
       headline: data.headline || (role === 'employer' ? `Hiring Partner • ${data.companyName || 'Corporate Partner'}` : `${role === 'alumni' ? (finalCourse || 'Alumni') + ' Graduate' : role.toUpperCase() + ' Specialist'} • St. Cecilia’s College`),
@@ -7730,7 +7729,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     showToast('Urgent announcement sent to all members.', 'success');
   }, [currentUser, permissions.canPostAnnouncements, addAuditLog, showToast]);
 
-  const updateEmploymentStatus = useCallback((status: 'Employed' | 'Self-employed' | 'Unemployed' | 'Student' | 'Retired') => {
+  const updateEmploymentStatus = useCallback((status: 'Employed' | 'Self-employed' | 'Seeking Opportunities' | 'Unemployed' | 'Retired' | 'N/A') => {
     if (!currentUser) return;
     updateProfile({ employmentStatus: status, lastEmploymentUpdateReminder: new Date().toISOString() });
     addAuditLog({

@@ -121,16 +121,16 @@ export interface UserProfile {
   experience: Experience[];
   education: Education[];
   createdAt: string;
-  alumniId?: string; // Official Alumni ID (e.g. SCC-ALUM-2024-0192), distinct from Student ID
-  studentId?: string; // Student ID from academic registrar records
+  alumniId?: string; // Official Alumni ID (e.g. SCC-ALUM-2024-0192)
+  studentId?: string; // Graduate Record / Alumni ID
   employeeId?: string;
   department?: string;
   password?: string;
   authProvider?: 'password' | 'google' | 'firebase';
-  accountType?: 'alumni' | 'student' | 'employer';
+  accountType?: 'alumni' | 'employer';
   settings?: Record<string, any>;
   // Automation & System Health Fields
-  employmentStatus?: 'Employed' | 'Self-employed' | 'Unemployed' | 'Student' | 'Retired';
+  employmentStatus?: 'Employed' | 'Self-employed' | 'Seeking Opportunities' | 'Unemployed' | 'Retired' | 'N/A';
   birthday?: string; // 'YYYY-MM-DD' or 'MM-DD'
   lastLoginAt?: string;
   lastActiveAt?: string | number;
@@ -702,7 +702,7 @@ export interface CareerSurveyResponse {
   userName: string;
   batch: string;
   course: string;
-  employmentStatus: 'Employed' | 'Self-employed' | 'Unemployed' | 'Student' | 'Retired';
+  employmentStatus: 'Employed' | 'Self-employed' | 'Seeking Opportunities' | 'Unemployed' | 'Retired' | 'N/A';
   industry: string;
   jobTitle: string;
   company: string;

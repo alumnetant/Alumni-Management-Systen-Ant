@@ -4,7 +4,7 @@
  * 
  * Standard Pagination Control Component
  * Replaces "Show More" buttons across Cecilian Alumnet modules.
- * Default: 10 items per page with compact numbered navigation.
+ * Default: 10 items per page with compact numbered navigation and smooth auto-scroll.
  */
 
 import React from 'react';
@@ -17,6 +17,8 @@ export interface PaginationControlProps {
   onPageChange: (page: number) => void;
   className?: string;
   itemLabel?: string;
+  scrollToTop?: boolean;
+  scrollTargetId?: string;
 }
 
 export const PaginationControl: React.FC<PaginationControlProps> = ({
@@ -25,7 +27,9 @@ export const PaginationControl: React.FC<PaginationControlProps> = ({
   pageSize = 10,
   onPageChange,
   className = '',
-  itemLabel = 'records'
+  itemLabel = 'records',
+  scrollToTop = true,
+  scrollTargetId
 }) => {
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
 
@@ -35,6 +39,26 @@ export const PaginationControl: React.FC<PaginationControlProps> = ({
 
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(totalItems, currentPage * pageSize);
+
+  const handlePageChange = (page: number) => {
+    if (page === currentPage || page < 1 || page > totalPages) return;
+    onPageChange(page);
+
+    if (scrollToTop && typeof window !== 'undefined') {
+      if (scrollTargetId) {
+        const el = document.getElementById(scrollTargetId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const main = document.querySelector('main');
+      if (main) {
+        main.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  };
 
   // Generate numbered pages with smart truncation
   const getPageNumbers = () => {
@@ -88,7 +112,7 @@ export const PaginationControl: React.FC<PaginationControlProps> = ({
         <button
           type="button"
           disabled={currentPage <= 1}
-          onClick={() => onPageChange(1)}
+          onClick={() => handlePageChange(1)}
           className="p-1.5 rounded-lg border border-stone-200/90 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           title="First Page"
           aria-label="First Page"
@@ -100,7 +124,7 @@ export const PaginationControl: React.FC<PaginationControlProps> = ({
         <button
           type="button"
           disabled={currentPage <= 1}
-          onClick={() => onPageChange(currentPage - 1)}
+          onClick={() => handlePageChange(currentPage - 1)}
           className="p-1.5 rounded-lg border border-stone-200/90 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           title="Previous Page"
           aria-label="Previous Page"
@@ -129,7 +153,7 @@ export const PaginationControl: React.FC<PaginationControlProps> = ({
               <button
                 key={pageNum}
                 type="button"
-                onClick={() => onPageChange(pageNum)}
+                onClick={() => handlePageChange(pageNum)}
                 aria-current={isActive ? 'page' : undefined}
                 className={`min-w-[28px] h-7 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   isActive
@@ -147,7 +171,7 @@ export const PaginationControl: React.FC<PaginationControlProps> = ({
         <button
           type="button"
           disabled={currentPage >= totalPages}
-          onClick={() => onPageChange(currentPage + 1)}
+          onClick={() => handlePageChange(currentPage + 1)}
           className="p-1.5 rounded-lg border border-stone-200/90 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           title="Next Page"
           aria-label="Next Page"
@@ -159,7 +183,7 @@ export const PaginationControl: React.FC<PaginationControlProps> = ({
         <button
           type="button"
           disabled={currentPage >= totalPages}
-          onClick={() => onPageChange(totalPages)}
+          onClick={() => handlePageChange(totalPages)}
           className="p-1.5 rounded-lg border border-stone-200/90 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700/60 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           title="Last Page"
           aria-label="Last Page"

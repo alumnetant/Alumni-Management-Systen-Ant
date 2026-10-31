@@ -46,6 +46,8 @@ import { Capacitor } from '@capacitor/core';
 import { isBiometricAppLockEnabled } from './services/biometricAuthService';
 import { initMobileApp, triggerHaptic } from './services/mobileAppService';
 import { initEventReminderScheduler } from './services/eventReminderService';
+import { useFCMNotifications } from './hooks/useFCMNotifications';
+import { InAppPushToast } from './components/notifications/InAppPushToast';
 
 // Requirement 3: Mobile and Tablet Layout / Device Detection
 export const isMobileOrTabletDevice = (): boolean => {
@@ -73,6 +75,10 @@ function AppContent() {
     closeEditProfile,
     showToast
   } = useAlumni();
+
+  // Initialize Firebase Cloud Messaging listeners & device token synchronization
+  useFCMNotifications();
+
   const [currentView, setCurrentView] = useState<'landing' | 'portal' | 'auth'>(() => {
     try {
       const savedSession =
@@ -732,6 +738,7 @@ export default function App() {
       <AlumniProvider>
         <AppContent />
         <ToastContainer />
+        <InAppPushToast />
       </AlumniProvider>
     </ErrorBoundary>
   );

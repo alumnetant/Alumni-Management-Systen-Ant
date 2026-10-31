@@ -89,8 +89,8 @@ export const NetworkView: React.FC = () => {
   // Pagination state (10 per page default)
   const [currentPage, setCurrentPage] = useState<number>(1);
   const PAGE_SIZE = 10;
-  const [visibleRecommendedCount, setVisibleRecommendedCount] = useState<number>(8);
-  const [visibleConnectionsCount, setVisibleConnectionsCount] = useState<number>(12);
+  const [currentPageRecommended, setCurrentPageRecommended] = useState<number>(1);
+  const [currentPageConnections, setCurrentPageConnections] = useState<number>(1);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -208,6 +208,16 @@ export const NetworkView: React.FC = () => {
       return sameBatch || sameCourse || sameLocation;
     });
   }, [users, currentUser, connectionIds]);
+
+  const paginatedRecommended = useMemo(() => {
+    const start = (currentPageRecommended - 1) * PAGE_SIZE;
+    return recommendedUsers.slice(start, start + PAGE_SIZE);
+  }, [recommendedUsers, currentPageRecommended, PAGE_SIZE]);
+
+  const paginatedConnected = useMemo(() => {
+    const start = (currentPageConnections - 1) * PAGE_SIZE;
+    return connectedUsers.slice(start, start + PAGE_SIZE);
+  }, [connectedUsers, currentPageConnections, PAGE_SIZE]);
 
 
   // Spotlight Alumnus / Community Mentor: An inspiring Cecilian
@@ -1628,7 +1638,7 @@ export const NetworkView: React.FC = () => {
               {/* Mobile & Tablet Simple List Layout */}
               <div className="block lg:hidden">
                 <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] divide-y divide-stone-100 dark:divide-stone-800 overflow-hidden">
-                  {recommendedUsers.slice(0, visibleRecommendedCount).map((user) => {
+                  {paginatedRecommended.map((user) => {
                     const reqState = hasPendingRequestWith(user.uid);
                     const isSameBatch = user.batch && currentUser?.batch && user.batch === currentUser.batch;
                     const isSameCourse = user.course && currentUser?.course && user.course.toLowerCase() === currentUser.course.toLowerCase();
@@ -1739,7 +1749,7 @@ export const NetworkView: React.FC = () => {
                   animate="show"
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
                 >
-                  {recommendedUsers.slice(0, visibleRecommendedCount).map((user) => {
+                  {paginatedRecommended.map((user) => {
                     const reqState = hasPendingRequestWith(user.uid);
                     const isSameBatch = user.batch && currentUser?.batch && user.batch === currentUser.batch;
                     const isSameCourse = user.course && currentUser?.course && user.course.toLowerCase() === currentUser.course.toLowerCase();
@@ -1877,16 +1887,14 @@ export const NetworkView: React.FC = () => {
             </>
           )}
 
-          {recommendedUsers.length > visibleRecommendedCount && (
-            <div className="mt-4 text-center">
-              <button
-                type="button"
-                onClick={() => setVisibleRecommendedCount((prev) => prev + 8)}
-                className="px-5 py-2.5 bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 hover:bg-stone-50 text-[#8B181B] font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer"
-              >
-                Show More Recommendations (+{Math.min(8, recommendedUsers.length - visibleRecommendedCount)})
-              </button>
-            </div>
+          {recommendedUsers.length > 0 && (
+            <PaginationControl
+              currentPage={currentPageRecommended}
+              totalItems={recommendedUsers.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPageRecommended}
+              itemLabel="recommended alumni"
+            />
           )}
         </div>
       )}
@@ -1935,7 +1943,7 @@ export const NetworkView: React.FC = () => {
               {/* Mobile & Tablet Simple List Layout */}
               <div className="block lg:hidden">
                 <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)] divide-y divide-stone-100 dark:divide-stone-800 overflow-hidden">
-                  {connectedUsers.map((user) => {
+                  {paginatedConnected.map((user) => {
                     const statusConfig = getStatusConfig(user.quickStatus);
 
                     return (
@@ -2007,7 +2015,7 @@ export const NetworkView: React.FC = () => {
                   animate="show"
                   className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
                 >
-                  {connectedUsers.map((user) => {
+                  {paginatedConnected.map((user) => {
                     const statusConfig = getStatusConfig(user.quickStatus);
 
                     return (
@@ -2083,6 +2091,17 @@ export const NetworkView: React.FC = () => {
                   })}
                 </motion.div>
               </div>
+
+              {/* Connections Pagination */}
+              {connectedUsers.length > 0 && (
+                <PaginationControl
+                  currentPage={currentPageConnections}
+                  totalItems={connectedUsers.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setCurrentPageConnections}
+                  itemLabel="connections"
+                />
+              )}
             </>
           )}
         </div>

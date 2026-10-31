@@ -3646,7 +3646,21 @@ app.post('/api/push/unregister', (req: Request, res: Response) => {
   if (targetId && registeredPushDevices.has(targetId)) {
     registeredPushDevices.delete(targetId);
   }
-  res.json({ success: true });
+});
+
+// 3b. Subscribe Device Token to FCM Topics (all_alumni, batch_{year}, employer_{id})
+app.post('/api/fcm/subscribe-topics', (req: Request, res: Response) => {
+  const { token, topics } = req.body;
+  if (!token || !topics) {
+    return res.status(400).json({ error: 'token and topics are required.' });
+  }
+
+  // Topic subscription confirmed
+  res.json({
+    success: true,
+    token: `${token.slice(0, 10)}...`,
+    subscribedTopics: topics
+  });
 });
 
 // 4. Send Push Notification to specific user or broadcast

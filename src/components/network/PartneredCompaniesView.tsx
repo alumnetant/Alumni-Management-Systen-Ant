@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Building2,
   Briefcase,
@@ -18,6 +18,9 @@ import { useAlumni } from '../../context/AlumniContext';
 import { Opportunity, UserProfile } from '../../types';
 import { isEmployerVisibleInDirectory } from '../../lib/employerValidation';
 import { EmployerAuditModal } from '../admin/EmployerVerificationModal';
+import { PaginationControl } from '../common/PaginationControl';
+import { PartneredCompanyPostingsModal } from './PartneredCompanyPostingsModal';
+import { JobApplicationModal } from '../opportunities/JobApplicationModal';
 
 interface PartneredCompaniesViewProps {
   onSelectCompanyJobs?: (companyName: string) => void;
@@ -29,7 +32,11 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
   const { users, opportunities, setActiveTab, currentUser } = useAlumni();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIndustry, setSelectedIndustry] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 10;
   const [inspectingCompany, setInspectingCompany] = useState<UserProfile | null>(null);
+  const [selectedCompanyForPostings, setSelectedCompanyForPostings] = useState<UserProfile | null>(null);
+  const [applyingOpportunity, setApplyingOpportunity] = useState<Opportunity | null>(null);
 
   const isAdminOrModerator =
     currentUser?.role === 'admin' ||
@@ -98,6 +105,15 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
     });
   }, [partneredCompanies, searchQuery, selectedIndustry]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedIndustry]);
+
+  const paginatedCompanies = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredCompanies.slice(start, start + PAGE_SIZE);
+  }, [filteredCompanies, currentPage, PAGE_SIZE]);
+
   const handleViewJobs = (companyName: string) => {
     if (onSelectCompanyJobs) {
       onSelectCompanyJobs(companyName);
@@ -159,7 +175,7 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
-          {filteredCompanies.map((company) => {
+          {paginatedCompanies.map((company) => {
             const compName = company.companyName || company.company || company.name || 'Partner Company';
             const compKey = compName.toLowerCase().trim();
             const companyJobs = companyOpportunityMap[compKey] || [];
@@ -168,7 +184,8 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
             return (
               <div
                 key={company.uid}
-                className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-5 sm:p-6 shadow-[0_1px_3px_rgba(0,0,0,0.03),0_8px_20px_rgba(0,0,0,0.02)] hover:shadow-md transition-all flex flex-col justify-between group"
+                onClick={() => setSelectedCompanyForPostings(company)}
+                className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-5 sm:p-6 shadow-[0_1px_3px_rgba(0,0,0,0.03),0_8px_20px_rgba(0,0,0,0.02)] hover:shadow-md hover:border-stone-300 dark:hover:border-stone-700 transition-all flex flex-col justify-between group cursor-pointer"
               >
                 <div>
                   {/* Top Bar: Icon & Verified Badge */}
@@ -190,7 +207,7 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
                   </div>
 
                   {/* Company Name & Industry */}
-                  <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight leading-snug">
+                  <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 tracking-tight leading-snug group-hover:text-[#8B181B] dark:group-hover:text-red-400 transition-colors">
                     {compName}
                   </h3>
                   <p className="text-xs text-stone-500 dark:text-stone-400 font-medium mt-1">
@@ -211,6 +228,7 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
                           href={company.companyWebsite.startsWith('http') ? company.companyWebsite : `https://${company.companyWebsite}`}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="text-[#8B181B] dark:text-red-400 hover:underline truncate inline-flex items-center gap-1"
                         >
                           <span className="truncate">{company.companyWebsite.replace(/^https?:\/\//, '')}</span>
@@ -220,7 +238,7 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
                     )}
                   </div>
 
-                  {/* Available Opportunities & Slots Section (Requirement 9) */}
+                  {/* Available Opportunities & Slots Section */}
                   <div className="mt-4 p-3 rounded-xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/60">
                     <div className="flex items-center justify-between text-xs mb-1.5">
                       <span className="font-bold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
@@ -262,17 +280,23 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
                 <div className="mt-5 pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => handleViewJobs(compName)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCompanyForPostings(company);
+                    }}
                     className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-stone-900 hover:bg-[#8B181B] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer group-hover:bg-[#8B181B]"
                   >
-                    <span>View Career Opportunities</span>
+                    <span>View All Postings ({openJobsCount})</span>
                     <ArrowRight className="w-3.5 h-3.5 stroke-[1.75]" />
                   </button>
 
                   {isAdminOrModerator && (
                     <button
                       type="button"
-                      onClick={() => setInspectingCompany(company)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInspectingCompany(company);
+                      }}
                       title="Inspect Employer Credentials & Legitimacy"
                       className="inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 hover:text-stone-900 text-xs font-semibold transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700 shrink-0"
                     >
@@ -287,11 +311,43 @@ export const PartneredCompaniesView: React.FC<PartneredCompaniesViewProps> = ({
         </div>
       )}
 
+      {/* Standard Numbered Pagination Control */}
+      {filteredCompanies.length > 0 && (
+        <PaginationControl
+          currentPage={currentPage}
+          totalItems={filteredCompanies.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+          itemLabel="partner companies"
+        />
+      )}
+
       {/* Administrative Employer Audit Modal */}
       {inspectingCompany && (
         <EmployerAuditModal
           employer={inspectingCompany}
           onClose={() => setInspectingCompany(null)}
+        />
+      )}
+
+      {/* Partnered Company Postings Drawer Modal */}
+      {selectedCompanyForPostings && (
+        <PartneredCompanyPostingsModal
+          company={selectedCompanyForPostings}
+          isOpen={Boolean(selectedCompanyForPostings)}
+          onClose={() => setSelectedCompanyForPostings(null)}
+          onApply={(opp) => {
+            setApplyingOpportunity(opp);
+          }}
+        />
+      )}
+
+      {/* Direct Job Application Modal */}
+      {applyingOpportunity && (
+        <JobApplicationModal
+          opportunity={applyingOpportunity}
+          isOpen={Boolean(applyingOpportunity)}
+          onClose={() => setApplyingOpportunity(null)}
         />
       )}
     </div>

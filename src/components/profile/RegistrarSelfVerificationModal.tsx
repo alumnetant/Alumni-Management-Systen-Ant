@@ -251,14 +251,14 @@ const RegistrarSelfVerificationModalContent: React.FC<{ onClose: () => void }> =
                 <span>Instant Pre-Accreditation Match</span>
               </p>
               <p className="text-[11px] leading-relaxed text-stone-500 dark:text-stone-400">
-                Enter your student ID below to instantly cross-reference against the uploaded registrar masterlist and claim your Verified Alum credential.
+                Enter your Alumni ID or Graduate Record Number below to instantly cross-reference against the uploaded registrar masterlist and claim your Verified Alum credential.
               </p>
             </div>
 
             <form onSubmit={handleVerify} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block mb-1">
-                  Institutional Student ID Number *
+                  Institutional Alumni ID / Graduate Record Number *
                 </label>
                 <div className="relative">
                   <input
@@ -365,7 +365,7 @@ const RegistrarSelfVerificationModalContent: React.FC<{ onClose: () => void }> =
                       Your verification request and proof documentation have been submitted to the Office of the Registrar.
                     </p>
                     <div className="mt-2 text-[11px] text-blue-700 dark:text-blue-300 space-y-0.5">
-                      <p>• Student ID: <strong>{currentUser.studentId || reqStudentId}</strong></p>
+                      <p>• Alumni Record ID: <strong>{currentUser.studentId || reqStudentId}</strong></p>
                       <p>• Batch: <strong>Class of {currentUser.batch || reqBatch}</strong></p>
                       <p>• Program: <strong>{currentUser.course || reqCourse}</strong></p>
                       {currentUser.verificationProofName && (
@@ -392,14 +392,14 @@ const RegistrarSelfVerificationModalContent: React.FC<{ onClose: () => void }> =
                     Submit Graduation Proof for Registrar Audit
                   </p>
                   <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
-                    Upload a clear photo or PDF scan of your Diploma, Official Transcript of Records (TOR), or former Student ID card.
+                    Upload a clear photo or PDF scan of your Diploma, Official Transcript of Records (TOR), or Alumni ID card.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div>
                     <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
-                      Student ID Number *
+                      Alumni ID / Graduate Record Number *
                     </label>
                     <input
                       type="text"

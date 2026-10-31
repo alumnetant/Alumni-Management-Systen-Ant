@@ -469,7 +469,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [location, setLocation] = useState('Cebu, Philippines');
   const [headline, setHeadline] = useState('');
   const [phone, setPhone] = useState('');
-  const [regAccountType, setRegAccountType] = useState<'alumni' | 'student'>('alumni');
+  const [regAccountType, setRegAccountType] = useState<'alumni'>('alumni');
   const [regPosition, setRegPosition] = useState('');
   const [regCompany, setRegCompany] = useState('');
   const [regEmploymentStatus, setRegEmploymentStatus] = useState<string>('Employed');
@@ -1146,16 +1146,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     const finalStudentId = studentId.trim();
     const generatedAlumniId = generateAlumniId(finalBatch, finalStudentId);
 
-    const finalPosition = regAccountType === 'student' ? (regPosition.trim() || 'Student') : regPosition.trim();
-    const finalCompany = regAccountType === 'student' ? (regCompany.trim() || 'St. Cecilia’s College') : regCompany.trim();
-    const finalEmploymentStatus = regAccountType === 'student' ? 'Student' : (regEmploymentStatus || (finalPosition ? 'Employed' : 'Unemployed'));
+    const finalPosition = regPosition.trim();
+    const finalCompany = regCompany.trim();
+    const finalEmploymentStatus = regEmploymentStatus || (finalPosition ? 'Employed' : 'Seeking Opportunities');
 
     const registered = register({
       name: fullName,
       email: regEmail.trim(),
       password: regPassword,
       role: 'alumni', // Exclusively Alumni
-      accountType: regAccountType,
+      accountType: 'alumni',
       currentPosition: finalPosition,
       company: finalCompany,
       employmentStatus: finalEmploymentStatus as any,
@@ -2912,37 +2912,21 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                           <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1.5">
                             Account Classification
                           </label>
-                          <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100 rounded-xl">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRegAccountType('alumni');
-                                if (regEmploymentStatus === 'Student') setRegEmploymentStatus('Employed');
-                              }}
-                              className={`py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                                regAccountType === 'alumni'
-                                  ? 'bg-white text-stone-900 shadow-xs'
-                                  : 'text-stone-600 hover:text-stone-900'
-                              }`}
-                            >
-                              <GraduationCap className="w-3.5 h-3.5 text-[#8B181B]" />
-                              <span>Graduated Alumnus</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRegAccountType('student');
-                                setRegEmploymentStatus('Student');
-                              }}
-                              className={`py-2 px-3 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                                regAccountType === 'student'
-                                  ? 'bg-white text-stone-900 shadow-xs'
-                                  : 'text-stone-600 hover:text-stone-900'
-                              }`}
-                            >
-                              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                              <span>Current Student</span>
-                            </button>
+                          <div className="p-2.5 bg-red-50/80 border border-red-200/60 rounded-xl flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <GraduationCap className="w-4 h-4 text-[#8B181B]" />
+                              <div>
+                                <span className="text-xs font-bold text-stone-900 block leading-tight">
+                                  Graduated Alumnus
+                                </span>
+                                <span className="text-[10px] text-stone-500">
+                                  Registrar verified • Class of {verifiedRecord?.batchYear || batch}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200">
+                              Graduate Exclusive
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -2959,7 +2943,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                             onClick={() => {
                               setRegPosition('N/A');
                               setRegCompany('N/A');
-                              setRegEmploymentStatus(regAccountType === 'student' ? 'Student' : 'Unemployed');
+                              setRegEmploymentStatus('N/A');
                             }}
                             className="text-[11px] text-stone-500 hover:text-[#8B181B] font-semibold underline cursor-pointer"
                           >

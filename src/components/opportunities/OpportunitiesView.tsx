@@ -75,6 +75,7 @@ export const OpportunitiesView: React.FC = () => {
   const [filterByMySkills, setFilterByMySkills] = useState(false);
   const [selectedSkillTag, setSelectedSkillTag] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [currentPageApps, setCurrentPageApps] = useState<number>(1);
   const PAGE_SIZE = 10;
 
   // Verified skills from current user profile
@@ -152,6 +153,11 @@ export const OpportunitiesView: React.FC = () => {
     if (!currentUser) return [];
     return jobApplications.filter((a) => a.applicantUid === currentUser.uid);
   }, [jobApplications, currentUser]);
+
+  const paginatedMyApps = useMemo(() => {
+    const start = (currentPageApps - 1) * PAGE_SIZE;
+    return myApplications.slice(start, start + PAGE_SIZE);
+  }, [myApplications, currentPageApps, PAGE_SIZE]);
 
   // My Job Postings (for employers/posters)
   const myPostings = useMemo(() => {
@@ -1108,7 +1114,7 @@ export const OpportunitiesView: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {myApplications.map((app) => (
+              {paginatedMyApps.map((app) => (
                 <div
                   key={app.id}
                   className="bg-white border border-stone-200/90 rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
@@ -1159,6 +1165,17 @@ export const OpportunitiesView: React.FC = () => {
                   </div>
                 </div>
               ))}
+
+              {/* Applications Pagination */}
+              {myApplications.length > 0 && (
+                <PaginationControl
+                  currentPage={currentPageApps}
+                  totalItems={myApplications.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setCurrentPageApps}
+                  itemLabel="applications"
+                />
+              )}
             </div>
           )}
         </div>

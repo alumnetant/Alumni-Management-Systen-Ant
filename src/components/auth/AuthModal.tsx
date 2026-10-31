@@ -51,8 +51,8 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   const [name, setName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [isTerminatingOtherSession, setIsTerminatingOtherSession] = useState(false);
-  // Support Alumni, Student, and Employer registration
-  const [accountType, setAccountType] = useState<'alumni' | 'student' | 'employer'>('alumni');
+  // Support Alumni and Employer registration (membership exclusive to graduated alumni)
+  const [accountType, setAccountType] = useState<'alumni' | 'employer'>('alumni');
   const [role, setRole] = useState<'alumni' | 'employer'>('alumni');
   const [currentPosition, setCurrentPosition] = useState('');
   const [company, setCompany] = useState('');
@@ -165,9 +165,9 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       isAutoVerified = false;
     }
 
-    const sanitizedPos = accountType === 'student' ? (currentPosition.trim() || 'Student') : currentPosition.trim();
-    const sanitizedComp = accountType === 'student' ? (company.trim() || 'St. Cecilia’s College') : company.trim();
-    const sanitizedStatus = accountType === 'student' ? 'Student' : (employmentStatus || (sanitizedPos ? 'Employed' : 'Unemployed'));
+    const sanitizedPos = currentPosition.trim();
+    const sanitizedComp = company.trim();
+    const sanitizedStatus = employmentStatus || (sanitizedPos ? 'Employed' : 'Seeking Opportunities');
 
     register({
       email,
@@ -389,38 +389,22 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
           {mode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3">
-              {/* Account Type Selector (Alumnus, Student, Employer) */}
-              <div className="grid grid-cols-3 gap-1.5 p-1 bg-stone-100 rounded-xl">
+              {/* Account Type Selector (Alumnus, Employer) */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 rounded-xl">
                 <button
                   type="button"
                   onClick={() => {
                     setAccountType('alumni');
                     setRole('alumni');
                   }}
-                  className={`py-2 text-[11px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  className={`py-2 text-[11px] font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     accountType === 'alumni' && role === 'alumni'
                       ? 'bg-white text-stone-900 shadow-xs'
                       : 'text-stone-600 hover:text-stone-900'
                   }`}
                 >
-                  <GraduationCap className="w-3.5 h-3.5 text-[#991B1B]" />
-                  <span>Alumnus</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAccountType('student');
-                    setRole('alumni');
-                    setEmploymentStatus('Student');
-                  }}
-                  className={`py-2 text-[11px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                    accountType === 'student'
-                      ? 'bg-white text-stone-900 shadow-xs'
-                      : 'text-stone-600 hover:text-stone-900'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Student</span>
+                  <GraduationCap className="w-3.5 h-3.5 text-[#8B181B]" />
+                  <span>Graduated Alumnus</span>
                 </button>
                 <button
                   type="button"
@@ -428,14 +412,14 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     setAccountType('employer');
                     setRole('employer');
                   }}
-                  className={`py-2 text-[11px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  className={`py-2 text-[11px] font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                     accountType === 'employer'
                       ? 'bg-white text-stone-900 shadow-xs'
                       : 'text-stone-600 hover:text-stone-900'
                   }`}
                 >
                   <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Employer</span>
+                  <span>Corporate Employer</span>
                 </button>
               </div>
 
@@ -525,7 +509,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                         onClick={() => {
                           setCurrentPosition('N/A');
                           setCompany('N/A');
-                          setEmploymentStatus(accountType === 'student' ? 'Student' : 'Unemployed');
+                          setEmploymentStatus('N/A');
                         }}
                         className="text-[10px] text-stone-500 hover:text-[#8B181B] font-medium underline cursor-pointer"
                       >
@@ -534,9 +518,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     </div>
 
                     <p className="text-[10px] text-stone-500 leading-snug">
-                      {accountType === 'student'
-                        ? 'Students can register without entering employment information.'
-                        : 'Currently unemployed or have no job? You may leave fields blank or enter N/A.'}
+                      Currently seeking opportunities or have no current employer? You may leave fields blank or set as N/A.
                     </p>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -548,7 +530,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                           type="text"
                           value={currentPosition}
                           onChange={(e) => setCurrentPosition(e.target.value)}
-                          placeholder={accountType === 'student' ? 'e.g. Student or blank' : 'e.g. Software Dev, N/A'}
+                          placeholder="e.g. Software Dev, N/A"
                           className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs"
                         />
                       </div>
@@ -561,7 +543,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                           type="text"
                           value={company}
                           onChange={(e) => setCompany(e.target.value)}
-                          placeholder={accountType === 'student' ? 'e.g. College name or blank' : 'e.g. Acme Corp, N/A'}
+                          placeholder="e.g. Acme Corp, N/A"
                           className="w-full px-2.5 py-1.5 bg-white border border-stone-200 rounded-lg text-xs"
                         />
                       </div>

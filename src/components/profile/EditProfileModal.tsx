@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Plus,
@@ -6,6 +6,8 @@ import {
   Camera,
   Upload,
   Briefcase,
+  Building2,
+  MapPin,
   GraduationCap,
   RefreshCw,
   Image as ImageIcon,
@@ -27,6 +29,21 @@ import {
 } from '../../lib/defaultImages';
 import { triggerHaptic } from '../../services/hapticsService';
 
+const INDUSTRIES = [
+  'Information Technology & Software',
+  'Education & Academic Research',
+  'Healthcare, Medical & Nursing',
+  'Engineering & Construction',
+  'Banking, Finance & Insurance',
+  'Hospitality & Tourism Management',
+  'Government & Public Administration',
+  'Maritime & Naval Architecture',
+  'Media, Arts & Communication',
+  'Business Administration & Commerce',
+  'Law & Criminal Justice',
+  'Other Professional Field'
+];
+
 interface EditProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -39,6 +56,49 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
   const [headline, setHeadline] = useState(currentUser?.headline || '');
   const [about, setAbout] = useState(currentUser?.about || '');
   const [location, setLocation] = useState(currentUser?.location || '');
+  const [employmentStatus, setEmploymentStatus] = useState<
+    'Employed' | 'Self-employed' | 'Seeking Opportunities' | 'Retired' | 'N/A'
+  >((currentUser?.employmentStatus as any) || 'Employed');
+  const [currentPosition, setCurrentPosition] = useState(currentUser?.currentPosition || '');
+  const [company, setCompany] = useState(currentUser?.company || '');
+  const [industry, setIndustry] = useState((currentUser as any)?.industry || 'Information Technology & Software');
+
+  // Reactive logic: freeze/auto-fill professional fields based on employment status
+  useEffect(() => {
+    if (employmentStatus === 'N/A') {
+      setCurrentPosition('N/A');
+      setCompany('N/A');
+      setLocation('N/A');
+      setIndustry('Other Professional Field');
+    } else if (employmentStatus === 'Seeking Opportunities') {
+      setCurrentPosition('Seeking Opportunities');
+      setCompany('N/A');
+      if (location === 'N/A') setLocation(currentUser?.location || 'Cebu City, Philippines');
+      if (industry === 'Other Professional Field') setIndustry('Information Technology & Software');
+    } else if (employmentStatus === 'Retired') {
+      setCurrentPosition('Retired');
+      setCompany('Retired');
+      setLocation('N/A');
+      setIndustry('Other Professional Field');
+    } else if (employmentStatus === 'Self-employed') {
+      if (currentPosition === 'N/A' || currentPosition === 'Retired' || currentPosition === 'Seeking Opportunities') {
+        setCurrentPosition('Self-Employed Consultant / Specialist');
+      }
+      if (company === 'N/A' || company === 'Retired') {
+        setCompany('Self-Employed / Freelance');
+      }
+      if (location === 'N/A') setLocation(currentUser?.location || 'Cebu City, Philippines');
+    } else if (employmentStatus === 'Employed') {
+      if (currentPosition === 'N/A' || currentPosition === 'Retired' || currentPosition === 'Seeking Opportunities') {
+        setCurrentPosition('');
+      }
+      if (company === 'N/A' || company === 'Retired') {
+        setCompany('');
+      }
+      if (location === 'N/A') setLocation(currentUser?.location || 'Cebu City, Philippines');
+    }
+  }, [employmentStatus]);
+
   const [phone, setPhone] = useState(currentUser?.phone || '');
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [profilePictureUrl, setProfilePictureUrl] = useState(currentUser?.profilePictureUrl || '');
@@ -231,6 +291,10 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
         phone: phoneValidation.formatted,
         profilePictureUrl,
         coverPhotoUrl,
+        employmentStatus,
+        currentPosition: currentPosition.trim(),
+        company: company.trim(),
+        industry,
         experience,
         education
       });
@@ -533,15 +597,16 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
 
               <div>
                 <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
-                  Location *
+                  Location * {employmentStatus === 'N/A' || employmentStatus === 'Retired' ? '(Frozen)' : ''}
                 </label>
                 <input
                   type="text"
                   required
+                  disabled={employmentStatus === 'N/A' || employmentStatus === 'Retired'}
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder="Cebu City, Philippines"
-                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-stone-100"
+                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-stone-100 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-stone-100 dark:disabled:bg-stone-900"
                 />
               </div>
             </div>
@@ -599,6 +664,108 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
                 placeholder="Share your passions, university memories, or current professional initiatives..."
                 className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-stone-100 leading-relaxed"
               />
+            </div>
+          </div>
+
+          {/* Professional Status & Trajectory */}
+          <div className="space-y-3 pt-4 border-t border-stone-200 dark:border-stone-800">
+            <h3 className="font-bold text-stone-900 dark:text-white uppercase tracking-wider text-xs flex items-center gap-1.5">
+              <Briefcase className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
+              <span>Professional Details & Employment Status</span>
+            </h3>
+
+            {/* Employment Status Selector */}
+            <div>
+              <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1.5">
+                Current Employment Status
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {(['Employed', 'Self-employed', 'Seeking Opportunities', 'Retired', 'N/A'] as const).map((st) => (
+                  <button
+                    type="button"
+                    key={st}
+                    onClick={() => setEmploymentStatus(st)}
+                    className={`py-2 px-2.5 rounded-lg border text-xs font-semibold text-center transition-all cursor-pointer ${
+                      employmentStatus === st
+                        ? 'bg-[#8B181B] text-white border-[#8B181B] shadow-2xs'
+                        : 'bg-stone-50 dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-750'
+                    }`}
+                  >
+                    {st}
+                  </button>
+                ))}
+              </div>
+              {employmentStatus === 'N/A' && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1.5">
+                  Note: Professional fields are frozen as Not Applicable (N/A).
+                </p>
+              )}
+              {employmentStatus === 'Seeking Opportunities' && (
+                <p className="text-[11px] text-sky-600 dark:text-sky-400 font-medium mt-1.5">
+                  Note: Job Title and Company are set to Seeking Opportunities. Target location and industry remain editable.
+                </p>
+              )}
+              {employmentStatus === 'Retired' && (
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 font-medium mt-1.5">
+                  Note: Professional trajectory is archived as Retired.
+                </p>
+              )}
+            </div>
+
+            {/* Current Position & Company */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
+                  Current Job Title / Position {employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities' ? '(Frozen)' : ''}
+                </label>
+                <div className="relative">
+                  <Briefcase className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    disabled={employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities'}
+                    value={currentPosition}
+                    onChange={(e) => setCurrentPosition(e.target.value)}
+                    placeholder="e.g. Lead Software Engineer"
+                    className="w-full pl-9 pr-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-stone-100 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-stone-100 dark:disabled:bg-stone-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
+                  Company / Organization {employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities' ? '(Frozen)' : ''}
+                </label>
+                <div className="relative">
+                  <Building2 className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    disabled={employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities'}
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder="e.g. Archipelagic Systems"
+                    className="w-full pl-9 pr-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-stone-100 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-stone-100 dark:disabled:bg-stone-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Industry Sector */}
+            <div>
+              <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
+                Industry Sector {employmentStatus === 'N/A' || employmentStatus === 'Retired' ? '(Frozen)' : ''}
+              </label>
+              <select
+                disabled={employmentStatus === 'N/A' || employmentStatus === 'Retired'}
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-stone-100 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-stone-100 dark:disabled:bg-stone-900"
+              >
+                {INDUSTRIES.map((ind) => (
+                  <option key={ind} value={ind} className="dark:bg-stone-800">
+                    {ind}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

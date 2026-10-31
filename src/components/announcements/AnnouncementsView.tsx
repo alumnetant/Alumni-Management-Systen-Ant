@@ -131,11 +131,12 @@ export const AnnouncementsView: React.FC = () => {
         }
 
         if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
+          const q = searchQuery.toLowerCase().trim();
           const matchTitle = (a.title || '').toLowerCase().includes(q);
           const matchContent = (a.content || '').toLowerCase().includes(q);
+          const matchCategory = (a.category || '').toLowerCase().includes(q);
           const matchAuthor = (a.authorName || '').toLowerCase().includes(q);
-          if (!matchTitle && !matchContent && !matchAuthor) return false;
+          if (!matchTitle && !matchContent && !matchCategory && !matchAuthor) return false;
         }
 
         return true;
@@ -347,8 +348,8 @@ export const AnnouncementsView: React.FC = () => {
 
           {/* Search, Category, and Sort controls */}
           <div className="flex items-center gap-2 flex-1 md:max-w-xl">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 z-20 pointer-events-none" />
+            <div className="relative flex-1 z-30 pointer-events-auto">
+              <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2 z-30 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
@@ -356,8 +357,8 @@ export const AnnouncementsView: React.FC = () => {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Search circulars by keyword, title, or author..."
-                className="w-full pl-9 pr-8 py-2 bg-white dark:bg-stone-850 border border-stone-300 dark:border-stone-700 rounded-xl text-xs font-medium text-stone-900 dark:text-stone-100 placeholder-stone-400 dark:placeholder-stone-500 focus:bg-white dark:focus:bg-stone-800 focus:border-[#8B181B] dark:focus:border-red-400 focus:ring-1 focus:ring-[#8B181B] outline-hidden transition-all shadow-2xs relative z-10"
+                placeholder="Search circulars by keyword, title, category, or author..."
+                className="w-full pl-9 pr-8 py-2 bg-white dark:bg-stone-850 border border-stone-300 dark:border-stone-700 rounded-xl text-xs font-semibold text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:bg-white dark:focus:bg-stone-800 focus:border-[#8B181B] dark:focus:border-red-400 focus:ring-2 focus:ring-[#8B181B]/20 outline-none transition-all shadow-2xs relative z-20 cursor-text pointer-events-auto"
               />
               {searchQuery && (
                 <button
@@ -366,7 +367,9 @@ export const AnnouncementsView: React.FC = () => {
                     setSearchQuery('');
                     setCurrentPage(1);
                   }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer z-20 p-1"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer z-30 p-1 transition-colors"
+                  title="Clear search query"
+                  aria-label="Clear search"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
