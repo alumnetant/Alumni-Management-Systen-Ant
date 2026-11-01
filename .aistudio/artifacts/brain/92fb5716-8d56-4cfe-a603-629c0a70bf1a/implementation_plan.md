@@ -1,6 +1,6 @@
-# Partnered Companies Interactive Postings Showcase
+# Actual Campus Building Photography Integration
 
-An interactive drawer and modal experience in the Alumni Directory that allows alumni to click any accredited partner company and instantly inspect all career opportunities, internships, and postings published by that employer, complete with instant application workflows and match scoring.
+Seamless integration of the authentic, user-provided photographs of St. Cecilia's College - Cebu, Inc. across the public Landing Page slideshow, hero sections, and the Login/Authentication portal.
 
 ---
 
@@ -8,118 +8,89 @@ An interactive drawer and modal experience in the Alumni Directory that allows a
 
 > [!IMPORTANT]
 > The following user preferences were confirmed during Turn 1 clarification:
-> - **Display Presentation**: Interactive slide-over drawer modal displaying company credentials and all their posted listings.
-> - **Featured Content & Action**: All active job and internship postings published by the company, featuring live candidate skill match scoring and instant "Quick Apply" modal integration.
+> - **Display Placement**: Prominently featured on the public Landing Page and Login hero.
+> - **Primary Hero Choice**: High-rise angled architectural facade with the signature red entrance canopy (`IMG_5525_20785d43.HEIC` -> `landing-building-2.jpg`).
 
-- **Confirmed Decision 1**: Clicking anywhere on a partnered company card opens the interactive postings showcase modal.
-- **Confirmed Decision 2**: Each posting in the company drawer displays full job details (role, stipend/salary, required course, skills) and an instant "Apply Now" button hooked into the existing `JobApplicationModal`.
-- **Confirmed Decision 3**: If an alumnus has already applied to a position, the listing displays their real-time application status (`Submitted`, `Under Review`, `Shortlisted`).
+- **Confirmed Decision 1**: The primary hero background on the Login and Registration screens (`AuthPage.tsx`) uses the authentic high-rise facade with the red entrance canopy.
+- **Confirmed Decision 2**: The Landing Page hero slideshow (`CAMPUS_SLIDES`) is updated to feature all three user-provided photographs:
+  1. **Slide 1 (Hero)**: High-rise tower facade with the red entrance canopy and glass curtain walls.
+  2. **Slide 2 (Collegiate Grounds)**: Full frontal facade of St. Cecilia's College featuring the grand entrance and institutional school bus.
+  3. **Slide 3 (Aerial Panorama)**: Drone aerial view of the campus tower and surrounding Minglanilla collegiate community.
+- **Confirmed Decision 3**: Presets in `InstitutionalSocialFeed.tsx` and campus heritage reference points are aligned with these authentic photographs.
 
 ---
 
 ## 1. Overview & Core Concept
 
-Currently, in the Alumni Directory (`Alumni Roster & Directory`), the **Partnered Companies** tab displays accredited corporate recruiting partners in cards, but clicking them only navigates to the generic Opportunities tab or requires manually searching.
+Currently, the landing page and authentication portals utilized placeholder / generic campus architectural assets. The user has supplied high-resolution authentic photographs of the actual St. Cecilia's College - Cebu, Inc. campus:
+1. **Architectural High-Rise Facade (`IMG_5525`)**: Capturing the modern multi-story academic building, distinct red structural column, and prominent red covered canopy entrance.
+2. **Campus Front View (`IMG_5518`)**: Ground-level perspective showing the full wide facade, campus grounds, and official Cecilian school bus.
+3. **Aerial Drone Overview (`scc4`)**: High-altitude perspective showing the building's rooftop canopy, surrounding urban campus neighborhood, and Cebu mountain horizon.
 
-This feature transforms the interaction:
-1. **Direct Exploration**: Alumni can click any company card or its "View Postings" button to open a focused, institutional drawer modal.
-2. **Comprehensive Postings Aggregator**: The modal dynamically queries and filters all opportunities created by that employer or matching the company name.
-3. **Candidate Match & Quick Apply**: Alumni instantly see how their degree program and verified skills match each opening, with a one-click "Apply Now" modal to submit their CV and cover letter directly to that employer.
+All uploaded HEIC and WebP assets have been converted into production-grade, web-optimized JPEG assets in `public/assets/` (`landing-building-1.jpg`, `landing-building-2.jpg`, `landing-building-3.jpg`, and `landing-building.jpg`) to ensure universal rendering compatibility across all mobile and desktop web browsers.
 
 ---
 
 ## 2. Visual Design & Aesthetic Direction
 
-In strict alignment with the St. Cecilia's College design guidelines (`AGENTS.md`) and Institutional Editorial standards (`9_museum_editorial_institutional.md`):
+In strict alignment with the St. Cecilia's College design taste guidelines (`AGENTS.md`) and Museum/Institutional Editorial guidelines (`9_museum_editorial_institutional.md`):
 
-- **Surface & Elevation**:
-  - Modal overlay with soft backdrop blur (`bg-black/60 backdrop-blur-xs`).
-  - Drawer container in crisp white (`dark:bg-stone-900`) with subtle hairline dividers (`border-stone-200/90 dark:border-stone-800`).
-  - Institutional crimson accent (`#8B181B`) for primary actions and verified partner badges.
-- **Header Banner**:
-  - Company avatar/monogram, verified accreditation badge (`Accredited Recruitment Partner`), company sector, location, and official website URL.
-  - Quick summary metric: `X Active Postings` and `Talent Pool Acceptance`.
-- **Postings List Rhythm**:
-  - Breathable cards with generous padding (`p-4 sm:p-5`) and clear optical hierarchy.
-  - Job title leading with high-contrast text (`text-stone-900 dark:text-stone-100 font-bold`).
-  - Clean unboxed metadata separated by typographic dots (`Full-Time · Cebu City · ₱35,000 - ₱45,000/mo`).
-  - Skill tag chips matching candidate profile skills.
-- **Anti-Slop Discipline**:
-  - No synthetic neon gradients or decorative mock statistics.
-  - Clean SVG iconography from `lucide-react` with standardized stroke widths (`strokeWidth={1.75}`).
+- **Authenticity & School Pride**: Real photography reinforces institutional pride and trust for returning alumni, prospective employers, and graduating seniors.
+- **Measured Scrim & Contrast**: The login portal applies a measured dark vignette (`bg-gradient-to-t from-black via-black/75 to-black/50`) over the authentic building photo to maintain WCAG AA contrast for headline and body typography.
+- **Slideshow Presentation**: High-contrast, clean unboxed metadata with tight tracking (`tracking-tight font-bold`) and descriptive badges:
+  - `CAMPUS ARCHITECTURE • TOWER FACADE`
+  - `COLLEGIATE FACADE • MAIN ENTRANCE`
+  - `AERIAL VISTA • CAMPUS COMPLEX`
+- **Zero Distortions**: `object-cover` with appropriate focal center-positioning to prevent image warping across viewport sizes.
 
 ---
 
-## 3. Technical Architecture & System Flow
+## 3. System Architecture & Asset Mapping
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│             Alumni Directory (NetworkView)             │
-│               [ Partnered Companies Tab ]              │
+│               User Uploaded Campus Assets              │
+│  • IMG_5525 (Angled Facade)   -> landing-building-2.jpg│
+│  • IMG_5518 (Frontal Pavilion)-> landing-building-1.jpg│
+│  • scc4     (Aerial Drone)    -> landing-building-3.jpg│
 └───────────────────────────┬────────────────────────────┘
                             │
-              User clicks any company card
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│         PartneredCompanyPostingsModal (Drawer)         │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │ Employer Header: Name, Logo, Address, Industry   │  │
-│  └──────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │ Active Postings Query Filter:                    │  │
-│  │ opportunities.filter(c => c.company === name)    │  │
-│  └──────────────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │ Postings List:                                   │  │
-│  │ • Job Card 1: Senior Software Eng [Apply Now]   │  │
-│  │ • Job Card 2: QA Specialist [Applied: Under Rev] │  │
-│  └──────────────────────────────────────────────────┘  │
-└───────────────────────────┬────────────────────────────┘
-                            │
-               User clicks "Apply Now"
-                            │
-                            ▼
-┌────────────────────────────────────────────────────────┐
-│                 JobApplicationModal                    │
-│    (Submits direct application to AlumniContext)      │
-└────────────────────────────────────────────────────────┘
+            ┌───────────────┴───────────────┐
+            ▼                               ▼
+┌───────────────────────────┐   ┌───────────────────────────┐
+│     LandingPage.tsx       │   │       AuthPage.tsx        │
+│  • 3-Slide Hero Carousel  │   │  • Primary Hero Backdrop  │
+│  • Heritage Story Section │   │  • Institutional Vignette │
+│  • College History Modal  │   │  • "Welcome Back" Portal  │
+└───────────────────────────┘   └───────────────────────────┘
 ```
-
-### Data Synchronization:
-- Retrieves opportunities from `useAlumni().opportunities`.
-- Matches opportunities by employer user ID (`postedBy === company.uid`) or normalized company name (`opp.company.toLowerCase() === company.companyName.toLowerCase()`).
-- Matches existing user applications from `useAlumni().jobApplications` to display real-time application status tags.
 
 ---
 
 ## 4. Implementation Steps & Workflows
 
-### Step 1: Create `PartneredCompanyPostingsModal.tsx`
-- Build a dedicated modal component displaying:
-  - Employer profile banner (name, description, contact person, industry, headquarters, website).
-  - Search/filter bar within the modal if the company has multiple postings.
-  - Active postings feed with salary, required degree, skills tags, and job description.
-  - Live candidate qualification preview (skills match percentage).
-  - Empty state when the company has no current active listings, offering a "Join Talent Pool" or direct message contact affordance.
-  - "Apply Now" button that triggers `JobApplicationModal` with the selected opportunity.
+### Step 1: Update Landing Page Carousel Slides (`LandingPage.tsx`)
+- Update `CAMPUS_SLIDES` with the authentic building photos:
+  - Lead with Slide 1 as `/assets/landing-building-2.jpg` (High-rise facade with red entrance canopy).
+  - Slide 2 as `/assets/landing-building-1.jpg` (Frontal campus facade and grounds).
+  - Slide 3 as `/assets/landing-building-3.jpg` (Aerial drone panorama).
+- Calibrate badge kickers and captions to accurately describe St. Cecilia's College facilities in Minglanilla, Cebu.
 
-### Step 2: Integrate into `PartneredCompaniesView.tsx`
-- Add `selectedCompanyForPostings: UserProfile | null` state.
-- Make the entire company card interactive (with hover state and accessible keyboard focus).
-- Update the "View Career Opportunities" button to open the postings modal directly instead of navigating away.
-- Mount `PartneredCompanyPostingsModal` and wire state transitions.
+### Step 2: Update Authentication Portal Hero (`AuthPage.tsx`)
+- Ensure the desktop hero backdrop references `/assets/landing-building-2.jpg` with high-clarity contrast filters and dark vignette gradient.
+- Verify image scaling (`scale-100` to `scale-105` subtle focus transition).
 
-### Step 3: Connect Job Application & Tracking Flow
-- When an alumnus clicks "Apply Now" inside the company postings modal, open `JobApplicationModal` for that specific opportunity.
-- Upon successful submission, refresh the posting card to show "Application Submitted" with date and status indicator.
+### Step 3: Update Preset Campus Gallery Photos (`InstitutionalSocialFeed.tsx`)
+- Update `PRESET_CAMPUS_PHOTOS` metadata in `InstitutionalSocialFeed.tsx` to match the authentic building assets:
+  - Modern Academic Tower Facade
+  - Main Campus Academic Grounds & Entrance
+  - Aerial Drone Perspective of St. Cecilia's Tower
 
 ---
 
 ## 5. Verification & Testing Criteria
 
-1. **Card Click Interaction**: Clicking on any company card or its primary CTA in the Partnered Companies view opens the company postings drawer immediately.
-2. **Accurate Content Query**: All approved postings for that specific company are rendered correctly with accurate details (salary, skills, role type).
-3. **Application Handlers**: Clicking "Apply Now" opens the standard application modal with pre-filled alumnus information and submits cleanly to Firestore/Context.
-4. **Already-Applied State**: If the logged-in user has already applied to a job from this company, the button reflects their application status (`Applied`).
-5. **Quality & Compilation**: Clean build with `tsc --noEmit` and passing vitest test suite.
+1. **Landing Page Visual Inspection**: The hero slideshow on `LandingPage.tsx` renders all 3 real photographs of St. Cecilia's College with crisp clarity and correct slide transitions.
+2. **Login Page Visual Inspection**: The desktop split-screen hero on `AuthPage.tsx` displays the real high-rise facade with the red canopy entrance under the vignette scrim.
+3. **Cross-Browser Asset Loading**: All images load from standard web paths (`/assets/landing-building-*.jpg`) without broken image frames or format errors.
+4. **Codebase Compilation & Tests**: Verify with `compile_applet`, `lint_applet`, and `vitest run`.

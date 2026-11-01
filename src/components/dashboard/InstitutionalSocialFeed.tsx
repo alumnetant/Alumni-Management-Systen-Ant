@@ -32,19 +32,19 @@ import { Skeleton } from '../common/BentoSkeleton';
 
 const PRESET_CAMPUS_PHOTOS = [
   {
-    name: "St. Cecilia's Tower Complex",
-    url: '/assets/landing-building-1.jpg',
-    desc: 'Modern academic landmark tower'
-  },
-  {
-    name: 'Main Campus Academic Hall',
+    name: "St. Cecilia's Academic Tower",
     url: '/assets/landing-building-2.jpg',
-    desc: 'Administration & collegiate classrooms'
+    desc: 'High-rise facade with red entrance canopy'
   },
   {
-    name: 'Courtyard & Student Pavilion',
+    name: 'Main Campus Entrance & Grounds',
+    url: '/assets/landing-building-1.jpg',
+    desc: 'Collegiate front entrance & campus grounds'
+  },
+  {
+    name: 'Aerial Campus Complex',
     url: '/assets/landing-building-3.jpg',
-    desc: 'Refurbished open promenade'
+    desc: 'Bird’s-eye panorama of campus facilities'
   },
   {
     name: "St. Cecilia's College Seal",

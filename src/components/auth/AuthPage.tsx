@@ -72,6 +72,7 @@ import {
   addRegistrationConflict
 } from '../../services/studentVerificationService';
 import { getCentenaryBatchYears } from '../../services/longevityService';
+import { getEmployerAuthStatus } from '../../lib/employerAuthStatus';
 
 interface AuthPageProps {
   initialMode?: 'login' | 'register' | 'forgot';
@@ -119,6 +120,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     terminateOtherSessionAndLogin,
     loginPlatformError,
     clearLoginPlatformError,
+    loginPendingAccountNotice,
+    clearLoginPendingAccountNotice,
     moderatorQuota,
     clientPlatform
   } = useAlumni();
@@ -166,6 +169,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       setLoginError(loginPlatformError);
     }
   }, [loginPlatformError]);
+
+  // Synchronize pending account notices immediately and suppress lockout
+  useEffect(() => {
+    if (loginPendingAccountNotice) {
+      setPendingApprovalNotice({
+        show: true,
+        role: loginPendingAccountNotice.role,
+        email: loginPendingAccountNotice.email,
+        message: loginPendingAccountNotice.message
+      });
+      setLoginError('');
+    }
+  }, [loginPendingAccountNotice]);
 
   // Biometric Authentication State (Android Keystore / BiometricPrompt)
   const [biometricAvail, setBiometricAvail] = useState<BiometricAvailability>({
@@ -1008,6 +1024,49 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         return;
       }
 
+      // Check if user is a pending employer or conflict/pending alumni account
+      const isPendingEmployer = Boolean(
+        potentialUser &&
+          potentialUser.role === 'employer' &&
+          (!potentialUser.isVerified ||
+            potentialUser.employerVerificationStatus === 'pending_verification' ||
+            potentialUser.employerStatus === 'pending' ||
+            potentialUser.accountStatus === 'PENDING_VERIFICATION' ||
+            getEmployerAuthStatus(potentialUser) === 'PENDING_APPROVAL')
+      );
+
+      const isPendingOrConflictAlumni = Boolean(
+        potentialUser &&
+          potentialUser.role === 'alumni' &&
+          (!potentialUser.isVerified ||
+            potentialUser.verificationStatus === 'pending_review' ||
+            potentialUser.verificationStatus === 'flagged' ||
+            potentialUser.accountStatus === 'PENDING_VERIFICATION')
+      );
+
+      if (loginPendingAccountNotice || isPendingEmployer || isPendingOrConflictAlumni) {
+        const noticeInfo = loginPendingAccountNotice || (isPendingEmployer ? {
+          role: 'employer' as const,
+          title: 'Employer Accreditation Pending',
+          message: 'Your corporate partner account has been received and is currently under review by the Alumni & Placement Office. Institutional verification typically concludes within 24–48 business hours. You will receive an official notification once approved.',
+          email: potentialUser?.email || trimmed
+        } : {
+          role: 'alumni' as const,
+          title: 'Alumni Credential Verification in Progress',
+          message: 'Your graduation record is currently undergoing Registrar review or conflict verification. You will be notified via email once your academic standing is confirmed.',
+          email: potentialUser?.email || trimmed
+        });
+
+        setPendingApprovalNotice({
+          show: true,
+          role: noticeInfo.role,
+          email: noticeInfo.email,
+          message: noticeInfo.message
+        });
+        setLoginError('');
+        return;
+      }
+
       // Failed login attempt tracking
       const newAttempts = failedAttempts + 1;
 
@@ -1646,20 +1705,23 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <h4 className="font-bold text-xs uppercase tracking-wider text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        Registration Received • Pending Review
+                        {pendingApprovalNotice.role === 'employer' ? 'Employer Accreditation Pending' : 'Alumni Credential Verification in Progress'}
                       </h4>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-800 text-amber-900 dark:text-amber-100">
-                        24 to 48 Business Hours
+                        {pendingApprovalNotice.role === 'employer' ? '24 to 48 Business Hours' : 'Registrar Review'}
                       </span>
                     </div>
                     <p className="text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
                       {pendingApprovalNotice.message}
                     </p>
                     <div className="pt-2 flex items-center justify-between text-[11px] text-amber-800 dark:text-amber-300 border-t border-amber-200/60 dark:border-amber-800/40 mt-2">
-                      <span>Registered Email: <strong className="font-semibold">{pendingApprovalNotice.email}</strong></span>
+                      <span>Registered Account: <strong className="font-semibold">{pendingApprovalNotice.email}</strong></span>
                       <button
                         type="button"
-                        onClick={() => setPendingApprovalNotice(null)}
+                        onClick={() => {
+                          setPendingApprovalNotice(null);
+                          clearLoginPendingAccountNotice?.();
+                        }}
                         className="font-bold underline hover:text-amber-950 dark:hover:text-amber-100 cursor-pointer"
                       >
                         Dismiss

@@ -190,6 +190,13 @@ export interface ActiveSessionConflictInfo {
   canTerminateExistingSession: boolean;
 }
 
+export interface PendingAccountNoticeInfo {
+  role: 'alumni' | 'employer';
+  title: string;
+  message: string;
+  email: string;
+}
+
 interface AlumniContextType {
   currentUser: UserProfile | null;
   users: UserProfile[];
@@ -268,6 +275,8 @@ interface AlumniContextType {
   setClientPlatformOverride: (platform: 'mobile' | 'web' | null) => void;
   loginPlatformError: string | null;
   clearLoginPlatformError: () => void;
+  loginPendingAccountNotice: PendingAccountNoticeInfo | null;
+  clearLoginPendingAccountNotice: () => void;
   // Strict Moderator Quota (MAX 3 ACTIVE ACCOUNTS)
   moderatorQuota: { activeCount: number; maxQuota: number; availableSlots: number; canCreateModerator: boolean };
   logout: (options?: { revokeBiometrics?: boolean }) => void;
@@ -1362,6 +1371,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [loginPlatformError, setLoginPlatformError] = useState<string | null>(null);
   const clearLoginPlatformError = useCallback(() => {
     setLoginPlatformError(null);
+  }, []);
+
+  const [loginPendingAccountNotice, setLoginPendingAccountNotice] = useState<PendingAccountNoticeInfo | null>(null);
+  const clearLoginPendingAccountNotice = useCallback(() => {
+    setLoginPendingAccountNotice(null);
   }, []);
 
   // Strict Moderator Quota State: MAX 3 ACTIVE ACCOUNTS
@@ -2742,6 +2756,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   );
 
   const login = async (identifier: string, pass: string): Promise<boolean> => {
+    setLoginPendingAccountNotice(null);
     // 1. Mandatory input validation
     if (!identifier || typeof identifier !== 'string' || !identifier.trim()) {
       showToast('Email address or SCC ID is required to sign in.', 'error');
@@ -3007,7 +3022,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return false;
     }
     if (accountStatus === 'PENDING_VERIFICATION' && user.role !== 'employer') {
-      showToast('Your account is pending registrar verification. You will be notified once your graduation credentials are confirmed.', 'error');
+      setLoginPendingAccountNotice({
+        role: 'alumni',
+        title: 'Alumni Credential Verification in Progress',
+        message: 'Your graduation record is currently undergoing Registrar review or conflict verification. You will be notified via email once your academic standing is confirmed.',
+        email: user.email || identifier
+      });
+      showToast('Your account is pending registrar verification. You will be notified once your graduation credentials are confirmed.', 'info');
       return false;
     }
 
@@ -3022,7 +3043,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           user.verificationStatus = 'verified';
           setUsers((prev) => prev.map((u) => u.uid === user!.uid ? { ...u, isVerified: true, verified: true, verificationStatus: 'verified' } : u));
         } else {
-          showToast('Login blocked: Your alumni account has not been verified by the Registrar.', 'error');
+          setLoginPendingAccountNotice({
+            role: 'alumni',
+            title: 'Alumni Credential Verification in Progress',
+            message: 'Your graduation record is currently undergoing Registrar review or conflict verification. You will be notified via email once your academic standing is confirmed.',
+            email: user.email || identifier
+          });
+          showToast('Login blocked: Your alumni account has not been verified by the Registrar.', 'info');
           return false;
         }
       }
@@ -3047,7 +3074,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
 
       if (authStatus === 'PENDING_APPROVAL') {
-        showToast('Login blocked: Your employer account has not been approved yet. Institutional accreditation takes 24–48 hours.', 'error');
+        setLoginPendingAccountNotice({
+          role: 'employer',
+          title: 'Employer Accreditation Pending',
+          message: 'Your corporate partner account has been received and is currently under review by the Alumni & Placement Office. Institutional verification typically concludes within 24–48 business hours. You will receive an official notification once approved.',
+          email: user.email || identifier
+        });
+        showToast('Login blocked: Your employer account has not been approved yet. Institutional accreditation takes 24–48 hours.', 'info');
         return false;
       }
 
@@ -7917,6 +7950,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setClientPlatformOverride,
         loginPlatformError,
         clearLoginPlatformError,
+        loginPendingAccountNotice,
+        clearLoginPendingAccountNotice,
         moderatorQuota,
         logout,
         switchUser,

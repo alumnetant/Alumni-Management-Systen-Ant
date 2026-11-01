@@ -54,24 +54,24 @@ interface LandingPageProps {
 const CAMPUS_SLIDES = [
   {
     id: 1,
-    image: '/assets/landing-building-1.jpg',
-    badge: 'SLIDE 01 • CAMPUS TOWER',
-    title: 'St. Cecilia’s Modern Tower',
-    caption: 'Towering academic high-rise architecture under the open sky.'
+    image: '/assets/landing-building-2.jpg',
+    badge: 'SLIDE 01 • HIGH-RISE ACADEMIC TOWER',
+    title: 'St. Cecilia’s Academic Tower',
+    caption: 'Modern high-rise facade featuring the signature crimson entrance canopy and glass architecture.'
   },
   {
     id: 2,
-    image: '/assets/landing-building-2.jpg',
-    badge: 'SLIDE 02 • MAIN INSTITUTIONAL HALL',
-    title: 'St. Cecilia’s College Main Building',
-    caption: 'Official campus facade featuring the distinctive red column and main entrance canopy.'
+    image: '/assets/landing-building-1.jpg',
+    badge: 'SLIDE 02 • MAIN ENTRANCE & GROUNDS',
+    title: 'Collegiate Facade & School Grounds',
+    caption: 'Official campus entrance, student transit lines, and daily collegiate life in Minglanilla, Cebu.'
   },
   {
     id: 3,
     image: '/assets/landing-building-3.jpg',
-    badge: 'SLIDE 03 • CEBU CAMPUS COMPLEX',
+    badge: 'SLIDE 03 • CAMPUS PANORAMA',
     title: 'St. Cecilia’s Institutional Complex',
-    caption: 'Academic grounds and collegiate learning facilities of St. Cecilia’s College - Cebu, Inc.'
+    caption: 'Aerial panorama of St. Cecilia’s College - Cebu, Inc. educational facilities and grounds.'
   }
 ];
 

@@ -25,25 +25,25 @@ interface CampusGalleryModalProps {
 
 const PRESET_SAMPLE_PHOTOS = [
   {
-    title: "St. Cecilia's Tower Complex",
+    title: "St. Cecilia's Academic Tower",
     category: 'campus' as const,
     year: '2026 Landmark',
-    url: '/assets/landing-building-1.jpg',
-    description: 'Modern academic high-rise tower landmark reaching into the Cebu skies.'
-  },
-  {
-    title: "St. Cecilia's College Main Hall",
-    category: 'campus' as const,
-    year: 'Academic Center',
     url: '/assets/landing-building-2.jpg',
-    description: 'Main campus building featuring official entrance canopy and learning facilities.'
+    description: 'Modern academic high-rise tower facade featuring the signature red entrance canopy.'
   },
   {
-    title: 'Collegiate Courtyard & Grounds',
+    title: "Main Campus Entrance & Grounds",
     category: 'campus' as const,
     year: 'Campus Life',
+    url: '/assets/landing-building-1.jpg',
+    description: 'Collegiate front entrance facade, student transit lines, and daily campus grounds.'
+  },
+  {
+    title: 'Aerial Campus Complex',
+    category: 'campus' as const,
+    year: 'Campus Overview',
     url: '/assets/landing-building-3.jpg',
-    description: 'Campus open grounds, pavilion, and student gathering spaces.'
+    description: 'Bird’s-eye perspective of St. Cecilia’s College - Cebu, Inc. educational facilities.'
   },
   {
     title: "Official College Seal of St. Cecilia's",

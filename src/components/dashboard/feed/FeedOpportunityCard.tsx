@@ -30,13 +30,15 @@ export const FeedOpportunityCard: React.FC<FeedOpportunityCardProps> = ({
 }) => {
   const { setActiveTab } = useAlumni();
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const shouldTruncate = item.body.length > 140;
 
   const handleOpenJob = () => {
     setActiveTab('opportunities');
   };
 
   return (
-    <article className="bg-white dark:bg-stone-900 rounded-2xl sm:rounded-3xl border border-stone-200/90 dark:border-stone-800 p-5 sm:p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md transition-all duration-200 space-y-4">
+    <article className="bg-white dark:bg-stone-900 rounded-2xl sm:rounded-3xl border border-stone-200/90 dark:border-stone-800 p-3.5 sm:p-5 md:p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md transition-all duration-200 space-y-3.5 sm:space-y-4">
       {/* Card Header */}
       <FeedCardHeader
         item={item}
@@ -73,13 +75,37 @@ export const FeedOpportunityCard: React.FC<FeedOpportunityCardProps> = ({
           </p>
         </div>
 
-        <p className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed line-clamp-3">
-          {item.body}
-        </p>
+        <div className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed whitespace-pre-line">
+          {shouldTruncate && !isExpanded ? (
+            <>
+              <span className="line-clamp-3 sm:line-clamp-none inline">{item.body.slice(0, 140)}...</span>
+              <button
+                type="button"
+                onClick={() => setIsExpanded(true)}
+                className="text-[#8B181B] dark:text-rose-400 font-semibold ml-1.5 hover:underline cursor-pointer inline-block"
+              >
+                See more
+              </button>
+            </>
+          ) : (
+            <>
+              <span>{item.body}</span>
+              {shouldTruncate && (
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(false)}
+                  className="text-[#8B181B] dark:text-rose-400 font-semibold ml-1.5 hover:underline cursor-pointer inline-block"
+                >
+                  See less
+                </button>
+              )}
+            </>
+          )}
+        </div>
 
         {/* Tactical Info Pill Bar */}
-        <div className="p-3 rounded-xl bg-stone-50 dark:bg-stone-850 border border-stone-200/80 dark:border-stone-750 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3 text-stone-600 dark:text-stone-400">
+        <div className="p-2.5 sm:p-3 rounded-xl bg-stone-50 dark:bg-stone-850 border border-stone-200/80 dark:border-stone-750 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 text-xs">
+          <div className="flex items-center gap-2.5 sm:gap-3 text-stone-600 dark:text-stone-400 flex-wrap">
             {item.metadata?.opportunityLocation && (
               <span className="flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5 text-stone-400" />

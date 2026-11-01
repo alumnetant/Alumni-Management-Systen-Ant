@@ -32,10 +32,10 @@ export const FeedAnnouncementCard: React.FC<FeedAnnouncementCardProps> = ({
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const shouldTruncate = item.body.length > 280;
+  const shouldTruncate = item.body.length > 150;
 
   return (
-    <article className="bg-white dark:bg-stone-900 rounded-2xl sm:rounded-3xl border border-stone-200/90 dark:border-stone-800 p-5 sm:p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md transition-all duration-200 space-y-4 relative overflow-hidden">
+    <article className="bg-white dark:bg-stone-900 rounded-2xl sm:rounded-3xl border border-stone-200/90 dark:border-stone-800 p-3.5 sm:p-5 md:p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)] hover:shadow-md transition-all duration-200 space-y-3.5 sm:space-y-4 relative overflow-hidden">
       {/* Top Accent for Urgent Items */}
       {item.metadata?.isUrgent && (
         <div className="h-1 bg-red-600 absolute top-0 left-0 right-0" />
@@ -66,28 +66,39 @@ export const FeedAnnouncementCard: React.FC<FeedAnnouncementCardProps> = ({
         <div className="text-xs sm:text-sm text-stone-700 dark:text-stone-300 leading-relaxed whitespace-pre-line">
           {shouldTruncate && !isExpanded ? (
             <>
-              {item.body.slice(0, 280)}...
+              <span className="line-clamp-3 sm:line-clamp-none inline">{item.body.slice(0, 150)}...</span>
               <button
                 type="button"
                 onClick={() => setIsExpanded(true)}
-                className="text-[#8B181B] dark:text-rose-400 font-semibold ml-1.5 hover:underline cursor-pointer"
+                className="text-[#8B181B] dark:text-rose-400 font-semibold ml-1.5 hover:underline cursor-pointer inline-block"
               >
-                Read more
+                See more
               </button>
             </>
           ) : (
-            item.body
+            <>
+              <span>{item.body}</span>
+              {shouldTruncate && (
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(false)}
+                  className="text-[#8B181B] dark:text-rose-400 font-semibold ml-1.5 hover:underline cursor-pointer inline-block"
+                >
+                  See less
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
 
       {/* Attached Image Media */}
       {item.mediaUrl && (
-        <div className="rounded-2xl overflow-hidden border border-stone-200/70 dark:border-stone-800">
+        <div className="relative rounded-xl sm:rounded-2xl overflow-hidden border border-stone-200/70 dark:border-stone-800 aspect-[4/3] max-h-56 sm:max-h-72 md:max-h-80 w-full bg-stone-100 dark:bg-stone-800">
           <img
             src={item.mediaUrl}
             alt={item.title}
-            className="w-full max-h-96 object-cover hover:scale-[1.01] transition-transform duration-300 cursor-pointer"
+            className="w-full h-full object-cover hover:scale-[1.01] transition-transform duration-300 cursor-pointer"
             onClick={() => onOpenDetailModal?.(item.rawItem)}
           />
         </div>

@@ -97,7 +97,7 @@ export const FeedCardActions: React.FC<FeedCardActionsProps> = ({
             type="button"
             onMouseEnter={() => setShowReactionPicker(true)}
             onClick={() => onReact(activeReaction ? activeReaction : 'like')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+            className={`min-h-[44px] flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
               activeReaction
                 ? `${REACTION_CONFIG[activeReaction].bg} ${REACTION_CONFIG[activeReaction].color}`
                 : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900'
@@ -112,7 +112,7 @@ export const FeedCardActions: React.FC<FeedCardActionsProps> = ({
         <button
           type="button"
           onClick={onToggleComments}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+          className={`min-h-[44px] flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
             isCommentsOpen
               ? 'bg-stone-100 dark:bg-stone-800 text-stone-900 dark:text-stone-100'
               : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900'
@@ -126,7 +126,7 @@ export const FeedCardActions: React.FC<FeedCardActionsProps> = ({
         <button
           type="button"
           onClick={onShare}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 transition-colors cursor-pointer"
+          className="min-h-[44px] flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 transition-colors cursor-pointer"
         >
           <Share2 className="w-4 h-4 stroke-[1.75]" />
           <span>Share</span>
