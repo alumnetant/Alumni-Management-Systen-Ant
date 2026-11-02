@@ -33,6 +33,9 @@ const EditProfileModal = React.lazy(() =>
 const BiometricAppLockModal = React.lazy(() =>
   import('./components/auth/BiometricAppLockModal').then((m) => ({ default: m.BiometricAppLockModal }))
 );
+const AlumniCredentialVerificationView = React.lazy(() =>
+  import('./components/profile/AlumniCredentialVerificationView').then((m) => ({ default: m.AlumniCredentialVerificationView }))
+);
 import { SplashScreen } from '@capacitor/splash-screen';
 import {
   initPushNotificationListeners,
@@ -110,6 +113,42 @@ function AppContent() {
   const [authRole, setAuthRole] = useState<'alumni' | 'employer'>('alumni');
   const [showProfileSetupModal, setShowProfileSetupModal] = useState(false);
   const lastBackPressRef = React.useRef<number>(0);
+
+  // Public Digital Credential Verification Token (from QR Code Scans)
+  const [verifyToken, setVerifyToken] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const urlParams = new URLSearchParams(window.location.search);
+    const qToken = urlParams.get('verify');
+    if (qToken) return qToken;
+    const hash = window.location.hash;
+    if (hash.startsWith('#verify=')) {
+      return hash.slice(8);
+    }
+    return null;
+  });
+
+  React.useEffect(() => {
+    const checkToken = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const qToken = urlParams.get('verify');
+      if (qToken) {
+        setVerifyToken(qToken);
+        return;
+      }
+      const hash = window.location.hash;
+      if (hash.startsWith('#verify=')) {
+        setVerifyToken(hash.slice(8));
+        return;
+      }
+      setVerifyToken(null);
+    };
+    window.addEventListener('popstate', checkToken);
+    window.addEventListener('hashchange', checkToken);
+    return () => {
+      window.removeEventListener('popstate', checkToken);
+      window.removeEventListener('hashchange', checkToken);
+    };
+  }, []);
 
   // Secondary Face Detection Biometric Authentication Layer (Native Mobile APK Only)
   const [isAppBiometricallyLocked, setIsAppBiometricallyLocked] = useState<boolean>(() => {
@@ -507,6 +546,28 @@ function AppContent() {
       <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#121316] flex flex-col items-center justify-center p-4">
         <CecilianLoader text="Restoring your Cecilian session..." />
       </div>
+    );
+  }
+
+  // Priority: Standalone Digital Credential Verification View (Triggered by QR Code Scan)
+  if (verifyToken) {
+    return (
+      <React.Suspense
+        fallback={
+          <div className="min-h-screen bg-[#0d0e11] flex items-center justify-center p-4">
+            <CecilianLoader text="Verifying Cecilian Credential..." />
+          </div>
+        }
+      >
+        <AlumniCredentialVerificationView
+          token={verifyToken}
+          onBackToApp={() => {
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            setVerifyToken(null);
+          }}
+        />
+      </React.Suspense>
     );
   }
 

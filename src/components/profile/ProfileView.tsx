@@ -522,12 +522,12 @@ export const ProfileView: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <CreditCard className="w-5 h-5 text-amber-400" />
-                    <h2 className="text-sm sm:text-base font-bold text-white uppercase tracking-wider font-mono">
-                      Official Alumni Digital Pass
+                    <h2 className="text-sm sm:text-base font-bold text-white uppercase tracking-wider font-serif">
+                      Official Digital Alumni Credential
                     </h2>
                   </div>
-                  <p className="text-xs text-stone-400 mt-1">
-                    Interactive metallic access card with EMV chip, contactless gate verification, and QR turnstile code.
+                  <p className="text-xs text-amber-200/70 mt-1">
+                    Official black and gold digital credential with profile photo integration, QR verification, and PDF/PNG export.
                   </p>
                 </div>
 

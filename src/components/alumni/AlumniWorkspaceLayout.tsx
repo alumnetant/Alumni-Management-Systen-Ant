@@ -39,7 +39,8 @@ import {
   Landmark,
   GraduationCap,
   Building2,
-  Compass
+  Compass,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
@@ -64,6 +65,7 @@ import { registerBackAction, triggerHaptic } from '../../services/mobileAppServi
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { FloatingQuickDock } from '../common/FloatingQuickDock';
+import { AuditLogView } from '../admin/AuditLogView';
 
 export type AlumniModuleId =
   | 'dashboard'
@@ -75,7 +77,8 @@ export type AlumniModuleId =
   | 'opportunities'
   | 'gallery'
   | 'profile'
-  | 'settings';
+  | 'settings'
+  | 'activity';
 
 interface AlumniWorkspaceLayoutProps {
   onOpenAuth?: (mode: 'login' | 'register') => void;
@@ -420,7 +423,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
 
   // Check if current active module belongs to the secondary/extended set
   const isSecondaryModuleActive = useMemo(() => {
-    return ['opportunities', 'announcements', 'gallery', 'profile', 'settings'].includes(currentModule);
+    return ['opportunities', 'announcements', 'gallery', 'profile', 'settings', 'activity'].includes(currentModule);
   }, [currentModule]);
 
   // Click-outside listener for profile menu
@@ -907,6 +910,19 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
 
             <button
               type="button"
+              onClick={() => handleSelectModule('activity')}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                currentModule === 'activity'
+                  ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold shadow-2xs'
+                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-stone-400 stroke-[1.5]" />
+              <span className="truncate">My Activity Logs</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => handleSelectModule('settings')}
               className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                 currentModule === 'settings'
@@ -1236,6 +1252,9 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
 
                 {/* MODULE: Account Settings */}
                 {currentModule === 'settings' && <SettingsView />}
+
+                {/* MODULE: Activity Logs */}
+                {currentModule === 'activity' && <AuditLogView />}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -1365,18 +1384,21 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       {/* Digital Alumni Pass Modal */}
       {showDigitalPassModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150"
           onClick={() => setShowDigitalPassModal(false)}
         >
           <div
-            className="max-w-2xl w-full"
+            className="max-w-xl w-full"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-end mb-2">
+            <div className="flex items-center justify-between mb-3 text-white px-1">
+              <span className="font-serif font-bold text-sm sm:text-base text-amber-200 uppercase tracking-wider">
+                St. Cecilia's College Digital Alumni ID
+              </span>
               <button
                 type="button"
                 onClick={() => setShowDigitalPassModal(false)}
-                className="p-1.5 rounded-full bg-white/20 text-white hover:bg-white/40 transition-colors cursor-pointer"
+                className="p-1.5 rounded-full bg-stone-800 text-stone-300 hover:text-white hover:bg-stone-700 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

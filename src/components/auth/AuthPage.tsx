@@ -1084,6 +1084,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           // ignore
         }
 
+        // Record suspicious multiple failed attempts audit log with alert
+        addAuditLog({
+          action: 'SUSPICIOUS_MULTIPLE_FAILED_LOGINS',
+          actorId: potentialUser?.uid || 'unauthenticated_actor',
+          actorName: potentialUser?.name || 'Unauthenticated Actor',
+          actorRole: potentialUser?.role || 'alumni',
+          category: 'security',
+          details: `Multiple failed login attempts detected (${newAttempts} of 3 attempts) for target identifier "${trimmed}". Temporary account lockout enforced.`,
+          severity: 'alert',
+          targetRecordId: trimmed
+        });
+
         setLockoutSecondsRemaining(durationSec);
         setFailedAttempts(0);
         setLockoutCycle(nextCycle);
@@ -1096,6 +1108,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         } catch {
           // ignore
         }
+
+        // Record failed login attempt audit log with warning
+        addAuditLog({
+          action: 'FAILED_LOGIN_ATTEMPT',
+          actorId: potentialUser?.uid || 'unknown_attempt',
+          actorName: potentialUser?.name || 'Unauthenticated Actor',
+          actorRole: potentialUser?.role || 'alumni',
+          category: 'security',
+          details: `Failed authentication attempt (attempt ${newAttempts} of 3) due to incorrect password for identifier "${trimmed}".`,
+          severity: 'warning',
+          targetRecordId: trimmed
+        });
+
         const trialDurationMins = Math.round(getLockoutDurationSeconds(lockoutCycle) / 60);
         const attemptsRemaining = 3 - newAttempts;
         setLoginError(

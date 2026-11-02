@@ -1,96 +1,81 @@
-# Actual Campus Building Photography Integration
+# Implementation Plan: Activity Logs Warning Icons & Login Security Corrections
 
-Seamless integration of the authentic, user-provided photographs of St. Cecilia's College - Cebu, Inc. across the public Landing Page slideshow, hero sections, and the Login/Authentication portal.
+## 1. Executive Summary & Objective
+Implement the required security classification and alert rules for St. Cecilia’s College Activity Logs without rebuilding the dashboard or disrupting existing views, filters, and role-based permissions. 
 
----
-
-## User Review & Critical Decisions
-
-> [!IMPORTANT]
-> The following user preferences were confirmed during Turn 1 clarification:
-> - **Display Placement**: Prominently featured on the public Landing Page and Login hero.
-> - **Primary Hero Choice**: High-rise angled architectural facade with the signature red entrance canopy (`IMG_5525_20785d43.HEIC` -> `landing-building-2.jpg`).
-
-- **Confirmed Decision 1**: The primary hero background on the Login and Registration screens (`AuthPage.tsx`) uses the authentic high-rise facade with the red entrance canopy.
-- **Confirmed Decision 2**: The Landing Page hero slideshow (`CAMPUS_SLIDES`) is updated to feature all three user-provided photographs:
-  1. **Slide 1 (Hero)**: High-rise tower facade with the red entrance canopy and glass curtain walls.
-  2. **Slide 2 (Collegiate Grounds)**: Full frontal facade of St. Cecilia's College featuring the grand entrance and institutional school bus.
-  3. **Slide 3 (Aerial Panorama)**: Drone aerial view of the campus tower and surrounding Minglanilla collegiate community.
-- **Confirmed Decision 3**: Presets in `InstitutionalSocialFeed.tsx` and campus heritage reference points are aligned with these authentic photographs.
+### Key Rule Matrix
+| Activity Action | Classification | Warning Icon (⚠️) | Visual Styling |
+| :--- | :--- | :---: | :--- |
+| `USER_LOGIN` (successful) | **NORMAL** | **No** | Normal dashboard row styling, neutral badge |
+| `FAILED_LOGIN_ATTEMPT` | **FAILED / WARNING** | **⚠️ Yes** | Warning highlight (amber/amber-orange), records timestamp & username, NO passwords |
+| `MULTIPLE_FAILED_LOGIN_ATTEMPTS` | **SUSPICIOUS** | **⚠️ Yes** | Suspicious highlight (rose/red border & badge) |
+| `ACCOUNT_LOCKED` | **SECURITY WARNING** | **⚠️ Yes** | Red/pink highlight, administrator notified, lock reason & timestamp |
+| `MULTIPLE_USERS_SAME_ACCOUNT` | **SUSPICIOUS** | **⚠️ Yes** | Suspicious highlight, administrator notified, concurrent session & device details |
 
 ---
 
-## 1. Overview & Core Concept
+## 2. Proposed Architectural Changes
 
-Currently, the landing page and authentication portals utilized placeholder / generic campus architectural assets. The user has supplied high-resolution authentic photographs of the actual St. Cecilia's College - Cebu, Inc. campus:
-1. **Architectural High-Rise Facade (`IMG_5525`)**: Capturing the modern multi-story academic building, distinct red structural column, and prominent red covered canopy entrance.
-2. **Campus Front View (`IMG_5518`)**: Ground-level perspective showing the full wide facade, campus grounds, and official Cecilian school bus.
-3. **Aerial Drone Overview (`scc4`)**: High-altitude perspective showing the building's rooftop canopy, surrounding urban campus neighborhood, and Cebu mountain horizon.
+### A. Classification & Warning Icon Engine (`src/components/admin/AuditLogView.tsx`)
+1. **Refactor `getLogAlertInfo(log: AuditLogEntry)`**:
+   - `showWarningIcon`: Returns `true` **strictly** for `FAILED_LOGIN_ATTEMPT`, `MULTIPLE_FAILED_LOGIN_ATTEMPTS`, `ACCOUNT_LOCKED`, and `MULTIPLE_USERS_SAME_ACCOUNT`.
+   - `USER_LOGIN`: Explicitly returns `showWarningIcon: false`, `isAlert: false`, `isSuspicious: false`, and `classification: 'NORMAL'`.
+   - Remove `USER_RELOGIN` from active classification logic. Map historical `USER_RELOGIN` records as read-only legacy logs without alert icons.
+   - Update `classification` string property to match the exact requirement: `'NORMAL'`, `'FAILED / WARNING'`, `'SUSPICIOUS'`, `'SECURITY WARNING'`.
+2. **Update Filter & Metric Telemetry**:
+   - Update quick stats chips and filter dropdowns: remove references to `relogin`.
+   - Filter dropdowns:
+     - "All Activities (Normal + Alerts)"
+     - "⚠️ Security Alerts Only"
+     - "⚠️ Suspicious Activities Only"
+     - "User Logins (Normal)"
+   - Support filtering directly by security classifications: `FAILED / WARNING`, `SUSPICIOUS`, `SECURITY WARNING`.
+3. **Preserve All Existing Features**:
+   - Keep Role-based Activity Logs and Admin-wide monitoring.
+   - Keep Matrix (Data Table) and Timeline stream views.
+   - Keep CSV export (including the new classification and warning flag).
+   - Keep Forensic Inspect Modal with raw JSON payload inspection.
 
-All uploaded HEIC and WebP assets have been converted into production-grade, web-optimized JPEG assets in `public/assets/` (`landing-building-1.jpg`, `landing-building-2.jpg`, `landing-building-3.jpg`, and `landing-building.jpg`) to ensure universal rendering compatibility across all mobile and desktop web browsers.
+### B. Authentication & Activity Generation (`src/context/AlumniContext.tsx` & `server.ts`)
+1. **Failed Login Logging**:
+   - When login fails (incorrect username or password):
+     - Record `FAILED_LOGIN_ATTEMPT` with `severity: 'warning'`.
+     - Record timestamp and attempted username/identifier (`targetRecordId`).
+     - **Security Guarantee**: Never include password strings in log details, payloads, or storage.
+   - Maintain a failed attempt counter per account identifier.
+2. **Multiple Failed Attempts & Account Lockout**:
+   - If failed attempts reach threshold (3 attempts within window):
+     - Log `MULTIPLE_FAILED_LOGIN_ATTEMPTS` (`severity: 'alert'`).
+     - Trigger account lockout and log `ACCOUNT_LOCKED` with lock reason, timestamp, and duration.
+     - Dispatch notification to administrators in-app via notification dispatch system.
+3. **Multiple People Using One Account Detection**:
+   - When concurrent sessions from disparate geographical locations or opposing devices/user agents are detected:
+     - Generate `MULTIPLE_USERS_SAME_ACCOUNT` with device details and concurrent session metadata.
+     - Dispatch high-priority administrator notification.
+4. **Complete Discontinuation of `USER_RELOGIN`**:
+   - Remove `USER_RELOGIN` from `terminateOtherSessionAndLogin` and server session termination handlers.
+   - Use standard `USER_LOGIN` or `MULTIPLE_USERS_SAME_ACCOUNT` depending on context.
 
----
-
-## 2. Visual Design & Aesthetic Direction
-
-In strict alignment with the St. Cecilia's College design taste guidelines (`AGENTS.md`) and Museum/Institutional Editorial guidelines (`9_museum_editorial_institutional.md`):
-
-- **Authenticity & School Pride**: Real photography reinforces institutional pride and trust for returning alumni, prospective employers, and graduating seniors.
-- **Measured Scrim & Contrast**: The login portal applies a measured dark vignette (`bg-gradient-to-t from-black via-black/75 to-black/50`) over the authentic building photo to maintain WCAG AA contrast for headline and body typography.
-- **Slideshow Presentation**: High-contrast, clean unboxed metadata with tight tracking (`tracking-tight font-bold`) and descriptive badges:
-  - `CAMPUS ARCHITECTURE • TOWER FACADE`
-  - `COLLEGIATE FACADE • MAIN ENTRANCE`
-  - `AERIAL VISTA • CAMPUS COMPLEX`
-- **Zero Distortions**: `object-cover` with appropriate focal center-positioning to prevent image warping across viewport sizes.
-
----
-
-## 3. System Architecture & Asset Mapping
-
-```
-┌────────────────────────────────────────────────────────┐
-│               User Uploaded Campus Assets              │
-│  • IMG_5525 (Angled Facade)   -> landing-building-2.jpg│
-│  • IMG_5518 (Frontal Pavilion)-> landing-building-1.jpg│
-│  • scc4     (Aerial Drone)    -> landing-building-3.jpg│
-└───────────────────────────┬────────────────────────────┘
-                            │
-            ┌───────────────┴───────────────┐
-            ▼                               ▼
-┌───────────────────────────┐   ┌───────────────────────────┐
-│     LandingPage.tsx       │   │       AuthPage.tsx        │
-│  • 3-Slide Hero Carousel  │   │  • Primary Hero Backdrop  │
-│  • Heritage Story Section │   │  • Institutional Vignette │
-│  • College History Modal  │   │  • "Welcome Back" Portal  │
-└───────────────────────────┘   └───────────────────────────┘
-```
-
----
-
-## 4. Implementation Steps & Workflows
-
-### Step 1: Update Landing Page Carousel Slides (`LandingPage.tsx`)
-- Update `CAMPUS_SLIDES` with the authentic building photos:
-  - Lead with Slide 1 as `/assets/landing-building-2.jpg` (High-rise facade with red entrance canopy).
-  - Slide 2 as `/assets/landing-building-1.jpg` (Frontal campus facade and grounds).
-  - Slide 3 as `/assets/landing-building-3.jpg` (Aerial drone panorama).
-- Calibrate badge kickers and captions to accurately describe St. Cecilia's College facilities in Minglanilla, Cebu.
-
-### Step 2: Update Authentication Portal Hero (`AuthPage.tsx`)
-- Ensure the desktop hero backdrop references `/assets/landing-building-2.jpg` with high-clarity contrast filters and dark vignette gradient.
-- Verify image scaling (`scale-100` to `scale-105` subtle focus transition).
-
-### Step 3: Update Preset Campus Gallery Photos (`InstitutionalSocialFeed.tsx`)
-- Update `PRESET_CAMPUS_PHOTOS` metadata in `InstitutionalSocialFeed.tsx` to match the authentic building assets:
-  - Modern Academic Tower Facade
-  - Main Campus Academic Grounds & Entrance
-  - Aerial Drone Perspective of St. Cecilia's Tower
+### C. Initial Data & Baseline Logs (`src/data/initialData.ts`)
+- Update `INITIAL_AUDIT_LOGS` sample dataset to reflect the new classification schema:
+  - Add explicit sample records for `FAILED_LOGIN_ATTEMPT`, `MULTIPLE_FAILED_LOGIN_ATTEMPTS`, `ACCOUNT_LOCKED`, and `MULTIPLE_USERS_SAME_ACCOUNT`.
+  - Ensure sample `USER_LOGIN` records have normal status without warning icons.
+  - Keep historical `USER_RELOGIN` entries as read-only legacy records without warning icons.
 
 ---
 
-## 5. Verification & Testing Criteria
+## 3. Verification & Testing Plan
 
-1. **Landing Page Visual Inspection**: The hero slideshow on `LandingPage.tsx` renders all 3 real photographs of St. Cecilia's College with crisp clarity and correct slide transitions.
-2. **Login Page Visual Inspection**: The desktop split-screen hero on `AuthPage.tsx` displays the real high-rise facade with the red canopy entrance under the vignette scrim.
-3. **Cross-Browser Asset Loading**: All images load from standard web paths (`/assets/landing-building-*.jpg`) without broken image frames or format errors.
-4. **Codebase Compilation & Tests**: Verify with `compile_applet`, `lint_applet`, and `vitest run`.
+### Automated Vitest Suite (`tests/activityLogsRoleAlerts.test.ts`)
+1. **Successful Login Test**: Verify `USER_LOGIN` has `showWarningIcon === false`, `isAlert === false`, `classification === 'NORMAL'`.
+2. **Failed Login Attempt Test**: Verify `FAILED_LOGIN_ATTEMPT` has `showWarningIcon === true`, `classification === 'FAILED / WARNING'`, and contains no passwords.
+3. **Multiple Failed Login Attempts Test**: Verify `MULTIPLE_FAILED_LOGIN_ATTEMPTS` has `showWarningIcon === true` and `classification === 'SUSPICIOUS'`.
+4. **Account Locked Test**: Verify `ACCOUNT_LOCKED` has `showWarningIcon === true`, `classification === 'SECURITY WARNING'`, and highlights in red/pink.
+5. **Multiple Users Same Account Test**: Verify `MULTIPLE_USERS_SAME_ACCOUNT` has `showWarningIcon === true` and `classification === 'SUSPICIOUS'`.
+6. **Discontinuation of USER_RELOGIN**: Verify `USER_RELOGIN` is omitted from active generation and classification logic.
+7. **Role-Based Scoping & Admin Wide Test**: Verify non-admin roles remain scoped to their role while admin retains global visibility.
+
+### Build & Typecheck Verification
+- Execute `npx vitest run` across all test suites.
+- Execute `lint_applet` to ensure zero syntax or lint errors.
+- Execute `compile_applet` to ensure clean build output.

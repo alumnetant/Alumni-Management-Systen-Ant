@@ -128,6 +128,7 @@ export interface UserProfile {
   password?: string;
   authProvider?: 'password' | 'google' | 'firebase';
   accountType?: 'alumni' | 'employer';
+  membershipType?: string; // e.g. "Alumni Council Fellow, Chapter Cebu"
   settings?: Record<string, any>;
   // Automation & System Health Fields
   employmentStatus?: 'Employed' | 'Self-employed' | 'Seeking Opportunities' | 'Unemployed' | 'Retired' | 'N/A';

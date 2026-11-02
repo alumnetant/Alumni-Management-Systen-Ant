@@ -465,7 +465,7 @@ export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [];
 export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
   {
     id: 'log_deploy_init',
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
     action: 'System Initialized for Production',
     actorId: 'usr_superadmin_cecilia',
     actorName: 'Dr. Emmanuel C. Salcedo',
@@ -474,6 +474,104 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     details: 'St. Cecilia’s College Alumni Portal initialized with clean production baseline for user testing.',
     severity: 'success',
     ipAddress: '127.0.0.1'
+  },
+  {
+    id: 'log_suspicious_lockout_1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+    action: 'SUSPICIOUS_MULTIPLE_FAILED_LOGINS',
+    actorId: 'anonymous_security_probe',
+    actorName: 'Unauthenticated Actor',
+    actorRole: 'alumni',
+    category: 'security',
+    details: 'Multiple failed login attempts detected (3 of 3 attempts) for target identifier "alumni@stcecilia.edu". 1-minute rate-limit lockout enforced.',
+    severity: 'alert',
+    ipAddress: '112.198.74.22',
+    targetRecordId: 'alumni@stcecilia.edu'
+  },
+  {
+    id: 'log_failed_attempt_1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+    action: 'FAILED_LOGIN_ATTEMPT',
+    actorId: 'unknown_attempt',
+    actorName: 'Unauthenticated Actor',
+    actorRole: 'alumni',
+    category: 'security',
+    details: 'Failed login attempt due to incorrect password for identifier "alumni@stcecilia.edu". (Attempt 2 of 3).',
+    severity: 'warning',
+    ipAddress: '112.198.74.22',
+    targetRecordId: 'alumni@stcecilia.edu'
+  },
+  {
+    id: 'log_admin_login_1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
+    action: 'USER_LOGIN',
+    actorId: 'usr_superadmin_cecilia',
+    actorName: 'Dr. Emmanuel C. Salcedo',
+    actorRole: 'superadmin',
+    category: 'security',
+    details: 'Administrator authenticated into the Cecilian management console via Web portal.',
+    severity: 'alert',
+    ipAddress: '192.168.1.100'
+  },
+  {
+    id: 'log_relogin_1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+    action: 'USER_RELOGIN',
+    actorId: 'usr_alumni_juan',
+    actorName: 'Juan Dela Cruz',
+    actorRole: 'alumni',
+    category: 'security',
+    details: 'User initiated session takeover / re-login to terminate an existing concurrent session from another device.',
+    severity: 'alert',
+    ipAddress: '120.29.78.110'
+  },
+  {
+    id: 'log_staff_op_1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 65).toISOString(),
+    action: 'REGISTRAR_MANUAL_VERIFY',
+    actorId: 'usr_staff_clerk',
+    actorName: 'Registrar Records Desk',
+    actorRole: 'staff',
+    category: 'registry_masterlist',
+    details: 'Verified academic credentials and graduated standing for Student ID SCC-2022-0491.',
+    severity: 'info',
+    ipAddress: '192.168.1.105'
+  },
+  {
+    id: 'log_moderator_1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 80).toISOString(),
+    action: 'EMPLOYER_ACCREDITATION_APPROVED',
+    actorId: 'usr_mod_santos',
+    actorName: 'Prof. Maria Santos',
+    actorRole: 'moderator',
+    category: 'alumni_verification',
+    details: 'Accreditation approved for corporate partner "Cebu Tech Solutions Inc." after SEC and business permit verification.',
+    severity: 'info',
+    ipAddress: '192.168.1.112'
+  },
+  {
+    id: 'log_employer_login_1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 95).toISOString(),
+    action: 'USER_LOGIN',
+    actorId: 'usr_employer_accenture',
+    actorName: 'Atty. Michael Tan',
+    actorRole: 'employer',
+    category: 'security',
+    details: 'Corporate recruiter authenticated into the Cecilian Employer Career Portal.',
+    severity: 'alert',
+    ipAddress: '130.105.18.42'
+  },
+  {
+    id: 'log_employer_job_1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
+    action: 'JOB_OPPORTUNITY_POSTED',
+    actorId: 'usr_employer_accenture',
+    actorName: 'Atty. Michael Tan',
+    actorRole: 'employer',
+    category: 'career',
+    details: 'Published new career vacancy: "Junior Software QA Specialist" open to Class of 2024–2026 Cecilian graduates.',
+    severity: 'info',
+    ipAddress: '130.105.18.42'
   }
 ];
 

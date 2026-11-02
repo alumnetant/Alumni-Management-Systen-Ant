@@ -581,11 +581,11 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
         items: [
           {
             id: 'audit' as WorkspaceModuleId,
-            label: 'System Audit Logs',
-            shortLabel: 'Audit',
+            label: currentUser?.role === 'admin' || currentUser?.role === 'superadmin' ? 'System Audit Logs' : 'Activity Logs',
+            shortLabel: 'Activity Logs',
             icon: FileText,
             badge: null,
-            visible: clientPlatform === 'web' && (permissions.canAccessAuditTrails || currentUser?.role === 'admin' || currentUser?.role === 'superadmin')
+            visible: clientPlatform === 'web'
           },
           {
             id: 'settings' as WorkspaceModuleId,

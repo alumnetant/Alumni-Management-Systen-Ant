@@ -1294,6 +1294,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
 
+  const addAuditLog = useCallback((entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) => {
+    const newLog: AuditLogEntry = {
+      id: generateSecureId('log'),
+      timestamp: new Date().toISOString(),
+      ...entry
+    };
+    setAuditLogs((prev) => [newLog, ...prev.slice(0, 99)]);
+    saveAuditLogToFirestore(newLog).catch(() => {});
+  }, []);
+
   const [automationJobs, setAutomationJobs] = useState<AutomationJob[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.AUTOMATION_JOBS);
@@ -3108,6 +3118,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setCurrentUserId(userToSave.uid);
     setAuthReady(true);
     saveUserToFirestore(userToSave).catch(() => {});
+
+    // Record User Login activity event with alert
+    try {
+      addAuditLog({
+        action: 'USER_LOGIN',
+        actorId: userToSave.uid,
+        actorName: userToSave.name,
+        actorRole: userToSave.role,
+        category: 'security',
+        details: `User ${userToSave.name} (${userToSave.role}) signed in successfully via ${clientPlatform === 'mobile' ? 'Mobile App' : 'Web Portal'}.`,
+        severity: 'alert',
+        targetRecordId: userToSave.email
+      });
+    } catch {
+      // ignore
+    }
+
     // Always direct user to home (dashboard) upon logging in
     setActiveTab('dashboard');
     if (typeof window !== 'undefined') {
@@ -3175,6 +3202,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           saveActiveSession(user);
           setCurrentUserId(user.uid);
           setAuthReady(true);
+
+          // Record User Re-login activity event with alert
+          try {
+            addAuditLog({
+              action: 'USER_RELOGIN',
+              actorId: user.uid,
+              actorName: user.name,
+              actorRole: user.role,
+              category: 'security',
+              details: `User ${user.name} initiated session override / re-login to terminate existing concurrent session.`,
+              severity: 'alert',
+              targetRecordId: user.email
+            });
+          } catch {
+            // ignore
+          }
+
           setActiveTab('dashboard');
           if (typeof window !== 'undefined') {
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4924,16 +4968,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     );
     showToast('Event details updated.');
   };
-
-  const addAuditLog = useCallback((entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) => {
-    const newLog: AuditLogEntry = {
-      id: generateSecureId('log'),
-      timestamp: new Date().toISOString(),
-      ...entry
-    };
-    setAuditLogs((prev) => [newLog, ...prev.slice(0, 99)]);
-    saveAuditLogToFirestore(newLog).catch(() => {});
-  }, []);
 
   const deleteEvent = (eventId: string) => {
     if (!currentUser || currentUser.role === 'alumni' || !permissions.canDeleteEventsComments) {
