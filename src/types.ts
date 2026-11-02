@@ -3,7 +3,48 @@ export type OfficialSystemRole = 'superadmin' | 'admin' | 'staff' | 'moderator' 
 // UserRole includes the 6 core roles and legacy alias 'registrar' (merged into staff)
 export type UserRole = OfficialSystemRole | 'registrar';
 
-export type AccountLifecycleStatus = 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED' | 'REJECTED';
+export type AccountLifecycleStatus = 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED' | 'LOCKED' | 'UNLOCKED' | 'REJECTED';
+
+export interface SuspensionHistoryEntry {
+  id: string;
+  action: 'ACCOUNT_SUSPENDED' | 'ACCOUNT_LOCKED' | 'ACCOUNT_UNLOCKED' | 'ACCOUNT_AUTO_RESTORED' | 'ACCOUNT_SUSPENSION_EXTENDED' | 'ACCOUNT_SUSPENSION_REASON_UPDATED';
+  timestamp: string;
+  adminId: string;
+  adminName: string;
+  adminRole?: string;
+  reason: string;
+  startDate?: string;
+  endDate?: string;
+  previousEndDate?: string;
+  notes?: string;
+}
+
+export interface SuspensionRecord {
+  startDate: string; // ISO string
+  endDate?: string; // ISO string (omitted or null for permanent LOCKED)
+  reason: string; // Required reason for account suspension
+  suspendedBy: string; // admin user ID
+  suspendedByName: string; // admin name
+  suspendedByRole?: string;
+  isPermanentLock?: boolean; // true if manual locked without auto-expiration
+  autoRestored?: boolean;
+  autoRestoredAt?: string;
+  unlockedAt?: string;
+  unlockedBy?: string;
+  unlockedByName?: string;
+  unlockReason?: string;
+  history?: SuspensionHistoryEntry[];
+}
+
+export interface SuspensionNoticeInfo {
+  status: 'SUSPENDED' | 'LOCKED';
+  title: string;
+  reason: string;
+  startDate?: string;
+  endDate?: string;
+  suspendedByName?: string;
+  contactInstructions?: string;
+}
 
 export type PlatformType = 'mobile' | 'web';
 
@@ -186,6 +227,10 @@ export interface UserProfile {
   // RBAC Lifecycle Status (Dual Gate Verification)
   accountStatus?: AccountLifecycleStatus;
   status?: AccountLifecycleStatus | string;
+  // Account Suspension & Lock Scheduler Metadata
+  suspensionInfo?: SuspensionRecord;
+  suspensionEndDate?: string;
+  suspensionReason?: string;
   // Granular Alumni Profile Privacy Toggles (Security & Data Minimization)
   show_email?: boolean;
   show_phone?: boolean;
@@ -683,7 +728,16 @@ export interface AuditLogEntry {
   severity: 'info' | 'warning' | 'alert' | 'success';
   ipAddress?: string;
   targetRecordId?: string;
+  targetUserId?: string;
+  targetUserName?: string;
+  targetUserRole?: string;
+  suspensionReason?: string;
+  suspensionStartDate?: string;
+  suspensionEndDate?: string;
+  isSuspicious?: boolean;
+  requiresAlertIcon?: boolean;
 }
+
 
 export interface AutomationJob {
   id: string;

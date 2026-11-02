@@ -60,6 +60,7 @@ import { UserRole, UserProfile, StudentVerificationRecord, OFFICIAL_DEGREE_PROGR
 import { getStoredFormLock, setStoredFormLock, clearStoredFormLock } from '../../lib/employerValidation';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
 import { TwoFactorVerificationModal } from './TwoFactorVerificationModal';
+import { AccountSuspendedNoticeModal } from './AccountSuspendedNoticeModal';
 import {
   verifyStudentRecord,
   findRegistryMatch,
@@ -122,9 +123,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     clearLoginPlatformError,
     loginPendingAccountNotice,
     clearLoginPendingAccountNotice,
+    loginSuspensionNotice,
+    clearLoginSuspensionNotice,
     moderatorQuota,
     clientPlatform
   } = useAlumni();
+
   const { isDark, toggleTheme } = useTheme();
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode);
@@ -4061,7 +4065,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* Institutional Account Suspension / Lockout Notice Modal */}
+      <AccountSuspendedNoticeModal
+        notice={loginSuspensionNotice}
+        onClose={clearLoginSuspensionNotice}
+      />
     </div>
   );
 };
+
 

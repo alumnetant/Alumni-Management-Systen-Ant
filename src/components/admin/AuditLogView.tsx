@@ -32,116 +32,261 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
 import { AuditLogEntry } from '../../types';
 
+export type ActivityClassification =
+  | 'NORMAL'
+  | 'FAILED / WARNING'
+  | 'SUSPICIOUS'
+  | 'SECURITY WARNING';
+
 export interface AlertInfo {
   isAlert: boolean;
   isSuspicious: boolean;
-  alertType: 'login' | 'relogin' | 'failed_login' | 'suspicious_lockout' | 'security_alert' | 'general_warning' | null;
+  showWarningIcon: boolean;
+  classification: ActivityClassification;
+  alertType:
+    | 'user_login'
+    | 'failed_login'
+    | 'multiple_failed_logins'
+    | 'account_locked'
+    | 'multiple_users_same_account'
+    | 'security_alert'
+    | 'routine'
+    | null;
   badgeLabel: string;
 }
 
 /**
- * Evaluates whether an audit log entry represents an important or suspicious activity
- * that warrants an alert icon (⚠️) and high-visibility styling.
+ * Evaluates activity log classification and warning icon requirements.
  * 
- * Events flagged with ⚠️:
- * 1. User Login (authentication milestone)
- * 2. User Re-login (session refresh / conflict override)
- * 3. Multiple failed login attempts (suspicious rate-limit lockout)
- * 4. Failed login attempts (incorrect credentials)
- * 5. Other alert-severity security incidents
+ * Exact Classification & Warning Icon Matrix:
+ * 1. USER_LOGIN (successful)        -> NORMAL           -> Warning Icon: No
+ * 2. FAILED_LOGIN_ATTEMPT           -> FAILED / WARNING -> Warning Icon: ⚠️ Yes
+ * 3. MULTIPLE_FAILED_LOGIN_ATTEMPTS -> SUSPICIOUS       -> Warning Icon: ⚠️ Yes
+ * 4. ACCOUNT_LOCKED                 -> SECURITY WARNING -> Warning Icon: ⚠️ Yes (Red/Pink highlight)
+ * 5. MULTIPLE_USERS_SAME_ACCOUNT    -> SUSPICIOUS       -> Warning Icon: ⚠️ Yes
+ * 
+ * Note: USER_RELOGIN is discontinued. Historical USER_RELOGIN records are preserved
+ * under audit retention policies without active warning icon or alert classification.
  */
 export function getLogAlertInfo(log: AuditLogEntry): AlertInfo {
   const actionUpper = (log.action || '').toUpperCase();
   const detailsUpper = (log.details || '').toUpperCase();
 
-  // 1. Multiple failed attempts / Lockout (Suspicious activity)
+  // 1. ACCOUNT_SUSPENDED (Security Warning - admin suspension)
   if (
-    actionUpper.includes('SUSPICIOUS') ||
-    actionUpper.includes('LOCKOUT') ||
-    detailsUpper.includes('LOCKOUT') ||
-    detailsUpper.includes('MULTIPLE FAILED')
+    actionUpper === 'ACCOUNT_SUSPENDED' ||
+    actionUpper.includes('ACCOUNT_SUSPENDED') ||
+    actionUpper.includes('ACCOUNT SUSPENDED') ||
+    detailsUpper.includes('ACCOUNT SUSPENDED')
   ) {
     return {
       isAlert: true,
       isSuspicious: true,
-      alertType: 'suspicious_lockout',
-      badgeLabel: 'Suspicious: Multiple Failed Attempts'
+      showWarningIcon: true,
+      classification: 'SECURITY WARNING',
+      alertType: 'account_locked',
+      badgeLabel: 'Account Suspended'
     };
   }
 
-  // 2. Failed login attempt (Suspicious / Incorrect credentials)
+  // 1.1 ACCOUNT_LOCKED (Security Warning - repeated failed attempts lockout or manual lock)
   if (
+    actionUpper === 'ACCOUNT_LOCKED' ||
+    actionUpper.includes('ACCOUNT_LOCKED') ||
+    actionUpper.includes('ACCOUNT LOCKED') ||
+    detailsUpper.includes('ACCOUNT LOCKED') ||
+    detailsUpper.includes('TEMPORARY ACCOUNT LOCKOUT ENFORCED') ||
+    detailsUpper.includes('ACCOUNT LOCKOUT ENFORCED')
+  ) {
+    return {
+      isAlert: true,
+      isSuspicious: true,
+      showWarningIcon: true,
+      classification: 'SECURITY WARNING',
+      alertType: 'account_locked',
+      badgeLabel: 'Account Locked'
+    };
+  }
+
+  // 1.2 ACCOUNT_SUSPENSION_EXTENDED (Failed / Warning - suspension period increased)
+  if (
+    actionUpper === 'ACCOUNT_SUSPENSION_EXTENDED' ||
+    actionUpper.includes('SUSPENSION_EXTENDED') ||
+    actionUpper.includes('SUSPENSION EXTENDED') ||
+    detailsUpper.includes('SUSPENSION EXTENDED')
+  ) {
+    return {
+      isAlert: true,
+      isSuspicious: false,
+      showWarningIcon: true,
+      classification: 'FAILED / WARNING',
+      alertType: 'security_alert',
+      badgeLabel: 'Suspension Extended'
+    };
+  }
+
+  // 1.3 ACCOUNT_UNLOCKED (Normal - account restored manually, NO warning icon)
+  if (
+    actionUpper === 'ACCOUNT_UNLOCKED' ||
+    actionUpper.includes('ACCOUNT_UNLOCKED') ||
+    actionUpper.includes('ACCOUNT UNLOCKED') ||
+    detailsUpper.includes('ACCOUNT UNLOCKED') ||
+    detailsUpper.includes('LOCKOUT LIFTED')
+  ) {
+    return {
+      isAlert: false,
+      isSuspicious: false,
+      showWarningIcon: false,
+      classification: 'NORMAL',
+      alertType: 'routine',
+      badgeLabel: 'Account Unlocked'
+    };
+  }
+
+  // 1.4 ACCOUNT_AUTO_RESTORED (Normal - suspension expired automatically, NO warning icon)
+  if (
+    actionUpper === 'ACCOUNT_AUTO_RESTORED' ||
+    actionUpper.includes('AUTO_RESTORED') ||
+    actionUpper.includes('AUTO-RESTORED') ||
+    actionUpper.includes('AUTO RESTORED') ||
+    detailsUpper.includes('AUTOMATICALLY RESTORED') ||
+    detailsUpper.includes('AUTO RESTORED')
+  ) {
+    return {
+      isAlert: false,
+      isSuspicious: false,
+      showWarningIcon: false,
+      classification: 'NORMAL',
+      alertType: 'routine',
+      badgeLabel: 'Account Auto-Restored'
+    };
+  }
+
+  // 1.5 ACCOUNT_SUSPENSION_REASON_UPDATED (Normal - reason updated, NO warning icon)
+  if (
+    actionUpper === 'ACCOUNT_SUSPENSION_REASON_UPDATED' ||
+    actionUpper.includes('SUSPENSION_REASON_UPDATED') ||
+    detailsUpper.includes('SUSPENSION REASON UPDATED')
+  ) {
+    return {
+      isAlert: false,
+      isSuspicious: false,
+      showWarningIcon: false,
+      classification: 'NORMAL',
+      alertType: 'routine',
+      badgeLabel: 'Reason Updated'
+    };
+  }
+
+  // 2. MULTIPLE_USERS_SAME_ACCOUNT (Suspicious - multiple people suspected on one account)
+  if (
+    actionUpper === 'MULTIPLE_USERS_SAME_ACCOUNT' ||
+    actionUpper.includes('MULTIPLE_USERS') ||
+    actionUpper.includes('MULTIPLE USERS') ||
+    detailsUpper.includes('MULTIPLE USERS') ||
+    detailsUpper.includes('CONCURRENT SESSION OVERRIDE')
+  ) {
+    return {
+      isAlert: true,
+      isSuspicious: true,
+      showWarningIcon: true,
+      classification: 'SUSPICIOUS',
+      alertType: 'multiple_users_same_account',
+      badgeLabel: 'Multiple Users on Account'
+    };
+  }
+
+  // 3. MULTIPLE_FAILED_LOGIN_ATTEMPTS (Suspicious - repeated failed logins)
+  if (
+    actionUpper === 'MULTIPLE_FAILED_LOGIN_ATTEMPTS' ||
+    actionUpper === 'SUSPICIOUS_MULTIPLE_FAILED_LOGINS' ||
+    actionUpper.includes('MULTIPLE_FAILED') ||
+    actionUpper.includes('MULTIPLE FAILED') ||
+    detailsUpper.includes('MULTIPLE FAILED LOGIN ATTEMPTS') ||
+    detailsUpper.includes('MULTIPLE FAILED ATTEMPTS')
+  ) {
+    return {
+      isAlert: true,
+      isSuspicious: true,
+      showWarningIcon: true,
+      classification: 'SUSPICIOUS',
+      alertType: 'multiple_failed_logins',
+      badgeLabel: 'Multiple Failed Attempts'
+    };
+  }
+
+  // 4. FAILED_LOGIN_ATTEMPT (Failed / Warning - incorrect username or password)
+  if (
+    actionUpper === 'FAILED_LOGIN_ATTEMPT' ||
     actionUpper.includes('FAILED_LOGIN') ||
     actionUpper.includes('FAILED LOGIN') ||
-    detailsUpper.includes('FAILED LOGIN') ||
+    detailsUpper.includes('FAILED LOGIN ATTEMPT') ||
     detailsUpper.includes('FAILED AUTHENTICATION') ||
     detailsUpper.includes('INCORRECT PASSWORD')
   ) {
     return {
       isAlert: true,
-      isSuspicious: true,
-      alertType: 'failed_login',
-      badgeLabel: 'Suspicious: Failed Login Attempt'
-    };
-  }
-
-  // 3. User Re-login (Important authentication milestone)
-  if (
-    actionUpper === 'USER_RELOGIN' ||
-    actionUpper.includes('RELOGIN') ||
-    actionUpper.includes('RE-LOGIN') ||
-    detailsUpper.includes('RE-LOGIN') ||
-    detailsUpper.includes('RELOGIN')
-  ) {
-    return {
-      isAlert: true,
       isSuspicious: false,
-      alertType: 'relogin',
-      badgeLabel: 'Auth Alert: User Re-login'
+      showWarningIcon: true,
+      classification: 'FAILED / WARNING',
+      alertType: 'failed_login',
+      badgeLabel: 'Failed Login Attempt'
     };
   }
 
-  // 4. User Login (Important authentication milestone)
+  // 5. USER_LOGIN (Successful Login -> NORMAL status, NO warning icon)
   if (
     actionUpper === 'USER_LOGIN' ||
     actionUpper === 'LOGIN' ||
-    actionUpper.includes('USER_LOGIN') ||
     detailsUpper.includes('SIGNED IN SUCCESSFULLY') ||
     detailsUpper.includes('AUTHENTICATED INTO')
   ) {
     return {
-      isAlert: true,
+      isAlert: false,
       isSuspicious: false,
-      alertType: 'login',
-      badgeLabel: 'Auth Alert: User Login'
+      showWarningIcon: false,
+      classification: 'NORMAL',
+      alertType: 'user_login',
+      badgeLabel: 'User Login'
     };
   }
 
-  // 5. Explicit high-severity alert
+  // 6. Historical USER_RELOGIN (Discontinued - preserved as read-only audit log, NO warning icon)
+  if (
+    actionUpper === 'USER_RELOGIN' ||
+    actionUpper.includes('RELOGIN') ||
+    actionUpper.includes('RE-LOGIN')
+  ) {
+    return {
+      isAlert: false,
+      isSuspicious: false,
+      showWarningIcon: false,
+      classification: 'NORMAL',
+      alertType: 'routine',
+      badgeLabel: 'Historical Re-login'
+    };
+  }
+
+  // 7. Other general alert severity items
   if (log.severity === 'alert') {
     return {
       isAlert: true,
       isSuspicious: true,
+      showWarningIcon: true,
+      classification: 'SECURITY WARNING',
       alertType: 'security_alert',
       badgeLabel: 'Security Alert'
     };
   }
 
-  // 6. Explicit warning
-  if (log.severity === 'warning') {
-    return {
-      isAlert: true,
-      isSuspicious: false,
-      alertType: 'general_warning',
-      badgeLabel: 'Warning'
-    };
-  }
-
+  // 8. Routine / standard administrative actions
   return {
     isAlert: false,
     isSuspicious: false,
-    alertType: null,
-    badgeLabel: ''
+    showWarningIcon: false,
+    classification: 'NORMAL',
+    alertType: 'routine',
+    badgeLabel: 'Normal'
   };
 }
 
@@ -162,7 +307,9 @@ export const AuditLogView: React.FC = () => {
   // Search & Detailed Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
-  const [alertFilter, setAlertFilter] = useState<'all' | 'alerts_only' | 'suspicious_only' | 'logins_only'>('all');
+  const [alertFilter, setAlertFilter] = useState<
+    'all' | 'warnings_only' | 'suspicious_only' | 'security_warnings' | 'logins_only'
+  >('all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<'all' | '24h' | '7d' | '30d'>('all');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
@@ -180,18 +327,18 @@ export const AuditLogView: React.FC = () => {
 
   // Telemetry Aggregation for active view
   const alertStats = useMemo(() => {
-    let totalAlerts = 0;
+    let totalWarnings = 0;
     let suspiciousCount = 0;
     let loginCount = 0;
 
     for (const log of auditLogs) {
       const info = getLogAlertInfo(log);
-      if (info.isAlert) totalAlerts++;
+      if (info.showWarningIcon) totalWarnings++;
       if (info.isSuspicious) suspiciousCount++;
-      if (info.alertType === 'login' || info.alertType === 'relogin') loginCount++;
+      if (info.alertType === 'user_login' || (log.action || '').toUpperCase() === 'USER_LOGIN') loginCount++;
     }
 
-    return { totalAlerts, suspiciousCount, loginCount };
+    return { totalWarnings, suspiciousCount, loginCount };
   }, [auditLogs]);
 
   // Calculate active filter count for badge indicator on filter button
@@ -263,11 +410,12 @@ export const AuditLogView: React.FC = () => {
           }
         }
 
-        // 2. Alert & Suspicious Filter
+        // 2. Alert & Security Filter
         const alertInfo = getLogAlertInfo(log);
-        if (alertFilter === 'alerts_only' && !alertInfo.isAlert) return false;
-        if (alertFilter === 'suspicious_only' && !alertInfo.isSuspicious) return false;
-        if (alertFilter === 'logins_only' && alertInfo.alertType !== 'login' && alertInfo.alertType !== 'relogin') return false;
+        if (alertFilter === 'warnings_only' && !alertInfo.showWarningIcon) return false;
+        if (alertFilter === 'suspicious_only' && alertInfo.classification !== 'SUSPICIOUS') return false;
+        if (alertFilter === 'security_warnings' && alertInfo.classification !== 'SECURITY WARNING') return false;
+        if (alertFilter === 'logins_only' && (log.action || '').toUpperCase() !== 'USER_LOGIN') return false;
 
         // 3. Search Query
         const q = searchQuery.toLowerCase().trim();
@@ -277,6 +425,7 @@ export const AuditLogView: React.FC = () => {
             (log.actorName || '').toLowerCase().includes(q) ||
             (log.actorRole || '').toLowerCase().includes(q) ||
             (log.details || '').toLowerCase().includes(q) ||
+            (alertInfo.classification || '').toLowerCase().includes(q) ||
             Boolean(log.targetRecordId && log.targetRecordId.toLowerCase().includes(q)) ||
             Boolean(log.ipAddress && log.ipAddress.toLowerCase().includes(q));
           if (!matchSearch) return false;
@@ -309,12 +458,13 @@ export const AuditLogView: React.FC = () => {
       'Timestamp',
       'Category',
       'Action',
+      'Classification',
+      'Warning Icon',
       'Actor Name',
       'Actor Role',
       'Target Record',
       'IP Address',
       'Severity',
-      'Is Alert',
       'Details'
     ];
     const rows = filteredLogs.map((l) => {
@@ -323,12 +473,13 @@ export const AuditLogView: React.FC = () => {
         `"${new Date(l.timestamp).toISOString()}"`,
         `"${l.category || ''}"`,
         `"${(l.action || '').replace(/"/g, '""')}"`,
+        `"${alertInfo.classification}"`,
+        `"${alertInfo.showWarningIcon ? '⚠️ YES' : 'NO'}"`,
         `"${(l.actorName || '').replace(/"/g, '""')}"`,
         `"${l.actorRole || ''}"`,
         `"${l.targetRecordId || ''}"`,
         `"${l.ipAddress || ''}"`,
         `"${l.severity || ''}"`,
-        `"${alertInfo.isAlert ? 'YES' : 'NO'}"`,
         `"${(l.details || '').replace(/"/g, '""')}"`
       ];
     });
@@ -386,7 +537,7 @@ export const AuditLogView: React.FC = () => {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 flex items-center gap-2 text-xs font-semibold text-amber-900 dark:text-amber-300">
             <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-            <span>{alertStats.totalAlerts} Total Alerts</span>
+            <span>{alertStats.totalWarnings} Warnings & Alerts</span>
           </div>
           <div className="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/50 flex items-center gap-2 text-xs font-semibold text-rose-900 dark:text-rose-300">
             <ShieldAlert className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
@@ -394,7 +545,7 @@ export const AuditLogView: React.FC = () => {
           </div>
           <div className="px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 flex items-center gap-2 text-xs font-semibold text-stone-700 dark:text-stone-300">
             <LogIn className="w-3.5 h-3.5 text-stone-500" />
-            <span>{alertStats.loginCount} Logins</span>
+            <span>{alertStats.loginCount} Logins (Normal)</span>
           </div>
         </div>
       </div>
@@ -468,16 +619,16 @@ export const AuditLogView: React.FC = () => {
             {/* Quick Alert Filter Toggle */}
             <button
               type="button"
-              onClick={() => setAlertFilter(alertFilter === 'alerts_only' ? 'all' : 'alerts_only')}
+              onClick={() => setAlertFilter(alertFilter === 'warnings_only' ? 'all' : 'warnings_only')}
               className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${
-                alertFilter === 'alerts_only'
+                alertFilter === 'warnings_only'
                   ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
                   : 'bg-stone-50 dark:bg-stone-900 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-200 border-stone-200/80 dark:border-stone-700'
               }`}
-              title="Filter activities with ⚠️ alerts"
+              title="Filter activities with ⚠️ warnings"
             >
-              <AlertTriangle className={`w-3.5 h-3.5 ${alertFilter === 'alerts_only' ? 'text-white' : 'text-amber-600'}`} />
-              <span>Alerts (⚠️)</span>
+              <AlertTriangle className={`w-3.5 h-3.5 ${alertFilter === 'warnings_only' ? 'text-white' : 'text-amber-600'}`} />
+              <span>Warnings (⚠️)</span>
             </button>
 
             {/* View Format Selector (Data Grid vs Timeline) */}
@@ -599,17 +750,18 @@ export const AuditLogView: React.FC = () => {
                   {/* Filter 2: Alert & Suspicious Filter */}
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300">
-                      Alert & Security Type
+                      Alert & Security Classification
                     </label>
                     <select
                       value={alertFilter}
                       onChange={(e) => setAlertFilter(e.target.value as any)}
                       className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-700 rounded-xl text-xs font-semibold text-stone-800 dark:text-stone-200 cursor-pointer focus:outline-hidden focus:border-[#8B181B]"
                     >
-                      <option value="all">All Activities (Normal + Alerts)</option>
-                      <option value="alerts_only">⚠️ All Alerts (Logins & Suspicious)</option>
+                      <option value="all">All Activities (Normal + Warnings)</option>
+                      <option value="warnings_only">⚠️ All Warnings (Failed, Suspicious, Locked)</option>
                       <option value="suspicious_only">⚠️ Suspicious Activities Only</option>
-                      <option value="logins_only">⚠️ Logins & Re-logins Only</option>
+                      <option value="security_warnings">⚠️ Security Warnings (Account Locked)</option>
+                      <option value="logins_only">Normal User Logins (USER_LOGIN)</option>
                     </select>
                   </div>
 
@@ -698,7 +850,13 @@ export const AuditLogView: React.FC = () => {
             {alertFilter !== 'all' && (
               <span className="bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3 text-amber-600" />
-                {alertFilter === 'alerts_only' ? 'Alerts Only' : alertFilter === 'suspicious_only' ? 'Suspicious Only' : 'Logins Only'}
+                {alertFilter === 'warnings_only'
+                  ? 'All Warnings (⚠️)'
+                  : alertFilter === 'suspicious_only'
+                  ? 'Suspicious Only (⚠️)'
+                  : alertFilter === 'security_warnings'
+                  ? 'Security Warnings (⚠️)'
+                  : 'Logins Only (Normal)'}
               </span>
             )}
             {searchQuery && (
@@ -763,12 +921,18 @@ export const AuditLogView: React.FC = () => {
                       const isSelected = inspectedLog?.id === log.id;
                       const alertInfo = getLogAlertInfo(log);
 
-                      // Distinct visual styling based on alert type and suspicious behavior
+                      // Distinct visual styling based on classification:
+                      // - ACCOUNT_LOCKED: Red/Pink highlight (SECURITY WARNING)
+                      // - SUSPICIOUS (MULTIPLE_FAILED_LOGIN_ATTEMPTS, MULTIPLE_USERS_SAME_ACCOUNT): Rose/Red highlight
+                      // - FAILED / WARNING (FAILED_LOGIN_ATTEMPT): Amber/Warning highlight
+                      // - NORMAL (USER_LOGIN & standard events): Normal dashboard styling, NO warning icon
                       let rowHighlightClass = 'hover:bg-stone-50/80 dark:hover:bg-stone-900/60';
-                      if (alertInfo.isSuspicious) {
+                      if (alertInfo.classification === 'SECURITY WARNING') {
+                        rowHighlightClass = 'bg-rose-50/85 hover:bg-rose-100/90 dark:bg-rose-950/35 dark:hover:bg-rose-950/45 border-l-4 border-l-rose-600';
+                      } else if (alertInfo.classification === 'SUSPICIOUS') {
                         rowHighlightClass = 'bg-rose-50/60 hover:bg-rose-100/70 dark:bg-rose-950/20 dark:hover:bg-rose-950/30 border-l-4 border-l-rose-500';
-                      } else if (alertInfo.isAlert) {
-                        rowHighlightClass = 'bg-amber-50/50 hover:bg-amber-100/60 dark:bg-amber-950/15 dark:hover:bg-amber-950/25 border-l-4 border-l-amber-500';
+                      } else if (alertInfo.classification === 'FAILED / WARNING') {
+                        rowHighlightClass = 'bg-amber-50/60 hover:bg-amber-100/70 dark:bg-amber-950/15 dark:hover:bg-amber-950/25 border-l-4 border-l-amber-500';
                       }
 
                       return (
@@ -791,23 +955,27 @@ export const AuditLogView: React.FC = () => {
                             </span>
                           </td>
 
-                          {/* Alert & Severity Column with ⚠️ icon */}
+                          {/* Alert & Severity Column with ⚠️ icon strictly on warnings */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="flex flex-col gap-1 items-start">
-                              {/* Prominent ⚠️ Alert Badge if Login, Re-login, Failed, or Suspicious */}
-                              {alertInfo.isAlert ? (
+                              {/* ⚠️ Warning Icon strictly for security events, NEVER on USER_LOGIN */}
+                              {alertInfo.showWarningIcon ? (
                                 <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border shadow-2xs ${
-                                  alertInfo.isSuspicious
+                                  alertInfo.classification === 'SECURITY WARNING'
                                     ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200 border-rose-300 dark:border-rose-800 animate-pulse'
+                                    : alertInfo.classification === 'SUSPICIOUS'
+                                    ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200 border-rose-300 dark:border-rose-800'
                                     : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border-amber-300 dark:border-amber-800'
                                 }`}>
-                                  <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${alertInfo.isSuspicious ? 'text-rose-600' : 'text-amber-600'}`} />
-                                  <span>{alertInfo.isSuspicious ? '⚠️ Suspicious' : '⚠️ Alert'}</span>
+                                  <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${
+                                    alertInfo.classification === 'FAILED / WARNING' ? 'text-amber-600' : 'text-rose-600'
+                                  }`} />
+                                  <span>⚠️ {alertInfo.classification}</span>
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-stone-600 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 border border-stone-200/70 dark:border-stone-700 px-2 py-0.5 rounded-full">
                                   <span className="w-1.5 h-1.5 rounded-full bg-stone-400" />
-                                  Normal
+                                  NORMAL
                                 </span>
                               )}
 
@@ -821,9 +989,11 @@ export const AuditLogView: React.FC = () => {
                           {/* Action Signature */}
                           <td className="py-3.5 px-4 max-w-sm">
                             <div className="flex items-center gap-2">
-                              {alertInfo.isAlert && (
+                              {alertInfo.showWarningIcon && (
                                 <span title={alertInfo.badgeLabel}>
-                                  <AlertTriangle className={`w-4 h-4 shrink-0 ${alertInfo.isSuspicious ? 'text-rose-600' : 'text-amber-600'}`} />
+                                  <AlertTriangle className={`w-4 h-4 shrink-0 ${
+                                    alertInfo.classification === 'FAILED / WARNING' ? 'text-amber-600' : 'text-rose-600'
+                                  }`} />
                                 </span>
                               )}
                               <span className="font-bold text-stone-900 dark:text-stone-100 text-xs truncate">
@@ -836,8 +1006,10 @@ export const AuditLogView: React.FC = () => {
                                   {log.category.replace('_', ' ')}
                                 </span>
                               )}
-                              {alertInfo.isAlert && (
-                                <span className={`text-[10px] font-semibold ${alertInfo.isSuspicious ? 'text-rose-600 dark:text-rose-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                              {alertInfo.showWarningIcon && (
+                                <span className={`text-[10px] font-semibold ${
+                                  alertInfo.classification === 'FAILED / WARNING' ? 'text-amber-700 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
+                                }`}>
                                   • {alertInfo.badgeLabel}
                                 </span>
                               )}
@@ -937,40 +1109,52 @@ export const AuditLogView: React.FC = () => {
                       {/* Timeline node */}
                       <div
                         className={`absolute -left-[27px] top-1.5 w-4 h-4 rounded-full border-2 bg-white dark:bg-stone-900 flex items-center justify-center ${
-                          alertInfo.isSuspicious
+                          alertInfo.classification === 'SECURITY WARNING'
                             ? 'border-rose-600'
-                            : alertInfo.isAlert
+                            : alertInfo.classification === 'SUSPICIOUS'
+                            ? 'border-rose-500'
+                            : alertInfo.classification === 'FAILED / WARNING'
                             ? 'border-amber-500'
-                            : 'border-[#8B181B]'
+                            : 'border-stone-300 dark:border-stone-700'
                         }`}
                       >
-                        {alertInfo.isAlert && (
-                          <span className={`w-1.5 h-1.5 rounded-full ${alertInfo.isSuspicious ? 'bg-rose-600' : 'bg-amber-500'}`} />
+                        {alertInfo.showWarningIcon && (
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            alertInfo.classification === 'FAILED / WARNING' ? 'bg-amber-500' : 'bg-rose-600'
+                          }`} />
                         )}
                       </div>
 
                       <div className={`p-4 rounded-xl border transition-all space-y-2 ${
-                        alertInfo.isSuspicious
+                        alertInfo.classification === 'SECURITY WARNING'
+                          ? 'bg-rose-50/85 border-rose-300 dark:bg-rose-950/35 dark:border-rose-900/60'
+                          : alertInfo.classification === 'SUSPICIOUS'
                           ? 'bg-rose-50/70 border-rose-300 dark:bg-rose-950/20 dark:border-rose-900/60'
-                          : alertInfo.isAlert
+                          : alertInfo.classification === 'FAILED / WARNING'
                           ? 'bg-amber-50/60 border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/60'
                           : 'bg-stone-50/50 hover:bg-stone-50 border-stone-200/80 dark:bg-stone-900/40 dark:border-stone-800'
                       }`}>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                           <div className="flex items-center gap-2">
-                            {alertInfo.isAlert && (
-                              <AlertTriangle className={`w-4 h-4 shrink-0 ${alertInfo.isSuspicious ? 'text-rose-600' : 'text-amber-600'}`} />
+                            {alertInfo.showWarningIcon && (
+                              <AlertTriangle className={`w-4 h-4 shrink-0 ${
+                                alertInfo.classification === 'FAILED / WARNING' ? 'text-amber-600' : 'text-rose-600'
+                              }`} />
                             )}
                             <span className="font-bold text-xs text-stone-900 dark:text-stone-100">
                               {log.action}
                             </span>
-                            {alertInfo.isAlert && (
+                            {alertInfo.showWarningIcon ? (
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                alertInfo.isSuspicious
+                                alertInfo.classification === 'SECURITY WARNING' || alertInfo.classification === 'SUSPICIOUS'
                                   ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200 border-rose-300'
                                   : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border-amber-300'
                               }`}>
-                                ⚠️ {alertInfo.badgeLabel}
+                                ⚠️ {alertInfo.classification}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border-stone-200 dark:border-stone-700">
+                                NORMAL
                               </span>
                             )}
                             <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
@@ -1044,24 +1228,42 @@ export const AuditLogView: React.FC = () => {
                 </button>
               </div>
 
-              {/* Alert Callout if this log is flagged */}
+              {/* Alert Callout if this log has a warning icon */}
               {(() => {
                 const info = getLogAlertInfo(inspectedLog);
-                if (!info.isAlert) return null;
+                if (!info.showWarningIcon) {
+                  return (
+                    <div className="p-3.5 rounded-2xl border text-xs space-y-1 bg-stone-50 dark:bg-stone-900/60 border-stone-200 dark:border-stone-800 text-stone-700 dark:text-stone-300">
+                      <div className="flex items-center gap-2 font-bold text-stone-900 dark:text-stone-100">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span>Status: NORMAL</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed text-stone-500 dark:text-stone-400">
+                        Standard operational activity. No security warnings or warning icons apply.
+                      </p>
+                    </div>
+                  );
+                }
                 return (
                   <div className={`p-3.5 rounded-2xl border text-xs space-y-1 ${
-                    info.isSuspicious
+                    info.classification === 'SECURITY WARNING'
+                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/70 text-rose-900 dark:text-rose-200'
+                      : info.classification === 'SUSPICIOUS'
                       ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60 text-rose-900 dark:text-rose-200'
                       : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200'
                   }`}>
                     <div className="flex items-center gap-2 font-bold">
-                      <AlertTriangle className={`w-4 h-4 shrink-0 ${info.isSuspicious ? 'text-rose-600' : 'text-amber-600'}`} />
-                      <span>⚠️ {info.badgeLabel}</span>
+                      <AlertTriangle className={`w-4 h-4 shrink-0 ${
+                        info.classification === 'FAILED / WARNING' ? 'text-amber-600' : 'text-rose-600'
+                      }`} />
+                      <span>⚠️ {info.classification} ({info.badgeLabel})</span>
                     </div>
                     <p className="text-[11px] leading-relaxed opacity-90">
-                      {info.isSuspicious
-                        ? 'This event involves failed credentials or repeated unsuccessful login attempts and is flagged for administrator review.'
-                        : 'This event represents an active authentication action (login or re-login session takeover).'}
+                      {info.classification === 'SECURITY WARNING'
+                        ? 'High-priority security warning: Account locked due to repeated failed login attempts. Administrator notified.'
+                        : info.classification === 'SUSPICIOUS'
+                        ? 'Suspicious authentication activity flagged for administrative review.'
+                        : 'Warning: Failed authentication attempt due to incorrect credentials.'}
                     </p>
                   </div>
                 );

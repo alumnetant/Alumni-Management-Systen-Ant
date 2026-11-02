@@ -224,12 +224,18 @@ interface StoredUserCredential {
   isVerified?: boolean;
   status?: string;
   accountStatus?: string;
+  suspensionInfo?: any;
+  suspensionEndDate?: string;
+  suspensionReason?: string;
+  isLocked?: boolean;
+  lockedUntil?: string;
   show_email?: boolean;
   show_phone?: boolean;
   show_current_employer?: boolean;
   verificationToken?: string;
   verificationTokenExpiry?: number;
 }
+
 
 // In-memory server-authoritative credentials store
 const credentialsDb = new Map<string, StoredUserCredential>();
@@ -867,6 +873,107 @@ interface ServerAuditLog {
 }
 const serverAuditLogs: ServerAuditLog[] = [];
 
+/**
+ * Account Suspension & Automatic Expiration Engine
+ * Evaluates suspended accounts against their scheduled end date.
+ * When expiration is reached:
+ * - Automatically changes SUSPENDED to ACTIVE
+ * - Allows the user to log in again
+ * - Records ACCOUNT_AUTO_RESTORED in Activity Logs (Classification: NORMAL, No warning icon)
+ * - Preserves suspension reason and audit history
+ */
+function checkAndRestoreExpiredSuspensions(targetUser?: StoredUserCredential): { restoredCount: number; restoredUsers: string[] } {
+  const now = Date.now();
+  let restoredCount = 0;
+  const restoredUsers: string[] = [];
+
+  const usersToCheck = targetUser ? [targetUser] : Array.from(new Set(credentialsDb.values()));
+
+  for (const user of usersToCheck) {
+    const status = (user.accountStatus || user.status || '').toUpperCase().trim();
+    if (status !== 'SUSPENDED') continue;
+
+    // Permanent locks do not have automatic expiration
+    if (user.suspensionInfo?.isPermanentLock || user.accountStatus === 'LOCKED') continue;
+
+    const endDateStr = user.suspensionInfo?.endDate || user.suspensionEndDate;
+    if (!endDateStr) continue;
+
+    const endTimestamp = new Date(endDateStr).getTime();
+    if (isNaN(endTimestamp)) continue;
+
+    if (now >= endTimestamp) {
+      user.accountStatus = 'ACTIVE';
+      user.status = 'ACTIVE';
+      user.isLocked = false;
+
+      if (!user.suspensionInfo) {
+        user.suspensionInfo = {
+          startDate: new Date().toISOString(),
+          reason: user.suspensionReason || 'Administrative suspension',
+          suspendedBy: 'admin',
+          suspendedByName: 'Administration'
+        };
+      }
+      user.suspensionInfo.autoRestored = true;
+      user.suspensionInfo.autoRestoredAt = new Date().toISOString();
+
+      if (!Array.isArray(user.suspensionInfo.history)) {
+        user.suspensionInfo.history = [];
+      }
+      user.suspensionInfo.history.push({
+        id: `hist_auto_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+        action: 'ACCOUNT_AUTO_RESTORED',
+        timestamp: new Date().toISOString(),
+        adminId: 'system_automation',
+        adminName: 'System Scheduler',
+        adminRole: 'system',
+        reason: 'Scheduled suspension duration reached expiration. Account automatically restored to ACTIVE status.',
+        startDate: user.suspensionInfo.startDate,
+        endDate: user.suspensionInfo.endDate
+      });
+
+      // Activity Logs: ACCOUNT_AUTO_RESTORED (Classification: NORMAL, No warning icon)
+      serverAuditLogs.push({
+        id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        timestamp: new Date().toISOString(),
+        action: 'ACCOUNT_AUTO_RESTORED',
+        actor: 'system_automation',
+        actorRole: 'system',
+        ip: 'internal',
+        details: {
+          targetUserId: user.uid,
+          targetUserEmail: user.email,
+          targetUserName: user.name || user.email,
+          targetUserRole: user.role,
+          restoredAt: new Date().toISOString(),
+          previousEndDate: endDateStr,
+          originalReason: user.suspensionInfo.reason,
+          message: `Scheduled suspension duration expired for ${user.name || user.email} (${user.role}). Account automatically restored to ACTIVE.`
+        }
+      });
+
+      restoredCount++;
+      restoredUsers.push(user.email || user.uid);
+    }
+  }
+
+  if (restoredCount > 0) {
+    persistCredentialsToDisk();
+  }
+
+  return { restoredCount, restoredUsers };
+}
+
+// Background sweep for expired suspensions every 30 seconds
+setInterval(() => {
+  try {
+    checkAndRestoreExpiredSuspensions();
+  } catch (err) {
+    console.warn('[Suspension Scheduler Error]', err);
+  }
+}, 30000);
+
 // Parameter & Search Sanitizer to prevent NoSQL / ReDoS / Prototype Pollution
 function sanitizeQueryParam(param: any): string {
   if (typeof param !== 'string') return '';
@@ -1295,13 +1402,42 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
     user.verified = true;
     persistCredentialsToDisk();
   } else {
+    // Check if scheduled suspension has expired and should be automatically restored
+    checkAndRestoreExpiredSuspensions(user);
+
     const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
     if (accountStatus === 'SUSPENDED') {
+      const reason = user.suspensionInfo?.reason || user.suspensionReason || 'Violation of institutional account policies.';
+      const startDate = user.suspensionInfo?.startDate;
+      const endDate = user.suspensionInfo?.endDate;
+      const suspendedByName = user.suspensionInfo?.suspendedByName || 'Institutional Administration';
+
       return res.status(403).json({
-        error: 'This account has been suspended by administration. Please contact institutional support.',
-        code: 'ACCOUNT_SUSPENDED'
+        error: 'Your account has been temporarily suspended.',
+        code: 'ACCOUNT_SUSPENDED',
+        reason,
+        startDate,
+        endDate,
+        suspendedByName,
+        contactInstructions: 'Please contact the Registrar Office or System Administration (admin@stcecilia.edu.ph) for assistance.'
       });
     }
+
+    if (accountStatus === 'LOCKED') {
+      const reason = user.suspensionInfo?.reason || user.suspensionReason || 'Administrative security lockout.';
+      const startDate = user.suspensionInfo?.startDate;
+      const suspendedByName = user.suspensionInfo?.suspendedByName || 'Institutional Administration';
+
+      return res.status(403).json({
+        error: 'Your account has been locked by an administrator.',
+        code: 'ACCOUNT_LOCKED',
+        reason,
+        startDate,
+        suspendedByName,
+        contactInstructions: 'Please contact the Registrar Office or System Administration (admin@stcecilia.edu.ph) to request an account review.'
+      });
+    }
+
     if (accountStatus === 'PENDING_VERIFICATION') {
       return res.status(403).json({
         error: 'Your account is pending registrar verification. You will be notified once your graduation credentials are confirmed.',
@@ -1309,6 +1445,7 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
       });
     }
   }
+
 
   const forceTerminate = !!req.body.forceTerminateOtherSession;
   const currentDevice = extractDeviceInfo(req);
@@ -2753,6 +2890,519 @@ app.post('/api/admin/create-user', requireServerAuth, requireRole(['admin', 'sup
     }
   });
 });
+
+// ============================================================================
+// 6.6.1.1.B ADMIN ACCOUNT SUSPENSION & REASON MANAGEMENT
+// Allows authorized Admin/Superadmin to suspend/lock accounts of any role,
+// schedule duration, record required reasons, immediately revoke sessions,
+// extend periods, manually unlock, and inspect suspension history.
+// ============================================================================
+
+// Helper to locate target credential by UID, email, or student ID
+function findTargetCredential(identifier: string): StoredUserCredential | null {
+  if (!identifier) return null;
+  const raw = String(identifier).trim();
+  const lower = raw.toLowerCase();
+
+  // 1. Direct lookup by UID or email
+  let found = credentialsDb.get(raw) || credentialsDb.get(lower);
+  if (found) return found;
+
+  // 2. Linear scan by UID, email, studentId, employeeId
+  for (const cred of credentialsDb.values()) {
+    if (
+      cred.uid === raw ||
+      cred.email.toLowerCase() === lower ||
+      (cred.studentId && cred.studentId.toLowerCase() === lower) ||
+      (cred.employeeId && cred.employeeId.toLowerCase() === lower)
+    ) {
+      return cred;
+    }
+  }
+  return null;
+}
+
+// 1. Suspend Account (Scheduled or Immediate)
+app.post('/api/admin/users/:uid/suspend', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
+  const adminActor = (req as any).user;
+  const { uid } = req.params;
+  const { startDate, endDate, reason, isPermanentLock } = req.body;
+
+  const targetUser = findTargetCredential(uid);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'Account record not found.' });
+  }
+
+  // Reason is strictly required
+  if (!reason || typeof reason !== 'string' || !reason.trim() || reason.trim().length < 5) {
+    return res.status(400).json({ error: 'A specific explanation for account suspension (at least 5 characters) is required.' });
+  }
+  const cleanReason = reason.trim();
+
+  // Superadmin protection: only superadmin can suspend another superadmin
+  if (targetUser.role === 'superadmin' && adminActor.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Permission denied: Super Administrator accounts can only be managed by Super Administrators.' });
+  }
+
+  const effectiveStartDate = startDate ? new Date(startDate).toISOString() : new Date().toISOString();
+  const effectiveEndDate = isPermanentLock || !endDate ? undefined : new Date(endDate).toISOString();
+  const targetStatus = isPermanentLock ? 'LOCKED' : 'SUSPENDED';
+
+  targetUser.accountStatus = targetStatus;
+  targetUser.status = targetStatus;
+  targetUser.isLocked = true;
+  targetUser.suspensionReason = cleanReason;
+  targetUser.suspensionEndDate = effectiveEndDate;
+
+  if (!targetUser.suspensionInfo) {
+    targetUser.suspensionInfo = {
+      startDate: effectiveStartDate,
+      endDate: effectiveEndDate,
+      reason: cleanReason,
+      suspendedBy: adminActor.uid || adminActor.email,
+      suspendedByName: adminActor.name || adminActor.email,
+      suspendedByRole: adminActor.role,
+      isPermanentLock: !!isPermanentLock,
+      history: []
+    };
+  } else {
+    targetUser.suspensionInfo.startDate = effectiveStartDate;
+    targetUser.suspensionInfo.endDate = effectiveEndDate;
+    targetUser.suspensionInfo.reason = cleanReason;
+    targetUser.suspensionInfo.suspendedBy = adminActor.uid || adminActor.email;
+    targetUser.suspensionInfo.suspendedByName = adminActor.name || adminActor.email;
+    targetUser.suspensionInfo.suspendedByRole = adminActor.role;
+    targetUser.suspensionInfo.isPermanentLock = !!isPermanentLock;
+  }
+
+  if (!Array.isArray(targetUser.suspensionInfo.history)) {
+    targetUser.suspensionInfo.history = [];
+  }
+
+  const historyEntry = {
+    id: `hist_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+    action: isPermanentLock ? 'ACCOUNT_LOCKED' : 'ACCOUNT_SUSPENDED',
+    timestamp: new Date().toISOString(),
+    adminId: adminActor.uid || adminActor.email,
+    adminName: adminActor.name || adminActor.email,
+    adminRole: adminActor.role,
+    reason: cleanReason,
+    startDate: effectiveStartDate,
+    endDate: effectiveEndDate
+  };
+  targetUser.suspensionInfo.history.push(historyEntry);
+
+  // Requirement: Immediately revoke active session so suspended user cannot perform further actions
+  const existingSession = activeSessions.get(targetUser.uid);
+  if (existingSession) {
+    revokedTokens.add(existingSession.token);
+    activeSessions.delete(targetUser.uid);
+  }
+
+  // Sync entries across lookup keys
+  credentialsDb.set(targetUser.uid, targetUser);
+  if (targetUser.email) credentialsDb.set(targetUser.email.toLowerCase(), targetUser);
+  persistCredentialsToDisk();
+
+  // Activity Log: ACCOUNT_SUSPENDED or ACCOUNT_LOCKED (Classification: SECURITY WARNING, ⚠️ Yes)
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: isPermanentLock ? 'ACCOUNT_LOCKED' : 'ACCOUNT_SUSPENDED',
+    actor: adminActor.email,
+    actorRole: adminActor.role,
+    ip: req.ip || 'internal',
+    details: {
+      targetUserId: targetUser.uid,
+      targetUserEmail: targetUser.email,
+      targetUserName: targetUser.name || targetUser.email,
+      targetUserRole: targetUser.role,
+      reason: cleanReason,
+      startDate: effectiveStartDate,
+      endDate: effectiveEndDate,
+      isPermanentLock: !!isPermanentLock,
+      sessionRevoked: !!existingSession
+    }
+  });
+
+  return res.json({
+    success: true,
+    message: isPermanentLock
+      ? `Account for ${targetUser.name || targetUser.email} has been locked.`
+      : `Account for ${targetUser.name || targetUser.email} has been suspended until ${effectiveEndDate ? new Date(effectiveEndDate).toLocaleString('en-US', { timeZone: 'Asia/Manila' }) : 'manual review'}.`,
+    user: {
+      uid: targetUser.uid,
+      email: targetUser.email,
+      name: targetUser.name,
+      role: targetUser.role,
+      accountStatus: targetUser.accountStatus,
+      suspensionInfo: targetUser.suspensionInfo
+    }
+  });
+});
+
+// 2. Lock Account (Permanent lockout without expiration)
+app.post('/api/admin/users/:uid/lock', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
+  // Delegate to suspend with isPermanentLock: true
+  req.body.isPermanentLock = true;
+  req.body.endDate = undefined;
+  // Express routing trick or forward
+  const adminActor = (req as any).user;
+  const { uid } = req.params;
+  const { reason, startDate } = req.body;
+
+  const targetUser = findTargetCredential(uid);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'Account record not found.' });
+  }
+
+  if (!reason || typeof reason !== 'string' || !reason.trim() || reason.trim().length < 5) {
+    return res.status(400).json({ error: 'A specific explanation for account lockout (at least 5 characters) is required.' });
+  }
+  const cleanReason = reason.trim();
+
+  if (targetUser.role === 'superadmin' && adminActor.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Permission denied: Super Administrator accounts can only be managed by Super Administrators.' });
+  }
+
+  const effectiveStartDate = startDate ? new Date(startDate).toISOString() : new Date().toISOString();
+
+  targetUser.accountStatus = 'LOCKED';
+  targetUser.status = 'LOCKED';
+  targetUser.isLocked = true;
+  targetUser.suspensionReason = cleanReason;
+  targetUser.suspensionEndDate = undefined;
+
+  if (!targetUser.suspensionInfo) {
+    targetUser.suspensionInfo = {
+      startDate: effectiveStartDate,
+      reason: cleanReason,
+      suspendedBy: adminActor.uid || adminActor.email,
+      suspendedByName: adminActor.name || adminActor.email,
+      suspendedByRole: adminActor.role,
+      isPermanentLock: true,
+      history: []
+    };
+  } else {
+    targetUser.suspensionInfo.startDate = effectiveStartDate;
+    targetUser.suspensionInfo.endDate = undefined;
+    targetUser.suspensionInfo.reason = cleanReason;
+    targetUser.suspensionInfo.suspendedBy = adminActor.uid || adminActor.email;
+    targetUser.suspensionInfo.suspendedByName = adminActor.name || adminActor.email;
+    targetUser.suspensionInfo.suspendedByRole = adminActor.role;
+    targetUser.suspensionInfo.isPermanentLock = true;
+  }
+
+  if (!Array.isArray(targetUser.suspensionInfo.history)) {
+    targetUser.suspensionInfo.history = [];
+  }
+
+  targetUser.suspensionInfo.history.push({
+    id: `hist_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+    action: 'ACCOUNT_LOCKED',
+    timestamp: new Date().toISOString(),
+    adminId: adminActor.uid || adminActor.email,
+    adminName: adminActor.name || adminActor.email,
+    adminRole: adminActor.role,
+    reason: cleanReason,
+    startDate: effectiveStartDate
+  });
+
+  const existingSession = activeSessions.get(targetUser.uid);
+  if (existingSession) {
+    revokedTokens.add(existingSession.token);
+    activeSessions.delete(targetUser.uid);
+  }
+
+  credentialsDb.set(targetUser.uid, targetUser);
+  if (targetUser.email) credentialsDb.set(targetUser.email.toLowerCase(), targetUser);
+  persistCredentialsToDisk();
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'ACCOUNT_LOCKED',
+    actor: adminActor.email,
+    actorRole: adminActor.role,
+    ip: req.ip || 'internal',
+    details: {
+      targetUserId: targetUser.uid,
+      targetUserEmail: targetUser.email,
+      targetUserName: targetUser.name || targetUser.email,
+      targetUserRole: targetUser.role,
+      reason: cleanReason,
+      startDate: effectiveStartDate,
+      isPermanentLock: true,
+      sessionRevoked: !!existingSession
+    }
+  });
+
+  return res.json({
+    success: true,
+    message: `Account for ${targetUser.name || targetUser.email} has been locked permanently.`,
+    user: {
+      uid: targetUser.uid,
+      email: targetUser.email,
+      name: targetUser.name,
+      role: targetUser.role,
+      accountStatus: targetUser.accountStatus,
+      suspensionInfo: targetUser.suspensionInfo
+    }
+  });
+});
+
+// 3. Unlock Account (Restore active status)
+app.post('/api/admin/users/:uid/unlock', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
+  const adminActor = (req as any).user;
+  const { uid } = req.params;
+  const { reason } = req.body;
+
+  const targetUser = findTargetCredential(uid);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'Account record not found.' });
+  }
+
+  const unlockReason = (reason && typeof reason === 'string' && reason.trim()) || 'Manual unlock clearance granted by administrator';
+
+  targetUser.accountStatus = 'ACTIVE';
+  targetUser.status = 'ACTIVE';
+  targetUser.isLocked = false;
+  targetUser.lockedUntil = undefined;
+
+  if (targetUser.suspensionInfo) {
+    targetUser.suspensionInfo.unlockedAt = new Date().toISOString();
+    targetUser.suspensionInfo.unlockedBy = adminActor.uid || adminActor.email;
+    targetUser.suspensionInfo.unlockedByName = adminActor.name || adminActor.email;
+    targetUser.suspensionInfo.unlockReason = unlockReason;
+
+    if (!Array.isArray(targetUser.suspensionInfo.history)) {
+      targetUser.suspensionInfo.history = [];
+    }
+    targetUser.suspensionInfo.history.push({
+      id: `hist_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      action: 'ACCOUNT_UNLOCKED',
+      timestamp: new Date().toISOString(),
+      adminId: adminActor.uid || adminActor.email,
+      adminName: adminActor.name || adminActor.email,
+      adminRole: adminActor.role,
+      reason: unlockReason
+    });
+  }
+
+  credentialsDb.set(targetUser.uid, targetUser);
+  if (targetUser.email) credentialsDb.set(targetUser.email.toLowerCase(), targetUser);
+  persistCredentialsToDisk();
+
+  // Activity Log: ACCOUNT_UNLOCKED (Classification: NORMAL, No warning icon)
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'ACCOUNT_UNLOCKED',
+    actor: adminActor.email,
+    actorRole: adminActor.role,
+    ip: req.ip || 'internal',
+    details: {
+      targetUserId: targetUser.uid,
+      targetUserEmail: targetUser.email,
+      targetUserName: targetUser.name || targetUser.email,
+      targetUserRole: targetUser.role,
+      unlockReason,
+      message: `Account for ${targetUser.name || targetUser.email} has been unlocked by ${adminActor.name || adminActor.email}.`
+    }
+  });
+
+  return res.json({
+    success: true,
+    message: `Account for ${targetUser.name || targetUser.email} has been unlocked and restored to ACTIVE status.`,
+    user: {
+      uid: targetUser.uid,
+      email: targetUser.email,
+      name: targetUser.name,
+      role: targetUser.role,
+      accountStatus: targetUser.accountStatus,
+      suspensionInfo: targetUser.suspensionInfo
+    }
+  });
+});
+
+// 4. Extend Suspension Duration
+app.post('/api/admin/users/:uid/extend', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
+  const adminActor = (req as any).user;
+  const { uid } = req.params;
+  const { newEndDate, reason } = req.body;
+
+  const targetUser = findTargetCredential(uid);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'Account record not found.' });
+  }
+
+  if (!newEndDate) {
+    return res.status(400).json({ error: 'A valid new suspension expiration date is required.' });
+  }
+
+  const cleanReason = (reason && typeof reason === 'string' && reason.trim()) || 'Suspension duration extended by administration';
+  const previousEndDate = targetUser.suspensionInfo?.endDate || targetUser.suspensionEndDate;
+  const effectiveNewEndDate = new Date(newEndDate).toISOString();
+
+  targetUser.accountStatus = 'SUSPENDED';
+  targetUser.status = 'SUSPENDED';
+  targetUser.suspensionEndDate = effectiveNewEndDate;
+
+  if (!targetUser.suspensionInfo) {
+    targetUser.suspensionInfo = {
+      startDate: new Date().toISOString(),
+      endDate: effectiveNewEndDate,
+      reason: cleanReason,
+      suspendedBy: adminActor.uid || adminActor.email,
+      suspendedByName: adminActor.name || adminActor.email,
+      history: []
+    };
+  } else {
+    targetUser.suspensionInfo.endDate = effectiveNewEndDate;
+  }
+
+  if (!Array.isArray(targetUser.suspensionInfo.history)) {
+    targetUser.suspensionInfo.history = [];
+  }
+
+  targetUser.suspensionInfo.history.push({
+    id: `hist_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+    action: 'ACCOUNT_SUSPENSION_EXTENDED',
+    timestamp: new Date().toISOString(),
+    adminId: adminActor.uid || adminActor.email,
+    adminName: adminActor.name || adminActor.email,
+    adminRole: adminActor.role,
+    reason: cleanReason,
+    startDate: targetUser.suspensionInfo.startDate,
+    endDate: effectiveNewEndDate,
+    previousEndDate
+  });
+
+  credentialsDb.set(targetUser.uid, targetUser);
+  if (targetUser.email) credentialsDb.set(targetUser.email.toLowerCase(), targetUser);
+  persistCredentialsToDisk();
+
+  // Activity Log: ACCOUNT_SUSPENSION_EXTENDED (Classification: FAILED / WARNING, ⚠️ Yes)
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'ACCOUNT_SUSPENSION_EXTENDED',
+    actor: adminActor.email,
+    actorRole: adminActor.role,
+    ip: req.ip || 'internal',
+    details: {
+      targetUserId: targetUser.uid,
+      targetUserEmail: targetUser.email,
+      targetUserName: targetUser.name || targetUser.email,
+      targetUserRole: targetUser.role,
+      reason: cleanReason,
+      previousEndDate,
+      newEndDate: effectiveNewEndDate,
+      message: `Suspension period for ${targetUser.name || targetUser.email} extended until ${new Date(effectiveNewEndDate).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}.`
+    }
+  });
+
+  return res.json({
+    success: true,
+    message: `Suspension extended until ${new Date(effectiveNewEndDate).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}.`,
+    user: {
+      uid: targetUser.uid,
+      email: targetUser.email,
+      name: targetUser.name,
+      role: targetUser.role,
+      accountStatus: targetUser.accountStatus,
+      suspensionInfo: targetUser.suspensionInfo
+    }
+  });
+});
+
+// 5. Update Suspension Reason
+app.post('/api/admin/users/:uid/update-suspension-reason', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
+  const adminActor = (req as any).user;
+  const { uid } = req.params;
+  const { reason } = req.body;
+
+  const targetUser = findTargetCredential(uid);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'Account record not found.' });
+  }
+
+  if (!reason || typeof reason !== 'string' || !reason.trim() || reason.trim().length < 5) {
+    return res.status(400).json({ error: 'An explanation (at least 5 characters) is required.' });
+  }
+
+  const cleanReason = reason.trim();
+  const oldReason = targetUser.suspensionInfo?.reason || targetUser.suspensionReason;
+
+  targetUser.suspensionReason = cleanReason;
+  if (targetUser.suspensionInfo) {
+    targetUser.suspensionInfo.reason = cleanReason;
+    if (!Array.isArray(targetUser.suspensionInfo.history)) {
+      targetUser.suspensionInfo.history = [];
+    }
+    targetUser.suspensionInfo.history.push({
+      id: `hist_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+      action: 'ACCOUNT_SUSPENSION_REASON_UPDATED',
+      timestamp: new Date().toISOString(),
+      adminId: adminActor.uid || adminActor.email,
+      adminName: adminActor.name || adminActor.email,
+      adminRole: adminActor.role,
+      reason: cleanReason,
+      notes: `Updated from: "${oldReason}"`
+    });
+  }
+
+  credentialsDb.set(targetUser.uid, targetUser);
+  if (targetUser.email) credentialsDb.set(targetUser.email.toLowerCase(), targetUser);
+  persistCredentialsToDisk();
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'ACCOUNT_SUSPENSION_REASON_UPDATED',
+    actor: adminActor.email,
+    actorRole: adminActor.role,
+    ip: req.ip || 'internal',
+    details: {
+      targetUserId: targetUser.uid,
+      targetUserEmail: targetUser.email,
+      targetUserName: targetUser.name || targetUser.email,
+      oldReason,
+      newReason: cleanReason
+    }
+  });
+
+  return res.json({
+    success: true,
+    message: 'Suspension explanation updated successfully.',
+    user: {
+      uid: targetUser.uid,
+      email: targetUser.email,
+      accountStatus: targetUser.accountStatus,
+      suspensionInfo: targetUser.suspensionInfo
+    }
+  });
+});
+
+// 6. Suspension History Retrieval
+app.get('/api/admin/users/:uid/suspension-history', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
+  const { uid } = req.params;
+  const targetUser = findTargetCredential(uid);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'Account record not found.' });
+  }
+
+  return res.json({
+    uid: targetUser.uid,
+    name: targetUser.name,
+    email: targetUser.email,
+    role: targetUser.role,
+    accountStatus: targetUser.accountStatus || targetUser.status || 'ACTIVE',
+    suspensionInfo: targetUser.suspensionInfo || null,
+    history: targetUser.suspensionInfo?.history || []
+  });
+});
+
 
 // ============================================================================
 // 6.6.1.2 PROFILE MANAGEMENT WITH IDOR PROTECTION (Requirement 3.4)

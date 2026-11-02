@@ -30,6 +30,8 @@ import {
   markRegistryRecordAsRegistered,
   evaluateIncomingRegistration
 } from '../../services/studentVerificationService';
+import { AccountSuspendedNoticeModal } from './AccountSuspendedNoticeModal';
+
 
 export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   isOpen,
@@ -42,8 +44,11 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     showToast,
     activeSessionConflict,
     clearActiveSessionConflict,
-    terminateOtherSessionAndLogin
+    terminateOtherSessionAndLogin,
+    loginSuspensionNotice,
+    clearLoginSuspensionNotice
   } = useAlumni();
+
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
   const [email, setEmail] = useState('');
@@ -762,6 +767,12 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
           )}
         </div>
       </div>
+
+      <AccountSuspendedNoticeModal
+        notice={loginSuspensionNotice}
+        onClose={clearLoginSuspensionNotice}
+      />
     </div>
   );
 };
+

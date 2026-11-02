@@ -14,6 +14,10 @@ import {
   Trash2,
   UserPlus,
   Lock,
+  Unlock,
+  ShieldAlert,
+  History,
+  CalendarClock,
   Check,
   X,
   Shield,
@@ -44,6 +48,8 @@ import { UserProfile, UserRole, isAdministrativeOrStaffRole } from '../../types'
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
 import { ConfirmationModal } from '../common/ConfirmationModal';
+import { AdminAccountSuspensionModal } from './AdminAccountSuspensionModal';
+import { SuspensionHistoryModal } from './SuspensionHistoryModal';
 
 interface AdminUsersTableProps {
   onOpenCreateUser: () => void;
@@ -58,13 +64,19 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
     deleteAlumni,
     setSelectedUserIdForModal,
     permissions,
-    showToast
+    showToast,
+    suspendUserAccount,
+    lockUserAccount,
+    unlockUserAccount,
+    extendUserSuspension,
+    getSuspensionHistory
   } = useAlumni();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [batchFilter, setBatchFilter] = useState<string>('all');
   const [employmentFilter, setEmploymentFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'batch_desc' | 'batch_asc' | 'recent' | 'verified_first'>('name_asc');
   const [selectedUids, setSelectedUids] = useState<string[]>([]);
   const [userToDelete, setUserToDelete] = useState<{ uid: string; name: string } | null>(null);
@@ -72,6 +84,14 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
   const [updatingRoleUid, setUpdatingRoleUid] = useState<string | null>(null);
+
+  // Account Suspension & Lockout Modal States
+  const [suspensionModalUser, setSuspensionModalUser] = useState<UserProfile | null>(null);
+  const [suspensionModalMode, setSuspensionModalMode] = useState<'suspend' | 'extend'>('suspend');
+  const [historyModalUser, setHistoryModalUser] = useState<UserProfile | null>(null);
+  const [unlockTarget, setUnlockTarget] = useState<UserProfile | null>(null);
+  const [unlockReason, setUnlockReason] = useState<string>('');
+  const [isUnlocking, setIsUnlocking] = useState<boolean>(false);
 
   // Mandatory Administrator Confirmation Dialog States (Requirement 15)
   const [roleChangeTarget, setRoleChangeTarget] = useState<{
@@ -110,7 +130,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
 
   useEffect(() => {
     setVisibleUserCount(12);
-  }, [searchQuery, roleFilter, batchFilter, employmentFilter, sortBy]);
+  }, [searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter, sortBy]);
 
   // Aggregate counts for quick tabs and options
   const totalVerified = useMemo(() => users.filter((u) => u.isVerified).length, [users]);
@@ -151,22 +171,25 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
     if (roleFilter !== 'all') count++;
     if (batchFilter !== 'all') count++;
     if (employmentFilter !== 'all') count++;
+    if (statusFilter !== 'all') count++;
     return count;
-  }, [searchQuery, roleFilter, batchFilter, employmentFilter]);
+  }, [searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter]);
 
   const secondaryFiltersCount = useMemo(() => {
     let count = 0;
     if (roleFilter !== 'all') count++;
     if (batchFilter !== 'all') count++;
     if (employmentFilter !== 'all') count++;
+    if (statusFilter !== 'all') count++;
     return count;
-  }, [roleFilter, batchFilter, employmentFilter]);
+  }, [roleFilter, batchFilter, employmentFilter, statusFilter]);
 
   const handleClearAllFilters = () => {
     setSearchQuery('');
     setRoleFilter('all');
     setBatchFilter('all');
     setEmploymentFilter('all');
+    setStatusFilter('all');
     setSortBy('name_asc');
   };
 
@@ -219,7 +242,14 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
           ? u.employmentStatus === 'Self-employed'
           : u.employmentStatus === employmentFilter;
 
-      return matchesSearch && matchesRole && matchesBatch && matchesEmployment;
+      // Account Status filter (ACTIVE, SUSPENDED, LOCKED, UNLOCKED)
+      let matchesStatus = true;
+      const effectiveStatus = u.accountStatus || 'ACTIVE';
+      if (statusFilter !== 'all') {
+        matchesStatus = effectiveStatus === statusFilter;
+      }
+
+      return matchesSearch && matchesRole && matchesBatch && matchesEmployment && matchesStatus;
     });
 
     // Precision sorting
@@ -310,6 +340,21 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
     await deleteAlumni(userToDelete.uid);
     showToast(`Member record for ${userToDelete.name} deleted.`, 'info');
     setUserToDelete(null);
+  };
+
+  const handleConfirmUnlock = async () => {
+    if (!unlockTarget) return;
+    try {
+      setIsUnlocking(true);
+      await unlockUserAccount(unlockTarget.uid, unlockReason.trim() || 'Administrative access restored.');
+      showToast(`Account for ${unlockTarget.name} has been unlocked and restored to ACTIVE.`, 'success');
+      setUnlockTarget(null);
+      setUnlockReason('');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to unlock account', 'error');
+    } finally {
+      setIsUnlocking(false);
+    }
   };
 
   return (
@@ -406,7 +451,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
         {/* EXPANDABLE FILTER ROW (Role, Batch, Employment) */}
         {showAdvancedFilters && (
           <div className="pt-2.5 border-t border-stone-100 dark:border-stone-800 space-y-2 animate-in fade-in slide-in-from-top-1 duration-150">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
               {/* Role Filter */}
               <div className="relative">
                 <select
@@ -453,6 +498,23 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                   <option value="Employed">Employed</option>
                   <option value="Self-employed">Self-employed</option>
                   <option value="Unemployed">Seeking Work</option>
+                </select>
+                <ChevronDown className="w-3 h-3 text-stone-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+
+              {/* Account Status Filter */}
+              <div className="relative">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  aria-label="Filter by Account Status"
+                  className="w-full pl-3 pr-7 py-1.5 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-stone-800 dark:text-stone-200 font-medium focus:outline-hidden focus:border-[#8B181B] cursor-pointer appearance-none truncate"
+                >
+                  <option value="all">All Account Statuses</option>
+                  <option value="ACTIVE">Active</option>
+                  <option value="SUSPENDED">Suspended</option>
+                  <option value="LOCKED">Locked</option>
+                  <option value="UNLOCKED">Unlocked</option>
                 </select>
                 <ChevronDown className="w-3 h-3 text-stone-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
@@ -619,6 +681,50 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                       )}
                     </div>
 
+                    {/* Account Status Badge */}
+                    <div className="flex items-center justify-between text-stone-600 dark:text-stone-400">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Account Status</span>
+                      {(() => {
+                        const status = u.accountStatus || 'ACTIVE';
+                        if (status === 'SUSPENDED') {
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>Suspended</span>
+                            </span>
+                          );
+                        }
+                        if (status === 'LOCKED') {
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-red-50 text-[#8B181B] border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900">
+                              <Lock className="w-3 h-3 text-[#8B181B]" />
+                              <span>Locked</span>
+                            </span>
+                          );
+                        }
+                        if (status === 'UNLOCKED') {
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-sky-50 text-sky-800 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800">
+                              <Unlock className="w-3 h-3 text-sky-600" />
+                              <span>Unlocked</span>
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            <span>Active</span>
+                          </span>
+                        );
+                      })()}
+                    </div>
+
+                    {u.accountStatus === 'SUSPENDED' && u.suspensionEndDate && (
+                      <div className="text-[10px] text-amber-800 dark:text-amber-300 bg-amber-50/80 dark:bg-amber-950/30 px-2 py-1 rounded-md border border-amber-200/60 flex items-center justify-between">
+                        <span>Exp: {new Date(u.suspensionEndDate).toLocaleDateString()} {new Date(u.suspensionEndDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    )}
+
                     {u.studentId && (
                       <div className="flex items-center justify-between text-stone-600 dark:text-stone-400">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">Student ID</span>
@@ -675,11 +781,68 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                     </button>
                   )}
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1 flex-wrap justify-end">
+                    {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && (
+                      <>
+                        {(u.accountStatus === 'SUSPENDED' || u.accountStatus === 'LOCKED') ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUnlockTarget(u);
+                                setUnlockReason('Administrative verification completed. Account access restored.');
+                              }}
+                              className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
+                              title="Restore account access"
+                            >
+                              <Unlock className="w-3 h-3" />
+                              <span>Unlock</span>
+                            </button>
+                            {u.accountStatus === 'SUSPENDED' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSuspensionModalUser(u);
+                                  setSuspensionModalMode('extend');
+                                }}
+                                className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
+                                title="Extend suspension duration"
+                              >
+                                <CalendarClock className="w-3 h-3" />
+                                <span>Extend</span>
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSuspensionModalUser(u);
+                              setSuspensionModalMode('suspend');
+                            }}
+                            className="px-2 py-1 bg-stone-100 hover:bg-amber-50 text-stone-700 hover:text-amber-900 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-amber-950/40 dark:hover:text-amber-300 border border-stone-200 dark:border-stone-700 hover:border-amber-300 rounded-lg text-xs font-semibold transition-colors cursor-pointer inline-flex items-center gap-1"
+                            title="Suspend or Lock Account"
+                          >
+                            <ShieldAlert className="w-3 h-3" />
+                            <span>Suspend</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setHistoryModalUser(u)}
+                          className="p-1.5 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors cursor-pointer"
+                          title="View Suspension & Lock History"
+                        >
+                          <History className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => setSelectedUserIdForModal(u.uid)}
-                      className="px-3 py-1.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                      className="px-2.5 py-1 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                     >
                       Profile
                     </button>
@@ -723,6 +886,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                   <th className="py-3 px-3">Batch</th>
                   <th className="py-3 px-4">Clearance Status</th>
                   <th className="py-3 px-4">Role</th>
+                  <th className="py-3 px-4">Account Status</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -860,9 +1024,110 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                         )}
                       </td>
 
+                      {/* Account Status Column */}
+                      <td className="py-3.5 px-4">
+                        {(() => {
+                          const status = u.accountStatus || 'ACTIVE';
+                          if (status === 'SUSPENDED') {
+                            return (
+                              <div>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+                                  <Clock className="w-2.5 h-2.5 text-amber-600" />
+                                  <span>Suspended</span>
+                                </span>
+                                {u.suspensionEndDate && (
+                                  <div className="text-[9px] text-amber-700 dark:text-amber-400 mt-0.5">
+                                    Until {new Date(u.suspensionEndDate).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                          if (status === 'LOCKED') {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-red-50 text-[#8B181B] border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900">
+                                <Lock className="w-2.5 h-2.5 text-[#8B181B]" />
+                                <span>Locked</span>
+                              </span>
+                            );
+                          }
+                          if (status === 'UNLOCKED') {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-sky-50 text-sky-800 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800">
+                                <Unlock className="w-2.5 h-2.5 text-sky-600" />
+                                <span>Unlocked</span>
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                              <span>Active</span>
+                            </span>
+                          );
+                        })()}
+                      </td>
+
                       {/* Action Buttons Column */}
                       <td className="py-3.5 px-4 text-right">
-                        <div className="inline-flex items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1 flex-wrap justify-end">
+                          {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && (
+                            <>
+                              {(u.accountStatus === 'SUSPENDED' || u.accountStatus === 'LOCKED') ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setUnlockTarget(u);
+                                      setUnlockReason('Administrative verification completed. Account access restored.');
+                                    }}
+                                    className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
+                                    title="Restore account access"
+                                  >
+                                    <Unlock className="w-3 h-3" />
+                                    <span>Unlock</span>
+                                  </button>
+                                  {u.accountStatus === 'SUSPENDED' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSuspensionModalUser(u);
+                                        setSuspensionModalMode('extend');
+                                      }}
+                                      className="px-2 py-1 text-[11px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
+                                      title="Extend suspension duration"
+                                    >
+                                      <CalendarClock className="w-3 h-3" />
+                                      <span>Extend</span>
+                                    </button>
+                                  )}
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSuspensionModalUser(u);
+                                    setSuspensionModalMode('suspend');
+                                  }}
+                                  className="px-2 py-1 text-[11px] font-semibold text-stone-700 hover:text-amber-900 bg-stone-100 hover:bg-amber-50 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-amber-950/40 dark:hover:text-amber-300 border border-stone-200 dark:border-stone-700 hover:border-amber-300 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
+                                  title="Suspend or Lock Account"
+                                >
+                                  <ShieldAlert className="w-3 h-3" />
+                                  <span>Suspend</span>
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                onClick={() => setHistoryModalUser(u)}
+                                className="p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
+                                title="View Suspension & Lock History"
+                              >
+                                <History className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => setSelectedUserIdForModal(u.uid)}
@@ -992,6 +1257,124 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
         onConfirm={executeBulkVerify}
         onClose={() => setShowBulkVerifyConfirm(false)}
       />
+
+      {/* 5. Account Suspension / Lock / Extension Scheduler Modal */}
+      {suspensionModalUser && (
+        <AdminAccountSuspensionModal
+          isOpen={!!suspensionModalUser}
+          user={suspensionModalUser}
+          mode={suspensionModalMode}
+          onClose={() => setSuspensionModalUser(null)}
+          onConfirm={async ({ startDate, endDate, reason, isPermanentLock }) => {
+            if (!suspensionModalUser) return;
+            if (isPermanentLock) {
+              await lockUserAccount(suspensionModalUser.uid, { startDate, reason });
+              showToast(`Account for ${suspensionModalUser.name} locked permanently.`, 'warning');
+            } else if (suspensionModalMode === 'extend' && endDate) {
+              await extendUserSuspension(suspensionModalUser.uid, { newEndDate: endDate, reason });
+              showToast(`Suspension extended for ${suspensionModalUser.name}.`, 'success');
+            } else {
+              await suspendUserAccount(suspensionModalUser.uid, {
+                startDate,
+                endDate,
+                reason,
+                isPermanentLock: false
+              });
+              showToast(`Account for ${suspensionModalUser.name} suspended.`, 'warning');
+            }
+            setSuspensionModalUser(null);
+          }}
+        />
+      )}
+
+      {/* 6. Suspension History Audit Timeline Modal */}
+      {historyModalUser && (
+        <SuspensionHistoryModal
+          isOpen={!!historyModalUser}
+          user={historyModalUser}
+          onClose={() => setHistoryModalUser(null)}
+          onUnlockClick={() => {
+            const target = historyModalUser;
+            setHistoryModalUser(null);
+            setUnlockTarget(target);
+            setUnlockReason('Administrative review complete. Access restored.');
+          }}
+          onExtendClick={() => {
+            const target = historyModalUser;
+            setHistoryModalUser(null);
+            setSuspensionModalUser(target);
+            setSuspensionModalMode('extend');
+          }}
+        />
+      )}
+
+      {/* 7. Account Unlock Confirmation Modal with Reason */}
+      {unlockTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-3xl p-6 max-w-md w-full shadow-2xl relative">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center border border-emerald-200 dark:border-emerald-800">
+                <Unlock className="w-5 h-5 stroke-[2]" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-stone-900 dark:text-white">
+                  Unlock Account Access
+                </h3>
+                <p className="text-xs text-stone-500">Restore normal portal login privileges</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed mb-4">
+              Are you sure you want to restore active access for <strong>{unlockTarget.name}</strong> ({unlockTarget.email})? The account status will be restored to <strong>ACTIVE</strong> immediately.
+            </p>
+
+            <div className="mb-5">
+              <label className="block text-xs font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                Restoration Reason / Audit Note <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={unlockReason}
+                onChange={(e) => setUnlockReason(e.target.value)}
+                placeholder="Reason for unlocking (e.g. Administrative review completed, identity verified)"
+                rows={3}
+                className="w-full text-xs p-2.5 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-900 dark:text-white focus:outline-hidden focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={isUnlocking}
+                onClick={() => {
+                  setUnlockTarget(null);
+                  setUnlockReason('');
+                }}
+                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isUnlocking || !unlockReason.trim()}
+                onClick={handleConfirmUnlock}
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl transition-all shadow-2xs cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+              >
+                {isUnlocking ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Unlocking...</span>
+                  </>
+                ) : (
+                  <>
+                    <Unlock className="w-3.5 h-3.5" />
+                    <span>Confirm Unlock</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

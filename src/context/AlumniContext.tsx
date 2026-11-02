@@ -28,7 +28,10 @@ import {
   RegistrarVerificationResult,
   InstitutionalFeedPost,
   FeedComment,
-  EventReservation
+  EventReservation,
+  SuspensionRecord,
+  SuspensionHistoryEntry,
+  SuspensionNoticeInfo
 } from '../types';
 import {
   INITIAL_USERS,
@@ -277,6 +280,8 @@ interface AlumniContextType {
   clearLoginPlatformError: () => void;
   loginPendingAccountNotice: PendingAccountNoticeInfo | null;
   clearLoginPendingAccountNotice: () => void;
+  loginSuspensionNotice: SuspensionNoticeInfo | null;
+  clearLoginSuspensionNotice: () => void;
   // Strict Moderator Quota (MAX 3 ACTIVE ACCOUNTS)
   moderatorQuota: { activeCount: number; maxQuota: number; availableSlots: number; canCreateModerator: boolean };
   logout: (options?: { revokeBiometrics?: boolean }) => void;
@@ -446,7 +451,12 @@ interface AlumniContextType {
   submitCareerSurvey: (survey: Omit<CareerSurveyResponse, 'id' | 'submittedAt'>) => void;
   runAutomationJob: (jobId: string) => void;
   triggerDatabaseBackup: (type?: 'automated' | 'manual') => void;
-  unlockUserAccount: (uid: string) => void;
+  unlockUserAccount: (uid: string, reason?: string) => Promise<{ success: boolean; message?: string }> | void;
+  suspendUserAccount: (uid: string, data: { startDate?: string; endDate?: string; reason: string; isPermanentLock?: boolean }) => Promise<{ success: boolean; message?: string }>;
+  lockUserAccount: (uid: string, data: { startDate?: string; reason: string }) => Promise<{ success: boolean; message?: string }>;
+  extendUserSuspension: (uid: string, data: { newEndDate: string; reason: string }) => Promise<{ success: boolean; message?: string }>;
+  updateSuspensionReason: (uid: string, reason: string) => Promise<{ success: boolean; message?: string }>;
+  getSuspensionHistory: (uid: string) => Promise<SuspensionHistoryEntry[]>;
   verifyAndApproveAlumni: (uid: string, approve: boolean, flagReason?: string) => void;
   sendEmergencyAnnouncement: (title: string, content: string) => void;
   updateEmploymentStatus: (status: 'Employed' | 'Self-employed' | 'Seeking Opportunities' | 'Unemployed' | 'Retired' | 'N/A') => void;
@@ -1346,6 +1356,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setActiveSessionConflict(null);
   }, []);
 
+  // Failed Login Tracking & Account Lockout Tracker (3-attempt threshold)
+  const failedLoginAttemptsRef = useRef<Map<string, { count: number; lockedUntil?: number }>>(new Map());
+
   // Platform Gate & Testing Controls (Mobile App / Tablet vs Web Portal)
   const [clientPlatformOverride, setClientPlatformOverrideState] = useState<'mobile' | 'web' | null>(() => {
     try {
@@ -1387,6 +1400,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const clearLoginPendingAccountNotice = useCallback(() => {
     setLoginPendingAccountNotice(null);
   }, []);
+
+  const [loginSuspensionNotice, setLoginSuspensionNotice] = useState<SuspensionNoticeInfo | null>(null);
+  const clearLoginSuspensionNotice = useCallback(() => {
+    setLoginSuspensionNotice(null);
+  }, []);
+
 
   // Strict Moderator Quota State: MAX 3 ACTIVE ACCOUNTS
   const moderatorQuota = useMemo(() => {
@@ -2782,6 +2801,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const normalizedInputId = normalizeStudentId(trimmed).toLowerCase();
     const digitsOnly = trimmed.replace(/[^a-zA-Z0-9]/g, '');
 
+    // Check if account is currently locked due to repeated failed login attempts
+    const attemptTracker = failedLoginAttemptsRef.current.get(trimmed) || { count: 0 };
+    if (attemptTracker.lockedUntil && Date.now() < attemptTracker.lockedUntil) {
+      const remainingSec = Math.ceil((attemptTracker.lockedUntil - Date.now()) / 1000);
+      showToast(`Account locked due to repeated failed login attempts. Please try again in ${remainingSec}s.`, 'error');
+      return false;
+    }
+
     // 2. Server-side validation via backend /api/auth/login (authoritative single active session provider)
     try {
       const serverRes = await fetch('/api/auth/login', {
@@ -2799,11 +2826,40 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       if (serverRes.status === 403) {
         const errorData = await serverRes.json();
+
+        if (errorData.code === 'ACCOUNT_SUSPENDED') {
+          setLoginSuspensionNotice({
+            status: 'SUSPENDED',
+            title: 'Your account has been temporarily suspended',
+            reason: errorData.reason || 'Violation of institutional account policies.',
+            startDate: errorData.startDate,
+            endDate: errorData.endDate,
+            suspendedByName: errorData.suspendedByName || 'Institutional Administration',
+            contactInstructions: errorData.contactInstructions || 'Please contact the Registrar Office or System Administration (admin@stcecilia.edu.ph) for assistance.'
+          });
+          showToast(errorData.error || 'Your account has been temporarily suspended.', 'error');
+          return false;
+        }
+
+        if (errorData.code === 'ACCOUNT_LOCKED') {
+          setLoginSuspensionNotice({
+            status: 'LOCKED',
+            title: 'Your account has been locked by an administrator',
+            reason: errorData.reason || 'Administrative account lockout.',
+            startDate: errorData.startDate,
+            suspendedByName: errorData.suspendedByName || 'Institutional Administration',
+            contactInstructions: errorData.contactInstructions || 'Please contact the Registrar Office or System Administration (admin@stcecilia.edu.ph) to request an account review.'
+          });
+          showToast(errorData.error || 'Your account has been locked by an administrator.', 'error');
+          return false;
+        }
+
         const errorMsg = errorData.error || 'Access denied on this platform.';
         showToast(errorMsg, 'error');
         setLoginPlatformError(errorMsg);
         return false;
       }
+
 
       if (serverRes.status === 409) {
         const conflictData = await serverRes.json();
@@ -2819,6 +2875,39 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           ownerEmailMasked: conflictData.ownerEmailMasked || 'your registered email',
           canTerminateExistingSession: true
         });
+
+        // Record MULTIPLE_USERS_SAME_ACCOUNT (Suspicious Activity with Warning Icon ⚠️)
+        const activeDev = conflictData.activeSession?.deviceInfo || 'Another device';
+        const activeLoc = conflictData.activeSession?.approxLocation || 'Cebu';
+        const currentDev = getClientDeviceInfo();
+        const conflictTimestamp = new Date().toISOString();
+
+        try {
+          addAuditLog({
+            action: 'MULTIPLE_USERS_SAME_ACCOUNT',
+            actorId: trimmed,
+            actorName: trimmed,
+            actorRole: 'alumni',
+            category: 'security',
+            details: `Suspected multiple people using account "${trimmed}". Existing session active on ${activeDev} (${activeLoc}); concurrent sign-in attempt from ${currentDev}. Timestamp: ${conflictTimestamp}.`,
+            severity: 'alert',
+            targetRecordId: trimmed
+          });
+
+          // Notify Administrator
+          const adminNotif: AppNotification = {
+            id: `notif_multi_${Date.now()}`,
+            toUid: 'usr_superadmin_cecilia',
+            title: '⚠️ Suspicious Activity: Multiple Users Detected',
+            body: `Account "${trimmed}" was accessed concurrently from multiple devices (${activeDev} vs ${currentDev}). Possible account sharing detected at ${conflictTimestamp}.`,
+            type: 'security',
+            read: false,
+            createdAt: conflictTimestamp
+          };
+          setNotifications((prev) => [adminNotif, ...prev]);
+          saveNotificationToFirestore(adminNotif).catch(() => {});
+        } catch {}
+
         showToast(
           'This account is currently in use on another device. An alert notification has been sent to your email.',
           'error'
@@ -2974,6 +3063,68 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     // The password must ALWAYS be validated. If the User ID/email is correct but the password
     // is incorrect, authentication MUST fail. Do not bypass password validation under any circumstance.
     if (!user) {
+      attemptTracker.count = (attemptTracker.count || 0) + 1;
+      failedLoginAttemptsRef.current.set(trimmed, attemptTracker);
+      const attemptTimestamp = new Date().toISOString();
+
+      // Record FAILED_LOGIN_ATTEMPT (⚠️ Warning: Never expose passwords; record timestamp and attempted username)
+      try {
+        addAuditLog({
+          action: 'FAILED_LOGIN_ATTEMPT',
+          actorId: 'unknown_attempt',
+          actorName: 'Unauthenticated Actor',
+          actorRole: 'alumni',
+          category: 'security',
+          details: `Failed authentication attempt (attempt ${attemptTracker.count} of 3) for attempted username "${trimmed}". Reason: Unrecognized identifier.`,
+          severity: 'warning',
+          targetRecordId: trimmed
+        });
+      } catch {}
+
+      // If threshold reached: log MULTIPLE_FAILED_LOGIN_ATTEMPTS and enforce ACCOUNT_LOCKED
+      if (attemptTracker.count >= 3) {
+        attemptTracker.lockedUntil = Date.now() + 5 * 60 * 1000; // 5 min lockout
+        try {
+          addAuditLog({
+            action: 'MULTIPLE_FAILED_LOGIN_ATTEMPTS',
+            actorId: 'unknown_attempt',
+            actorName: 'Unauthenticated Actor',
+            actorRole: 'alumni',
+            category: 'security',
+            details: `Multiple failed login attempts detected (${attemptTracker.count} of 3 attempts) for attempted username "${trimmed}". Temporary account lockout enforced.`,
+            severity: 'alert',
+            targetRecordId: trimmed
+          });
+
+          addAuditLog({
+            action: 'ACCOUNT_LOCKED',
+            actorId: 'system_security',
+            actorName: 'Security Enforcer',
+            actorRole: 'admin',
+            category: 'security',
+            details: `Account temporarily locked for attempted username "${trimmed}". Lock Reason: Repeated failed login attempts exceeding security threshold. Timestamp: ${attemptTimestamp}.`,
+            severity: 'alert',
+            targetRecordId: trimmed
+          });
+
+          // In-app Notification for Administrator
+          const adminNotif: AppNotification = {
+            id: `notif_locked_${Date.now()}`,
+            toUid: 'usr_superadmin_cecilia',
+            title: '⚠️ Security Warning: Account Locked',
+            body: `Account "${trimmed}" was locked following 3 consecutive failed login attempts. Reason: Repeated authentication failures at ${attemptTimestamp}.`,
+            type: 'security',
+            read: false,
+            createdAt: attemptTimestamp
+          };
+          setNotifications((prev) => [adminNotif, ...prev]);
+          saveNotificationToFirestore(adminNotif).catch(() => {});
+        } catch {}
+
+        showToast('Account locked due to repeated failed login attempts. Administrator notified.', 'error');
+        return false;
+      }
+
       showToast('Invalid email, SCC ID, or password.', 'error');
       return false;
     }
@@ -3008,9 +3159,74 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     if (pass !== expectedPassword) {
+      attemptTracker.count = (attemptTracker.count || 0) + 1;
+      failedLoginAttemptsRef.current.set(trimmed, attemptTracker);
+      const attemptTimestamp = new Date().toISOString();
+
+      // Record FAILED_LOGIN_ATTEMPT (⚠️ Warning: Never expose passwords; record timestamp and attempted username)
+      try {
+        addAuditLog({
+          action: 'FAILED_LOGIN_ATTEMPT',
+          actorId: user.uid,
+          actorName: user.name || 'Unauthenticated Actor',
+          actorRole: user.role || 'alumni',
+          category: 'security',
+          details: `Failed authentication attempt (attempt ${attemptTracker.count} of 3) due to incorrect password for attempted username "${trimmed}".`,
+          severity: 'warning',
+          targetRecordId: user.email || trimmed
+        });
+      } catch {}
+
+      // If threshold reached: log MULTIPLE_FAILED_LOGIN_ATTEMPTS and enforce ACCOUNT_LOCKED
+      if (attemptTracker.count >= 3) {
+        attemptTracker.lockedUntil = Date.now() + 5 * 60 * 1000; // 5 min lockout
+        try {
+          addAuditLog({
+            action: 'MULTIPLE_FAILED_LOGIN_ATTEMPTS',
+            actorId: user.uid,
+            actorName: user.name,
+            actorRole: user.role || 'alumni',
+            category: 'security',
+            details: `Multiple failed login attempts detected (${attemptTracker.count} of 3 attempts) for attempted username "${trimmed}". Temporary account lockout enforced.`,
+            severity: 'alert',
+            targetRecordId: user.email || trimmed
+          });
+
+          addAuditLog({
+            action: 'ACCOUNT_LOCKED',
+            actorId: 'system_security',
+            actorName: 'Security Enforcer',
+            actorRole: 'admin',
+            category: 'security',
+            details: `Account temporarily locked for user "${user.name}" (${user.email || trimmed}). Lock Reason: Repeated failed login attempts exceeding security threshold. Timestamp: ${attemptTimestamp}.`,
+            severity: 'alert',
+            targetRecordId: user.email || trimmed
+          });
+
+          // In-app Notification for Administrator
+          const adminNotif: AppNotification = {
+            id: `notif_locked_${Date.now()}`,
+            toUid: 'usr_superadmin_cecilia',
+            title: '⚠️ Security Warning: Account Locked',
+            body: `Account "${user.name}" (${user.email || trimmed}) was locked following 3 consecutive failed login attempts. Reason: Repeated authentication failures at ${attemptTimestamp}.`,
+            type: 'security',
+            read: false,
+            createdAt: attemptTimestamp
+          };
+          setNotifications((prev) => [adminNotif, ...prev]);
+          saveNotificationToFirestore(adminNotif).catch(() => {});
+        } catch {}
+
+        showToast('Account locked due to repeated failed login attempts. Administrator notified.', 'error');
+        return false;
+      }
+
       showToast('Invalid email, SCC ID, or password.', 'error');
       return false;
     }
+
+    // Clear failed attempts counter on successful credential validation
+    failedLoginAttemptsRef.current.delete(trimmed);
 
     // ========================================================================
     // PLATFORM-BASED ACCESS ENFORCEMENT
@@ -3028,9 +3244,56 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
     if (accountStatus === 'SUSPENDED') {
-      showToast('This account has been suspended by administration. Please contact institutional support.', 'error');
+      const now = Date.now();
+      const endDate = user.suspensionInfo?.endDate || user.suspensionEndDate;
+      const endTimestamp = endDate ? new Date(endDate).getTime() : 0;
+
+      if (endTimestamp > 0 && now >= endTimestamp) {
+        // Scheduled suspension duration expired! Auto-restore to ACTIVE
+        user.accountStatus = 'ACTIVE';
+        user.status = 'ACTIVE';
+        user.isLocked = false;
+        setUsers((prev) =>
+          prev.map((u) => (u.uid === user!.uid ? { ...u, accountStatus: 'ACTIVE', status: 'ACTIVE', isLocked: false } : u))
+        );
+        addAuditLog({
+          action: 'ACCOUNT_AUTO_RESTORED',
+          actorId: 'system_automation',
+          actorName: 'System Scheduler',
+          actorRole: 'system',
+          category: 'security',
+          details: `Scheduled suspension duration expired for ${user.name} (${user.email}). Account automatically restored to ACTIVE.`,
+          severity: 'info',
+          targetRecordId: user.email
+        });
+      } else {
+        setLoginSuspensionNotice({
+          status: 'SUSPENDED',
+          title: 'Your account has been temporarily suspended',
+          reason: user.suspensionInfo?.reason || user.suspensionReason || 'Violation of institutional account policies.',
+          startDate: user.suspensionInfo?.startDate,
+          endDate: user.suspensionInfo?.endDate,
+          suspendedByName: user.suspensionInfo?.suspendedByName || 'Institutional Administration',
+          contactInstructions: 'Please contact the Registrar Office or System Administration (admin@stcecilia.edu.ph) for assistance.'
+        });
+        showToast('This account has been temporarily suspended by administration.', 'error');
+        return false;
+      }
+    }
+
+    if (accountStatus === 'LOCKED') {
+      setLoginSuspensionNotice({
+        status: 'LOCKED',
+        title: 'Your account has been locked by an administrator',
+        reason: user.suspensionInfo?.reason || user.suspensionReason || 'Administrative security lockout.',
+        startDate: user.suspensionInfo?.startDate,
+        suspendedByName: user.suspensionInfo?.suspendedByName || 'Institutional Administration',
+        contactInstructions: 'Please contact the Registrar Office or System Administration (admin@stcecilia.edu.ph) to request an account review.'
+      });
+      showToast('This account has been locked by an administrator.', 'error');
       return false;
     }
+
     if (accountStatus === 'PENDING_VERIFICATION' && user.role !== 'employer') {
       setLoginPendingAccountNotice({
         role: 'alumni',
@@ -3119,7 +3382,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setAuthReady(true);
     saveUserToFirestore(userToSave).catch(() => {});
 
-    // Record User Login activity event with alert
+    // Record User Login activity event with NORMAL status (No warning icon)
     try {
       addAuditLog({
         action: 'USER_LOGIN',
@@ -3128,7 +3391,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         actorRole: userToSave.role,
         category: 'security',
         details: `User ${userToSave.name} (${userToSave.role}) signed in successfully via ${clientPlatform === 'mobile' ? 'Mobile App' : 'Web Portal'}.`,
-        severity: 'alert',
+        severity: 'info',
         targetRecordId: userToSave.email
       });
     } catch {
@@ -3203,16 +3466,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           setCurrentUserId(user.uid);
           setAuthReady(true);
 
-          // Record User Re-login activity event with alert
+          // Discontinue USER_RELOGIN - record standard USER_LOGIN session continuation (NORMAL status, No warning icon)
           try {
             addAuditLog({
-              action: 'USER_RELOGIN',
+              action: 'USER_LOGIN',
               actorId: user.uid,
               actorName: user.name,
               actorRole: user.role,
               category: 'security',
-              details: `User ${user.name} initiated session override / re-login to terminate existing concurrent session.`,
-              severity: 'alert',
+              details: `User ${user.name} signed in successfully via ${clientPlatform === 'mobile' ? 'Mobile App' : 'Web Portal'}. Previous session ended by user.`,
+              severity: 'info',
               targetRecordId: user.email
             });
           } catch {
@@ -7553,6 +7816,98 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return () => clearInterval(interval);
   }, [checkAndEnforceEmployerExpirations]);
 
+  // Automated Account Suspension Expiration Sweeper:
+  // Automatically restores accounts from SUSPENDED to ACTIVE when scheduled duration has expired.
+  // Records ACCOUNT_AUTO_RESTORED in Activity Logs and dispatches notification to admin.
+  useEffect(() => {
+    const checkExpiredSuspensions = () => {
+      const now = Date.now();
+      setUsers((prevUsers) => {
+        let changed = false;
+        const next = prevUsers.map((user) => {
+          const status = (user.accountStatus || user.status || '').toUpperCase().trim();
+          if (status !== 'SUSPENDED') return user;
+          if (user.suspensionInfo?.isPermanentLock || user.accountStatus === 'LOCKED') return user;
+
+          const endDate = user.suspensionInfo?.endDate || user.suspensionEndDate;
+          if (!endDate) return user;
+          const endTimestamp = new Date(endDate).getTime();
+          if (isNaN(endTimestamp) || now < endTimestamp) return user;
+
+          changed = true;
+          const autoRestoreEntry: SuspensionHistoryEntry = {
+            id: `hist_auto_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            action: 'ACCOUNT_AUTO_RESTORED',
+            timestamp: new Date().toISOString(),
+            adminId: 'system_automation',
+            adminName: 'System Scheduler',
+            adminRole: 'system',
+            reason: 'Scheduled suspension duration reached expiration. Account automatically restored to ACTIVE status.',
+            startDate: user.suspensionInfo?.startDate,
+            endDate
+          };
+
+          addAuditLog({
+            action: 'ACCOUNT_AUTO_RESTORED',
+            actorId: 'system_automation',
+            actorName: 'System Scheduler',
+            actorRole: 'system',
+            category: 'security',
+            details: `Scheduled suspension duration expired for ${user.name} (${user.email}). Account automatically restored to ACTIVE.`,
+            severity: 'info',
+            targetRecordId: user.email,
+            targetUserId: user.uid,
+            targetUserName: user.name,
+            targetUserRole: user.role
+          });
+
+          // In-app Notification for Admin
+          const adminNotif: AppNotification = {
+            id: `notif_auto_restored_${user.uid}_${Date.now()}`,
+            toUid: 'all',
+            title: 'Account Suspension Expired & Auto-Restored',
+            body: `Account for ${user.name} (${user.role}) reached its scheduled suspension expiration and was automatically restored to ACTIVE.`,
+            type: 'security',
+            read: false,
+            createdAt: new Date().toISOString()
+          };
+          setNotifications((prev) => [adminNotif, ...prev]);
+
+          return {
+            ...user,
+            accountStatus: 'ACTIVE' as const,
+            status: 'ACTIVE' as const,
+            isLocked: false,
+            lockedUntil: undefined,
+            suspensionInfo: {
+              ...(user.suspensionInfo || {
+                startDate: new Date().toISOString(),
+                reason: user.suspensionReason || 'Administrative suspension',
+                suspendedBy: 'admin',
+                suspendedByName: 'Administration'
+              }),
+              autoRestored: true,
+              autoRestoredAt: new Date().toISOString(),
+              history: [...(user.suspensionInfo?.history || []), autoRestoreEntry]
+            }
+          };
+        });
+
+        if (changed) {
+          try {
+            localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
+          } catch {}
+        }
+        return changed ? next : prevUsers;
+      });
+    };
+
+    checkExpiredSuspensions();
+    const interval = setInterval(checkExpiredSuspensions, 30000);
+    return () => clearInterval(interval);
+  }, [addAuditLog]);
+
+
   // System Background Automation Engine:
   // Automatically reconciles, validates, and approves perfect registrar matches in the background
   useEffect(() => {
@@ -7702,22 +8057,399 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     showToast(`Automation job "${jobName}" triggered successfully.`, 'success');
   }, [automationJobs, currentUser, triggerDatabaseBackup, addAuditLog, showToast]);
 
-  const unlockUserAccount = useCallback((uid: string) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.uid === uid ? { ...u, isLocked: false, lockedUntil: undefined, failedLoginAttempts: 0 } : u))
-    );
-    const target = users.find((u) => u.uid === uid);
-    addAuditLog({
-      action: 'Security Lockout Lifted',
-      actorId: currentUser?.uid || 'admin',
-      actorName: currentUser?.name || 'Administrator',
-      actorRole: currentUser?.role || 'admin',
-      category: 'security',
-      details: `Account ${target?.name || uid} was unlocked by administrator. Failed attempts reset.`,
-      severity: 'warning'
-    });
-    showToast(`Account for ${target?.name || 'user'} has been unlocked.`, 'success');
-  }, [users, currentUser, addAuditLog, showToast]);
+  // ============================================================================
+  // ADMIN ACCOUNT SUSPENSION & LOCK SCHEDULER MANAGEMENT
+  // ============================================================================
+
+  const suspendUserAccount = useCallback(
+    async (
+      uid: string,
+      data: { startDate?: string; endDate?: string; reason: string; isPermanentLock?: boolean }
+    ): Promise<{ success: boolean; message?: string }> => {
+      const cleanReason = (data.reason || '').trim();
+      if (!cleanReason || cleanReason.length < 5) {
+        showToast('Please provide an explanation (at least 5 characters) for this action.', 'error');
+        return { success: false, message: 'Reason is required (min 5 characters).' };
+      }
+
+      const target = users.find((u) => u.uid === uid);
+      const isLock = !!data.isPermanentLock;
+      const effectiveStartDate = data.startDate || new Date().toISOString();
+      const effectiveEndDate = isLock ? undefined : data.endDate;
+      const targetStatus = isLock ? ('LOCKED' as const) : ('SUSPENDED' as const);
+
+      const historyEntry: SuspensionHistoryEntry = {
+        id: `hist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        action: isLock ? 'ACCOUNT_LOCKED' : 'ACCOUNT_SUSPENDED',
+        timestamp: new Date().toISOString(),
+        adminId: currentUser?.uid || 'admin',
+        adminName: currentUser?.name || 'Administrator',
+        adminRole: currentUser?.role || 'admin',
+        reason: cleanReason,
+        startDate: effectiveStartDate,
+        endDate: effectiveEndDate
+      };
+
+      // 1. Optimistic / local state update
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.uid === uid) {
+            const updatedInfo: SuspensionRecord = {
+              startDate: effectiveStartDate,
+              endDate: effectiveEndDate,
+              reason: cleanReason,
+              suspendedBy: currentUser?.uid || 'admin',
+              suspendedByName: currentUser?.name || 'Administrator',
+              suspendedByRole: currentUser?.role || 'admin',
+              isPermanentLock: isLock,
+              history: [...(u.suspensionInfo?.history || []), historyEntry]
+            };
+            return {
+              ...u,
+              accountStatus: targetStatus,
+              status: targetStatus,
+              isLocked: true,
+              suspensionReason: cleanReason,
+              suspensionEndDate: effectiveEndDate,
+              suspensionInfo: updatedInfo
+            };
+          }
+          return u;
+        })
+      );
+
+      // 2. Call backend endpoint to enforce persistence and session revocation
+      try {
+        await apiFetch(`/api/admin/users/${encodeURIComponent(uid)}/suspend`, {
+          method: 'POST',
+          body: JSON.stringify({
+            startDate: effectiveStartDate,
+            endDate: effectiveEndDate,
+            reason: cleanReason,
+            isPermanentLock: isLock
+          })
+        });
+      } catch (err) {
+        console.warn('[Backend Suspend Call Notice]', err);
+      }
+
+      // 3. Activity Log (Classification: SECURITY WARNING, Warning Icon: ⚠️ Yes)
+      addAuditLog({
+        action: isLock ? 'ACCOUNT_LOCKED' : 'ACCOUNT_SUSPENDED',
+        actorId: currentUser?.uid || 'admin',
+        actorName: currentUser?.name || 'Administrator',
+        actorRole: currentUser?.role || 'admin',
+        category: 'security',
+        details: isLock
+          ? `Account for ${target?.name || uid} (${target?.role || 'user'}) locked permanently by administrator. Reason: ${cleanReason}.`
+          : `Account for ${target?.name || uid} (${target?.role || 'user'}) suspended until ${effectiveEndDate ? new Date(effectiveEndDate).toLocaleString('en-US', { timeZone: 'Asia/Manila' }) : 'manual review'}. Reason: ${cleanReason}.`,
+        severity: 'alert',
+        targetRecordId: target?.email || uid,
+        targetUserId: uid,
+        targetUserName: target?.name,
+        targetUserRole: target?.role,
+        suspensionReason: cleanReason,
+        suspensionStartDate: effectiveStartDate,
+        suspensionEndDate: effectiveEndDate,
+        isSuspicious: true,
+        requiresAlertIcon: true
+      });
+
+      // 4. In-App Notification for Admin Awareness
+      const adminNotif: AppNotification = {
+        id: `notif_susp_${uid}_${Date.now()}`,
+        toUid: 'all',
+        title: isLock ? '⚠️ Account Locked by Administrator' : '⚠️ Account Suspended by Administrator',
+        body: `${isLock ? 'Lockout' : 'Suspension'} applied to ${target?.name || uid} (${target?.role || 'member'}). Reason: "${cleanReason}".`,
+        type: 'security',
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      setNotifications((prev) => [adminNotif, ...prev]);
+
+      // 5. If current user suspended themselves, force logout immediately
+      if (currentUser?.uid === uid) {
+        logout();
+      }
+
+      showToast(
+        isLock
+          ? `Account for ${target?.name || 'user'} has been locked permanently.`
+          : `Account for ${target?.name || 'user'} has been suspended until ${effectiveEndDate ? new Date(effectiveEndDate).toLocaleString('en-US', { timeZone: 'Asia/Manila' }) : 'manual review'}.`,
+        'warning'
+      );
+
+      return { success: true };
+    },
+    [currentUser, users, addAuditLog, showToast, logout]
+  );
+
+  const lockUserAccount = useCallback(
+    async (
+      uid: string,
+      data: { startDate?: string; reason: string }
+    ): Promise<{ success: boolean; message?: string }> => {
+      return suspendUserAccount(uid, {
+        startDate: data.startDate,
+        endDate: undefined,
+        reason: data.reason,
+        isPermanentLock: true
+      });
+    },
+    [suspendUserAccount]
+  );
+
+  const unlockUserAccount = useCallback(
+    async (uid: string, reason?: string): Promise<{ success: boolean; message?: string }> => {
+      const cleanReason = (reason || '').trim() || 'Manual account unlock clearance granted by administrator';
+      const target = users.find((u) => u.uid === uid);
+
+      const historyEntry: SuspensionHistoryEntry = {
+        id: `hist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        action: 'ACCOUNT_UNLOCKED',
+        timestamp: new Date().toISOString(),
+        adminId: currentUser?.uid || 'admin',
+        adminName: currentUser?.name || 'Administrator',
+        adminRole: currentUser?.role || 'admin',
+        reason: cleanReason
+      };
+
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.uid === uid) {
+            const updatedInfo: SuspensionRecord | undefined = u.suspensionInfo
+              ? {
+                  ...u.suspensionInfo,
+                  unlockedAt: new Date().toISOString(),
+                  unlockedBy: currentUser?.uid || 'admin',
+                  unlockedByName: currentUser?.name || 'Administrator',
+                  unlockReason: cleanReason,
+                  history: [...(u.suspensionInfo.history || []), historyEntry]
+                }
+              : undefined;
+
+            return {
+              ...u,
+              accountStatus: 'ACTIVE' as const,
+              status: 'ACTIVE' as const,
+              isLocked: false,
+              lockedUntil: undefined,
+              failedLoginAttempts: 0,
+              suspensionInfo: updatedInfo
+            };
+          }
+          return u;
+        })
+      );
+
+      try {
+        await apiFetch(`/api/admin/users/${encodeURIComponent(uid)}/unlock`, {
+          method: 'POST',
+          body: JSON.stringify({ reason: cleanReason })
+        });
+      } catch (err) {
+        console.warn('[Backend Unlock Call Notice]', err);
+      }
+
+      // Activity Log: ACCOUNT_UNLOCKED (Classification: NORMAL, Warning Icon: NO)
+      addAuditLog({
+        action: 'ACCOUNT_UNLOCKED',
+        actorId: currentUser?.uid || 'admin',
+        actorName: currentUser?.name || 'Administrator',
+        actorRole: currentUser?.role || 'admin',
+        category: 'security',
+        details: `Account for ${target?.name || uid} was unlocked by administrator. Explanation: ${cleanReason}. Failed attempts reset to zero.`,
+        severity: 'info',
+        targetRecordId: target?.email || uid,
+        targetUserId: uid,
+        targetUserName: target?.name,
+        targetUserRole: target?.role,
+        isSuspicious: false,
+        requiresAlertIcon: false
+      });
+
+      showToast(`Account for ${target?.name || 'user'} has been restored to active status.`, 'success');
+      return { success: true };
+    },
+    [currentUser, users, addAuditLog, showToast]
+  );
+
+  const extendUserSuspension = useCallback(
+    async (
+      uid: string,
+      data: { newEndDate: string; reason: string }
+    ): Promise<{ success: boolean; message?: string }> => {
+      const cleanReason = (data.reason || '').trim() || 'Suspension duration extended by administrator';
+      const target = users.find((u) => u.uid === uid);
+      const effectiveNewEnd = new Date(data.newEndDate).toISOString();
+      const previousEndDate = target?.suspensionInfo?.endDate || target?.suspensionEndDate;
+
+      const historyEntry: SuspensionHistoryEntry = {
+        id: `hist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        action: 'ACCOUNT_SUSPENSION_EXTENDED',
+        timestamp: new Date().toISOString(),
+        adminId: currentUser?.uid || 'admin',
+        adminName: currentUser?.name || 'Administrator',
+        adminRole: currentUser?.role || 'admin',
+        reason: cleanReason,
+        startDate: target?.suspensionInfo?.startDate,
+        endDate: effectiveNewEnd,
+        previousEndDate
+      };
+
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.uid === uid) {
+            const updatedInfo: SuspensionRecord = {
+              ...(u.suspensionInfo || {
+                startDate: new Date().toISOString(),
+                reason: cleanReason,
+                suspendedBy: currentUser?.uid || 'admin',
+                suspendedByName: currentUser?.name || 'Administrator'
+              }),
+              endDate: effectiveNewEnd,
+              history: [...(u.suspensionInfo?.history || []), historyEntry]
+            };
+            return {
+              ...u,
+              accountStatus: 'SUSPENDED' as const,
+              status: 'SUSPENDED' as const,
+              suspensionEndDate: effectiveNewEnd,
+              suspensionInfo: updatedInfo
+            };
+          }
+          return u;
+        })
+      );
+
+      try {
+        await apiFetch(`/api/admin/users/${encodeURIComponent(uid)}/extend`, {
+          method: 'POST',
+          body: JSON.stringify({ newEndDate: effectiveNewEnd, reason: cleanReason })
+        });
+      } catch (err) {
+        console.warn('[Backend Extend Call Notice]', err);
+      }
+
+      // Activity Log: ACCOUNT_SUSPENSION_EXTENDED (Classification: FAILED / WARNING, Warning Icon: ⚠️ Yes)
+      addAuditLog({
+        action: 'ACCOUNT_SUSPENSION_EXTENDED',
+        actorId: currentUser?.uid || 'admin',
+        actorName: currentUser?.name || 'Administrator',
+        actorRole: currentUser?.role || 'admin',
+        category: 'security',
+        details: `Suspension period for ${target?.name || uid} extended until ${new Date(effectiveNewEnd).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}. Reason: ${cleanReason}.`,
+        severity: 'warning',
+        targetRecordId: target?.email || uid,
+        targetUserId: uid,
+        targetUserName: target?.name,
+        targetUserRole: target?.role,
+        suspensionReason: cleanReason,
+        suspensionEndDate: effectiveNewEnd,
+        isSuspicious: false,
+        requiresAlertIcon: true
+      });
+
+      showToast(`Suspension extended until ${new Date(effectiveNewEnd).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}.`, 'info');
+      return { success: true };
+    },
+    [currentUser, users, addAuditLog, showToast]
+  );
+
+  const updateSuspensionReason = useCallback(
+    async (uid: string, reason: string): Promise<{ success: boolean; message?: string }> => {
+      const cleanReason = (reason || '').trim();
+      if (!cleanReason || cleanReason.length < 5) {
+        showToast('Please enter an explanation of at least 5 characters.', 'error');
+        return { success: false, message: 'Reason must be at least 5 characters.' };
+      }
+      const target = users.find((u) => u.uid === uid);
+      const oldReason = target?.suspensionInfo?.reason || target?.suspensionReason;
+
+      const historyEntry: SuspensionHistoryEntry = {
+        id: `hist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        action: 'ACCOUNT_SUSPENSION_REASON_UPDATED',
+        timestamp: new Date().toISOString(),
+        adminId: currentUser?.uid || 'admin',
+        adminName: currentUser?.name || 'Administrator',
+        adminRole: currentUser?.role || 'admin',
+        reason: cleanReason,
+        notes: `Updated from: "${oldReason}"`
+      };
+
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.uid === uid) {
+            const updatedInfo: SuspensionRecord = {
+              ...(u.suspensionInfo || {
+                startDate: new Date().toISOString(),
+                reason: cleanReason,
+                suspendedBy: currentUser?.uid || 'admin',
+                suspendedByName: currentUser?.name || 'Administrator'
+              }),
+              reason: cleanReason,
+              history: [...(u.suspensionInfo?.history || []), historyEntry]
+            };
+            return {
+              ...u,
+              suspensionReason: cleanReason,
+              suspensionInfo: updatedInfo
+            };
+          }
+          return u;
+        })
+      );
+
+      try {
+        await apiFetch(`/api/admin/users/${encodeURIComponent(uid)}/update-suspension-reason`, {
+          method: 'POST',
+          body: JSON.stringify({ reason: cleanReason })
+        });
+      } catch (err) {
+        console.warn('[Backend Update Reason Call Notice]', err);
+      }
+
+      // Activity Log: ACCOUNT_SUSPENSION_REASON_UPDATED (Classification: NORMAL, Warning Icon: NO)
+      addAuditLog({
+        action: 'ACCOUNT_SUSPENSION_REASON_UPDATED',
+        actorId: currentUser?.uid || 'admin',
+        actorName: currentUser?.name || 'Administrator',
+        actorRole: currentUser?.role || 'admin',
+        category: 'security',
+        details: `Suspension explanation for ${target?.name || uid} updated. New explanation: "${cleanReason}".`,
+        severity: 'info',
+        targetRecordId: target?.email || uid,
+        targetUserId: uid,
+        targetUserName: target?.name,
+        targetUserRole: target?.role,
+        suspensionReason: cleanReason,
+        isSuspicious: false,
+        requiresAlertIcon: false
+      });
+
+      showToast('Suspension explanation updated.', 'success');
+      return { success: true };
+    },
+    [currentUser, users, addAuditLog, showToast]
+  );
+
+  const getSuspensionHistory = useCallback(
+    async (uid: string): Promise<SuspensionHistoryEntry[]> => {
+      try {
+        const res = await apiFetch(`/api/admin/users/${encodeURIComponent(uid)}/suspension-history`);
+        if (res && res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.history)) {
+            return data.history;
+          }
+        }
+      } catch {}
+      const localUser = users.find((u) => u.uid === uid);
+      return localUser?.suspensionInfo?.history || [];
+    },
+    [users]
+  );
+
 
   const verifyAndApproveAlumni = useCallback((uid: string, approve: boolean, flagReason?: string) => {
     setUsers((prev) =>
@@ -7986,6 +8718,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         clearLoginPlatformError,
         loginPendingAccountNotice,
         clearLoginPendingAccountNotice,
+        loginSuspensionNotice,
+        clearLoginSuspensionNotice,
         moderatorQuota,
         logout,
         switchUser,
@@ -8106,6 +8840,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         runAutomationJob,
         triggerDatabaseBackup,
         unlockUserAccount,
+        suspendUserAccount,
+        lockUserAccount,
+        extendUserSuspension,
+        updateSuspensionReason,
+        getSuspensionHistory,
         verifyAndApproveAlumni,
         sendEmergencyAnnouncement,
         updateEmploymentStatus,

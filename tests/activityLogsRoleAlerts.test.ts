@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { getLogAlertInfo } from '../src/components/admin/AuditLogView';
 import { AuditLogEntry } from '../src/types';
 
-describe('Activity Logs & Role-Based Security Alerts', () => {
-  it('correctly flags USER_LOGIN as an active authentication alert', () => {
+describe('Activity Classification and Warning Icons Matrix', () => {
+  it('correctly classifies successful USER_LOGIN as NORMAL with NO warning icon', () => {
     const loginLog: AuditLogEntry = {
       id: 'log_login_1',
       timestamp: new Date().toISOString(),
@@ -13,37 +13,18 @@ describe('Activity Logs & Role-Based Security Alerts', () => {
       actorRole: 'admin',
       category: 'security',
       details: 'User authenticated into Cecilian portal.',
-      severity: 'alert'
+      severity: 'info'
     };
 
     const alertInfo = getLogAlertInfo(loginLog);
-    expect(alertInfo.isAlert).toBe(true);
+    expect(alertInfo.classification).toBe('NORMAL');
+    expect(alertInfo.showWarningIcon).toBe(false);
+    expect(alertInfo.isAlert).toBe(false);
     expect(alertInfo.isSuspicious).toBe(false);
-    expect(alertInfo.alertType).toBe('login');
-    expect(alertInfo.badgeLabel).toContain('User Login');
+    expect(alertInfo.alertType).toBe('user_login');
   });
 
-  it('correctly flags USER_RELOGIN as an active authentication alert', () => {
-    const reloginLog: AuditLogEntry = {
-      id: 'log_relogin_1',
-      timestamp: new Date().toISOString(),
-      action: 'USER_RELOGIN',
-      actorId: 'usr_alumni_1',
-      actorName: 'Juan Dela Cruz',
-      actorRole: 'alumni',
-      category: 'security',
-      details: 'User initiated session takeover / re-login to terminate existing session.',
-      severity: 'alert'
-    };
-
-    const alertInfo = getLogAlertInfo(reloginLog);
-    expect(alertInfo.isAlert).toBe(true);
-    expect(alertInfo.isSuspicious).toBe(false);
-    expect(alertInfo.alertType).toBe('relogin');
-    expect(alertInfo.badgeLabel).toContain('User Re-login');
-  });
-
-  it('correctly identifies single failed login attempts as suspicious activity', () => {
+  it('correctly classifies FAILED_LOGIN_ATTEMPT as FAILED / WARNING with warning icon (⚠️ Yes)', () => {
     const failedAttemptLog: AuditLogEntry = {
       id: 'log_fail_1',
       timestamp: new Date().toISOString(),
@@ -52,37 +33,104 @@ describe('Activity Logs & Role-Based Security Alerts', () => {
       actorName: 'Unauthenticated Actor',
       actorRole: 'alumni',
       category: 'security',
-      details: 'Failed authentication attempt (attempt 1 of 3) due to incorrect password.',
+      details: 'Failed authentication attempt (attempt 1 of 3) due to incorrect credentials for username "alumni@stcecilia.edu".',
       severity: 'warning',
-      targetRecordId: 'test@stcecilia.edu'
+      targetRecordId: 'alumni@stcecilia.edu'
     };
 
     const alertInfo = getLogAlertInfo(failedAttemptLog);
+    expect(alertInfo.classification).toBe('FAILED / WARNING');
+    expect(alertInfo.showWarningIcon).toBe(true);
     expect(alertInfo.isAlert).toBe(true);
-    expect(alertInfo.isSuspicious).toBe(true);
+    expect(alertInfo.isSuspicious).toBe(false);
     expect(alertInfo.alertType).toBe('failed_login');
-    expect(alertInfo.badgeLabel).toContain('Failed Login Attempt');
+    expect(failedAttemptLog.details).not.toContain('Password');
+    expect(failedAttemptLog.details).not.toContain('secret');
   });
 
-  it('correctly flags multiple failed attempts / lockout as high-priority suspicious activity', () => {
-    const lockoutLog: AuditLogEntry = {
-      id: 'log_lockout_1',
+  it('correctly classifies MULTIPLE_FAILED_LOGIN_ATTEMPTS as SUSPICIOUS with warning icon (⚠️ Yes)', () => {
+    const multiFailedLog: AuditLogEntry = {
+      id: 'log_multi_fail_1',
       timestamp: new Date().toISOString(),
-      action: 'SUSPICIOUS_MULTIPLE_FAILED_LOGINS',
-      actorId: 'unauthenticated_actor',
+      action: 'MULTIPLE_FAILED_LOGIN_ATTEMPTS',
+      actorId: 'unknown_attempt',
       actorName: 'Unauthenticated Actor',
       actorRole: 'alumni',
       category: 'security',
-      details: 'Multiple failed login attempts detected (3 of 3 attempts). Temporary account lockout enforced.',
+      details: 'Multiple failed login attempts detected (3 consecutive failures) for username "admin@stcecilia.edu".',
       severity: 'alert',
       targetRecordId: 'admin@stcecilia.edu'
     };
 
-    const alertInfo = getLogAlertInfo(lockoutLog);
+    const alertInfo = getLogAlertInfo(multiFailedLog);
+    expect(alertInfo.classification).toBe('SUSPICIOUS');
+    expect(alertInfo.showWarningIcon).toBe(true);
     expect(alertInfo.isAlert).toBe(true);
     expect(alertInfo.isSuspicious).toBe(true);
-    expect(alertInfo.alertType).toBe('suspicious_lockout');
-    expect(alertInfo.badgeLabel).toContain('Multiple Failed Attempts');
+    expect(alertInfo.alertType).toBe('multiple_failed_logins');
+  });
+
+  it('correctly classifies ACCOUNT_LOCKED as SECURITY WARNING with warning icon (⚠️ Yes)', () => {
+    const lockedLog: AuditLogEntry = {
+      id: 'log_locked_1',
+      timestamp: new Date().toISOString(),
+      action: 'ACCOUNT_LOCKED',
+      actorId: 'system_security',
+      actorName: 'Security Enforcer',
+      actorRole: 'admin',
+      category: 'security',
+      details: 'ACCOUNT LOCKED for user "Juan Dela Cruz" (juan@stcecilia.edu). Reason: Repeated failed login attempts exceeding security threshold. Timestamp: ' + new Date().toISOString(),
+      severity: 'alert',
+      targetRecordId: 'juan@stcecilia.edu'
+    };
+
+    const alertInfo = getLogAlertInfo(lockedLog);
+    expect(alertInfo.classification).toBe('SECURITY WARNING');
+    expect(alertInfo.showWarningIcon).toBe(true);
+    expect(alertInfo.isAlert).toBe(true);
+    expect(alertInfo.isSuspicious).toBe(true);
+    expect(alertInfo.alertType).toBe('account_locked');
+  });
+
+  it('correctly classifies MULTIPLE_USERS_SAME_ACCOUNT as SUSPICIOUS with warning icon (⚠️ Yes)', () => {
+    const multiUsersLog: AuditLogEntry = {
+      id: 'log_multi_users_1',
+      timestamp: new Date().toISOString(),
+      action: 'MULTIPLE_USERS_SAME_ACCOUNT',
+      actorId: 'usr_alumni_concurrent',
+      actorName: 'Maria Santos',
+      actorRole: 'alumni',
+      category: 'security',
+      details: 'Suspected multiple people using account "maria.santos@alumni.stcecilia.edu". Concurrent active session on Windows Desktop (Cebu IT Park) and Android Mobile (Mandaue City).',
+      severity: 'alert',
+      targetRecordId: 'maria.santos@alumni.stcecilia.edu'
+    };
+
+    const alertInfo = getLogAlertInfo(multiUsersLog);
+    expect(alertInfo.classification).toBe('SUSPICIOUS');
+    expect(alertInfo.showWarningIcon).toBe(true);
+    expect(alertInfo.isAlert).toBe(true);
+    expect(alertInfo.isSuspicious).toBe(true);
+    expect(alertInfo.alertType).toBe('multiple_users_same_account');
+  });
+
+  it('discontinues USER_RELOGIN classification and does NOT show a warning icon for historical records', () => {
+    const reloginLog: AuditLogEntry = {
+      id: 'log_relogin_historical',
+      timestamp: new Date().toISOString(),
+      action: 'USER_RELOGIN',
+      actorId: 'usr_alumni_1',
+      actorName: 'Juan Dela Cruz',
+      actorRole: 'alumni',
+      category: 'security',
+      details: 'Historical audit record: User initiated session takeover / re-login to terminate existing session.',
+      severity: 'info'
+    };
+
+    const alertInfo = getLogAlertInfo(reloginLog);
+    expect(alertInfo.classification).toBe('NORMAL');
+    expect(alertInfo.showWarningIcon).toBe(false);
+    expect(alertInfo.isAlert).toBe(false);
   });
 
   it('keeps normal administrative operations unflagged from suspicious alerts', () => {
@@ -99,12 +147,13 @@ describe('Activity Logs & Role-Based Security Alerts', () => {
     };
 
     const alertInfo = getLogAlertInfo(routineLog);
+    expect(alertInfo.classification).toBe('NORMAL');
+    expect(alertInfo.showWarningIcon).toBe(false);
     expect(alertInfo.isAlert).toBe(false);
     expect(alertInfo.isSuspicious).toBe(false);
-    expect(alertInfo.alertType).toBeNull();
   });
 
-  it('correctly filters logs by role for non-admin scoping', () => {
+  it('correctly filters logs by role for non-admin scoping while admin has oversight', () => {
     const logs: AuditLogEntry[] = [
       {
         id: '1',
@@ -137,7 +186,7 @@ describe('Activity Logs & Role-Based Security Alerts', () => {
         actorRole: 'alumni',
         category: 'security',
         details: 'User logged in.',
-        severity: 'alert'
+        severity: 'info'
       }
     ];
 
@@ -150,3 +199,4 @@ describe('Activity Logs & Role-Based Security Alerts', () => {
     expect(logs.length).toBe(3);
   });
 });
+

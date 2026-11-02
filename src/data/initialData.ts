@@ -476,14 +476,27 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     ipAddress: '127.0.0.1'
   },
   {
-    id: 'log_suspicious_lockout_1',
+    id: 'log_account_locked_1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+    action: 'ACCOUNT_LOCKED',
+    actorId: 'system_security',
+    actorName: 'Security Enforcer',
+    actorRole: 'admin',
+    category: 'security',
+    details: 'Account temporarily locked for identifier "alumni@stcecilia.edu". Lock Reason: Repeated failed login attempts exceeding security threshold (3 consecutive failed attempts). Timestamp: ' + new Date(Date.now() - 1000 * 60 * 12).toISOString(),
+    severity: 'alert',
+    ipAddress: '112.198.74.22',
+    targetRecordId: 'alumni@stcecilia.edu'
+  },
+  {
+    id: 'log_multi_failed_1',
     timestamp: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-    action: 'SUSPICIOUS_MULTIPLE_FAILED_LOGINS',
+    action: 'MULTIPLE_FAILED_LOGIN_ATTEMPTS',
     actorId: 'anonymous_security_probe',
     actorName: 'Unauthenticated Actor',
     actorRole: 'alumni',
     category: 'security',
-    details: 'Multiple failed login attempts detected (3 of 3 attempts) for target identifier "alumni@stcecilia.edu". 1-minute rate-limit lockout enforced.',
+    details: 'Multiple failed login attempts detected (3 of 3 attempts) for target username "alumni@stcecilia.edu".',
     severity: 'alert',
     ipAddress: '112.198.74.22',
     targetRecordId: 'alumni@stcecilia.edu'
@@ -496,10 +509,23 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     actorName: 'Unauthenticated Actor',
     actorRole: 'alumni',
     category: 'security',
-    details: 'Failed login attempt due to incorrect password for identifier "alumni@stcecilia.edu". (Attempt 2 of 3).',
+    details: 'Failed login attempt due to incorrect password for username "alumni@stcecilia.edu". (Attempt 2 of 3).',
     severity: 'warning',
     ipAddress: '112.198.74.22',
     targetRecordId: 'alumni@stcecilia.edu'
+  },
+  {
+    id: 'log_multi_users_1',
+    timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+    action: 'MULTIPLE_USERS_SAME_ACCOUNT',
+    actorId: 'usr_alumni_concurrent',
+    actorName: 'Maria Santos',
+    actorRole: 'alumni',
+    category: 'security',
+    details: 'Suspected multiple people using account "maria.santos@alumni.stcecilia.edu". Concurrent active session on Windows Desktop (Cebu IT Park) and Android Mobile (Mandaue City).',
+    severity: 'alert',
+    ipAddress: '112.198.90.14',
+    targetRecordId: 'maria.santos@alumni.stcecilia.edu'
   },
   {
     id: 'log_admin_login_1',
@@ -510,7 +536,7 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     actorRole: 'superadmin',
     category: 'security',
     details: 'Administrator authenticated into the Cecilian management console via Web portal.',
-    severity: 'alert',
+    severity: 'info',
     ipAddress: '192.168.1.100'
   },
   {
@@ -521,8 +547,8 @@ export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [
     actorName: 'Juan Dela Cruz',
     actorRole: 'alumni',
     category: 'security',
-    details: 'User initiated session takeover / re-login to terminate an existing concurrent session from another device.',
-    severity: 'alert',
+    details: 'Historical audit record: User initiated session takeover / re-login to terminate an existing concurrent session from another device.',
+    severity: 'info',
     ipAddress: '120.29.78.110'
   },
   {
