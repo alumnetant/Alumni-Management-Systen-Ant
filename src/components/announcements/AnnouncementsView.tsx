@@ -250,7 +250,7 @@ export const AnnouncementsView: React.FC = () => {
       {urgentLeadNotice && tabFilter !== 'archived' && (
         <div
           onClick={() => setSelectedAnnouncement(urgentLeadNotice)}
-          className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-50 via-white to-red-50/40 border border-red-200/90 p-5 sm:p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(139,24,27,0.07)] cursor-pointer group hover:border-red-300 transition-all"
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-50 via-white to-red-50/40 dark:from-red-950/30 dark:via-stone-900 dark:to-stone-900/60 border border-red-200/90 dark:border-red-900/50 p-5 sm:p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(139,24,27,0.07)] cursor-pointer group hover:border-red-300 dark:hover:border-red-800 transition-all"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5">
@@ -258,7 +258,7 @@ export const AnnouncementsView: React.FC = () => {
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2 text-[11px] font-bold text-red-700 uppercase tracking-wider mb-1">
+                <div className="flex items-center gap-2 text-[11px] font-bold text-red-700 dark:text-red-400 uppercase tracking-wider mb-1">
                   <span>Urgent Announcement</span>
                   <span aria-hidden="true">·</span>
                   <span>
@@ -269,10 +269,10 @@ export const AnnouncementsView: React.FC = () => {
                     })}
                   </span>
                 </div>
-                <h3 className="text-base sm:text-lg font-bold text-stone-900 group-hover:text-red-700 transition-colors">
+                <h3 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 group-hover:text-red-700 dark:group-hover:text-red-400 transition-colors">
                   {urgentLeadNotice.title}
                 </h3>
-                <p className="text-xs sm:text-sm text-stone-600 line-clamp-2 mt-1">
+                <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 line-clamp-2 mt-1">
                   {urgentLeadNotice.content}
                 </p>
               </div>
@@ -293,17 +293,17 @@ export const AnnouncementsView: React.FC = () => {
       )}
 
       {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-3.5">
+      <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-3.5">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           {/* Status Tabs */}
-          <div className="flex items-center bg-stone-100 p-1 rounded-xl shrink-0 overflow-x-auto">
+          <div className="flex items-center bg-stone-100 dark:bg-stone-800 p-1 rounded-xl shrink-0 overflow-x-auto">
             <button
               type="button"
               onClick={() => setTabFilter('active')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                 tabFilter === 'active'
-                  ? 'bg-white text-stone-900 shadow-2xs font-extrabold'
-                  : 'text-stone-600 hover:text-stone-900'
+                  ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-white shadow-2xs font-extrabold'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white'
               }`}
             >
               Active ({activeCount})
@@ -313,8 +313,8 @@ export const AnnouncementsView: React.FC = () => {
               onClick={() => setTabFilter('pinned')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 tabFilter === 'pinned'
-                  ? 'bg-white text-amber-900 shadow-2xs font-extrabold'
-                  : 'text-stone-600 hover:text-stone-900'
+                  ? 'bg-white dark:bg-stone-700 text-amber-900 dark:text-amber-300 shadow-2xs font-extrabold'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white'
               }`}
             >
               <Pin className="w-3.5 h-3.5 text-amber-600 fill-amber-600" />
@@ -325,8 +325,8 @@ export const AnnouncementsView: React.FC = () => {
               onClick={() => setTabFilter('important')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 tabFilter === 'important'
-                  ? 'bg-white text-red-700 shadow-2xs font-extrabold'
-                  : 'text-stone-600 hover:text-stone-900'
+                  ? 'bg-white dark:bg-stone-700 text-red-700 dark:text-red-400 shadow-2xs font-extrabold'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white'
               }`}
             >
               <AlertCircle className="w-3.5 h-3.5 text-red-500" />
@@ -337,8 +337,8 @@ export const AnnouncementsView: React.FC = () => {
               onClick={() => setTabFilter('archived')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 tabFilter === 'archived'
-                  ? 'bg-white text-stone-900 shadow-2xs font-extrabold'
-                  : 'text-stone-600 hover:text-stone-900'
+                  ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-white shadow-2xs font-extrabold'
+                  : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white'
               }`}
             >
               <Archive className="w-3.5 h-3.5 text-stone-500" />
@@ -380,7 +380,7 @@ export const AnnouncementsView: React.FC = () => {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-1.5 bg-stone-50 border border-stone-200/90 rounded-xl text-xs text-stone-700 font-medium cursor-pointer focus:border-[#8B181B] outline-none"
+              className="px-3 py-1.5 bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 rounded-xl text-xs text-stone-700 dark:text-stone-200 font-medium cursor-pointer focus:border-[#8B181B] outline-none"
             >
               <option value="all">All Departments</option>
               <option value="general">General</option>
@@ -395,7 +395,7 @@ export const AnnouncementsView: React.FC = () => {
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as any)}
-              className="px-3 py-1.5 bg-stone-50 border border-stone-200/90 rounded-xl text-xs text-stone-700 font-medium cursor-pointer focus:border-[#8B181B] outline-none"
+              className="px-3 py-1.5 bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 rounded-xl text-xs text-stone-700 dark:text-stone-200 font-medium cursor-pointer focus:border-[#8B181B] outline-none"
             >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>
@@ -407,10 +407,10 @@ export const AnnouncementsView: React.FC = () => {
 
       {/* Announcements List */}
       {filteredAnnouncements.length === 0 ? (
-        <div className="p-12 text-center bg-white rounded-2xl border border-stone-200">
-          <Megaphone className="w-8 h-8 text-stone-300 mx-auto mb-2" />
-          <p className="text-sm font-bold text-stone-800">No Announcements Found</p>
-          <p className="text-xs text-stone-500 mt-1">
+        <div className="p-12 text-center bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
+          <Megaphone className="w-8 h-8 text-stone-300 dark:text-stone-600 mx-auto mb-2" />
+          <p className="text-sm font-bold text-stone-800 dark:text-stone-200">No Announcements Found</p>
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
             {searchQuery
               ? `No announcements matching "${searchQuery}".`
               : tabFilter === 'archived'
@@ -460,12 +460,12 @@ export const AnnouncementsView: React.FC = () => {
       {/* DETAIL MODAL WITH RICH CONTENT & ATTACHMENTS */}
       {selectedAnnouncement && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-stone-200 w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+          <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl border border-stone-200 dark:border-stone-800 w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
               <div className="flex items-center gap-2 flex-wrap">
                 {selectedAnnouncement.isPinned && (
-                  <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 rounded-md flex items-center gap-1">
-                    <Pin className="w-3 h-3 fill-amber-700 text-amber-700" />
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded-md flex items-center gap-1">
+                    <Pin className="w-3 h-3 fill-amber-700 text-amber-700 dark:text-amber-400" />
                     Pinned
                   </span>
                 )}
@@ -480,18 +480,18 @@ export const AnnouncementsView: React.FC = () => {
                     Important Notice
                   </span>
                 ) : null}
-                <span className="px-2 py-0.5 text-[10px] font-semibold bg-stone-100 text-stone-700 rounded-md uppercase tracking-wider">
+                <span className="px-2 py-0.5 text-[10px] font-semibold bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 rounded-md uppercase tracking-wider">
                   {selectedAnnouncement.category || 'General'}
                 </span>
                 {archivedIds.includes(selectedAnnouncement.id) && (
-                  <span className="px-2 py-0.5 text-[10px] font-bold bg-stone-200 text-stone-700 rounded-md">
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-200 rounded-md">
                     Archived
                   </span>
                 )}
               </div>
               <button
                 onClick={() => setSelectedAnnouncement(null)}
-                className="text-stone-400 hover:text-stone-600 cursor-pointer p-1 rounded-lg hover:bg-stone-100"
+                className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -500,7 +500,7 @@ export const AnnouncementsView: React.FC = () => {
             <div className="mt-4">
               {/* Optional Hero Image */}
               {selectedAnnouncement.imageUrl && (
-                <div className="mb-4 rounded-xl overflow-hidden max-h-72 border border-stone-200">
+                <div className="mb-4 rounded-xl overflow-hidden max-h-72 border border-stone-200 dark:border-stone-800">
                   <img
                     src={selectedAnnouncement.imageUrl}
                     alt={selectedAnnouncement.title}
@@ -509,12 +509,12 @@ export const AnnouncementsView: React.FC = () => {
                 </div>
               )}
 
-              <h2 className="text-xl sm:text-2xl font-bold text-stone-900 leading-snug">
+              <h2 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-stone-100 leading-snug">
                 {selectedAnnouncement.title}
               </h2>
 
-              <div className="mt-2.5 flex items-center gap-2 text-xs text-stone-500 pb-4 border-b border-stone-100 flex-wrap">
-                <span className="font-bold text-stone-800">{selectedAnnouncement.authorName || 'Office of Communications'}</span>
+              <div className="mt-2.5 flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 pb-4 border-b border-stone-100 dark:border-stone-800 flex-wrap">
+                <span className="font-bold text-stone-800 dark:text-stone-200">{selectedAnnouncement.authorName || 'Office of Communications'}</span>
                 <span>({(selectedAnnouncement.authorRole || 'ADMIN').toUpperCase()})</span>
                 <span>•</span>
                 <span>
@@ -524,33 +524,33 @@ export const AnnouncementsView: React.FC = () => {
                 </span>
               </div>
 
-              <div className="mt-5 text-sm text-stone-700 leading-relaxed space-y-4 whitespace-pre-line">
+              <div className="mt-5 text-sm text-stone-700 dark:text-stone-300 leading-relaxed space-y-4 whitespace-pre-line">
                 {selectedAnnouncement.content}
               </div>
 
               {/* Attachments Section */}
               {selectedAnnouncement.attachments && selectedAnnouncement.attachments.length > 0 && (
-                <div className="mt-6 p-4 rounded-xl bg-stone-50 border border-stone-200">
-                  <h4 className="text-xs font-bold text-stone-700 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-                    <Paperclip className="w-3.5 h-3.5 text-stone-500" />
+                <div className="mt-6 p-4 rounded-xl bg-stone-50 dark:bg-stone-800/50 border border-stone-200 dark:border-stone-800">
+                  <h4 className="text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
                     <span>Official Attachments ({selectedAnnouncement.attachments.length})</span>
                   </h4>
                   <div className="space-y-2">
                     {selectedAnnouncement.attachments.map((att, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-stone-200 text-xs"
+                        className="flex items-center justify-between p-2.5 bg-white dark:bg-stone-800 rounded-lg border border-stone-200 dark:border-stone-700 text-xs text-stone-800 dark:text-stone-200"
                       >
                         <div className="flex items-center gap-2 min-w-0">
-                          <Paperclip className="w-4 h-4 text-blue-600 shrink-0" />
-                          <span className="font-semibold text-stone-800 truncate">{att.name}</span>
+                          <Paperclip className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                          <span className="font-semibold text-stone-800 dark:text-stone-200 truncate">{att.name}</span>
                           {att.size && <span className="text-[10px] text-stone-400">({att.size})</span>}
                         </div>
                         <a
                           href={att.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 px-3 py-1 bg-stone-100 hover:bg-stone-200 text-stone-800 font-medium rounded-md transition-colors shrink-0 ml-2"
+                          className="flex items-center gap-1 px-3 py-1 bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 text-stone-800 dark:text-stone-200 font-medium rounded-md transition-colors shrink-0 ml-2"
                         >
                           <Download className="w-3.5 h-3.5" />
                           <span>Download</span>
@@ -562,7 +562,7 @@ export const AnnouncementsView: React.FC = () => {
               )}
 
               {/* Modal Footer Controls */}
-              <div className="mt-8 pt-4 border-t border-stone-100 flex items-center justify-between gap-3 flex-wrap">
+              <div className="mt-8 pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between gap-3 flex-wrap">
                 <button
                   type="button"
                   onClick={() =>

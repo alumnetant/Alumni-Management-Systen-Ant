@@ -199,6 +199,10 @@ export const NetworkView: React.FC = () => {
     if (!currentUser) return [];
     return users.filter((u) => {
       if (u.uid === currentUser.uid) return false;
+      // Directory privacy: Admins & moderators cannot be displayed in public directory on the alumni side
+      if (u.role === 'admin' || u.role === 'superadmin' || u.role === 'moderator') return false;
+      const accountStatus = (u.accountStatus || u.status || 'ACTIVE').toUpperCase().trim();
+      if (accountStatus === 'PENDING_VERIFICATION' || accountStatus === 'SUSPENDED' || accountStatus === 'LOCKED' || accountStatus === 'IN_REVIEW') return false;
       if (u.role === 'employer' && !isEmployerVisibleInDirectory(u)) return false;
       if (u.employerStatus === 'rejected' || u.employerVerificationStatus === 'rejected') return false;
       if ((connectionIds || []).includes(u.uid)) return false;
@@ -220,10 +224,27 @@ export const NetworkView: React.FC = () => {
   }, [connectedUsers, currentPageConnections, PAGE_SIZE]);
 
 
-  // Spotlight Alumnus / Community Mentor: An inspiring Cecilian
+  // Spotlight Alumnus / Community Mentor: An inspiring Cecilian (Directory Privacy & Approved Only)
   const spotlightAlumnus = useMemo(() => {
-    const candidates = users.filter((u) => u.uid !== currentUser?.uid && (u.isVerified || u.company || u.quickStatus === 'Mentoring' || u.quickStatus === 'Hiring') && (u.role !== 'employer' || isEmployerVisibleInDirectory(u)));
-    return candidates.length > 0 ? candidates[0] : users.find((u) => u.uid !== currentUser?.uid && (u.role !== 'employer' || isEmployerVisibleInDirectory(u)));
+    const candidates = users.filter((u) => 
+      u.uid !== currentUser?.uid && 
+      u.role !== 'admin' && 
+      u.role !== 'superadmin' && 
+      u.role !== 'moderator' &&
+      (u.accountStatus || 'ACTIVE').toUpperCase() !== 'PENDING_VERIFICATION' &&
+      (u.accountStatus || 'ACTIVE').toUpperCase() !== 'SUSPENDED' &&
+      (u.verificationStatus || '').toLowerCase() !== 'pending' &&
+      (u.verificationStatus || '').toLowerCase() !== 'in_review' &&
+      (u.isVerified || u.company || u.quickStatus === 'Mentoring' || u.quickStatus === 'Hiring') && 
+      (u.role !== 'employer' || isEmployerVisibleInDirectory(u))
+    );
+    return candidates.length > 0 ? candidates[0] : users.find((u) => 
+      u.uid !== currentUser?.uid && 
+      u.role !== 'admin' && 
+      u.role !== 'superadmin' && 
+      u.role !== 'moderator' &&
+      (u.role !== 'employer' || isEmployerVisibleInDirectory(u))
+    );
   }, [users, currentUser]);
 
   // Filtered Directory
@@ -231,28 +252,46 @@ export const NetworkView: React.FC = () => {
     return users.filter((u) => {
       if (currentUser?.uid && u.uid === currentUser.uid) return false;
 
-      // Strict Directory Visibility (Requirement 7 & 10):
-      // Unapproved, suspended, or pending verification accounts must NEVER appear in public directories
+      // Directory privacy: Admins & moderators cannot be displayed in public directory on the alumni side
+      if (u.role === 'admin' || u.role === 'superadmin' || u.role === 'moderator') {
+        return false;
+      }
+
+      // Strict Directory Visibility:
+      // Exclude accounts with "In Review" or pending status; only explicitly approved accounts rendered.
       const accountStatus = (u.accountStatus || u.status || 'ACTIVE').toUpperCase().trim();
-      if (accountStatus === 'PENDING_VERIFICATION' || accountStatus === 'SUSPENDED') {
+      if (
+        accountStatus === 'PENDING_VERIFICATION' ||
+        accountStatus === 'PENDING' ||
+        accountStatus === 'SUSPENDED' ||
+        accountStatus === 'LOCKED' ||
+        accountStatus === 'IN_REVIEW' ||
+        accountStatus === 'IN REVIEW' ||
+        accountStatus === 'REJECTED'
+      ) {
+        return false;
+      }
+
+      const verificationStatus = (u.verificationStatus || '').toLowerCase().trim();
+      if (
+        verificationStatus === 'pending' ||
+        verificationStatus === 'in_review' ||
+        verificationStatus === 'in review' ||
+        verificationStatus === 'pending_verification' ||
+        verificationStatus === 'rejected'
+      ) {
         return false;
       }
 
       // Strict Directory Visibility (Task 2 Explicit Allowlist):
       // The alumni directory shows ONLY employers with status 'approved'.
-      // 'pending' and 'rejected' employers must never appear in the directory, in any list, search result, or direct link accessible to alumni.
       if (u.role === 'employer') {
         if (!isEmployerVisibleInDirectory(u)) {
           return false;
         }
-      }
-
-      // If user is an alumni, must be verified/approved
-      if (u.role === 'alumni') {
-        if (!u.isVerified && !u.verified && u.verificationStatus !== 'verified') {
-          return false;
-        }
-        if (u.verificationStatus === 'rejected') {
+      } else {
+        // If user is an alumni, must be verified/approved
+        if (!u.isVerified && !u.verified && verificationStatus !== 'verified' && verificationStatus !== 'approved') {
           return false;
         }
       }

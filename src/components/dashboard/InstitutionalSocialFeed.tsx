@@ -20,7 +20,8 @@ import {
   Maximize2,
   ExternalLink,
   ShieldCheck,
-  Bookmark
+  Bookmark,
+  Pencil
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { InstitutionalFeedPost, FeedComment } from '../../types';
@@ -68,6 +69,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
     toggleLikeFeedPost,
     addFeedPostComment,
     deleteFeedPost,
+    updateFeedPost,
     showToast,
     isLoadingData
   } = useAlumni();
@@ -85,6 +87,11 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
   const [postMilestoneBadge, setPostMilestoneBadge] = useState('');
   const [isPinned, setIsPinned] = useState(false);
   const [postTags, setPostTags] = useState('');
+
+  // Edit Post State
+  const [postToEdit, setPostToEdit] = useState<InstitutionalFeedPost | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
 
   // Active hovered post for side-hover comments panel (None open by default)
   const [activeHoverPostId, setActiveHoverPostId] = useState<string | null>(null);
@@ -664,14 +671,28 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
                       </span>
 
                       {isAuthorOrAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => setPostToDelete({ id: post.id, title: post.title })}
-                          className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          title="Delete Post"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPostToEdit(post);
+                              setEditTitle(post.title);
+                              setEditContent(post.content);
+                            }}
+                            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 dark:hover:text-stone-200 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Post"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPostToDelete({ id: post.id, title: post.title })}
+                            className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
+                            title="Delete Post"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1106,6 +1127,85 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
                 >
                   <Sparkles className="w-4 h-4" />
                   <span>Publish to Alumni Feed</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Post Modal for Authors & Admins */}
+      {postToEdit && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl border border-stone-200 dark:border-stone-800 w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-[#8B181B] dark:text-red-400" />
+                <h3 className="text-base font-bold text-stone-900 dark:text-white">Edit Feed Post</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPostToEdit(null)}
+                className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!editTitle.trim() || !editContent.trim()) {
+                  showToast('Title and content cannot be empty.', 'warning');
+                  return;
+                }
+                updateFeedPost(postToEdit.id, {
+                  title: editTitle.trim(),
+                  content: editContent.trim()
+                });
+                setPostToEdit(null);
+              }}
+              className="mt-4 space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                  Post Title
+                </label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-semibold text-stone-900 dark:text-white focus:outline-none focus:border-[#8B181B]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                  Post Content
+                </label>
+                <textarea
+                  rows={4}
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#8B181B] leading-relaxed resize-y"
+                  required
+                />
+              </div>
+
+              <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setPostToEdit(null)}
+                  className="px-4 py-2 text-xs font-bold text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-bold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl transition-colors shadow-2xs cursor-pointer"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

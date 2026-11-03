@@ -7,8 +7,8 @@ import React from 'react';
 
 // Official primary default picture assets - Set official Cecilian Crest as default profile avatar
 export const DEFAULT_USER_AVATAR = '/assets/cecilians-seal.jpg';
-export const DEFAULT_USER_AVATAR_SEAL = '/assets/cecilians-seal.jpg';
-export const DEFAULT_COLLEGE_SEAL = '/assets/st-cecilias-college-seal.jpg';
+export const DEFAULT_USER_AVATAR_SEAL = '/assets/st-cecilias-seal-transparent.svg';
+export const DEFAULT_COLLEGE_SEAL = '/assets/st-cecilias-seal-transparent.svg';
 
 // Official primary event & campus hero picture assets
 export const DEFAULT_EVENT_IMAGE = '/assets/landing-building-2.jpg'; // St. Cecilia's College Main Hall

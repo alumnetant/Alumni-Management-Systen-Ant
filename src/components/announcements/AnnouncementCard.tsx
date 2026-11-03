@@ -57,12 +57,12 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
       onClick={() => onSelect(announcement)}
       className={`relative overflow-hidden rounded-2xl border transition-all duration-200 cursor-pointer group flex flex-col justify-between hover:-translate-y-0.5 ${
         isArchived
-          ? 'bg-stone-50/90 border-stone-200 opacity-80'
+          ? 'bg-stone-50/90 dark:bg-stone-900/60 border-stone-200 dark:border-stone-800 opacity-80'
           : isUrgent
-          ? 'bg-gradient-to-br from-red-50/50 to-white border-red-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(139,24,27,0.06)] ring-1 ring-red-500/20'
+          ? 'bg-gradient-to-br from-red-50/50 to-white dark:from-red-950/20 dark:to-stone-900 border-red-200/90 dark:border-red-900/40 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(139,24,27,0.06)] ring-1 ring-red-500/20'
           : isPinned
-          ? 'bg-gradient-to-br from-amber-50/40 to-white border-amber-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(180,83,9,0.05)]'
-          : 'bg-white border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md'
+          ? 'bg-gradient-to-br from-amber-50/40 to-white dark:from-amber-950/20 dark:to-stone-900 border-amber-200/90 dark:border-amber-900/40 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(180,83,9,0.05)]'
+          : 'bg-white dark:bg-stone-900 border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md'
       }`}
     >
       {/* Top accent line */}
@@ -187,25 +187,25 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
           </div>
 
           <div className="mt-3">
-          <h2 className="text-base sm:text-lg font-bold text-stone-900 group-hover:text-[#8B181B] transition-colors leading-snug">
+          <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 group-hover:text-[#8B181B] dark:group-hover:text-red-400 transition-colors leading-snug">
             {announcement.title}
           </h2>
 
-          <p className="text-xs sm:text-sm text-stone-600 mt-2 line-clamp-3 leading-relaxed">
+          <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 mt-2 line-clamp-3 leading-relaxed">
             {announcement.content}
           </p>
 
           {/* Media or Attachment preview indicators */}
           {(announcement.imageUrl || (announcement.attachments && announcement.attachments.length > 0)) && (
-            <div className="flex items-center gap-3 mt-3 pt-2.5 border-t border-stone-100 text-xs text-stone-500">
+            <div className="flex items-center gap-3 mt-3 pt-2.5 border-t border-stone-100 dark:border-stone-800 text-xs text-stone-500 dark:text-stone-400">
               {announcement.imageUrl && (
-                <span className="flex items-center gap-1 text-[11px] font-medium text-stone-600 bg-stone-100 px-2 py-0.5 rounded">
-                  <ImageIcon className="w-3.5 h-3.5 text-stone-500" />
+                <span className="flex items-center gap-1 text-[11px] font-medium text-stone-600 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
+                  <ImageIcon className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
                   <span>Has Photo</span>
                 </span>
               )}
               {announcement.attachments && announcement.attachments.length > 0 && (
-                <span className="flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                <span className="flex items-center gap-1 text-[11px] font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900/60">
                   <Paperclip className="w-3.5 h-3.5" />
                   <span>{announcement.attachments.length} Attachment{announcement.attachments.length > 1 ? 's' : ''}</span>
                 </span>
@@ -215,11 +215,11 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
         </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500 flex-wrap gap-2">
+      <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-stone-800">{announcement.authorName || 'Office of Communications'}</span>
+          <span className="font-semibold text-stone-800 dark:text-stone-200">{announcement.authorName || 'Office of Communications'}</span>
           <span>•</span>
-          <span className="uppercase text-[10px] bg-stone-100 px-1.5 py-0.5 rounded font-medium text-stone-700">
+          <span className="uppercase text-[10px] bg-stone-100 dark:bg-stone-800 px-1.5 py-0.5 rounded font-medium text-stone-700 dark:text-stone-300">
             {announcement.authorRole || 'ADMIN'}
           </span>
         </div>
@@ -236,7 +236,7 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
             label={isHearted ? 'Hearted' : 'Heart'}
           />
 
-          <span className="text-[#8B181B] font-semibold text-xs group-hover:underline flex items-center gap-1">
+          <span className="text-[#8B181B] dark:text-red-400 font-semibold text-xs group-hover:underline flex items-center gap-1">
             <span>Read notice</span>
             <span>&rarr;</span>
           </span>

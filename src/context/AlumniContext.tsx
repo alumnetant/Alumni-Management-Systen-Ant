@@ -421,6 +421,7 @@ interface AlumniContextType {
   toggleHeartFeedPost: (postId: string) => void;
   addFeedPostComment: (postId: string, text: string) => void;
   deleteFeedPost: (postId: string) => void;
+  updateFeedPost: (postId: string, updates: Partial<InstitutionalFeedPost>) => boolean;
 
   // Alumni Directory Service (direct Firestore service layer)
   fetchAlumni: () => Promise<UserProfile[]>;
@@ -4049,6 +4050,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       console.warn('Failed to delete feed post from Firestore:', err);
     });
     showToast('Post removed from feed.', 'info');
+  };
+
+  const updateFeedPost = (postId: string, updates: Partial<InstitutionalFeedPost>) => {
+    if (!currentUser) return false;
+    const post = feedPosts.find((p) => p.id === postId);
+    if (!post) return false;
+    if (currentUser.role !== 'admin' && post.authorId !== currentUser.uid) {
+      showToast('You do not have permission to edit this post.', 'error');
+      return false;
+    }
+    const updatedPost = { ...post, ...updates };
+    setFeedPosts((prev) => prev.map((p) => (p.id === postId ? updatedPost : p)));
+    saveFeedPostToFirestore(updatedPost).catch((err) => {
+      console.warn('Failed to update feed post in Firestore:', err);
+    });
+    showToast('Post updated successfully.', 'success');
+    return true;
   };
 
   const logout = useCallback((options?: { revokeBiometrics?: boolean }) => {
@@ -8814,6 +8832,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         toggleHeartFeedPost,
         addFeedPostComment,
         deleteFeedPost,
+        updateFeedPost,
         createUserByAdmin,
         fetchAlumni,
         createAlumni,

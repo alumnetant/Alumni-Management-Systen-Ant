@@ -189,11 +189,6 @@ export const EventCard: React.FC<EventCardProps> = ({
                   Virtual
                 </span>
               )}
-              {event.isImportant && (
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-500/95 text-stone-950 backdrop-blur-xs shadow-xs">
-                  Featured Flagship
-                </span>
-              )}
             </div>
 
             {/* Edit / Delete Controls */}

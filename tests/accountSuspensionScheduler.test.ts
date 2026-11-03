@@ -20,12 +20,12 @@ describe('Account Suspension Scheduler and Reason Management', () => {
       };
 
       const alertInfo = getLogAlertInfo(log);
-      expect(alertInfo.classification).toBe('SECURITY WARNING');
+      expect(alertInfo.classification).toBe('SUSPENDED');
       expect(alertInfo.showWarningIcon).toBe(true);
       expect(alertInfo.isAlert).toBe(true);
     });
 
-    it('correctly classifies ACCOUNT_LOCKED as SECURITY WARNING with ⚠️ Yes', () => {
+    it('correctly classifies ACCOUNT_LOCKED as LOCKED with ⚠️ Yes', () => {
       const log: AuditLogEntry = {
         id: 'log_lock_1',
         timestamp: new Date().toISOString(),
@@ -41,12 +41,12 @@ describe('Account Suspension Scheduler and Reason Management', () => {
       };
 
       const alertInfo = getLogAlertInfo(log);
-      expect(alertInfo.classification).toBe('SECURITY WARNING');
+      expect(alertInfo.classification).toBe('LOCKED');
       expect(alertInfo.showWarningIcon).toBe(true);
       expect(alertInfo.isAlert).toBe(true);
     });
 
-    it('correctly classifies ACCOUNT_SUSPENSION_EXTENDED as FAILED / WARNING with ⚠️ Yes', () => {
+    it('correctly classifies ACCOUNT_SUSPENSION_EXTENDED as WARNING with ⚠️ Yes', () => {
       const log: AuditLogEntry = {
         id: 'log_ext_1',
         timestamp: new Date().toISOString(),
@@ -62,7 +62,7 @@ describe('Account Suspension Scheduler and Reason Management', () => {
       };
 
       const alertInfo = getLogAlertInfo(log);
-      expect(alertInfo.classification).toBe('FAILED / WARNING');
+      expect(alertInfo.classification).toBe('WARNING');
       expect(alertInfo.showWarningIcon).toBe(true);
       expect(alertInfo.isAlert).toBe(true);
     });

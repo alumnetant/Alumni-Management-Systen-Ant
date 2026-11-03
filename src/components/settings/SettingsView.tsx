@@ -1219,32 +1219,6 @@ export const SettingsView: React.FC = () => {
               </div>
             </PlatformOnly>
 
-            {/* Toggle: SMS Urgent Notifications (Web & Mobile) */}
-            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-stone-50/70 border border-stone-200/70">
-              <div className="min-w-0 pr-4">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-bold text-stone-900">SMS Urgent & Turnstile Gate Alerts</p>
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                    Cellular SMS
-                  </span>
-                </div>
-                <p className="text-[11px] text-stone-500 mt-0.5">
-                  Receive critical account recovery codes, security traces, and campus gate notices via cellular SMS.
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                <input
-                  type="checkbox"
-                  checked={smsEnabled}
-                  onChange={(e) => {
-                    setSmsEnabled(e.target.checked);
-                    showToast(e.target.checked ? 'SMS urgent alerts enabled.' : 'SMS alerts disabled.', 'info');
-                  }}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
-              </label>
-            </div>
 
             {/* Toggle 2: Email */}
             <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 border border-stone-200/70">

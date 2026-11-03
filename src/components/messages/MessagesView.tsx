@@ -84,7 +84,10 @@ export const MessagesView: React.FC = () => {
     offlineQueue,
     syncOfflineMessages,
     retryOfflineMessage,
-    cancelOfflineMessage
+    cancelOfflineMessage,
+    isConnected,
+    sendFriendRequest,
+    hasPendingRequestWith
   } = useAlumni();
 
   // Top view mode: Active chats vs Event Email Notification Inbox
@@ -233,6 +236,10 @@ export const MessagesView: React.FC = () => {
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMessage.trim() || !activeChat) return;
+    if (recipientUser && !isConnected(recipientUser.uid) && currentUser?.role !== 'admin' && recipientUser.role !== 'admin') {
+      showToast(`You must be connected with ${recipientUser.name} before sending direct messages.`, 'warning');
+      return;
+    }
     sendMessage(activeChat.id, inputMessage.trim());
     setInputMessage('');
   };
@@ -990,13 +997,13 @@ export const MessagesView: React.FC = () => {
             >
               {activeChat ? (
                 <>
-                  {/* Active Header */}
+                  {/* Active Header (Sticky) */}
                   <div
                     style={{
                       backgroundColor: 'var(--dm-bg-header)',
                       borderColor: 'var(--dm-border)',
                     }}
-                    className="p-3 sm:p-4 border-b flex items-center justify-between gap-2.5 shrink-0"
+                    className="p-3 sm:p-4 border-b flex items-center justify-between gap-2.5 shrink-0 sticky top-0 z-20 backdrop-blur-md"
                   >
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <button
@@ -1678,42 +1685,76 @@ export const MessagesView: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Input Composer Form */}
-                      <form
-                        onSubmit={handleSend}
-                        style={{
-                          backgroundColor: 'var(--dm-bg-footer)',
-                          borderColor: 'var(--dm-border)',
-                        }}
-                        className="p-3 sm:p-3.5 border-t flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-                      >
-                        <input
-                          type="text"
-                          value={inputMessage}
-                          onChange={(e) => setInputMessage(e.target.value)}
-                          placeholder={
-                            !isOnline
-                              ? 'Type message (offline)...'
-                              : activeChat.isGroupChat || activeChat.isEventChat
-                              ? `Message ${activeChat.groupName || 'group'}...`
-                              : `Message ${recipientUser?.name || 'alumnus'}...`
-                          }
+                      {/* Connection Gate: Users cannot chat unless connected to each other */}
+                      {recipientUser && !isConnected(recipientUser.uid) && currentUser?.role !== 'admin' && recipientUser.role !== 'admin' ? (
+                        <div
                           style={{
-                            backgroundColor: 'var(--dm-input-bg)',
-                            borderColor: 'var(--dm-input-border)',
-                            color: 'var(--dm-input-text)',
+                            backgroundColor: 'var(--dm-bg-footer)',
+                            borderColor: 'var(--dm-border)',
                           }}
-                          className="flex-1 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm border rounded-xl focus:outline-hidden focus:border-[#8B181B] transition-colors"
-                        />
-                        <button
-                          type="submit"
-                          disabled={!inputMessage.trim()}
-                          className="min-w-[44px] min-h-[44px] p-2.5 bg-[#8B181B] hover:bg-[#721316] disabled:opacity-40 text-white rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center shrink-0"
-                          aria-label="Send message"
+                          className="p-4 border-t flex flex-col items-center justify-center text-center gap-2 pb-[max(1rem,env(safe-area-inset-bottom))]"
                         >
-                          <Send className="w-4 h-4" />
-                        </button>
-                      </form>
+                          <div className="flex items-center gap-2 text-xs font-semibold text-stone-700 dark:text-stone-300">
+                            <UserPlus className="w-4 h-4 text-[#8B181B] dark:text-rose-400" />
+                            <span>You cannot message {recipientUser.name} until you are mutually connected.</span>
+                          </div>
+                          {hasPendingRequestWith(recipientUser.uid) === 'sent' ? (
+                            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                              Connection request pending approval.
+                            </span>
+                          ) : hasPendingRequestWith(recipientUser.uid) === 'received' ? (
+                            <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                              {recipientUser.name} sent you a connection request. Check your notifications to accept.
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => sendFriendRequest(recipientUser.uid)}
+                              className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span>Connect with {recipientUser.name}</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        /* Input Composer Form */
+                        <form
+                          onSubmit={handleSend}
+                          style={{
+                            backgroundColor: 'var(--dm-bg-footer)',
+                            borderColor: 'var(--dm-border)',
+                          }}
+                          className="p-3 sm:p-3.5 border-t flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+                        >
+                          <input
+                            type="text"
+                            value={inputMessage}
+                            onChange={(e) => setInputMessage(e.target.value)}
+                            placeholder={
+                              !isOnline
+                                ? 'Type message (offline)...'
+                                : activeChat.isGroupChat || activeChat.isEventChat
+                                ? `Message ${activeChat.groupName || 'group'}...`
+                                : `Message ${recipientUser?.name || 'alumnus'}...`
+                            }
+                            style={{
+                              backgroundColor: 'var(--dm-input-bg)',
+                              borderColor: 'var(--dm-input-border)',
+                              color: 'var(--dm-input-text)',
+                            }}
+                            className="flex-1 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm border rounded-xl focus:outline-hidden focus:border-[#8B181B] transition-colors"
+                          />
+                          <button
+                            type="submit"
+                            disabled={!inputMessage.trim()}
+                            className="min-w-[44px] min-h-[44px] p-2.5 bg-[#8B181B] hover:bg-[#721316] disabled:opacity-40 text-white rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center shrink-0"
+                            aria-label="Send message"
+                          >
+                            <Send className="w-4 h-4" />
+                          </button>
+                        </form>
+                      )}
                     </div>
 
                   {/* Right Profile Rail (Collapsible) */}

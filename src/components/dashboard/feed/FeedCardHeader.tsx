@@ -101,19 +101,6 @@ export const FeedCardHeader: React.FC<FeedCardHeaderProps> = ({
         </div>
       </div>
 
-      {/* Top Right: Bookmark Action */}
-      <button
-        type="button"
-        onClick={onToggleBookmark}
-        className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer shrink-0"
-        title={isBookmarked ? 'Remove Bookmark' : 'Save for Later'}
-      >
-        {isBookmarked ? (
-          <BookmarkCheck className="w-4 h-4 text-[#8B181B] fill-[#8B181B]" />
-        ) : (
-          <Bookmark className="w-4 h-4" />
-        )}
-      </button>
     </div>
   );
 };

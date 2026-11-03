@@ -440,15 +440,29 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
   const isLockedOut = lockoutSecondsRemaining > 0;
 
+  const isDeviceMobile = () => {
+    if (typeof window === 'undefined') return false;
+    if (Capacitor.isNativePlatform()) return true;
+    return window.innerWidth < 1024 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Silk/i.test(navigator.userAgent);
+  };
+  const isMobileClient = clientPlatform === 'mobile' || isDeviceMobile();
+
   // Registration multi-step state (1: Initial Student ID Screening, 2: Account & Profile, 3: Review & Honor Pledge)
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [registrationType, setRegistrationType] = useState<'alumni' | 'employer'>(initialRole);
+  const [registrationType, setRegistrationType] = useState<'alumni' | 'employer'>(() => {
+    if (typeof window !== 'undefined' && (Capacitor.isNativePlatform() || window.innerWidth < 1024)) {
+      return 'alumni';
+    }
+    return initialRole || 'alumni';
+  });
 
   useEffect(() => {
-    if (initialRole) {
+    if (clientPlatform === 'mobile' || isDeviceMobile()) {
+      setRegistrationType('alumni');
+    } else if (initialRole) {
       setRegistrationType(initialRole);
     }
-  }, [initialRole]);
+  }, [initialRole, clientPlatform]);
 
   // Employer Registration State
   const [companyName, setCompanyName] = useState('');
@@ -1468,10 +1482,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           {/* Eyebrow with Team Seal */}
           <div className="flex items-center gap-2.5 mb-4">
             <img
-              src="/assets/cecilians-seal.jpg"
+              src="/assets/st-cecilias-seal-transparent.svg"
               alt="Alumni Cecilian's Logo"
               referrerPolicy="no-referrer"
-              className="w-7 h-7 rounded-full object-cover border border-white/20 shadow-sm"
+              className="w-8 h-8 object-contain drop-shadow-sm"
             />
             <span className="w-5 h-[2px] bg-[#991B1B]" />
             <span className="editorial-kicker text-[#fca5a5]">
@@ -1616,10 +1630,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <img
-                src="/assets/cecilians-seal.jpg"
+                src="/assets/st-cecilias-seal-transparent.svg"
                 alt="St. Cecilia's College Official Seal"
                 referrerPolicy="no-referrer"
-                className="w-8 h-8 rounded-full object-cover border border-stone-200 dark:border-stone-700 shadow-xs"
+                className="w-8 h-8 object-contain drop-shadow-xs"
               />
               <span className="text-xs font-bold uppercase tracking-wider text-[#991B1B] dark:text-[#f87171]">
                 St. Cecilia's Alumni
@@ -2008,19 +2022,21 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     Register as Alumnus
                   </button>
                 </div>
-                <div className="text-stone-400">
-                  Looking to hire Cecilians?{' '}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode('register');
-                      setRegistrationType('employer');
-                    }}
-                    className="text-[#8B181B] font-bold hover:underline cursor-pointer"
-                  >
-                    Register as Employer Partner
-                  </button>
-                </div>
+                {!isMobileClient && (
+                  <div className="text-stone-400">
+                    Looking to hire Cecilians?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('register');
+                        setRegistrationType('employer');
+                      }}
+                      className="text-[#8B181B] font-bold hover:underline cursor-pointer"
+                    >
+                      Register as Employer Partner
+                    </button>
+                  </div>
+                )}
               </div>
             </form>
           </div>
@@ -2098,33 +2114,35 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 </div>
 
                 {/* Separate, Distinct Registration Role Selector Tabs with Confirmation on Form Switching */}
-                <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl mb-3">
-                  <button
-                    type="button"
-                    onClick={() => handleRoleTabClick('alumni')}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      registrationType === 'alumni'
-                        ? 'bg-white dark:bg-stone-900 text-[#8B181B] dark:text-red-400 shadow-xs'
-                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                    }`}
-                  >
-                    <GraduationCap className="w-3.5 h-3.5" />
-                    <span>Alumni Registration</span>
-                  </button>
+                {!isMobileClient && (
+                  <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl mb-3">
+                    <button
+                      type="button"
+                      onClick={() => handleRoleTabClick('alumni')}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        registrationType === 'alumni'
+                          ? 'bg-white dark:bg-stone-900 text-[#8B181B] dark:text-red-400 shadow-xs'
+                          : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                      }`}
+                    >
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      <span>Alumni Registration</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleRoleTabClick('employer')}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      registrationType === 'employer'
-                        ? 'bg-white dark:bg-stone-900 text-[#8B181B] dark:text-red-400 shadow-xs'
-                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                    }`}
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>Employer Registration</span>
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRoleTabClick('employer')}
+                      className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        registrationType === 'employer'
+                          ? 'bg-white dark:bg-stone-900 text-[#8B181B] dark:text-red-400 shadow-xs'
+                          : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5" />
+                      <span>Employer Registration</span>
+                    </button>
+                  </div>
+                )}
 
                 {registrationType === 'employer' ? (
                   <div>

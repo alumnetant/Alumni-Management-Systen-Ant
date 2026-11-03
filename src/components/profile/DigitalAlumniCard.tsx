@@ -39,7 +39,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   const [showFullNumber, setShowFullNumber] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [sealImgSrc, setSealImgSrc] = useState('/assets/cecilians-seal.jpg');
+  const [sealImgSrc, setSealImgSrc] = useState('/assets/st-cecilias-seal-transparent.svg');
   const [isExportingPng, setIsExportingPng] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -252,15 +252,15 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   };
 
   // ==========================================
-  // CARD FRONT — ELEGANT BLACK AND GOLD THEME
+  // CARD FRONT — SIGNATURE DEEP CRIMSON (#8B181B) & GOLD THEME
   // ==========================================
   const cardFront = (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-[#0e0f13] via-[#16171d] to-[#090a0d] text-white p-3.5 sm:p-5 flex flex-col justify-between shadow-[0_12px_40px_rgba(0,0,0,0.65),0_0_0_1px_rgba(245,158,11,0.25)] border-2 border-amber-500/40 select-none">
+    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-[#8B181B] via-[#6b1215] to-[#2b0709] text-white p-3.5 sm:p-5 flex flex-col justify-between shadow-[0_14px_44px_rgba(139,24,27,0.45),0_0_0_1px_rgba(245,158,11,0.35)] border-2 border-amber-400/60 select-none">
       {/* Background Guilloche Security Pattern & Gold Radial Ambience */}
-      <div className="absolute inset-0 opacity-20 pointer-events-none bg-[radial-gradient(ellipse_at_80%_20%,rgba(245,158,11,0.35),transparent_60%),radial-gradient(circle_at_20%_80%,rgba(139,24,27,0.3),transparent_50%)]" />
-      <div className="absolute -right-14 -bottom-14 w-56 h-56 rounded-full border border-amber-400/15 pointer-events-none" />
-      <div className="absolute -right-8 -bottom-8 w-44 h-44 rounded-full border border-amber-400/15 pointer-events-none" />
-      <div className="absolute -left-12 -top-12 w-48 h-48 rounded-full border border-amber-400/10 pointer-events-none" />
+      <div className="absolute inset-0 opacity-25 pointer-events-none bg-[radial-gradient(ellipse_at_80%_20%,rgba(245,158,11,0.4),transparent_60%),radial-gradient(circle_at_20%_80%,rgba(139,24,27,0.45),transparent_50%)]" />
+      <div className="absolute -right-14 -bottom-14 w-56 h-56 rounded-full border border-amber-400/20 pointer-events-none" />
+      <div className="absolute -right-8 -bottom-8 w-44 h-44 rounded-full border border-amber-400/20 pointer-events-none" />
+      <div className="absolute -left-12 -top-12 w-48 h-48 rounded-full border border-amber-400/15 pointer-events-none" />
 
       {/* 1. Header: Circular Logo + ST. CECILIA'S COLLEGE + Digital Alumni Credential + Verified Badge */}
       <div className="relative z-10 flex items-start justify-between gap-2 border-b border-amber-500/20 pb-2">
@@ -428,7 +428,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   // CARD BACK — OFFICIAL INSTITUTIONAL RECORD
   // ==========================================
   const cardBack = (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-[#0c0d10] via-[#15161b] to-[#07080a] text-white p-3.5 sm:p-5 flex flex-col justify-between shadow-[0_12px_40px_rgba(0,0,0,0.65),0_0_0_1px_rgba(245,158,11,0.25)] border-2 border-amber-500/40 select-none">
+    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-[#8B181B] via-[#661013] to-[#250507] text-white p-3.5 sm:p-5 flex flex-col justify-between shadow-[0_14px_44px_rgba(139,24,27,0.45),0_0_0_1px_rgba(245,158,11,0.35)] border-2 border-amber-400/60 select-none">
       {/* Magnetic Stripe */}
       <div className="absolute top-3 sm:top-4 left-0 right-0 h-7 sm:h-9 bg-black border-y border-stone-800 shadow-inner" />
 

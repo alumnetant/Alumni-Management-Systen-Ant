@@ -205,10 +205,8 @@ export const EventsView: React.FC = () => {
   // Filtered attendees for the active event
   const filteredAttendees = useMemo(() => {
     if (!activeEvent) return [];
-    let list = activeEvent.attendees || [];
-    if (attendeeStatusFilter !== 'all') {
-      list = list.filter((a) => a.status === attendeeStatusFilter);
-    }
+    // Requirement: Keep confirmed attendees only (remove unconfirmed/all)
+    let list = (activeEvent.attendees || []).filter((a) => a.status === 'going');
     if (attendeeSearchQuery.trim()) {
       const q = attendeeSearchQuery.toLowerCase();
       list = list.filter(
@@ -1425,30 +1423,9 @@ export const EventsView: React.FC = () => {
                     />
                   </div>
 
-                  <div className="flex items-center gap-1 bg-stone-100 p-1 rounded-lg shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setAttendeeStatusFilter('all')}
-                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
-                        attendeeStatusFilter === 'all'
-                          ? 'bg-white text-stone-900 shadow-2xs'
-                          : 'text-stone-500 hover:text-stone-900'
-                      }`}
-                    >
-                      All ({(activeEvent.attendees || []).length})
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setAttendeeStatusFilter('going')}
-                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${
-                        attendeeStatusFilter === 'going'
-                          ? 'bg-white text-emerald-700 shadow-2xs font-bold'
-                          : 'text-stone-500 hover:text-stone-900'
-                      }`}
-                    >
-                      Confirmed Attendees ({((activeEvent.attendees || []).filter((a) => a.status === 'going')).length})
-                    </button>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold shrink-0">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Confirmed Attendees ({((activeEvent.attendees || []).filter((a) => a.status === 'going')).length})</span>
                   </div>
                 </div>
 

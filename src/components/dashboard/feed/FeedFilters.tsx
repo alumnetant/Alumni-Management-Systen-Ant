@@ -52,22 +52,6 @@ export const FeedFilters: React.FC<FeedFiltersProps> = ({
             <span>For You</span>
           </button>
 
-          {/* 2. Chronological / Recent Stream */}
-          <button
-            type="button"
-            onClick={() => {
-              triggerHaptic('light');
-              onTabChange('recent');
-            }}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeTab === 'recent'
-                ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-white shadow-2xs font-extrabold'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            <span>Chronological</span>
-          </button>
 
           {/* 3. Official Bulletins Stream */}
           <button

@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Circular Text Paths -->
+    <path id="textPathTop" d="M 76,256 A 180,180 0 0,1 436,256" fill="none"/>
+    <path id="textPathBottom" d="M 436,256 A 180,180 0 0,1 76,256" fill="none"/>
+    
+    <!-- Gradient for Gold Rings -->
+    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="50%" stop-color="#D97706"/>
+      <stop offset="100%" stop-color="#B45309"/>
+    </linearGradient>
+
+    <!-- Crimson Gradient -->
+    <linearGradient id="crimsonGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B181B"/>
+      <stop offset="60%" stop-color="#721316"/>
+      <stop offset="100%" stop-color="#550D10"/>
+    </linearGradient>
+
+    <!-- Soft Glow Filter -->
+    <filter id="subtleGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Transparent Background (viewBox 0 0 512 512) - No square background -->
+
+  <!-- Outer Decorative Ring (Gold) -->
+  <circle cx="256" cy="256" r="244" fill="none" stroke="url(#goldGradient)" stroke-width="4" stroke-dasharray="8,4"/>
+  <circle cx="256" cy="256" r="236" fill="none" stroke="url(#goldGradient)" stroke-width="2"/>
+
+  <!-- Main Crimson Collar -->
+  <circle cx="256" cy="256" r="226" fill="url(#crimsonGradient)" stroke="url(#goldGradient)" stroke-width="4" filter="url(#subtleGlow)"/>
+
+  <!-- Inner Collar Ring -->
+  <circle cx="256" cy="256" r="148" fill="none" stroke="url(#goldGradient)" stroke-width="3"/>
+  <circle cx="256" cy="256" r="142" fill="#FFFFFF" stroke="url(#goldGradient)" stroke-width="1.5"/>
+
+  <!-- Institutional Typography around Collar -->
+  <text font-family="'Cinzel', 'Times New Roman', serif" font-weight="bold" font-size="24" fill="#FFFFFF" letter-spacing="4">
+    <textPath href="#textPathTop" startOffset="50%" text-anchor="middle">
+      ST. CECILIA'S COLLEGE
+    </textPath>
+  </text>
+  <text font-family="'Cinzel', 'Times New Roman', serif" font-weight="bold" font-size="20" fill="#FBBF24" letter-spacing="3.5">
+    <textPath href="#textPathBottom" startOffset="50%" text-anchor="middle">
+      ★ CEBU, INC. · EST. 1999 ★
+    </textPath>
+  </text>
+
+  <!-- Central Field / Shield Group -->
+  <g transform="translate(256, 256)">
+    <!-- Laurel Wreath Base -->
+    <path d="M -95,20 C -110,-40 -70,-90 -20,-115 C -25,-95 -50,-60 -55,-10 C -60,30 -40,75 0,95 C -40,75 -80,50 -95,20 Z" fill="#D97706" opacity="0.35"/>
+    <path d="M 95,20 C 110,-40 70,-90 20,-115 C 25,-95 50,-60 55,-10 C 60,30 40,75 0,95 C 40,75 80,50 95,20 Z" fill="#D97706" opacity="0.35"/>
+
+    <!-- Inner Crest / Shield Outline -->
+    <path d="M 0,-110 L 80,-80 L 80,10 C 80,65 45,100 0,118 C -45,100 -80,65 -80,10 L -80,-80 Z" 
+          fill="#FAF9F6" stroke="#8B181B" stroke-width="4" filter="url(#subtleGlow)"/>
+    
+    <!-- Shield Top Half / Cross Motif -->
+    <path d="M 0,-110 L 80,-80 L 80,-15 L -80,-15 L -80,-80 Z" fill="#8B181B"/>
+    
+    <!-- Lasallian Star / Guiding Star in Upper Shield -->
+    <g transform="translate(0, -55) scale(0.9)">
+      <polygon points="0,-28 8,-9 28,-9 12,4 18,24 0,12 -18,24 -12,4 -28,-9 -8,-9" fill="#FBBF24" stroke="#D97706" stroke-width="1"/>
+    </g>
+
+    <!-- Harp of St. Cecilia (Patron Saint of Musicians) & Open Book in Lower Shield -->
+    <!-- Open Book of Knowledge -->
+    <g transform="translate(0, 32)">
+      <!-- Book Pages -->
+      <path d="M 0,15 C -15,10 -35,10 -50,15 L -50,-18 C -35,-23 -15,-23 0,-18 C 15,-23 35,-23 50,-18 L 50,15 C 35,10 15,10 0,15 Z" 
+            fill="#FFFFFF" stroke="#8B181B" stroke-width="2"/>
+      <!-- Book Spine & Page Ribs -->
+      <line x1="0" y1="-18" x2="0" y2="15" stroke="#8B181B" stroke-width="2"/>
+      <line x1="-42" y1="-10" x2="-8" y2="-10" stroke="#721316" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="-42" y1="-2" x2="-8" y2="-2" stroke="#721316" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="-42" y1="6" x2="-14" y2="6" stroke="#721316" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="42" y1="-10" x2="8" y2="-10" stroke="#721316" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="42" y1="-2" x2="8" y2="-2" stroke="#721316" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="42" y1="6" x2="14" y2="6" stroke="#721316" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+
+    <!-- Institutional Motto Banner -->
+    <g transform="translate(0, 85)">
+      <path d="M -70,-8 L -55,10 L 55,10 L 70,-8 L 60,-4 L 0,0 L -60,-4 Z" fill="#8B181B" stroke="#D97706" stroke-width="1.5"/>
+      <text font-family="'Cinzel', 'Times New Roman', serif" font-weight="bold" font-size="9" fill="#FFFFFF" text-anchor="middle" y="5" letter-spacing="1.5">
+        CARITAS ET SCIENTIA
+      </text>
+    </g>
+  </g>
+</svg>

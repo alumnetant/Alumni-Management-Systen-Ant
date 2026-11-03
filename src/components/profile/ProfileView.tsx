@@ -23,13 +23,19 @@ import {
   BookOpen,
   Hash,
   ShieldAlert,
+  ChevronRight,
   Clock,
-  ChevronRight
+  Pencil,
+  Trash2,
+  Megaphone,
+  Heart
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
+import { InstitutionalFeedPost } from '../../types';
 import { DigitalAlumniCard } from './DigitalAlumniCard';
 import { PlatformOnly } from '../common/PlatformOnly';
 import { ContactMask } from '../common/ContactMask';
+import { ConfirmationModal } from '../common/ConfirmationModal';
 import { RegistrarSelfVerificationModal } from './RegistrarSelfVerificationModal';
 import { ImageViewerModal } from '../common/ImageViewerModal';
 import { exportProfileToPdfResume } from '../../services/pdfResumeService';
@@ -43,7 +49,16 @@ import {
 } from '../../lib/defaultImages';
 
 export const ProfileView: React.FC = () => {
-  const { currentUser, updateProfile, updateUserProfile, showToast, openEditProfile } = useAlumni();
+  const {
+    currentUser,
+    updateProfile,
+    updateUserProfile,
+    showToast,
+    openEditProfile,
+    feedPosts,
+    deleteFeedPost,
+    updateFeedPost
+  } = useAlumni();
   const [showRegistrarModal, setShowRegistrarModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -52,6 +67,13 @@ export const ProfileView: React.FC = () => {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [showResumePreview, setShowResumePreview] = useState(false);
   const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
+
+  // My Feed Posts author controls
+  const [postToEdit, setPostToEdit] = useState<InstitutionalFeedPost | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [postToDelete, setPostToDelete] = useState<{ id: string; title: string } | null>(null);
+
   const avatarFileInputRef = React.useRef<HTMLInputElement>(null);
   const coverFileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -706,6 +728,89 @@ export const ProfileView: React.FC = () => {
                 </div>
               </div>
 
+              {/* My Published Posts & Updates Section (Profile Feed Sync) */}
+              <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
+                    <Megaphone className="w-5 h-5 text-[#8B181B] dark:text-red-400" />
+                    <span>My Feed Posts & Updates ({feedPosts.filter((p) => p.authorId === currentUser.uid).length})</span>
+                  </h2>
+                </div>
+
+                <div className="space-y-3">
+                  {feedPosts.filter((p) => p.authorId === currentUser.uid).length === 0 ? (
+                    <div className="p-6 bg-white dark:bg-stone-900/60 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 text-center text-xs text-stone-500 dark:text-stone-400">
+                      <Megaphone className="w-6 h-6 mx-auto mb-2 text-stone-400 dark:text-stone-500 opacity-60" />
+                      You haven't published any posts to the Campus Feed yet.
+                    </div>
+                  ) : (
+                    feedPosts
+                      .filter((p) => p.authorId === currentUser.uid)
+                      .map((post) => (
+                        <div
+                          key={post.id}
+                          className="p-4 bg-white dark:bg-stone-900/70 rounded-xl border border-stone-200/70 dark:border-stone-700/60 shadow-2xs transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
+                                  {post.postType}
+                                </span>
+                                <span className="text-xs text-stone-400">
+                                  {new Date(post.createdAt).toLocaleDateString([], {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  })}
+                                </span>
+                              </div>
+                              <h3 className="text-sm font-bold text-stone-900 dark:text-white mt-1.5">{post.title}</h3>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPostToEdit(post);
+                                  setEditTitle(post.title);
+                                  setEditContent(post.content);
+                                }}
+                                className="p-1.5 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
+                                title="Edit post"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPostToDelete({ id: post.id, title: post.title })}
+                                className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
+                                title="Delete post"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-xs text-stone-600 dark:text-stone-300 mt-2 leading-relaxed whitespace-pre-line">
+                            {post.content}
+                          </p>
+                          {post.imageUrl && (
+                            <div className="mt-2.5 rounded-lg overflow-hidden max-h-40 border border-stone-100 dark:border-stone-800">
+                              <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                          <div className="mt-3 pt-2 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between text-xs text-stone-400">
+                            <span className="flex items-center gap-1">
+                              <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" />
+                              <span>{(post.hearts || []).length || post.likes || 0} Hearts</span>
+                            </span>
+                            <span>{post.comments.length} Comments</span>
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -734,6 +839,102 @@ export const ProfileView: React.FC = () => {
           targetUser={currentUser}
         />
       )}
+
+      {/* Edit Feed Post Modal */}
+      {postToEdit && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl border border-stone-200 dark:border-stone-800 w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-[#8B181B] dark:text-red-400" />
+                <h3 className="text-base font-bold text-stone-900 dark:text-white">Edit Post</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPostToEdit(null)}
+                className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer p-1 rounded-lg"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!editTitle.trim() || !editContent.trim()) {
+                  showToast('Title and content cannot be empty.', 'warning');
+                  return;
+                }
+                updateFeedPost(postToEdit.id, {
+                  title: editTitle.trim(),
+                  content: editContent.trim()
+                });
+                setPostToEdit(null);
+              }}
+              className="mt-4 space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                  Post Title
+                </label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-semibold text-stone-900 dark:text-white focus:outline-none focus:border-[#8B181B]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
+                  Post Content
+                </label>
+                <textarea
+                  rows={4}
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#8B181B] leading-relaxed resize-y"
+                  required
+                />
+              </div>
+
+              <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setPostToEdit(null)}
+                  className="px-4 py-2 text-xs font-bold text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-bold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl transition-colors shadow-2xs cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={Boolean(postToDelete)}
+        onClose={() => setPostToDelete(null)}
+        onConfirm={() => {
+          if (postToDelete) {
+            deleteFeedPost(postToDelete.id);
+          }
+          setPostToDelete(null);
+        }}
+        title="Delete Feed Post"
+        message={`Are you sure you want to permanently delete "${postToDelete?.title}"? This cannot be undone.`}
+        confirmLabel="Delete Post"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
     </div>
   );
 };

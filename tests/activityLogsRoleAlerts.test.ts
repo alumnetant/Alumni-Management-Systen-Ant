@@ -24,7 +24,7 @@ describe('Activity Classification and Warning Icons Matrix', () => {
     expect(alertInfo.alertType).toBe('user_login');
   });
 
-  it('correctly classifies FAILED_LOGIN_ATTEMPT as FAILED / WARNING with warning icon (⚠️ Yes)', () => {
+  it('correctly classifies FAILED_LOGIN_ATTEMPT as WARNING with warning icon (⚠️ Yes)', () => {
     const failedAttemptLog: AuditLogEntry = {
       id: 'log_fail_1',
       timestamp: new Date().toISOString(),
@@ -39,7 +39,7 @@ describe('Activity Classification and Warning Icons Matrix', () => {
     };
 
     const alertInfo = getLogAlertInfo(failedAttemptLog);
-    expect(alertInfo.classification).toBe('FAILED / WARNING');
+    expect(alertInfo.classification).toBe('WARNING');
     expect(alertInfo.showWarningIcon).toBe(true);
     expect(alertInfo.isAlert).toBe(true);
     expect(alertInfo.isSuspicious).toBe(false);
@@ -70,7 +70,7 @@ describe('Activity Classification and Warning Icons Matrix', () => {
     expect(alertInfo.alertType).toBe('multiple_failed_logins');
   });
 
-  it('correctly classifies ACCOUNT_LOCKED as SECURITY WARNING with warning icon (⚠️ Yes)', () => {
+  it('correctly classifies ACCOUNT_LOCKED as LOCKED with warning icon (⚠️ Yes)', () => {
     const lockedLog: AuditLogEntry = {
       id: 'log_locked_1',
       timestamp: new Date().toISOString(),
@@ -85,11 +85,60 @@ describe('Activity Classification and Warning Icons Matrix', () => {
     };
 
     const alertInfo = getLogAlertInfo(lockedLog);
-    expect(alertInfo.classification).toBe('SECURITY WARNING');
+    expect(alertInfo.classification).toBe('LOCKED');
     expect(alertInfo.showWarningIcon).toBe(true);
     expect(alertInfo.isAlert).toBe(true);
     expect(alertInfo.isSuspicious).toBe(true);
     expect(alertInfo.alertType).toBe('account_locked');
+  });
+
+  it('correctly classifies ACCOUNT_SUSPENDED as SUSPENDED with warning icon (⚠️ Yes)', () => {
+    const suspendedLog: AuditLogEntry = {
+      id: 'log_susp_1',
+      timestamp: new Date().toISOString(),
+      action: 'ACCOUNT_SUSPENDED',
+      actorId: 'usr_admin',
+      actorName: 'Admin Officer',
+      actorRole: 'admin',
+      category: 'security',
+      details: 'ACCOUNT SUSPENDED for user "Pedro" (pedro@stcecilia.edu). Reason: Policy violation.',
+      severity: 'alert',
+      targetRecordId: 'pedro@stcecilia.edu'
+    };
+
+    const alertInfo = getLogAlertInfo(suspendedLog);
+    expect(alertInfo.classification).toBe('SUSPENDED');
+    expect(alertInfo.showWarningIcon).toBe(true);
+  });
+
+  it('correctly classifies ADMIN_UNLOCKED_ACCOUNT and ACCOUNT_AUTO_RESTORED as NORMAL with NO warning icon', () => {
+    const unlockLog: AuditLogEntry = {
+      id: 'log_unlocked_1',
+      timestamp: new Date().toISOString(),
+      action: 'ADMIN_UNLOCKED_ACCOUNT',
+      actorId: 'usr_admin',
+      actorName: 'Admin Officer',
+      actorRole: 'admin',
+      category: 'security',
+      details: 'Account unlocked by administrator.',
+      severity: 'info'
+    };
+    expect(getLogAlertInfo(unlockLog).classification).toBe('NORMAL');
+    expect(getLogAlertInfo(unlockLog).showWarningIcon).toBe(false);
+
+    const autoRestoredLog: AuditLogEntry = {
+      id: 'log_restored_1',
+      timestamp: new Date().toISOString(),
+      action: 'ACCOUNT_AUTO_RESTORED',
+      actorId: 'system',
+      actorName: 'System Scheduler',
+      actorRole: 'admin',
+      category: 'security',
+      details: 'Account automatically restored after suspension expiration.',
+      severity: 'info'
+    };
+    expect(getLogAlertInfo(autoRestoredLog).classification).toBe('NORMAL');
+    expect(getLogAlertInfo(autoRestoredLog).showWarningIcon).toBe(false);
   });
 
   it('correctly classifies MULTIPLE_USERS_SAME_ACCOUNT as SUSPICIOUS with warning icon (⚠️ Yes)', () => {

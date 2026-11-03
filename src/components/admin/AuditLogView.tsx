@@ -34,9 +34,10 @@ import { AuditLogEntry } from '../../types';
 
 export type ActivityClassification =
   | 'NORMAL'
-  | 'FAILED / WARNING'
+  | 'WARNING'
   | 'SUSPICIOUS'
-  | 'SECURITY WARNING';
+  | 'LOCKED'
+  | 'SUSPENDED';
 
 export interface AlertInfo {
   isAlert: boolean;
@@ -59,20 +60,22 @@ export interface AlertInfo {
  * Evaluates activity log classification and warning icon requirements.
  * 
  * Exact Classification & Warning Icon Matrix:
- * 1. USER_LOGIN (successful)        -> NORMAL           -> Warning Icon: No
- * 2. FAILED_LOGIN_ATTEMPT           -> FAILED / WARNING -> Warning Icon: ⚠️ Yes
- * 3. MULTIPLE_FAILED_LOGIN_ATTEMPTS -> SUSPICIOUS       -> Warning Icon: ⚠️ Yes
- * 4. ACCOUNT_LOCKED                 -> SECURITY WARNING -> Warning Icon: ⚠️ Yes (Red/Pink highlight)
- * 5. MULTIPLE_USERS_SAME_ACCOUNT    -> SUSPICIOUS       -> Warning Icon: ⚠️ Yes
+ * 1. USER_LOGIN (successful)        -> NORMAL     -> Warning: No
+ * 2. FAILED_LOGIN_ATTEMPT           -> WARNING    -> Warning: Yes (⚠️)
+ * 3. MULTIPLE_FAILED_LOGIN_ATTEMPTS -> SUSPICIOUS -> Warning: Yes (⚠️)
+ * 4. MULTIPLE_USERS_SAME_ACCOUNT    -> SUSPICIOUS -> Warning: Yes (⚠️)
+ * 5. ACCOUNT_LOCKED                 -> LOCKED     -> Warning: Yes (⚠️)
+ * 6. ACCOUNT_SUSPENDED              -> SUSPENDED  -> Warning: Yes (⚠️)
+ * 7. ADMIN_UNLOCKED_ACCOUNT         -> NORMAL     -> Warning: No
+ * 8. ACCOUNT_AUTO_RESTORED          -> NORMAL     -> Warning: No
  * 
- * Note: USER_RELOGIN is discontinued. Historical USER_RELOGIN records are preserved
- * under audit retention policies without active warning icon or alert classification.
+ * Discontinue generating USER_RELOGIN as a new event.
  */
 export function getLogAlertInfo(log: AuditLogEntry): AlertInfo {
   const actionUpper = (log.action || '').toUpperCase();
   const detailsUpper = (log.details || '').toUpperCase();
 
-  // 1. ACCOUNT_SUSPENDED (Security Warning - admin suspension)
+  // 1. ACCOUNT_SUSPENDED (SUSPENDED status, ⚠️ Yes)
   if (
     actionUpper === 'ACCOUNT_SUSPENDED' ||
     actionUpper.includes('ACCOUNT_SUSPENDED') ||
@@ -83,15 +86,16 @@ export function getLogAlertInfo(log: AuditLogEntry): AlertInfo {
       isAlert: true,
       isSuspicious: true,
       showWarningIcon: true,
-      classification: 'SECURITY WARNING',
+      classification: 'SUSPENDED',
       alertType: 'account_locked',
       badgeLabel: 'Account Suspended'
     };
   }
 
-  // 1.1 ACCOUNT_LOCKED (Security Warning - repeated failed attempts lockout or manual lock)
+  // 2. ACCOUNT_LOCKED (LOCKED status, ⚠️ Yes)
   if (
     actionUpper === 'ACCOUNT_LOCKED' ||
+    actionUpper === 'ADMIN_LOCKED_ACCOUNT' ||
     actionUpper.includes('ACCOUNT_LOCKED') ||
     actionUpper.includes('ACCOUNT LOCKED') ||
     detailsUpper.includes('ACCOUNT LOCKED') ||
@@ -102,13 +106,13 @@ export function getLogAlertInfo(log: AuditLogEntry): AlertInfo {
       isAlert: true,
       isSuspicious: true,
       showWarningIcon: true,
-      classification: 'SECURITY WARNING',
+      classification: 'LOCKED',
       alertType: 'account_locked',
       badgeLabel: 'Account Locked'
     };
   }
 
-  // 1.2 ACCOUNT_SUSPENSION_EXTENDED (Failed / Warning - suspension period increased)
+  // 3. ACCOUNT_SUSPENSION_EXTENDED (WARNING status, ⚠️ Yes)
   if (
     actionUpper === 'ACCOUNT_SUSPENSION_EXTENDED' ||
     actionUpper.includes('SUSPENSION_EXTENDED') ||
@@ -119,15 +123,17 @@ export function getLogAlertInfo(log: AuditLogEntry): AlertInfo {
       isAlert: true,
       isSuspicious: false,
       showWarningIcon: true,
-      classification: 'FAILED / WARNING',
+      classification: 'WARNING',
       alertType: 'security_alert',
       badgeLabel: 'Suspension Extended'
     };
   }
 
-  // 1.3 ACCOUNT_UNLOCKED (Normal - account restored manually, NO warning icon)
+  // 4. ADMIN_UNLOCKED_ACCOUNT / ACCOUNT_UNLOCKED (NORMAL status, No warning icon)
   if (
+    actionUpper === 'ADMIN_UNLOCKED_ACCOUNT' ||
     actionUpper === 'ACCOUNT_UNLOCKED' ||
+    actionUpper.includes('ADMIN_UNLOCKED_ACCOUNT') ||
     actionUpper.includes('ACCOUNT_UNLOCKED') ||
     actionUpper.includes('ACCOUNT UNLOCKED') ||
     detailsUpper.includes('ACCOUNT UNLOCKED') ||
@@ -228,7 +234,7 @@ export function getLogAlertInfo(log: AuditLogEntry): AlertInfo {
       isAlert: true,
       isSuspicious: false,
       showWarningIcon: true,
-      classification: 'FAILED / WARNING',
+      classification: 'WARNING',
       alertType: 'failed_login',
       badgeLabel: 'Failed Login Attempt'
     };
@@ -273,7 +279,7 @@ export function getLogAlertInfo(log: AuditLogEntry): AlertInfo {
       isAlert: true,
       isSuspicious: true,
       showWarningIcon: true,
-      classification: 'SECURITY WARNING',
+      classification: 'SUSPICIOUS',
       alertType: 'security_alert',
       badgeLabel: 'Security Alert'
     };
@@ -414,7 +420,7 @@ export const AuditLogView: React.FC = () => {
         const alertInfo = getLogAlertInfo(log);
         if (alertFilter === 'warnings_only' && !alertInfo.showWarningIcon) return false;
         if (alertFilter === 'suspicious_only' && alertInfo.classification !== 'SUSPICIOUS') return false;
-        if (alertFilter === 'security_warnings' && alertInfo.classification !== 'SECURITY WARNING') return false;
+        if (alertFilter === 'security_warnings' && alertInfo.classification !== 'LOCKED' && alertInfo.classification !== 'SUSPENDED') return false;
         if (alertFilter === 'logins_only' && (log.action || '').toUpperCase() !== 'USER_LOGIN') return false;
 
         // 3. Search Query
@@ -922,16 +928,16 @@ export const AuditLogView: React.FC = () => {
                       const alertInfo = getLogAlertInfo(log);
 
                       // Distinct visual styling based on classification:
-                      // - ACCOUNT_LOCKED: Red/Pink highlight (SECURITY WARNING)
-                      // - SUSPICIOUS (MULTIPLE_FAILED_LOGIN_ATTEMPTS, MULTIPLE_USERS_SAME_ACCOUNT): Rose/Red highlight
-                      // - FAILED / WARNING (FAILED_LOGIN_ATTEMPT): Amber/Warning highlight
-                      // - NORMAL (USER_LOGIN & standard events): Normal dashboard styling, NO warning icon
+                      // - LOCKED, SUSPENDED: Red/Pink highlight (⚠️ Yes)
+                      // - SUSPICIOUS (MULTIPLE_FAILED_LOGIN_ATTEMPTS, MULTIPLE_USERS_SAME_ACCOUNT): Rose/Red highlight (⚠️ Yes)
+                      // - WARNING (FAILED_LOGIN_ATTEMPT, SUSPENSION_EXTENDED): Amber/Warning highlight (⚠️ Yes)
+                      // - NORMAL (USER_LOGIN, ADMIN_UNLOCKED_ACCOUNT, ACCOUNT_AUTO_RESTORED): Normal dashboard styling, NO warning icon
                       let rowHighlightClass = 'hover:bg-stone-50/80 dark:hover:bg-stone-900/60';
-                      if (alertInfo.classification === 'SECURITY WARNING') {
+                      if (alertInfo.classification === 'LOCKED' || alertInfo.classification === 'SUSPENDED') {
                         rowHighlightClass = 'bg-rose-50/85 hover:bg-rose-100/90 dark:bg-rose-950/35 dark:hover:bg-rose-950/45 border-l-4 border-l-rose-600';
                       } else if (alertInfo.classification === 'SUSPICIOUS') {
                         rowHighlightClass = 'bg-rose-50/60 hover:bg-rose-100/70 dark:bg-rose-950/20 dark:hover:bg-rose-950/30 border-l-4 border-l-rose-500';
-                      } else if (alertInfo.classification === 'FAILED / WARNING') {
+                      } else if (alertInfo.classification === 'WARNING') {
                         rowHighlightClass = 'bg-amber-50/60 hover:bg-amber-100/70 dark:bg-amber-950/15 dark:hover:bg-amber-950/25 border-l-4 border-l-amber-500';
                       }
 
@@ -961,14 +967,14 @@ export const AuditLogView: React.FC = () => {
                               {/* ⚠️ Warning Icon strictly for security events, NEVER on USER_LOGIN */}
                               {alertInfo.showWarningIcon ? (
                                 <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border shadow-2xs ${
-                                  alertInfo.classification === 'SECURITY WARNING'
+                                  alertInfo.classification === 'LOCKED' || alertInfo.classification === 'SUSPENDED'
                                     ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200 border-rose-300 dark:border-rose-800 animate-pulse'
                                     : alertInfo.classification === 'SUSPICIOUS'
                                     ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200 border-rose-300 dark:border-rose-800'
                                     : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border-amber-300 dark:border-amber-800'
                                 }`}>
                                   <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${
-                                    alertInfo.classification === 'FAILED / WARNING' ? 'text-amber-600' : 'text-rose-600'
+                                    alertInfo.classification === 'WARNING' ? 'text-amber-600' : 'text-rose-600'
                                   }`} />
                                   <span>⚠️ {alertInfo.classification}</span>
                                 </span>
@@ -992,7 +998,7 @@ export const AuditLogView: React.FC = () => {
                               {alertInfo.showWarningIcon && (
                                 <span title={alertInfo.badgeLabel}>
                                   <AlertTriangle className={`w-4 h-4 shrink-0 ${
-                                    alertInfo.classification === 'FAILED / WARNING' ? 'text-amber-600' : 'text-rose-600'
+                                    alertInfo.classification === 'WARNING' ? 'text-amber-600' : 'text-rose-600'
                                   }`} />
                                 </span>
                               )}
@@ -1008,7 +1014,7 @@ export const AuditLogView: React.FC = () => {
                               )}
                               {alertInfo.showWarningIcon && (
                                 <span className={`text-[10px] font-semibold ${
-                                  alertInfo.classification === 'FAILED / WARNING' ? 'text-amber-700 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
+                                  alertInfo.classification === 'WARNING' ? 'text-amber-700 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
                                 }`}>
                                   • {alertInfo.badgeLabel}
                                 </span>
@@ -1109,28 +1115,28 @@ export const AuditLogView: React.FC = () => {
                       {/* Timeline node */}
                       <div
                         className={`absolute -left-[27px] top-1.5 w-4 h-4 rounded-full border-2 bg-white dark:bg-stone-900 flex items-center justify-center ${
-                          alertInfo.classification === 'SECURITY WARNING'
+                          alertInfo.classification === 'LOCKED' || alertInfo.classification === 'SUSPENDED'
                             ? 'border-rose-600'
                             : alertInfo.classification === 'SUSPICIOUS'
                             ? 'border-rose-500'
-                            : alertInfo.classification === 'FAILED / WARNING'
+                            : alertInfo.classification === 'WARNING'
                             ? 'border-amber-500'
                             : 'border-stone-300 dark:border-stone-700'
                         }`}
                       >
                         {alertInfo.showWarningIcon && (
                           <span className={`w-1.5 h-1.5 rounded-full ${
-                            alertInfo.classification === 'FAILED / WARNING' ? 'bg-amber-500' : 'bg-rose-600'
+                            alertInfo.classification === 'WARNING' ? 'bg-amber-500' : 'bg-rose-600'
                           }`} />
                         )}
                       </div>
 
                       <div className={`p-4 rounded-xl border transition-all space-y-2 ${
-                        alertInfo.classification === 'SECURITY WARNING'
+                        alertInfo.classification === 'LOCKED' || alertInfo.classification === 'SUSPENDED'
                           ? 'bg-rose-50/85 border-rose-300 dark:bg-rose-950/35 dark:border-rose-900/60'
                           : alertInfo.classification === 'SUSPICIOUS'
                           ? 'bg-rose-50/70 border-rose-300 dark:bg-rose-950/20 dark:border-rose-900/60'
-                          : alertInfo.classification === 'FAILED / WARNING'
+                          : alertInfo.classification === 'WARNING'
                           ? 'bg-amber-50/60 border-amber-300 dark:bg-amber-950/20 dark:border-amber-900/60'
                           : 'bg-stone-50/50 hover:bg-stone-50 border-stone-200/80 dark:bg-stone-900/40 dark:border-stone-800'
                       }`}>
@@ -1138,7 +1144,7 @@ export const AuditLogView: React.FC = () => {
                           <div className="flex items-center gap-2">
                             {alertInfo.showWarningIcon && (
                               <AlertTriangle className={`w-4 h-4 shrink-0 ${
-                                alertInfo.classification === 'FAILED / WARNING' ? 'text-amber-600' : 'text-rose-600'
+                                alertInfo.classification === 'WARNING' ? 'text-amber-600' : 'text-rose-600'
                               }`} />
                             )}
                             <span className="font-bold text-xs text-stone-900 dark:text-stone-100">
@@ -1146,7 +1152,7 @@ export const AuditLogView: React.FC = () => {
                             </span>
                             {alertInfo.showWarningIcon ? (
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                alertInfo.classification === 'SECURITY WARNING' || alertInfo.classification === 'SUSPICIOUS'
+                                alertInfo.classification === 'LOCKED' || alertInfo.classification === 'SUSPENDED' || alertInfo.classification === 'SUSPICIOUS'
                                   ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200 border-rose-300'
                                   : 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border-amber-300'
                               }`}>
@@ -1246,7 +1252,7 @@ export const AuditLogView: React.FC = () => {
                 }
                 return (
                   <div className={`p-3.5 rounded-2xl border text-xs space-y-1 ${
-                    info.classification === 'SECURITY WARNING'
+                    info.classification === 'LOCKED' || info.classification === 'SUSPENDED'
                       ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/70 text-rose-900 dark:text-rose-200'
                       : info.classification === 'SUSPICIOUS'
                       ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/60 text-rose-900 dark:text-rose-200'
@@ -1254,16 +1260,18 @@ export const AuditLogView: React.FC = () => {
                   }`}>
                     <div className="flex items-center gap-2 font-bold">
                       <AlertTriangle className={`w-4 h-4 shrink-0 ${
-                        info.classification === 'FAILED / WARNING' ? 'text-amber-600' : 'text-rose-600'
+                        info.classification === 'WARNING' ? 'text-amber-600' : 'text-rose-600'
                       }`} />
                       <span>⚠️ {info.classification} ({info.badgeLabel})</span>
                     </div>
                     <p className="text-[11px] leading-relaxed opacity-90">
-                      {info.classification === 'SECURITY WARNING'
-                        ? 'High-priority security warning: Account locked due to repeated failed login attempts. Administrator notified.'
+                      {info.classification === 'LOCKED'
+                        ? 'High-priority security warning: Account locked due to repeated failed login attempts or administrator action. Administrator notified.'
+                        : info.classification === 'SUSPENDED'
+                        ? 'Administrative suspension active: Account access suspended for the designated duration with logged reason.'
                         : info.classification === 'SUSPICIOUS'
                         ? 'Suspicious authentication activity flagged for administrative review.'
-                        : 'Warning: Failed authentication attempt due to incorrect credentials.'}
+                        : 'Warning: Failed authentication attempt due to incorrect credentials or suspension extension.'}
                     </p>
                   </div>
                 );

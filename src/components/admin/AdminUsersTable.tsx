@@ -337,6 +337,12 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
 
   const confirmDelete = async () => {
     if (!userToDelete) return;
+    const targetUser = users.find((u) => u.uid === userToDelete.uid);
+    if ((targetUser?.role === 'admin' || targetUser?.role === 'superadmin') && currentUser?.role !== 'superadmin') {
+      showToast('Only Superadmin accounts can delete institutional administrators.', 'error');
+      setUserToDelete(null);
+      return;
+    }
     await deleteAlumni(userToDelete.uid);
     showToast(`Member record for ${userToDelete.name} deleted.`, 'info');
     setUserToDelete(null);
@@ -847,7 +853,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                       Profile
                     </button>
 
-                    {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && (
+                    {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && (u.role === 'admin' || u.role === 'superadmin' ? currentUser?.role === 'superadmin' : true) && (
                       <button
                         type="button"
                         onClick={() => setUserToDelete({ uid: u.uid, name: u.name })}
@@ -1136,7 +1142,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                             Profile
                           </button>
 
-                          {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && (
+                          {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && (u.role === 'admin' || u.role === 'superadmin' ? currentUser?.role === 'superadmin' : true) && (
                             <button
                               type="button"
                               onClick={() => setUserToDelete({ uid: u.uid, name: u.name })}
