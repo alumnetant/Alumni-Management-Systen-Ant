@@ -1447,6 +1447,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
         onOpenPass={() => setShowDigitalPassModal(true)}
         onOpenSearch={() => setShowCommandPalette(true)}
       />
+
     </div>
   );
 };

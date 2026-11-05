@@ -131,9 +131,17 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
       return;
     }
 
-    if (role === 'employer' && !companyName.trim()) {
-      setErrorMsg('Company Name is required for employer registration.');
-      return;
+    if (role === 'employer') {
+      if (!companyName.trim()) {
+        setErrorMsg('Company Name is required for employer registration.');
+        return;
+      }
+      // Strict Security: Prevent students from registering with institutional student emails as Employers
+      const isSchoolEmail = /@(stcecilia\.edu\.ph|cecilian\.edu\.ph|scc\.edu\.ph)$/i.test(email.trim());
+      if (isSchoolEmail) {
+        setErrorMsg('Institutional student/school emails (@stcecilia.edu.ph) cannot register as Corporate Employers. Please register as an Alumni, or use your official corporate business email.');
+        return;
+      }
     }
 
     let isAutoVerified = false;

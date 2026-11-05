@@ -1184,9 +1184,8 @@ export const AdminPanelView: React.FC = () => {
                   >
                     <option value="admin">Administrator (Web Only)</option>
                     <option value="superadmin">Super Admin (Web Only)</option>
-                    <option value="staff">Staff Officer (Web Only)</option>
                     <option value="moderator" disabled={!moderatorQuota.canCreateModerator && newUserRole !== 'moderator'}>
-                      Moderator (Web Only - {moderatorQuota.activeCount}/3 {moderatorQuota.activeCount >= 3 ? 'FULL' : 'active'})
+                      Institutional Moderator (Web Only - {moderatorQuota.activeCount}/3 {moderatorQuota.activeCount >= 3 ? 'FULL' : 'active'})
                     </option>
                     <option value="employer">Employer / Partner (Web Only)</option>
                     <option value="alumni">Alumnus (Mobile App Only)</option>

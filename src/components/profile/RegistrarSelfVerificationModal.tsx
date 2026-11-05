@@ -167,7 +167,7 @@ const RegistrarSelfVerificationModalContent: React.FC<{ onClose: () => void }> =
       });
 
       setRequestSubmitted(true);
-      showToast('Verification request submitted! Office of the Registrar will review within 24–48 hours.', 'success');
+      showToast('Verification request submitted! Institutional Moderators will review within 24–48 hours.', 'success');
     } catch (err: any) {
       showToast(err?.message || 'Failed to submit verification request.', 'error');
     } finally {
@@ -197,7 +197,7 @@ const RegistrarSelfVerificationModalContent: React.FC<{ onClose: () => void }> =
                 Degree Accreditation & Verification
               </h3>
               <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-                Office of the Registrar • St. Cecilia's College Official Archives
+                Academic & Degree Clearance • St. Cecilia's College Official Archives (Moderator Review)
               </p>
             </div>
           </div>

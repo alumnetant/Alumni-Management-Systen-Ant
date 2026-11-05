@@ -42,9 +42,8 @@ export function isNotificationRelevantToUser(
   const role = user.role || 'alumni';
   const isUserAlumni = role === 'alumni';
   const isUserEmployer = role === 'employer';
-  const isUserRegistrar = role === 'registrar';
   const isUserAdmin = role === 'admin' || role === 'superadmin';
-  const isUserStaffOrModerator = role === 'staff' || role === 'moderator';
+  const isUserModerator = role === 'moderator';
 
   // 1. Direct User Targeting
   if (notif.toUid && notif.toUid !== 'all') {
@@ -65,10 +64,8 @@ export function isNotificationRelevantToUser(
     const target = notif.metadata.targetRole;
     if (target === 'alumni' && !isUserAlumni) return false;
     if (target === 'employer' && !isUserEmployer) return false;
-    if (target === 'registrar' && !isUserRegistrar && !isUserAdmin) return false;
+    if ((target === 'registrar' || target === 'staff' || target === 'moderator') && !isUserModerator && !isUserAdmin) return false;
     if (target === 'admin' && !isUserAdmin && !permissions?.canManageJobModeration) return false;
-    if (target === 'moderator' && !isUserAdmin && role !== 'moderator') return false;
-    if (target === 'staff' && !isUserAdmin && !isUserStaffOrModerator) return false;
   }
 
   if (Array.isArray(notif.metadata?.targetRoles)) {
@@ -126,10 +123,8 @@ export function isNotificationRelevantToUser(
     if (isJobOpeningBroadcast) {
       // Employers are corporate recruiters posting jobs; they do not receive job seeker alerts
       if (isUserEmployer) return false;
-      // Registrars manage student records, not job seeking
-      if (isUserRegistrar) return false;
-      // Admins manage the platform
-      if (isUserAdmin) return false;
+      // Moderators and administrators manage platform operations, not job seeking
+      if (isUserModerator || isUserAdmin) return false;
       // Only alumni receive career opening alerts
       return isUserAlumni;
     }
@@ -149,7 +144,7 @@ export function isNotificationRelevantToUser(
   if (notif.type === 'event' || notif.type === 'event_broadcast') {
     // Corporate employers do not participate in alumni batch reunions / student events
     if (isUserEmployer) return false;
-    return isUserAlumni || isUserAdmin || isUserStaffOrModerator || isUserRegistrar;
+    return isUserAlumni || isUserAdmin || isUserModerator;
   }
 
   // 7. Profile Completion Reminders

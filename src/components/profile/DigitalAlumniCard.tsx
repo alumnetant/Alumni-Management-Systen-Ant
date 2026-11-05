@@ -78,11 +78,10 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
       return clean.startsWith('SCC-') ? clean : `SCC-${clean}`;
     }
     const uidStr = u.uid || '0000';
-    if (u.role === 'admin') return `SCC-ADM-${uidStr.slice(-3).toUpperCase()}`;
-    if (u.role === 'registrar') return `SCC-REG-${uidStr.slice(-3).toUpperCase()}`;
-    if (u.role === 'staff') return `SCC-STAFF-${uidStr.slice(-3).toUpperCase()}`;
-    if (u.role === 'employer') return `SCC-EMP-${uidStr.slice(-3).toUpperCase()}`;
-    if (u.role === 'moderator') return `SCC-MOD-${uidStr.slice(-3).toUpperCase()}`;
+    const userRole = (u.role as string) || '';
+    if (userRole === 'admin' || userRole === 'superadmin') return `SCC-ADM-${uidStr.slice(-3).toUpperCase()}`;
+    if (userRole === 'employer') return `SCC-EMP-${uidStr.slice(-3).toUpperCase()}`;
+    if (userRole === 'moderator' || userRole === 'registrar' || userRole === 'staff') return `SCC-MOD-${uidStr.slice(-3).toUpperCase()}`;
     return `SCC-ALUM-${u.batch || '2024'}-${uidStr.slice(-4).toUpperCase()}`;
   };
 

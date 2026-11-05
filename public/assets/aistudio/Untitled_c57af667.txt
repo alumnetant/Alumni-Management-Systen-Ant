@@ -1,0 +1,144 @@
+
+Table users {
+  uid varchar [pk, note: 'Document ID / Firebase Auth UID']
+  name varchar [not null]
+  email varchar [not null, unique]
+  role varchar [not null, note: 'superadmin | admin | moderator | employer | alumni']
+  batch varchar [note: 'Graduation Year e.g., 2024']
+  course varchar [note: 'Academic Degree Program']
+  location varchar
+  profilePictureUrl varchar
+  coverPhotoUrl varchar
+  headline varchar
+  about text
+  phone varchar
+  isVerified boolean [default: false]
+  verified boolean [default: false]
+  verificationStatus varchar [note: 'verified | pending_review | flagged | rejected']
+  verificationFlagReason text
+  verificationProofUrl varchar
+  verificationNotes text
+  followersCount int [default: 0]
+  followingCount int [default: 0]
+  connectionsCount int [default: 0]
+  skills "varchar[]" [note: 'Denormalized string array of competencies']
+  currentPosition varchar
+  company varchar
+  experience "json[]" [note: 'Embedded array: [{id, title, company, startDate, current, ...}]']
+  education "json[]" [note: 'Embedded array: [{id, degree, institution, startYear, ...}]']
+  alumniId varchar [note: 'Official Alumni ID (e.g. SCC-ALUM-2024-0192)']
+  studentId varchar [note: 'Official Student Registry ID (e.g. SCC-2024-001)']
+  employeeId varchar
+  department varchar
+  authProvider varchar [note: 'password | google | firebase']
+  accountStatus varchar [note: 'ACTIVE | PENDING_VERIFICATION | SUSPENDED | LOCKED | REJECTED']
+  suspensionInfo json [note: 'Embedded object: {startDate, reason, suspendedBy, ...}']
+  companyName varchar
+  companyWebsite varchar
+  companyIndustry varchar
+  employerVerificationStatus varchar [note: 'pending_verification | verified | rejected']
+  canPostJobs boolean [default: false]
+  fcmTokens "varchar[]" [note: 'Cloud messaging device push tokens']
+  createdAt timestamp
+}
+
+Table registry_records {
+  studentId varchar [pk, note: 'Document ID: sanitized studentId e.g. SCC_2024_001']
+  fullName varchar [not null]
+  batchYear varchar [not null]
+  course varchar [not null]
+  status varchar [note: 'Graduated | Enrolled | Alumni']
+  honors varchar
+  email varchar
+  phone varchar
+  birthDate varchar
+  isRegistered boolean [default: false, note: 'True if graduate activated their account']
+  registeredAt timestamp
+  matchedUid varchar [note: 'Logical reference to users.uid']
+  uploadedAt timestamp
+  uploadedBy varchar
+  sourceFile varchar
+}
+
+Table events {
+  id varchar [pk, note: 'Document ID: e.g. evt_1712345678']
+  title varchar [not null]
+  description text
+  location varchar
+  venue varchar
+  type varchar [note: 'reunion | workshop | networking | webinar | social']
+  startDate timestamp [not null]
+  endDate timestamp [not null]
+  startTime varchar
+  endTime varchar
+  heroImageUrl varchar
+  eventImages "varchar[]"
+  isVirtual boolean [default: false]
+  isImportant boolean [default: false]
+  maxAttendees int
+  reservedSeatsCount int [default: 0]
+  maxGuestsPerAlumni int [default: 0]
+  registrationOpenDate timestamp
+  registrationCloseDate timestamp
+  attendeesCount int [default: 0]
+  createdBy varchar [note: 'Moderator or Admin user UID']
+  createdByName varchar
+  groupChatId varchar [note: 'Associated chat thread ID']
+  likes "varchar[]" [note: 'Array of user UIDs who liked the event']
+  comments "json[]" [note: 'Embedded array of EventComment objects']
+  attendees "json[]" [note: 'Embedded array of EventAttendee objects (cached status)']
+  attendanceRecords "json[]" [note: 'Embedded array of EventAttendanceRecord objects']
+}
+
+Table opportunities {
+  id varchar [pk, note: 'Document ID: e.g. opp_1712345678']
+  title varchar [not null]
+  type varchar [note: 'Full-time | Part-time | Internship | Contract | Mentorship']
+  company varchar [not null]
+  location varchar
+  description text
+  salaryOrStipend varchar
+  skills "varchar[]"
+  requirements "varchar[]"
+  applicationUrl varchar
+  contactEmail varchar
+  postedBy varchar [not null, note: 'Employer or Moderator user UID']
+  posterName varchar
+  posterRole varchar
+  status varchar [default: 'active', note: 'active | closed']
+  requiredCourse varchar
+  experienceLevel varchar
+  approvalStatus varchar [note: 'pending_approval | approved | rejected']
+  applicationsCount int [default: 0]
+  createdAt timestamp
+}
+
+Table job_applications {
+  id varchar [pk, note: 'Document ID: e.g. app_1712345678']
+  jobId varchar [not null, note: 'Foreign reference to opportunities.id']
+  jobTitle varchar [not null]
+  companyName varchar [not null]
+  employerUid varchar [note: 'UID of employer owning job posting']
+  applicantUid varchar [not null, note: 'UID of alumni applying']
+  applicantName varchar [not null]
+  applicantEmail varchar [not null]
+  applicantPhone varchar
+  applicantCourse varchar
+  applicantBatch varchar
+  applicantSkills "varchar[]"
+  resumeUrl varchar
+  resumeSummary text
+  coverLetter text
+  status varchar [note: 'Pending | Reviewed | Shortlisted | Accepted | Rejected | Interview | Offer | Hired']
+  statusNotes text
+  appliedAt timestamp [not null]
+  matchScore int [note: 'Calculated algorithmic fit score (0-100)']
+}
+
+
+Ref: registry_records.matchedUid > users.uid
+Ref: events.createdBy > users.uid
+Ref: opportunities.postedBy > users.uid
+Ref: job_applications.jobId > opportunities.id
+Ref: job_applications.applicantUid > users.uid
+Ref: job_applications.employerUid > users.uid

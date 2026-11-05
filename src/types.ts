@@ -1,7 +1,29 @@
-export type OfficialSystemRole = 'superadmin' | 'admin' | 'staff' | 'moderator' | 'employer' | 'alumni';
+export type OfficialSystemRole = 'superadmin' | 'admin' | 'moderator' | 'employer' | 'alumni';
 
-// UserRole includes the 6 core roles and legacy alias 'registrar' (merged into staff)
-export type UserRole = OfficialSystemRole | 'registrar';
+// Strict 5-role system: no registrar, staff, or faculty roles exist in the app
+export type UserRole = OfficialSystemRole;
+
+/**
+ * Automatic role migration helper:
+ * Converts any legacy 'registrar', 'staff', or 'faculty' references directly to 'moderator'.
+ */
+export function normalizeSystemRole(role?: string | null): UserRole {
+  if (!role) return 'alumni';
+  const normalized = role.toLowerCase().trim();
+  if (['registrar', 'staff', 'faculty', 'moderator'].includes(normalized)) {
+    return 'moderator';
+  }
+  if (['admin', 'administrator', 'system_administrator'].includes(normalized)) {
+    return 'admin';
+  }
+  if (normalized === 'superadmin') {
+    return 'superadmin';
+  }
+  if (normalized === 'employer') {
+    return 'employer';
+  }
+  return 'alumni';
+}
 
 export type AccountLifecycleStatus = 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED' | 'LOCKED' | 'UNLOCKED' | 'REJECTED';
 
@@ -51,41 +73,30 @@ export type PlatformType = 'mobile' | 'web';
 /**
  * Platform Access Policy:
  * - Mobile App / Tablet / APK ('mobile'): ONLY 'alumni' allowed. Non-alumni administrative/partner accounts must access via Web.
- * - Web Browser / Desktop Portal ('web'): Alumni, Super Admin, Admin, Staff, Moderator, and Employer accounts are all allowed.
+ * - Web Browser / Desktop Portal ('web'): Alumni, Super Admin, Admin, Moderator, and Employer accounts are all allowed.
  */
 export function isRoleAllowedOnPlatform(role: string | undefined, platform: PlatformType): boolean {
   if (!role) return false;
-  const normalized = role.toLowerCase().trim();
+  const canonical = normalizeSystemRole(role);
   if (platform === 'mobile') {
-    return normalized === 'alumni';
+    return canonical === 'alumni';
   }
   if (platform === 'web') {
-    return ['alumni', 'superadmin', 'admin', 'staff', 'moderator', 'employer', 'registrar'].includes(normalized);
+    return ['alumni', 'superadmin', 'admin', 'moderator', 'employer'].includes(canonical);
   }
   return false;
 }
 
 /**
  * Role-Based Categorization:
- * Determines if a user belongs to an administrative or staff management role
- * such as Admin, Staff, Moderator, Super Admin, Employer.
+ * Determines if a user belongs to an administrative management role
+ * such as Admin, Moderator, Super Admin, Employer.
  * Alumni users return false.
  */
 export function isAdministrativeOrStaffRole(role?: string): boolean {
   if (!role) return false;
-  const normalized = role.toLowerCase().trim();
-  const administrativeRoles = [
-    'admin',
-    'superadmin',
-    'registrar',
-    'employer',
-    'staff',
-    'moderator',
-    'system_administrator',
-    'administrator',
-    'officer'
-  ];
-  return administrativeRoles.includes(normalized);
+  const canonical = normalizeSystemRole(role);
+  return ['admin', 'superadmin', 'moderator', 'employer'].includes(canonical);
 }
 
 export const OFFICIAL_DEGREE_PROGRAMS = [
@@ -628,7 +639,7 @@ export interface InstitutionalFeedPost {
   id: string;
   authorId: string;
   authorName: string;
-  authorRole: 'admin' | 'registrar' | 'staff' | 'moderator' | 'alumni';
+  authorRole: UserRole;
   authorAvatar: string;
   postType: 'milestone' | 'gallery' | 'announcement';
   title: string;
@@ -641,6 +652,7 @@ export interface InstitutionalFeedPost {
   sharesCount: number;
   createdAt: string;
   isPinned?: boolean;
+  isEdited?: boolean;
   tags?: string[];
 }
 

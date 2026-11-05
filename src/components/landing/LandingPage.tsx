@@ -1648,7 +1648,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div>
               © {new Date().getFullYear()} St. Cecilia's College - Cebu, Inc. All rights reserved.
             </div>
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
               <a href="#about" className="hover:text-stone-800">Privacy Policy</a>
               <span>•</span>
               <a href="#about" className="hover:text-stone-800">Terms of Use</a>

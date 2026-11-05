@@ -778,7 +778,7 @@ export const NetworkView: React.FC = () => {
             >
               <option value="all">All Roles</option>
               <option value="alumni">Alumni Only</option>
-              <option value="registrar">Registrar / Staff</option>
+              <option value="moderator">Moderators</option>
               <option value="admin">Administrators</option>
               <option value="employer">Employers</option>
             </select>

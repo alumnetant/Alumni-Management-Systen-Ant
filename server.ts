@@ -2,7 +2,11 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import type { Opportunity, JobApplication, ApplicationStatus, ChatThread, ChatMessage } from './src/types';
 import { INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
 import webpush from 'web-push';
@@ -136,6 +140,33 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   }
   next();
 });
+
+// ============================================================================
+// Public System Documentation Endpoint for Use Cases Specification
+// ============================================================================
+app.get(
+  [
+    '/docs/USE_CASES.md',
+    '/docs/use_cases.md',
+    '/docs/use_case.md',
+    '/docs/use-cases.md',
+    '/docs/usecase.md',
+    '/docs/SYSTEM_DOCUMENTATION.md',
+    '/docs/system_documentation.md'
+  ],
+  (req: Request, res: Response) => {
+    const isSystemDoc = req.path.toLowerCase().includes('system');
+    let filePath = path.join(__dirname, 'docs', isSystemDoc ? 'SYSTEM_DOCUMENTATION.md' : 'USE_CASES.md');
+    if (!fs.existsSync(filePath)) {
+      filePath = path.join(__dirname, 'docs', 'SYSTEM_DOCUMENTATION.md');
+    }
+    if (fs.existsSync(filePath)) {
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      return res.sendFile(filePath);
+    }
+    return res.status(404).send('Documentation file not found');
+  }
+);
 
 // ============================================================================
 // 3. SLIDING-WINDOW IN-MEMORY RATE LIMITING

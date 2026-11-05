@@ -127,9 +127,9 @@ export const AdminConflictResolutionView: React.FC = () => {
 
       addAuditLog({
         action: `CONFLICT_RESOLUTION_${action.toUpperCase()}`,
-        actorId: currentUser?.uid || 'registrar',
+        actorId: currentUser?.uid || 'moderator',
         actorName,
-        actorRole: currentUser?.role || 'registrar',
+        actorRole: currentUser?.role || 'moderator',
         category: 'security',
         details: `${action === 'resolved_verified' ? 'Approved and auto-verified' : 'Rejected/Dismissed'} registration conflict for ${conflict.applicantName} (Student ID: ${conflict.applicantStudentId || 'N/A'}). Note: ${resolutionNote || 'Routine registrar inspection'}.`,
         severity: action === 'resolved_verified' ? 'success' : 'warning'
@@ -214,9 +214,9 @@ export const AdminConflictResolutionView: React.FC = () => {
 
     addAuditLog({
       action: `BULK_CONFLICT_RESOLUTION_${action.toUpperCase()}`,
-      actorId: currentUser?.uid || 'registrar',
+      actorId: currentUser?.uid || 'moderator',
       actorName,
-      actorRole: currentUser?.role || 'registrar',
+      actorRole: currentUser?.role || 'moderator',
       category: 'conflict_resolution',
       details: `Bulk ${action === 'resolved_verified' ? 'approved & verified' : 'rejected & blocked'} ${processed} student registration conflict records.`,
       severity: action === 'resolved_verified' ? 'success' : 'warning'
@@ -239,16 +239,16 @@ export const AdminConflictResolutionView: React.FC = () => {
   const handleGeneratePdfReport = () => {
     try {
       generateConflictResolutionPdfReport(conflicts, {
-        officerName: currentUser?.name || 'Registrar Officer',
-        officerRole: currentUser?.role === 'admin' ? 'System Administrator' : 'Office of the Registrar',
+        officerName: currentUser?.name || 'Moderator Officer',
+        officerRole: currentUser?.role === 'admin' ? 'System Administrator' : 'Moderator / Registry Administrator',
         institutionName: "St. Cecilia's College - Cebu, Inc."
       });
 
       addAuditLog({
         action: 'CONFLICT_REPORT_PDF_GENERATED',
-        actorId: currentUser?.uid || 'registrar',
-        actorName: currentUser?.name || 'Registrar Officer',
-        actorRole: currentUser?.role || 'registrar',
+        actorId: currentUser?.uid || 'moderator',
+        actorName: currentUser?.name || 'Moderator Officer',
+        actorRole: currentUser?.role || 'moderator',
         category: 'conflict_resolution',
         details: `Generated session Conflict Resolution & Manual Overrides PDF audit report for ${conflicts.length} incidents.`,
         severity: 'info'

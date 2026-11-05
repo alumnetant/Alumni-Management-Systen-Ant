@@ -189,14 +189,14 @@ export const Header: React.FC<{
 
   const getRoleBadgeColor = (role?: UserRole) => {
     switch (role) {
+      case 'superadmin':
+        return 'bg-purple-100 text-purple-900 border-purple-300';
       case 'admin':
         return 'bg-red-100 text-red-900 border-red-300';
-      case 'registrar':
-        return 'bg-amber-100 text-amber-800 border-amber-300';
-      case 'staff':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'moderator':
         return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+      case 'employer':
+        return 'bg-sky-100 text-sky-800 border-sky-300';
       default:
         return 'bg-stone-100 text-stone-800 border-stone-300';
     }
@@ -859,8 +859,8 @@ export const Header: React.FC<{
                       <ChevronRight className="w-3.5 h-3.5 text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 transition-colors" />
                     </button>
 
-                    {/* Admin Panel (for superadmin/admin/registrar/staff/moderator) */}
-                    {currentUser && ['superadmin', 'admin', 'registrar', 'staff', 'moderator'].includes(currentUser.role) && (
+                    {/* Admin Panel (for superadmin/admin/moderator) */}
+                    {currentUser && ['superadmin', 'admin', 'moderator'].includes(currentUser.role) && (
                       <button
                         type="button"
                         onClick={() => handlePortalRedirect('admin')}
@@ -1331,6 +1331,7 @@ export const Header: React.FC<{
       isOpen={showSatisfactionSurvey}
       onClose={() => setShowSatisfactionSurvey(false)}
     />
+
   </>
 );
 };

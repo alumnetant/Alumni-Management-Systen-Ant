@@ -26,7 +26,9 @@ import {
   Briefcase,
   GraduationCap,
   Users,
-  ShieldQuestion
+  ShieldQuestion,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
@@ -320,6 +322,10 @@ export const AuditLogView: React.FC = () => {
   const [timeFilter, setTimeFilter] = useState<'all' | '24h' | '7d' | '30d'>('all');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
+  // Pagination Controls
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
+
   // Inspector Drawer State
   const [inspectedLog, setInspectedLog] = useState<AuditLogEntry | null>(null);
   const [copiedPayload, setCopiedPayload] = useState(false);
@@ -330,6 +336,11 @@ export const AuditLogView: React.FC = () => {
       setRoleFilter(currentUserRole);
     }
   }, [isAdmin, currentUserRole]);
+
+  // Reset to page 1 whenever any filter criteria changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter, alertFilter, severityFilter, timeFilter, sortOrder]);
 
   // Telemetry Aggregation for active view
   const alertStats = useMemo(() => {
@@ -366,6 +377,7 @@ export const AuditLogView: React.FC = () => {
     setSeverityFilter('all');
     setTimeFilter('all');
     setSortOrder('newest');
+    setCurrentPage(1);
   };
 
   // Filtered Logs
@@ -387,30 +399,24 @@ export const AuditLogView: React.FC = () => {
             const isCategoryCareer = log.category === 'career';
             if (!isActorEmployer && !isTargetEmployer && !isCategoryCareer) return false;
           } else if (currentUserRole === 'moderator') {
-            const isActorMod = (log.actorRole || '').toLowerCase() === 'moderator';
-            const isModCategory = log.category === 'alumni_verification' || log.category === 'conflict_resolution';
+            const isActorMod = (log.actorRole || '').toLowerCase() === 'moderator' || (log.actorRole || '').toLowerCase() === 'staff' || (log.actorRole || '').toLowerCase() === 'registrar';
+            const isModCategory = log.category === 'alumni_verification' || log.category === 'conflict_resolution' || log.category === 'registry_masterlist' || log.category === 'alumni_registration';
             if (!isActorMod && !isModCategory) return false;
-          } else if (currentUserRole === 'staff' || currentUserRole === 'registrar') {
-            const isActorStaff = (log.actorRole || '').toLowerCase() === 'staff' || (log.actorRole || '').toLowerCase() === 'registrar';
-            const isStaffCategory = log.category === 'registry_masterlist' || log.category === 'alumni_registration';
-            if (!isActorStaff && !isStaffCategory) return false;
           } else {
-            // Alumni role: personal logs only
+            // Alumni role: strictly personal interactions only (actions they initiated or were target of)
             const isSelf = log.actorId === currentUser?.uid || log.actorName === currentUser?.name;
             const isTargetSelf = Boolean(
               log.targetRecordId &&
               (log.targetRecordId === currentUser?.studentId || log.targetRecordId === currentUser?.email)
             );
-            const isAlumniRole = (log.actorRole || '').toLowerCase() === 'alumni';
-            if (!isSelf && !isTargetSelf && !isAlumniRole) return false;
+            if (!isSelf && !isTargetSelf) return false;
           }
         } else {
           // Admin role: Can filter by any role or view all
           if (roleFilter !== 'all') {
             const logRole = (log.actorRole || '').toLowerCase();
             if (roleFilter === 'admin' && logRole !== 'admin' && logRole !== 'superadmin') return false;
-            if (roleFilter === 'staff' && logRole !== 'staff' && logRole !== 'registrar') return false;
-            if (roleFilter === 'moderator' && logRole !== 'moderator') return false;
+            if (roleFilter === 'moderator' && logRole !== 'moderator' && logRole !== 'staff' && logRole !== 'registrar') return false;
             if (roleFilter === 'employer' && logRole !== 'employer') return false;
             if (roleFilter === 'alumni' && logRole !== 'alumni') return false;
           }
@@ -457,6 +463,12 @@ export const AuditLogView: React.FC = () => {
         return sortOrder === 'newest' ? timeB - timeA : timeA - timeB;
       });
   }, [auditLogs, isAdmin, currentUserRole, currentUser, roleFilter, alertFilter, searchQuery, severityFilter, timeFilter, sortOrder]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const paginatedLogs = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredLogs.slice(start, start + pageSize);
+  }, [filteredLogs, currentPage, pageSize]);
 
   // Export CSV Handler
   const handleExportCsv = () => {
@@ -741,8 +753,7 @@ export const AuditLogView: React.FC = () => {
                       >
                         <option value="all">All Roles (Admin Wide)</option>
                         <option value="admin">Administrator (Admin / Superadmin)</option>
-                        <option value="staff">Staff & Registrar</option>
-                        <option value="moderator">Moderator</option>
+                        <option value="moderator">Institutional Moderator</option>
                         <option value="employer">Employer Partner</option>
                         <option value="alumni">Alumni</option>
                       </select>
@@ -814,7 +825,6 @@ export const AuditLogView: React.FC = () => {
                     {[
                       { id: 'all', label: 'All Roles', icon: Users },
                       { id: 'admin', label: 'Admin', icon: Shield },
-                      { id: 'staff', label: 'Staff', icon: GraduationCap },
                       { id: 'moderator', label: 'Moderator', icon: ShieldQuestion },
                       { id: 'employer', label: 'Employer', icon: Briefcase },
                       { id: 'alumni', label: 'Alumni', icon: User }
@@ -923,7 +933,7 @@ export const AuditLogView: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredLogs.map((log) => {
+                    paginatedLogs.map((log) => {
                       const isSelected = inspectedLog?.id === log.id;
                       const alertInfo = getLogAlertInfo(log);
 
@@ -1039,8 +1049,6 @@ export const AuditLogView: React.FC = () => {
                                     ? 'bg-blue-100 dark:bg-blue-950/50 text-blue-800 dark:text-blue-300'
                                     : log.actorRole === 'moderator'
                                     ? 'bg-purple-100 dark:bg-purple-950/50 text-purple-800 dark:text-purple-300'
-                                    : log.actorRole === 'staff'
-                                    ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300'
                                     : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
                                 }`}>
                                   {log.actorRole}
@@ -1089,6 +1097,53 @@ export const AuditLogView: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="px-4 py-3 bg-[#FAF9F5] dark:bg-stone-900 border-t border-stone-200/90 dark:border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-600 dark:text-stone-400">
+                <span>
+                  Showing{' '}
+                  <strong className="text-stone-900 dark:text-stone-100 font-mono">
+                    {(currentPage - 1) * pageSize + 1}
+                  </strong>{' '}
+                  to{' '}
+                  <strong className="text-stone-900 dark:text-stone-100 font-mono">
+                    {Math.min(currentPage * pageSize, filteredLogs.length)}
+                  </strong>{' '}
+                  of{' '}
+                  <strong className="text-stone-900 dark:text-stone-100 font-mono">
+                    {filteredLogs.length}
+                  </strong>{' '}
+                  entries
+                </span>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 dark:hover:bg-stone-750 transition-colors cursor-pointer"
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  <span className="px-3 py-1 font-mono font-medium text-xs">
+                    Page {currentPage} of {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 dark:hover:bg-stone-750 transition-colors cursor-pointer"
+                    title="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1103,7 +1158,7 @@ export const AuditLogView: React.FC = () => {
               </div>
             ) : (
               <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-stone-200 dark:before:bg-stone-800">
-                {filteredLogs.map((log) => {
+                {paginatedLogs.map((log) => {
                   const alertInfo = getLogAlertInfo(log);
 
                   return (
@@ -1194,6 +1249,53 @@ export const AuditLogView: React.FC = () => {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Pagination Controls in Timeline Mode */}
+            {totalPages > 1 && (
+              <div className="pt-4 border-t border-stone-200/90 dark:border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-600 dark:text-stone-400">
+                <span>
+                  Showing{' '}
+                  <strong className="text-stone-900 dark:text-stone-100 font-mono">
+                    {(currentPage - 1) * pageSize + 1}
+                  </strong>{' '}
+                  to{' '}
+                  <strong className="text-stone-900 dark:text-stone-100 font-mono">
+                    {Math.min(currentPage * pageSize, filteredLogs.length)}
+                  </strong>{' '}
+                  of{' '}
+                  <strong className="text-stone-900 dark:text-stone-100 font-mono">
+                    {filteredLogs.length}
+                  </strong>{' '}
+                  entries
+                </span>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 dark:hover:bg-stone-750 transition-colors cursor-pointer"
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  <span className="px-3 py-1 font-mono font-medium text-xs">
+                    Page {currentPage} of {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 dark:hover:bg-stone-750 transition-colors cursor-pointer"
+                    title="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             )}
           </div>

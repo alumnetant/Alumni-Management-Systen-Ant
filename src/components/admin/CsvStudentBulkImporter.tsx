@@ -268,9 +268,9 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
 
       addAuditLog({
         action: 'REGISTRAR_REGISTRY_UPLOAD',
-        actorId: currentUser?.uid || 'registrar',
-        actorName: currentUser?.name || 'Academic Registrar',
-        actorRole: currentUser?.role || 'registrar',
+        actorId: currentUser?.uid || 'moderator',
+        actorName: currentUser?.name || 'Moderator',
+        actorRole: currentUser?.role || 'moderator',
         category: 'alumni_registration',
         details: `Bulk imported ${result.importedToFirestore} new students and updated ${result.updatedCount} in Firestore registry from ${fileName || 'CSV'}.`,
         severity: 'success'

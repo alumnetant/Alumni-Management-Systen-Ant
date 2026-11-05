@@ -41,7 +41,9 @@ import {
   SlidersHorizontal,
   ChevronDown,
   CheckSquare,
-  Loader2
+  Loader2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { UserProfile, UserRole, isAdministrativeOrStaffRole } from '../../types';
@@ -80,7 +82,8 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'batch_desc' | 'batch_asc' | 'recent' | 'verified_first'>('name_asc');
   const [selectedUids, setSelectedUids] = useState<string[]>([]);
   const [userToDelete, setUserToDelete] = useState<{ uid: string; name: string } | null>(null);
-  const [visibleUserCount, setVisibleUserCount] = useState<number>(12);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 15;
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
   const [updatingRoleUid, setUpdatingRoleUid] = useState<string | null>(null);
@@ -129,7 +132,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
   }, []);
 
   useEffect(() => {
-    setVisibleUserCount(12);
+    setCurrentPage(1);
   }, [searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter, sortBy]);
 
   // Aggregate counts for quick tabs and options
@@ -191,6 +194,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
     setEmploymentFilter('all');
     setStatusFilter('all');
     setSortBy('name_asc');
+    setCurrentPage(1);
   };
 
   // Filtered and sorted users list
@@ -276,7 +280,18 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
       }
       return 0;
     });
-  }, [users, searchQuery, roleFilter, batchFilter, employmentFilter, sortBy]);
+  }, [users, searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter, sortBy]);
+
+  // Reset pagination on filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, currentPage, pageSize]);
 
   // Bulk selection handlers
   const handleSelectAll = () => {
@@ -595,7 +610,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
            HIGH-DENSITY BENTO CARDS VIEW
            ======================================================== */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredUsers.slice(0, visibleUserCount).map((u) => {
+          {paginatedUsers.map((u) => {
             const isSelected = selectedUids.includes(u.uid);
 
             return (
@@ -664,8 +679,6 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                             className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-stone-800 dark:text-stone-200 hover:border-stone-400 focus:outline-hidden cursor-pointer disabled:opacity-60"
                           >
                             <option value="moderator">Moderator</option>
-                            <option value="staff">Staff</option>
-                            <option value="registrar">Registrar</option>
                             <option value="admin">Admin</option>
                             {currentUser?.role === 'superadmin' && (
                               <option value="superadmin">Superadmin</option>
@@ -676,7 +689,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
                           u.role === 'admin' || u.role === 'superadmin'
                             ? 'bg-red-50 text-[#8B181B] border-red-200/80 dark:bg-red-950/40 dark:text-red-300'
-                            : u.role === 'registrar'
+                            : u.role === 'moderator'
                             ? 'bg-amber-50 text-amber-900 border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300'
                             : u.role === 'employer'
                             ? 'bg-blue-50 text-blue-800 border-blue-200/80 dark:bg-blue-950/40 dark:text-blue-300'
@@ -897,7 +910,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100 dark:divide-stone-800 text-xs">
-                {filteredUsers.slice(0, visibleUserCount).map((u) => {
+                {paginatedUsers.map((u) => {
                   const isSelected = selectedUids.includes(u.uid);
 
                   return (
@@ -1015,8 +1028,6 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                               className="px-2 py-1 rounded-lg text-[11px] font-bold uppercase bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200 border border-stone-200 dark:border-stone-700 hover:border-stone-400 focus:outline-hidden cursor-pointer disabled:opacity-60"
                             >
                               <option value="moderator">Moderator</option>
-                              <option value="staff">Staff</option>
-                              <option value="registrar">Registrar</option>
                               <option value="admin">Admin</option>
                               {currentUser?.role === 'superadmin' && (
                                 <option value="superadmin">Superadmin</option>
@@ -1164,51 +1175,53 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
       )}
 
       {/* ========================================================
-          PROGRESSIVE "SEE MORE" PAGINATION CONTROLS
+          ADMINISTRATOR DIRECTORY PAGINATION CONTROLS
           ======================================================== */}
-      {filteredUsers.length > visibleUserCount && (
-        <div className="mt-8 pt-6 border-t border-stone-200/80 dark:border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-stone-900 p-5 rounded-[28px] border border-stone-200/90 shadow-2xs">
+      {totalPages > 1 && (
+        <div className="mt-8 pt-4 border-t border-stone-200/80 dark:border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-stone-900 p-4 sm:p-5 rounded-[24px] border border-stone-200/90 dark:border-stone-800 shadow-2xs">
           <div className="text-xs text-stone-600 dark:text-stone-400 text-center sm:text-left">
-            Showing <strong className="text-stone-900 dark:text-white font-bold">{Math.min(visibleUserCount, filteredUsers.length)}</strong> of{' '}
-            <strong className="text-stone-900 dark:text-white font-bold">{filteredUsers.length}</strong> Cecilians
-            <div className="w-48 sm:w-64 bg-stone-200 dark:bg-stone-700 rounded-full h-1.5 mt-1.5 overflow-hidden mx-auto sm:mx-0">
-              <div
-                className="bg-[#8B181B] h-full rounded-full transition-all duration-300"
-                style={{
-                  width: `${(Math.min(visibleUserCount, filteredUsers.length) / filteredUsers.length) * 100}%`
-                }}
-              />
-            </div>
+            Showing{' '}
+            <strong className="text-stone-900 dark:text-white font-mono font-bold">
+              {(currentPage - 1) * pageSize + 1}
+            </strong>{' '}
+            to{' '}
+            <strong className="text-stone-900 dark:text-white font-mono font-bold">
+              {Math.min(currentPage * pageSize, filteredUsers.length)}
+            </strong>{' '}
+            of{' '}
+            <strong className="text-stone-900 dark:text-white font-mono font-bold">
+              {filteredUsers.length}
+            </strong>{' '}
+            registered accounts
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap justify-center">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setVisibleUserCount((prev) => prev + 12)}
-              className="px-5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white font-bold text-xs rounded-xl shadow-2xs transition-all cursor-pointer active:scale-95"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3.5 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-xs font-semibold text-stone-700 dark:text-stone-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 dark:hover:bg-stone-750 transition-colors cursor-pointer flex items-center gap-1.5"
+              title="Previous page"
             >
-              Load Next 12 (+{Math.min(12, filteredUsers.length - visibleUserCount)})
+              <ChevronLeft className="w-4 h-4" />
+              <span>Previous</span>
             </button>
+
+            <span className="px-3 py-1 font-mono text-xs font-semibold text-stone-800 dark:text-stone-200 bg-stone-100 dark:bg-stone-800 rounded-lg border border-stone-200 dark:border-stone-700">
+              Page {currentPage} of {totalPages}
+            </span>
+
             <button
               type="button"
-              onClick={() => setVisibleUserCount(filteredUsers.length)}
-              className="px-4 py-2.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 font-semibold text-xs rounded-xl transition-all cursor-pointer"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3.5 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 text-xs font-semibold text-stone-700 dark:text-stone-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 dark:hover:bg-stone-750 transition-colors cursor-pointer flex items-center gap-1.5"
+              title="Next page"
             >
-              Display Complete Directory
+              <span>Next</span>
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      )}
-
-      {visibleUserCount > 12 && filteredUsers.length > 12 && (
-        <div className="text-center pt-1">
-          <button
-            type="button"
-            onClick={() => setVisibleUserCount(12)}
-            className="text-xs text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 font-semibold underline cursor-pointer"
-          >
-            Show Less (Reset to 12)
-          </button>
         </div>
       )}
 

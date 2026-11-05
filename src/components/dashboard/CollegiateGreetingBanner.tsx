@@ -64,7 +64,7 @@ export const CollegiateGreetingBanner: React.FC<CollegiateGreetingBannerProps> =
       return "Welcome to the official St. Cecilia's College alumni commons. Connect with fellow graduates and explore alumni community updates.";
     }
 
-    if (currentUser.role === 'admin' || currentUser.role === 'registrar' || currentUser.role === 'superadmin') {
+    if (currentUser.role === 'admin' || currentUser.role === 'moderator' || currentUser.role === 'superadmin') {
       return `Admin session active. You are managing ${users.length} registered alumni across ${new Set(users.map((u) => u.course).filter(Boolean)).size} courses, with ${activeEventsCount} upcoming campus events.`;
     }
 
@@ -83,8 +83,8 @@ export const CollegiateGreetingBanner: React.FC<CollegiateGreetingBannerProps> =
     if (currentUser.role === 'admin' || currentUser.role === 'superadmin') {
       return 'System Administrator';
     }
-    if (currentUser.role === 'registrar') {
-      return 'Registrar Office';
+    if (currentUser.role === 'moderator') {
+      return 'Moderator & Registrar Authority';
     }
     if (currentUser.role === 'employer') {
       return currentUser.company ? `Partner Company · ${currentUser.company}` : 'Company Representative';

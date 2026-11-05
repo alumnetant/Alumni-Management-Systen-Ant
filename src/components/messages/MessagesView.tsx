@@ -267,7 +267,7 @@ export const MessagesView: React.FC = () => {
         if (isEventOrGroup) return false;
         const otherId = members.find((id) => id !== currentUser.uid);
         const other = users.find((u) => u.uid === otherId);
-        if (!other || !['admin', 'superadmin', 'registrar', 'staff'].includes(other.role)) {
+        if (!other || !['admin', 'superadmin', 'moderator'].includes(other.role)) {
           return false;
         }
       }
@@ -313,7 +313,7 @@ export const MessagesView: React.FC = () => {
       if (c.isGroupChat || c.isEventChat) return false;
       const otherId = (c.memberIds || []).find((id) => id !== currentUser.uid);
       const other = users.find((u) => u.uid === otherId);
-      return other && ['admin', 'superadmin', 'registrar', 'staff'].includes(other.role);
+      return other && ['admin', 'superadmin', 'moderator'].includes(other.role);
     }).length;
 
     return { all: myChats.length, direct: directCount, events: eventsCount, staff: staffCount, unread: unreadCount };
@@ -387,7 +387,7 @@ export const MessagesView: React.FC = () => {
 
         let matchesTab = true;
         if (contactFilter === 'staff') {
-          matchesTab = ['admin', 'superadmin', 'registrar', 'staff'].includes(u.role);
+          matchesTab = ['admin', 'superadmin', 'moderator'].includes(u.role);
         } else if (contactFilter === 'classmates') {
           matchesTab = Boolean(currentUser.batch && u.batch === currentUser.batch);
         }
@@ -452,11 +452,11 @@ export const MessagesView: React.FC = () => {
       },
       {
         id: 'staff' as const,
-        label: 'Staff & Officers',
-        badge: 'Staff & Officers',
+        label: 'Moderators & Officers',
+        badge: 'Moderators',
         count: chatCounts.staff,
         icon: ShieldCheck,
-        desc: 'Alumni coordinators, registrar & administration'
+        desc: 'Alumni coordinators, moderators & administration'
       },
       ...(chatCounts.unread > 0
         ? [
@@ -748,7 +748,7 @@ export const MessagesView: React.FC = () => {
                             : activeFilterPill === 'events'
                             ? 'Events & Lounges'
                             : activeFilterPill === 'staff'
-                            ? 'Staff & Officers'
+                            ? 'Moderators & Officers'
                             : 'Unread Only'}
                         </strong>
                       </span>

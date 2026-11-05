@@ -413,29 +413,17 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
           subtitle: 'Institutional Advancement & Operations',
           badgeColor: 'bg-red-100 text-[#8B181B] border-red-200'
         };
-      case 'registrar':
+      case 'moderator':
         return {
-          title: 'Office of the Registrar',
-          subtitle: 'Official Academic Records & Degree Verifications',
-          badgeColor: 'bg-indigo-100 text-indigo-900 border-indigo-200'
+          title: 'Institutional Moderator',
+          subtitle: 'Academic Records, Degree Verifications & Community Governance',
+          badgeColor: 'bg-emerald-100 text-emerald-900 border-emerald-200'
         };
       case 'employer':
         return {
           title: 'Employer Partner',
           subtitle: 'Talent Acquisition & Career Pipeline',
           badgeColor: 'bg-sky-100 text-sky-900 border-sky-200'
-        };
-      case 'staff':
-        return {
-          title: 'Academic Staff Officer',
-          subtitle: 'Campus Operations & Event Logistics',
-          badgeColor: 'bg-emerald-100 text-emerald-900 border-emerald-200'
-        };
-      case 'moderator':
-        return {
-          title: 'Moderation Officer',
-          subtitle: 'Community Standards & Job Approvals',
-          badgeColor: 'bg-amber-100 text-amber-900 border-amber-200'
         };
       default:
         return {
@@ -449,8 +437,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
   // Sidebar navigation sections tailored to role and permissions
   const navSections = useMemo(() => {
     const isEmployer = currentUser?.role === 'employer';
-    const isRegistrar = currentUser?.role === 'registrar';
-    const isStaff = currentUser?.role === 'staff';
     const isModerator = currentUser?.role === 'moderator';
 
     return [
@@ -505,7 +491,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             icon: ShieldCheck,
             badge: totalRequestsCount > 0 ? totalRequestsCount : null,
             badgeColor: 'bg-amber-100 text-amber-900 border-amber-300 font-bold',
-            visible: !isStaff && (permissions.canAccessConflictResolution || permissions.canAccessRegistry || currentUser?.role === 'admin' || currentUser?.role === 'superadmin')
+            visible: permissions.canAccessConflictResolution || permissions.canAccessRegistry || currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || isModerator
           }
         ].filter((i) => i.visible)
       },
@@ -540,7 +526,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             shortLabel: 'Notices',
             icon: Megaphone,
             badge: null,
-            visible: permissions.canPostAnnouncements || isStaff || isRegistrar
+            visible: permissions.canPostAnnouncements || isModerator
           },
           {
             id: 'events' as WorkspaceModuleId,
@@ -548,7 +534,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             shortLabel: 'Events',
             icon: Calendar,
             badge: null,
-            visible: permissions.canCreateEvents || isStaff || isRegistrar
+            visible: permissions.canCreateEvents || isModerator
           },
           {
             id: 'milestones' as WorkspaceModuleId,
@@ -814,6 +800,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                         <span>Visit Public Landing Page</span>
                       </button>
                     )}
+
 
                     <button
                       type="button"
@@ -1587,9 +1574,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 cursor-pointer"
                   >
                     <option value="admin">Administrator</option>
-                    <option value="registrar">Office of Registrar</option>
-                    <option value="staff">Academic Staff</option>
-                    <option value="moderator">Moderator</option>
+                    <option value="moderator">Institutional Moderator</option>
                     <option value="superadmin">Super Administrator</option>
                     <option value="employer">Employer Partner</option>
                     <option value="alumni">Alumnus</option>
@@ -2059,6 +2044,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
           </div>
         </div>
       </footer>
+
     </div>
   );
 };

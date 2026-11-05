@@ -151,7 +151,7 @@ export const NotificationsView: React.FC = () => {
       markNotificationAsRead(notif.id);
     }
 
-    const isUserAdmin = currentUser && ['admin', 'superadmin', 'registrar', 'staff', 'moderator'].includes(currentUser.role);
+    const isUserAdmin = currentUser && ['admin', 'superadmin', 'moderator'].includes(currentUser.role);
     const isUserEmployer = currentUser?.role === 'employer';
 
     // Contextual routing based on notification type & metadata

@@ -386,9 +386,9 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
     addAuditLog({
       action: 'MANUAL_ALUMNI_VERIFY',
-      actorId: currentUser?.uid || 'registrar',
-      actorName: currentUser?.name || 'Registrar Officer',
-      actorRole: currentUser?.role || 'admin',
+      actorId: currentUser?.uid || 'moderator',
+      actorName: currentUser?.name || 'Moderator Officer',
+      actorRole: currentUser?.role || 'moderator',
       category: 'alumni_verification',
       details: `Manually approved and granted verified alumni status to ${userName} (Student ID: ${studentId || 'N/A'}).`,
       severity: 'success'
@@ -423,9 +423,9 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
       addAuditLog({
         action: `CONFLICT_RESOLUTION_${action.toUpperCase()}`,
-        actorId: currentUser?.uid || 'registrar',
+        actorId: currentUser?.uid || 'moderator',
         actorName,
-        actorRole: currentUser?.role || 'registrar',
+        actorRole: currentUser?.role || 'moderator',
         category: 'conflict_resolution',
         details: `${action === 'resolved_verified' ? 'Approved and auto-verified' : 'Rejected/Dismissed'} registration dispute for ${conflict.applicantName} (Student ID: ${conflict.applicantStudentId || 'N/A'}). Note: ${note || 'Routine hearing deliberation'}.`,
         severity: action === 'resolved_verified' ? 'success' : 'warning'
@@ -475,9 +475,9 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
     addAuditLog({
       action: 'CONFLICT_RESOLUTION_MERGED',
-      actorId: currentUser?.uid || 'registrar',
+      actorId: currentUser?.uid || 'moderator',
       actorName,
-      actorRole: currentUser?.role || 'registrar',
+      actorRole: currentUser?.role || 'moderator',
       category: 'conflict_resolution',
       details: `Merged duplicate registration for ${conflict.applicantName} into verified member ${existingPrimary.name} (${existingPrimary.studentId}). Note: ${note}`,
       severity: 'success'
@@ -517,9 +517,9 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
     addAuditLog({
       action: 'CONFLICT_RESOLUTION_REASSIGNED',
-      actorId: currentUser?.uid || 'registrar',
+      actorId: currentUser?.uid || 'moderator',
       actorName,
-      actorRole: currentUser?.role || 'registrar',
+      actorRole: currentUser?.role || 'moderator',
       category: 'conflict_resolution',
       details: `Reassigned Student ID for ${reassignModalConflict.applicantName} to ${cleanId} and approved verification.`,
       severity: 'success'
@@ -577,9 +577,9 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
     addAuditLog({
       action: `BULK_CONFLICT_RESOLUTION_${action.toUpperCase()}`,
-      actorId: currentUser?.uid || 'registrar',
+      actorId: currentUser?.uid || 'moderator',
       actorName,
-      actorRole: currentUser?.role || 'registrar',
+      actorRole: currentUser?.role || 'moderator',
       category: 'conflict_resolution',
       details: `Bulk ${action === 'resolved_verified' ? 'approved & verified' : 'rejected & blocked'} ${processed} student registration conflict records.`,
       severity: action === 'resolved_verified' ? 'success' : 'warning'
@@ -602,16 +602,16 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
   const handleGeneratePdfReport = () => {
     try {
       generateConflictResolutionPdfReport(conflicts, {
-        officerName: currentUser?.name || 'Registrar Officer',
-        officerRole: currentUser?.role === 'admin' ? 'System Administrator' : 'Office of the Registrar',
+        officerName: currentUser?.name || 'Moderator Officer',
+        officerRole: currentUser?.role === 'admin' ? 'System Administrator' : 'Moderator / Registry Administrator',
         institutionName: "St. Cecilia's College - Cebu, Inc."
       });
 
       addAuditLog({
         action: 'CONFLICT_REPORT_PDF_GENERATED',
-        actorId: currentUser?.uid || 'registrar',
-        actorName: currentUser?.name || 'Registrar Officer',
-        actorRole: currentUser?.role || 'registrar',
+        actorId: currentUser?.uid || 'moderator',
+        actorName: currentUser?.name || 'Moderator Officer',
+        actorRole: currentUser?.role || 'moderator',
         category: 'conflict_resolution',
         details: `Generated session Conflict Resolution & Manual Overrides PDF audit report for ${conflicts.length} incidents.`,
         severity: 'info'

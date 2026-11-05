@@ -28,7 +28,8 @@ import {
   Pencil,
   Trash2,
   Megaphone,
-  Heart
+  Heart,
+  MoreHorizontal
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { InstitutionalFeedPost } from '../../types';
@@ -66,6 +67,8 @@ export const ProfileView: React.FC = () => {
   const [isDraggingCover, setIsDraggingCover] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [showResumePreview, setShowResumePreview] = useState(false);
+  const [showMoreActionsMenu, setShowMoreActionsMenu] = useState(false);
+  const [profileViewTab, setProfileViewTab] = useState<'overview' | 'posts'>('overview');
   const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
 
   // My Feed Posts author controls
@@ -174,6 +177,45 @@ export const ProfileView: React.FC = () => {
 
   const isVerifiedUser = !!(currentUser.isVerified || (currentUser as any).verified || currentUser.verificationStatus === 'verified');
   const roleDisplay = (currentUser.role || 'alumni').toUpperCase();
+
+  const myPosts = (feedPosts || []).filter(
+    (post) =>
+      post.authorId === currentUser.uid ||
+      post.authorId === (currentUser as any).id ||
+      post.authorName === currentUser.name
+  );
+
+  const handleStartEditPost = (post: InstitutionalFeedPost) => {
+    setPostToEdit(post);
+    setEditTitle(post.title || '');
+    setEditContent(post.content || '');
+  };
+
+  const handleSaveEditPost = async () => {
+    if (!postToEdit) return;
+    if (!editContent.trim()) {
+      showToast('Post content cannot be empty.', 'error');
+      return;
+    }
+    if (updateFeedPost) {
+      await updateFeedPost(postToEdit.id, {
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        isEdited: true
+      });
+      showToast('Post updated successfully!', 'success');
+      setPostToEdit(null);
+    }
+  };
+
+  const handleConfirmDeletePost = async () => {
+    if (!postToDelete) return;
+    if (deleteFeedPost) {
+      await deleteFeedPost(postToDelete.id);
+      showToast('Post removed from feed.', 'success');
+      setPostToDelete(null);
+    }
+  };
 
   return (
     <div className="space-y-6 pb-16 max-w-7xl mx-auto">
@@ -311,106 +353,141 @@ export const ProfileView: React.FC = () => {
             </div>
 
             {/* Profile Actions Toolbar */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full lg:w-auto pt-2 lg:pt-0">
-              
+            <div className="flex items-center gap-2 w-full lg:w-auto pt-2 lg:pt-0 relative">
               {/* Primary Collegiate CTA: Edit Profile */}
               <button
                 type="button"
                 onClick={() => openEditProfile()}
-                className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 sm:px-5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs sm:text-sm font-bold shadow-[0_1px_3px_rgba(139,24,27,0.3)] hover:shadow-[0_4px_12px_rgba(139,24,27,0.25)] transition-all cursor-pointer shrink-0 min-h-[44px]"
+                className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 sm:px-5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs sm:text-sm font-bold shadow-[0_1px_3px_rgba(139,24,27,0.25)] hover:shadow-[0_4px_12px_rgba(139,24,27,0.2)] transition-all cursor-pointer shrink-0 min-h-[44px]"
               >
                 <Edit className="w-4 h-4 stroke-[2]" />
                 <span className="whitespace-nowrap">Edit Profile</span>
               </button>
 
-              {/* Registrar Verification Status / Action - Strictly for Alumni */}
-              {currentUser.role === 'alumni' && (
+              {/* Registrar Verification CTA: Shown strictly if alumnus is not yet verified */}
+              {currentUser.role === 'alumni' && !isVerifiedUser && (
                 <button
                   type="button"
                   onClick={() => setShowRegistrarModal(true)}
                   className={`flex-1 sm:flex-none justify-center flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer min-h-[44px] ${
-                    isVerifiedUser
-                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800/60 shadow-2xs'
-                      : currentUser.verificationStatus === 'pending_review'
+                    currentUser.verificationStatus === 'pending_review'
                       ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs font-bold'
                       : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs font-bold'
                   }`}
-                  title={isVerifiedUser ? 'Official Office of the Registrar Verified Alum' : 'Verify academic standing with Registrar'}
+                  title="Verify academic standing with the Office of the Registrar"
                 >
-                  <ShieldCheck className={`w-4 h-4 shrink-0 ${isVerifiedUser ? 'text-emerald-700 dark:text-emerald-400' : 'text-white'}`} />
+                  <ShieldCheck className="w-4 h-4 shrink-0 text-white" />
                   <span className="truncate">
-                    {isVerifiedUser
-                      ? 'Registrar Verified'
-                      : currentUser.verificationStatus === 'pending_review'
-                      ? 'Verification Pending'
-                      : 'Verify with Registrar'}
+                    {currentUser.verificationStatus === 'pending_review' ? 'Verification Pending' : 'Verify with Registrar'}
                   </span>
                 </button>
               )}
 
-              {/* Export PDF Resume */}
-              <button
-                type="button"
-                onClick={() => setShowResumePreview(true)}
-                className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-stone-50 hover:bg-white text-stone-700 hover:text-stone-900 border border-stone-200/90 hover:border-stone-300 dark:bg-stone-800 dark:hover:bg-stone-750 dark:text-stone-200 dark:hover:text-white dark:border-stone-700 rounded-xl text-xs sm:text-sm font-semibold shadow-2xs transition-all cursor-pointer min-h-[44px]"
-                title="Review and download official PDF resume"
-              >
-                <FileDown className="w-4 h-4 text-stone-500 dark:text-stone-400 shrink-0" />
-                <span className="truncate">PDF Resume</span>
-              </button>
-
-              {/* Digital Pass / ID Jump (Alumni, Students, Staff only) */}
-              {currentUser.role !== 'employer' && (
+              {/* Overflow Actions Menu Dropdown */}
+              <div className="relative">
                 <button
                   type="button"
-                  onClick={() => {
-                    const el = document.getElementById('digital-id-section');
-                    el?.scrollIntoView({ behavior: 'smooth' });
-                  }}
-                  className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-stone-50 hover:bg-white text-stone-700 hover:text-stone-900 border border-stone-200/90 hover:border-amber-300/80 dark:bg-stone-800 dark:hover:bg-stone-750 dark:text-stone-200 dark:hover:text-white dark:border-stone-700 rounded-xl text-xs sm:text-sm font-semibold shadow-2xs transition-all cursor-pointer group min-h-[44px]"
-                  title="Jump to Official Digital Alumni Pass"
+                  onClick={() => setShowMoreActionsMenu(!showMoreActionsMenu)}
+                  className="p-2.5 bg-stone-100 hover:bg-stone-200/80 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-200 rounded-xl transition-colors cursor-pointer border border-stone-200 dark:border-stone-700 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  title="More actions"
+                  aria-label="More profile actions"
                 >
-                  <CreditCard className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 group-hover:scale-105 transition-transform" />
-                  <span className="truncate">Digital Pass</span>
+                  <MoreHorizontal className="w-5 h-5" />
                 </button>
-              )}
 
-              {/* Share Profile */}
-              <button
-                type="button"
-                onClick={handleShareProfile}
-                className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-stone-50 hover:bg-white text-stone-700 hover:text-stone-900 border border-stone-200/90 hover:border-stone-300 dark:bg-stone-800 dark:hover:bg-stone-750 dark:text-stone-200 dark:hover:text-white dark:border-stone-700 rounded-xl text-xs sm:text-sm font-semibold shadow-2xs transition-all cursor-pointer min-h-[44px]"
-                title="Copy public profile link"
-              >
-                <Share2 className="w-4 h-4 text-stone-500 dark:text-stone-400 shrink-0" />
-                <span className="truncate">{copiedLink ? 'Copied' : 'Share'}</span>
-              </button>
+                {showMoreActionsMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowMoreActionsMenu(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-stone-900 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-stone-200 dark:border-stone-800 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMoreActionsMenu(false);
+                          setShowResumePreview(true);
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-xs sm:text-sm font-medium text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <FileDown className="w-4 h-4 text-stone-500 dark:text-stone-400" />
+                        <span>Download PDF Resume</span>
+                      </button>
+
+                      {currentUser.role !== 'employer' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowMoreActionsMenu(false);
+                            setProfileViewTab('overview');
+                            setTimeout(() => {
+                              const el = document.getElementById('digital-id-section');
+                              el?.scrollIntoView({ behavior: 'smooth' });
+                            }, 50);
+                          }}
+                          className="w-full px-4 py-2.5 text-left text-xs sm:text-sm font-medium text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <CreditCard className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                          <span>Digital Alumni Pass</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMoreActionsMenu(false);
+                          handleShareProfile();
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-xs sm:text-sm font-medium text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <Share2 className="w-4 h-4 text-stone-500 dark:text-stone-400" />
+                        <span>{copiedLink ? 'Link Copied!' : 'Share Public Profile'}</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* User Bio Details */}
+          {/* User Bio Details: Clean unboxed typography per design guidance */}
           <div className="mt-2">
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="font-sans text-2xl sm:text-3xl lg:text-4xl font-bold text-stone-900 dark:text-white tracking-tight">
                 {currentUser.name}
               </h1>
 
-              {/* Verified Alum Badge: strictly displayed for accounts with role === 'alumni' */}
-              {currentUser.role === 'alumni' && isVerifiedUser && (
-                <span className="px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-full inline-flex items-center gap-1 shadow-2xs">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                  <span>Verified Alum</span>
+              {/* Single official verified shield badge */}
+              {isVerifiedUser && (
+                <span
+                  title="Official Registrar Verified Alumnus"
+                  className="inline-flex items-center text-emerald-600 dark:text-emerald-400"
+                >
+                  <ShieldCheck className="w-6 h-6 stroke-[2.2]" />
                 </span>
               )}
+            </div>
 
-              <span className="uppercase text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-red-50 dark:bg-red-950/40 text-[#8B181B] dark:text-red-300 border border-red-200 dark:border-red-900/60 shadow-2xs">
+            {/* Zero-Pill Unboxed Metadata Bar */}
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-stone-500 dark:text-stone-400 mt-1 font-medium flex-wrap">
+              <span className="uppercase font-bold tracking-wider text-[#8B181B] dark:text-red-400">
                 {roleDisplay}
               </span>
-
               {currentUser.studentId && (
-                <span className="font-mono text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-stone-700">
-                  <ContactMask value={currentUser.studentId} type="studentId" />
-                </span>
+                <>
+                  <span className="text-stone-300 dark:text-stone-600">·</span>
+                  <span className="font-mono">
+                    <ContactMask value={currentUser.studentId} type="studentId" />
+                  </span>
+                </>
+              )}
+              {isVerifiedUser && (
+                <>
+                  <span className="text-stone-300 dark:text-stone-600">·</span>
+                  <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                    Registrar Verified
+                  </span>
+                </>
               )}
             </div>
 
@@ -530,11 +607,49 @@ export const ProfileView: React.FC = () => {
             </div>
           </div>
 
-          {/* ========================================================
-              OFFICIAL ALUMNI DIGITAL PASS
-              Interactive metallic pass with QR turnstile verification
-              Accessible across web and mobile (Alumni, Student, Staff only)
-              ======================================================== */}
+          {/* Profile Navigation Tabs (Collegiate Social Style) */}
+          <div className="mt-8 border-b border-stone-200 dark:border-stone-800 flex items-center gap-6">
+            <button
+              type="button"
+              onClick={() => setProfileViewTab('overview')}
+              className={`pb-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                profileViewTab === 'overview'
+                  ? 'border-[#8B181B] text-[#8B181B] dark:border-red-400 dark:text-red-400'
+                  : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Overview & Credentials</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setProfileViewTab('posts')}
+              className={`pb-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                profileViewTab === 'posts'
+                  ? 'border-[#8B181B] text-[#8B181B] dark:border-red-400 dark:text-red-400'
+                  : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200'
+              }`}
+            >
+              <Megaphone className="w-4 h-4" />
+              <span>My Shared Posts</span>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                profileViewTab === 'posts'
+                  ? 'bg-red-100 text-[#8B181B] dark:bg-red-950/60 dark:text-red-300'
+                  : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400'
+              }`}>
+                {myPosts.length}
+              </span>
+            </button>
+          </div>
+
+          {profileViewTab === 'overview' ? (
+            <>
+              {/* ========================================================
+                  OFFICIAL ALUMNI DIGITAL PASS
+                  Interactive metallic pass with QR turnstile verification
+                  Accessible across web and mobile (Alumni, Student, Staff only)
+                  ======================================================== */}
           {currentUser.role !== 'employer' && (
             <div
               id="digital-id-section"
@@ -813,6 +928,122 @@ export const ProfileView: React.FC = () => {
 
             </div>
           </div>
+            </>
+          ) : (
+            /* Dedicated Collegiate Feed View for Alumni Profile */
+            <div className="mt-6 space-y-4 max-w-3xl">
+              <div className="flex items-center justify-between pb-2">
+                <div>
+                  <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-white">
+                    Publications & Community Updates
+                  </h2>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">
+                    All updates, stories, and career milestones you have published to the campus feed.
+                  </p>
+                </div>
+              </div>
+
+              {myPosts.length === 0 ? (
+                <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-dashed border-stone-300 dark:border-stone-700 p-10 text-center">
+                  <Megaphone className="w-10 h-10 text-stone-400 mx-auto mb-3" />
+                  <h3 className="text-sm font-bold text-stone-800 dark:text-stone-200">No posts shared yet</h3>
+                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-md mx-auto">
+                    You haven’t posted to the community feed yet. Share updates, industry tips, or project achievements with your fellow Cecilians.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {myPosts.map((post) => (
+                    <article
+                      key={post.id}
+                      className="bg-stone-50/70 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={getUserAvatar(post.authorAvatar || currentUser.profilePictureUrl)}
+                            alt={post.authorName}
+                            className="w-10 h-10 rounded-xl object-cover border border-stone-200 dark:border-stone-700"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-stone-900 dark:text-white">
+                                {post.authorName}
+                              </span>
+                              {post.isEdited && (
+                                <span className="text-[10px] text-stone-400 font-medium">(edited)</span>
+                              )}
+                            </div>
+                            <span className="text-xs text-stone-400 dark:text-stone-500 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(post.createdAt).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditPost(post)}
+                            className="p-1.5 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
+                            title="Edit post"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPostToDelete({ id: post.id, title: post.title })}
+                            className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
+                            title="Delete post"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {post.title && (
+                        <h3 className="text-base font-bold text-stone-900 dark:text-white mb-2">
+                          {post.title}
+                        </h3>
+                      )}
+
+                      <p className="text-sm text-stone-700 dark:text-stone-300 leading-relaxed whitespace-pre-line">
+                        {post.content}
+                      </p>
+
+                      {post.imageUrl && (
+                        <div className="mt-3.5 rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 max-h-80">
+                          <img
+                            src={post.imageUrl}
+                            alt={post.title}
+                            className="w-full h-full object-cover cursor-pointer hover:scale-[1.01] transition-transform"
+                            onClick={() =>
+                              setViewerImage({
+                                url: post.imageUrl!,
+                                title: post.title || 'Attached Post Image'
+                              })
+                            }
+                          />
+                        </div>
+                      )}
+
+                      <div className="mt-4 pt-3 border-t border-stone-200/60 dark:border-stone-700/60 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 font-medium">
+                        <span className="flex items-center gap-1.5">
+                          <Heart className="w-4 h-4 text-red-500 fill-red-500" />
+                          <span>{(post.hearts || []).length || post.likes || 0} Likes</span>
+                        </span>
+                        <span>{post.comments.length} Comments</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
         </div>
       </div>

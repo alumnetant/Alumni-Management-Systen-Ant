@@ -31,7 +31,8 @@ import {
   EventReservation,
   SuspensionRecord,
   SuspensionHistoryEntry,
-  SuspensionNoticeInfo
+  SuspensionNoticeInfo,
+  normalizeSystemRole
 } from '../types';
 import {
   INITIAL_USERS,
@@ -813,9 +814,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         list = [...INITIAL_USERS];
       }
 
-      // Always sanitize experience and education arrays
+      // Always sanitize experience and education arrays, and normalize roles to official 5 roles
       list = list.map((u) => ({
         ...u,
+        role: normalizeSystemRole(u.role),
         experience: Array.isArray(u.experience) ? u.experience : [],
         education: Array.isArray(u.education) ? u.education : []
       }));
@@ -1484,6 +1486,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 const preservedPassword = existing?.password || fUser.password || cred?.password || 'Password123!';
                 userMap.set(fUser.uid, {
                   ...fUser,
+                  role: normalizeSystemRole(fUser.role),
                   password: preservedPassword,
                   isVerified: fUser.isVerified !== undefined ? fUser.isVerified : (existing?.isVerified ?? (fUser.role === 'alumni')),
                   verified: fUser.verified !== undefined ? fUser.verified : (existing?.verified ?? (fUser.role === 'alumni'))
@@ -2101,8 +2104,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const email = fbUser.email || '';
           const role: UserRole = isKnownAdmin
             ? 'admin'
-            : emailLower.includes('registrar')
-            ? 'registrar'
+            : (emailLower.includes('registrar') || emailLower.includes('staff') || emailLower.includes('moderator'))
+            ? 'moderator'
             : 'alumni';
 
           const isAutoVerified = role !== 'alumni' || isKnownAdmin;
@@ -2497,33 +2500,33 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return {
       // Send friend requests: Verified alumni only
       canSendFriendRequests: role === 'alumni',
-      // Follow users: alumni, admin, superadmin
-      canFollow: role === 'alumni' || role === 'admin' || role === 'superadmin',
-      // Create events: Staff (primary routine owner), Admin, Superadmin, Registrar (academic). Alumni strictly NOT allowed.
-      canCreateEvents: role !== 'alumni' && ['admin', 'superadmin', 'staff', 'registrar'].includes(role || ''),
-      // Manage/publish events: Staff, Admin, Superadmin, Registrar. Alumni strictly NOT allowed.
-      canManageEvents: role !== 'alumni' && ['admin', 'superadmin', 'staff', 'registrar'].includes(role || ''),
-      // Delete events: Staff (routine owner), Registrar (academic), Admin/Superadmin (oversight). Alumni strictly NOT allowed.
-      canDeleteEvents: role !== 'alumni' && ['admin', 'superadmin', 'staff', 'registrar'].includes(role || ''),
-      // Post announcements: Staff, Registrar, Admin, Superadmin
-      canPostAnnouncements: ['admin', 'superadmin', 'staff', 'registrar'].includes(role || ''),
-      // Delete announcements: Staff, Registrar, Admin, Superadmin
-      canDeleteAnnouncements: ['admin', 'superadmin', 'staff', 'registrar'].includes(role || ''),
+      // Follow users: alumni, admin, superadmin, moderator
+      canFollow: role === 'alumni' || role === 'admin' || role === 'superadmin' || role === 'moderator',
+      // Create events: Moderator (primary routine owner), Admin, Superadmin. Alumni strictly NOT allowed.
+      canCreateEvents: role !== 'alumni' && ['admin', 'superadmin', 'moderator'].includes(role || ''),
+      // Manage/publish events: Moderator, Admin, Superadmin. Alumni strictly NOT allowed.
+      canManageEvents: role !== 'alumni' && ['admin', 'superadmin', 'moderator'].includes(role || ''),
+      // Delete events: Moderator (routine owner), Admin/Superadmin (oversight). Alumni strictly NOT allowed.
+      canDeleteEvents: role !== 'alumni' && ['admin', 'superadmin', 'moderator'].includes(role || ''),
+      // Post announcements: Moderator, Admin, Superadmin
+      canPostAnnouncements: ['admin', 'superadmin', 'moderator'].includes(role || ''),
+      // Delete announcements: Moderator, Admin, Superadmin
+      canDeleteAnnouncements: ['admin', 'superadmin', 'moderator'].includes(role || ''),
       // Delete events/comments & Community Moderation: Moderator (routine owner), Admin/Superadmin (oversight)
       canDeleteEventsComments: role !== 'alumni' && ['moderator', 'admin', 'superadmin'].includes(role || ''),
-      // Access admin workspace: superadmin, admin, registrar, staff, moderator
-      canAccessAdminPanel: ['admin', 'superadmin', 'registrar', 'staff', 'moderator'].includes(role || ''),
+      // Access admin workspace: superadmin, admin, moderator
+      canAccessAdminPanel: ['admin', 'superadmin', 'moderator'].includes(role || ''),
       // Access employer dashboard: verified employer partner or admin/superadmin (oversight)
       canAccessEmployerDashboard: role === 'employer' || ['admin', 'superadmin'].includes(role || ''),
-      // Message anyone: Verified alumni, verified employers, staff, registrar, admin/superadmin
-      canMessageAnyone: Boolean(currentUser) && (Boolean(currentUser?.isVerified) || ['admin', 'superadmin', 'staff', 'registrar'].includes(role || '')),
-      // Campus & Heritage Gallery: Staff (event/photo submissions), Registrar, Admin, Superadmin
-      canUploadGallery: ['staff', 'registrar', 'admin', 'superadmin'].includes(role || ''),
-      // Manage Job Moderation & Approval: Moderator (routine owner), Admin/Superadmin (oversight) - REMOVED from Registrar!
+      // Message anyone: Verified alumni, verified employers, moderator, admin/superadmin
+      canMessageAnyone: Boolean(currentUser) && (Boolean(currentUser?.isVerified) || ['admin', 'superadmin', 'moderator'].includes(role || '')),
+      // Campus & Heritage Gallery: Moderator, Admin, Superadmin
+      canUploadGallery: ['moderator', 'admin', 'superadmin'].includes(role || ''),
+      // Manage Job Moderation & Approval: Moderator (routine owner), Admin/Superadmin (oversight)
       canManageJobModeration: ['moderator', 'admin', 'superadmin'].includes(role || ''),
-      // Post Jobs: Verified employer partners, Admin/Superadmin (oversight), staff/moderators. Alumni are strictly NOT allowed to post jobs!
+      // Post Jobs: Verified employer partners, Admin/Superadmin (oversight), moderators. Alumni are strictly NOT allowed to post jobs!
       canPostJobs: role !== 'alumni' && (
-        ['admin', 'superadmin', 'staff', 'moderator'].includes(role || '') ||
+        ['admin', 'superadmin', 'moderator'].includes(role || '') ||
         (role === 'employer' &&
           (Boolean(currentUser?.isVerified) ||
            currentUser?.employerVerificationStatus === 'verified' ||
@@ -2536,15 +2539,15 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       ),
 
       // SPECIFIC RBAC & FUNCTIONAL OWNERSHIP RESTRICTIONS:
-      // Academic Registry: Registrar (primary owner), Superadmin/Admin (view/oversight)
-      canAccessRegistry: ['registrar', 'admin', 'superadmin'].includes(role || ''),
-      // Conflict Resolution: Registrar (primary owner), Superadmin/Admin (oversight)
-      canAccessConflictResolution: ['registrar', 'admin', 'superadmin'].includes(role || ''),
-      // Employer Accreditation: Administrator & Super Administrator only (REMOVED from Registrar)
+      // Academic Registry: Moderator (primary owner, degree clearance), Superadmin/Admin (view/oversight)
+      canAccessRegistry: ['moderator', 'admin', 'superadmin'].includes(role || ''),
+      // Conflict Resolution: Moderator (primary owner), Superadmin/Admin (oversight)
+      canAccessConflictResolution: ['moderator', 'admin', 'superadmin'].includes(role || ''),
+      // Employer Accreditation: Administrator & Super Administrator only
       canAccessEmployerAccreditation: ['admin', 'superadmin'].includes(role || ''),
-      // Governance & Retention Policies: Super Administrator ONLY (Restricted from Administrator)
+      // Governance & Retention Policies: Super Administrator ONLY
       canAccessGovernance: role === 'superadmin',
-      // Audit Trails: Superadmin (full), Admin (relevant/operational), Moderator (moderation logs)
+      // Audit Trails: Superadmin (full), Admin (relevant/operational), Moderator (moderation & clearance logs)
       canAccessAuditTrails: ['superadmin', 'admin', 'moderator'].includes(role || ''),
       // Automations: Super Administrator & Administrator
       canAccessAutomations: ['superadmin', 'admin'].includes(role || ''),
@@ -2554,12 +2557,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       canManageBackups: role === 'superadmin',
 
       // Administration & Chapters
-      // Role Assignment: Super Administrator (full), Administrator (approved roles) - REMOVED from Registrar!
+      // Role Assignment: Super Administrator (full), Administrator (approved roles)
       canAssignRoles: ['admin', 'superadmin'].includes(role || ''),
-      // Alumni Verification: Registrar (primary owner), Admin/Superadmin (oversight)
-      canVerifyAlumni: ['registrar', 'admin', 'superadmin'].includes(role || ''),
-      // Regional Chapters: Staff (primary owner), Admin/Superadmin (oversight)
-      canManageChapters: ['staff', 'admin', 'superadmin'].includes(role || '')
+      // Alumni Verification: Moderator (primary owner, academic clearance), Admin/Superadmin (oversight)
+      canVerifyAlumni: ['moderator', 'admin', 'superadmin'].includes(role || ''),
+      // Regional Chapters: Moderator (primary owner), Admin/Superadmin (oversight)
+      canManageChapters: ['moderator', 'admin', 'superadmin'].includes(role || '')
     };
   }, [currentUser]);
 
@@ -2631,7 +2634,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         saveActiveSession(matched);
         setAuthReady(true);
         await saveUserToFirestore(matched).catch(() => {});
-        if (['admin', 'superadmin', 'registrar', 'staff', 'moderator'].includes(matched.role)) {
+        if (['admin', 'superadmin', 'moderator'].includes(matched.role)) {
           setActiveTab('admin');
         } else {
           setActiveTab('dashboard');
@@ -2642,11 +2645,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         const email = fbUser.email || '';
         const role: UserRole = isKnownAdmin
           ? 'admin'
-          : emailLower.includes('registrar')
-          ? 'registrar'
+          : (emailLower.includes('registrar') || emailLower.includes('staff') || emailLower.includes('moderator'))
+          ? 'moderator'
           : 'alumni';
 
-        // Alumni registering via Google must be verified by Registrar before login
+        // Alumni registering via Google must be verified before login
         const isAutoVerified = role !== 'alumni' || isKnownAdmin;
 
         const newProfile: UserProfile = {
@@ -2677,7 +2680,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         await saveUserToFirestore(newProfile).catch(() => {});
 
         if (!isAutoVerified) {
-          showToast('Google account linked, but access is blocked pending Registrar verification.', 'error');
+          showToast('Google account linked, but access is blocked pending verification.', 'error');
           return false;
         }
 
@@ -2685,7 +2688,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         saveActiveSession(newProfile);
         setAuthReady(true);
 
-        if (['admin', 'superadmin', 'registrar', 'staff', 'moderator'].includes(role)) {
+        if (['admin', 'superadmin', 'moderator'].includes(role)) {
           setActiveTab('admin');
         } else {
           setActiveTab('dashboard');
@@ -3864,10 +3867,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return true;
   };
 
-  // Campus & Heritage Gallery: Admin, Registrar, Staff, Moderator can upload
+  // Campus & Heritage Gallery: Admin, Superadmin, Moderator can upload
   const addGalleryItem = (item: Omit<GalleryItem, 'id' | 'createdAt'>): boolean => {
-    if (!['admin', 'registrar', 'superadmin', 'staff', 'moderator'].includes(currentUser?.role || '')) {
-      showToast('Permission denied: Only Admin and Registrar can upload to Campus & Heritage Gallery.');
+    if (!['admin', 'superadmin', 'moderator'].includes(currentUser?.role || '')) {
+      showToast('Permission denied: Only Admin and Moderator can upload to Campus & Heritage Gallery.');
       return false;
     }
     const finalUrl = item.url || (item as any).imageUrl || '';
@@ -3921,8 +3924,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const deleteGalleryItem = (id: string): boolean => {
-    if (!['admin', 'registrar', 'superadmin', 'staff', 'moderator'].includes(currentUser?.role || '')) {
-      showToast('Permission denied: Only Admin and Registrar can manage gallery items.');
+    if (!['admin', 'superadmin', 'moderator'].includes(currentUser?.role || '')) {
+      showToast('Permission denied: Only Admin and Moderator can manage gallery items.');
       return false;
     }
     setGalleryItems((prev) => prev.filter((g) => g.id !== id));
@@ -4221,7 +4224,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const deleteAccount = (): boolean => {
     if (!currentUserId) return false;
     const target = users.find((u) => u.uid === currentUserId);
-    if (target && ['admin', 'superadmin', 'registrar', 'staff', 'moderator'].includes(target.role)) {
+    if (target && ['admin', 'superadmin', 'moderator'].includes(target.role)) {
       showToast('Administrative accounts cannot be deleted from settings. Contact institutional governance.', 'error');
       return false;
     }
@@ -4685,6 +4688,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Messaging operations
   const getOrCreateChat = (targetUid: string): string => {
     if (!currentUser) return '';
+
+    // Strict connection check: Direct messaging is strictly restricted to mutual connections
+    const target = users.find((u) => u.uid === targetUid);
+    const isTargetAlumni = !target?.role || target?.role === 'alumni';
+    const isCurrentAlumni = !currentUser.role || currentUser.role === 'alumni';
+    if (isTargetAlumni && isCurrentAlumni && targetUid !== currentUser.uid) {
+      const userConnections = connectionsMap[currentUser.uid] || [];
+      if (!userConnections.includes(targetUid)) {
+        showToast('Direct messaging is strictly restricted to mutual connections. Please send a connection request first.', 'warning');
+        return '';
+      }
+    }
+
     const existingChat = chats.find(
       (c) => (c.memberIds || (c as any).participants || []).includes(currentUser.uid) && (c.memberIds || (c as any).participants || []).includes(targetUid)
     );
@@ -4715,6 +4731,24 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const sendMessage = (chatId: string, text: string) => {
     if (!currentUser || !text.trim()) return;
+
+    // Strict connection check: verify mutual connection for direct peer-to-peer chats
+    const targetChat = chats.find((c) => c.id === chatId);
+    if (targetChat && !targetChat.isGroupChat) {
+      const members = targetChat.memberIds || [];
+      const otherUid = members.find((m) => m !== currentUser.uid);
+      if (otherUid) {
+        const userConnections = connectionsMap[currentUser.uid] || [];
+        const target = users.find((u) => u.uid === otherUid);
+        const isTargetAlumni = !target?.role || target?.role === 'alumni';
+        const isCurrentAlumni = !currentUser.role || currentUser.role === 'alumni';
+        if (isTargetAlumni && isCurrentAlumni && !userConnections.includes(otherUid)) {
+          showToast('Cannot send message: You must be mutually connected with this alumnus to exchange messages.', 'error');
+          return;
+        }
+      }
+    }
+
     const now = new Date().toISOString();
     const isDeviceOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     const cleanText = text.trim();
@@ -5692,7 +5726,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const updateEventAttendance = (eventId: string, uid: string, status: 'attended' | 'not_attended' | 'pending') => {
-    if (!permissions.canCreateEvents && currentUser?.role !== 'admin' && currentUser?.role !== 'registrar') {
+    if (!permissions.canCreateEvents && currentUser?.role !== 'admin' && currentUser?.role !== 'moderator') {
       showToast('Permission denied: Only authorized administrators can record event attendance.', 'error');
       return;
     }
@@ -6472,6 +6506,24 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
     }).catch(() => {});
 
+    // Dispatch institutional email notice to alumni cohort
+    try {
+      const recipientAlumni = users.filter((u) => u.role === 'alumni' && u.email);
+      sendAnnouncementEmail(newAnn, recipientAlumni);
+    } catch (e) {
+      console.warn('Failed to dispatch announcement emails:', e);
+    }
+
+    // Trigger native browser notification if permitted on active device
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(notif.title, {
+          body: notif.body,
+          icon: '/favicon.ico'
+        });
+      } catch (e) {}
+    }
+
     addAuditLog({
       action: 'Announcement Published',
       actorId: currentUser.uid,
@@ -6863,7 +6915,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       (app.employerUid === currentUser.uid ||
         targetJob?.postedBy === currentUser.uid ||
         (userCompany && targetJob?.company && targetJob.company.toLowerCase() === userCompany.toLowerCase()));
-    const isAdmin = currentUser && ['admin', 'superadmin', 'staff', 'moderator'].includes(currentUser.role);
+    const isAdmin = currentUser && ['admin', 'superadmin', 'moderator'].includes(currentUser.role);
 
     if (!isOwnerEmployer && !isAdmin) {
       showToast('Permission denied: You can only update applications for your own job postings.', 'error');
@@ -7177,7 +7229,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Global Alumni Academic Record Verification Gate State
   const isAlumniVerified = useMemo(() => {
     if (!currentUser) return false;
-    if (['admin', 'staff', 'registrar', 'moderator', 'superadmin'].includes(currentUser.role)) return true;
+    if (['admin', 'moderator', 'superadmin'].includes(currentUser.role)) return true;
     if (currentUser.role === 'employer') {
       return Boolean((currentUser.isVerified || currentUser.verified) && currentUser.verificationStatus !== 'rejected');
     }
@@ -7468,8 +7520,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setIsFirestoreSyncing(true);
       const liveUsers = await alumniService.getAllAlumni();
       if (liveUsers && liveUsers.length > 0) {
-        setUsers(liveUsers);
-        return liveUsers;
+        const normalized = liveUsers.map((u) => ({ ...u, role: normalizeSystemRole(u.role) }));
+        setUsers(normalized);
+        return normalized;
       }
       return [];
     } catch (err) {
@@ -7525,7 +7578,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const createMilestone = (m: Omit<CareerMilestone, 'id'>) => {
-    const isAuthorized = permissions.canAccessAdminPanel || currentUser?.role === 'alumni' || currentUser?.role === 'staff';
+    const isAuthorized = permissions.canAccessAdminPanel || currentUser?.role === 'alumni' || currentUser?.role === 'moderator';
     if (!isAuthorized) {
       showToast('Permission denied to publish milestones.');
       return;

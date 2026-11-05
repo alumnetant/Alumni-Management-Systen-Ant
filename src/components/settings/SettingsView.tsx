@@ -139,7 +139,7 @@ export const SettingsView: React.FC = () => {
   }, [currentUser?.uid, currentUser?.role]);
 
   // Administrative roles cannot delete their accounts from settings
-  const isAdminRole = ['admin', 'superadmin', 'registrar', 'staff', 'moderator'].includes(currentUser?.role || '');
+  const isAdminRole = ['admin', 'superadmin', 'moderator'].includes(currentUser?.role || '');
 
   // Email form
   const [newEmail, setNewEmail] = useState('');
@@ -750,9 +750,7 @@ export const SettingsView: React.FC = () => {
                 <p className="text-[11px] text-stone-500 max-w-xl">
                   {currentUser.role === 'superadmin' && 'Full system root access: Architecture configurations, all role delegations, and security auditing.'}
                   {currentUser.role === 'admin' && 'Administrative privileges: Manage alumni accounts, directory moderation, opportunity reviews, and announcements.'}
-                  {currentUser.role === 'registrar' && 'Registrar authority: Validate student credentials, verify alumni graduation registry records, and audit status.'}
-                  {currentUser.role === 'staff' && 'Institutional staff clearance: Departmental notices, campus career posts, and student event coordination.'}
-                  {currentUser.role === 'moderator' && 'Community moderator clearance: Review discussion submissions, forum items, and member report flags.'}
+                  {((currentUser.role as string) === 'moderator' || (currentUser.role as string) === 'registrar' || (currentUser.role as string) === 'staff') && 'Institutional moderation clearance: Validate student credentials, review submissions, and manage notices.'}
                   {currentUser.role === 'employer' && 'Corporate employer clearance: Post job opportunities and browse qualified alumni candidates.'}
                   {currentUser.role === 'alumni' && 'Verified alumni privileges: Discover alumni, connect with classmates, submit career applications, and access campus pass.'}
                 </p>
@@ -1863,9 +1861,7 @@ export const SettingsView: React.FC = () => {
                       className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-hidden focus:border-[#8B181B] cursor-pointer"
                     >
                       <option value="alumni">Alumni (Standard Portal Access)</option>
-                      <option value="moderator">Moderator (Community Governance)</option>
-                      <option value="staff">Staff (Department Operations)</option>
-                      <option value="registrar">Registrar (Verification Officer)</option>
+                      <option value="moderator">Institutional Moderator (Academic & Community Governance)</option>
                       <option value="admin">Admin (Portal Administrator)</option>
                       {currentUser?.role === 'superadmin' && (
                         <option value="superadmin">Superadmin (Root System Authority)</option>

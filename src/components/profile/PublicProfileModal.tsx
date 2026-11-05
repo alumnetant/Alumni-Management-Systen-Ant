@@ -152,9 +152,24 @@ export const PublicProfileModal: React.FC = () => {
                   {!isSelf && (
                     <>
                       {connected ? (
-                        <div className="justify-center flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/90 dark:border-emerald-800/60 rounded-xl text-xs sm:text-sm font-semibold min-h-[42px]">
-                          <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                          <span>Connected</span>
+                        <div className="flex items-center gap-2">
+                          <div className="justify-center flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/90 dark:border-emerald-800/60 rounded-xl text-xs sm:text-sm font-semibold min-h-[42px]">
+                            <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span>Connected</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedUserIdForModal(null);
+                              getOrCreateChat(targetUser.uid);
+                              setActiveTab('messages');
+                            }}
+                            className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs cursor-pointer min-h-[42px] transition-all hover:shadow-md"
+                            title="Send direct message"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            <span>Message</span>
+                          </button>
                         </div>
                       ) : reqState === 'sent' ? (
                         <button

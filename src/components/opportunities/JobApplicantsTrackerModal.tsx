@@ -91,7 +91,7 @@ export const JobApplicantsTrackerModal: React.FC<JobApplicantsTrackerModalProps>
   // Enforce access control: only the employer owning this job or admin/staff can evaluate
   const isAuthorized = useMemo(() => {
     if (!currentUser) return false;
-    if (['admin', 'superadmin', 'staff', 'moderator'].includes(currentUser.role)) return true;
+    if (['admin', 'superadmin', 'moderator'].includes(currentUser.role)) return true;
     if (currentUser.role === 'employer') {
       const userCompany = (currentUser.companyName || currentUser.company || '').trim().toLowerCase();
       const oppCompany = (opportunity.company || '').trim().toLowerCase();

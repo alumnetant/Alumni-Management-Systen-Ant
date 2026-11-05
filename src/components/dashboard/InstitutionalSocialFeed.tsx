@@ -621,7 +621,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
                             className={`px-2 py-0.2 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wide rounded-full border shrink-0 ${
                               post.authorRole === 'admin'
                                 ? 'bg-red-50 text-[#8B181B] border-red-200'
-                                : post.authorRole === 'registrar'
+                                : post.authorRole === 'moderator'
                                 ? 'bg-amber-50 text-amber-900 border-amber-200'
                                 : 'bg-blue-50 text-blue-900 border-blue-200'
                             }`}

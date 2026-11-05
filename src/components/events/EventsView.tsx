@@ -1350,7 +1350,7 @@ export const EventsView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                    {((currentUser?.role && ['admin', 'superadmin', 'staff', 'moderator'].includes(currentUser.role)) || activeEvent.createdBy === currentUser?.uid) && (
+                    {((currentUser?.role && ['admin', 'superadmin', 'moderator'].includes(currentUser.role)) || activeEvent.createdBy === currentUser?.uid) && (
                       <button
                         type="button"
                         onClick={() => setCheckInModalEvent(activeEvent)}
@@ -1511,7 +1511,7 @@ export const EventsView: React.FC = () => {
                             </span>
 
                             {/* Staff / Admin Quick Check-In Toggle */}
-                            {currentUser?.role && ['admin', 'superadmin', 'staff', 'moderator'].includes(currentUser.role) && (
+                            {currentUser?.role && ['admin', 'superadmin', 'moderator'].includes(currentUser.role) && (
                               att.checkInStatus === 'checked_in' ? (
                                 <button
                                   type="button"

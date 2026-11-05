@@ -8,6 +8,12 @@ For testing, auditing, and development credentials across all institutional role
 
 👉 **[`DEFAULT_ACCOUNTS.md`](./DEFAULT_ACCOUNTS.md)**
 
+## System Documentation & Use Case Specifications
+
+For the comprehensive OMG UML 2.5 Use Case Diagrams, user task catalogs, and formal two-column Use Case Narratives matching institutional standards, please refer to:
+
+👉 **[`USE_CASE_DOCUMENTATION.md`](./USE_CASE_DOCUMENTATION.md)**
+
 *Note: In accordance with cybersecurity guidelines, credentials and quick-login shortcuts are not rendered on the public login page.*
 
 ## Development & Running the App

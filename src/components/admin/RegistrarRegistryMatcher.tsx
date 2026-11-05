@@ -16,7 +16,9 @@ import {
   FileSpreadsheet,
   FileDown,
   X,
-  Plus
+  Plus,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { StudentVerificationRecord } from '../../types';
 import {
@@ -41,7 +43,8 @@ export const RegistrarRegistryMatcher: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'registered' | 'pending' | 'honors'>('all');
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'batch_desc' | 'batch_asc' | 'name_asc' | 'id_asc'>('batch_desc');
-  const [recordsVisibleCount, setRecordsVisibleCount] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 15;
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>('Just now');
@@ -101,9 +104,9 @@ export const RegistrarRegistryMatcher: React.FC = () => {
 
       addAuditLog({
         action: 'REGISTRY_RECORD_DELETED',
-        actorId: currentUser?.uid || 'registrar',
-        actorName: currentUser?.name || 'Registrar Staff',
-        actorRole: currentUser?.role || 'registrar',
+        actorId: currentUser?.uid || 'moderator',
+        actorName: currentUser?.name || 'Moderator',
+        actorRole: currentUser?.role || 'moderator',
         category: 'registry_masterlist',
         details: `Deleted student record ${id} (${name}) from the official graduate masterlist.`,
         severity: 'warning'
@@ -126,9 +129,9 @@ export const RegistrarRegistryMatcher: React.FC = () => {
     showToast(`Exported ${recordsToExport.length} student records to CSV!`, 'success');
     addAuditLog({
       action: 'REGISTRY_ROSTER_EXPORTED',
-      actorId: currentUser?.uid || 'registrar',
-      actorName: currentUser?.name || 'Registrar Staff',
-      actorRole: currentUser?.role || 'registrar',
+      actorId: currentUser?.uid || 'moderator',
+      actorName: currentUser?.name || 'Moderator',
+      actorRole: currentUser?.role || 'moderator',
       category: 'registry_masterlist',
       details: `Exported ${recordsToExport.length} official student records to CSV spreadsheet.`,
       severity: 'info'
@@ -178,9 +181,9 @@ export const RegistrarRegistryMatcher: React.FC = () => {
 
     addAuditLog({
       action: 'STUDENT_MANUALLY_ACCREDITED',
-      actorId: currentUser?.uid || 'registrar',
-      actorName: currentUser?.name || 'Registrar Staff',
-      actorRole: currentUser?.role || 'registrar',
+      actorId: currentUser?.uid || 'moderator',
+      actorName: currentUser?.name || 'Moderator',
+      actorRole: currentUser?.role || 'moderator',
       category: 'registry_masterlist',
       details: `Accredited student ${normId} (${accreditForm.fullName}) into the official registry.`,
       severity: 'info'
@@ -252,7 +255,16 @@ export const RegistrarRegistryMatcher: React.FC = () => {
       });
   }, [records, searchQuery, selectedBatch, selectedStatus, selectedCourse, sortBy]);
 
+  // Reset pagination on filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedBatch, selectedStatus, selectedCourse, sortBy]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
+  const paginatedRecords = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRecords.slice(start, start + pageSize);
+  }, [filteredRecords, currentPage, pageSize]);
 
   return (
     <div className="w-full space-y-6 antialiased">
@@ -345,7 +357,7 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredRecords.slice(0, recordsVisibleCount).map((record) => {
+                paginatedRecords.map((record) => {
                   const isReg = record.isRegistered;
 
                   return (
@@ -434,25 +446,34 @@ export const RegistrarRegistryMatcher: React.FC = () => {
         </div>
 
         {/* Progressive Pagination Bar */}
-        {filteredRecords.length > recordsVisibleCount && (
-          <div className="p-4 bg-stone-50/80 border-t border-stone-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-            <span className="text-stone-600">
-              Showing <strong className="font-mono tabular-nums text-stone-900">{Math.min(recordsVisibleCount, filteredRecords.length)}</strong> of <strong className="font-mono tabular-nums text-stone-900">{filteredRecords.length}</strong> accredited records
+        {totalPages > 1 && (
+          <div className="p-4 bg-stone-50/80 border-t border-stone-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-600">
+            <span>
+              Showing <strong className="font-mono tabular-nums text-stone-900 font-bold">{(currentPage - 1) * pageSize + 1}</strong> to <strong className="font-mono tabular-nums text-stone-900 font-bold">{Math.min(currentPage * pageSize, filteredRecords.length)}</strong> of <strong className="font-mono tabular-nums text-stone-900 font-bold">{filteredRecords.length}</strong> accredited records
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => setRecordsVisibleCount((prev) => prev + 25)}
-                className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg font-bold shadow-2xs transition-all cursor-pointer text-xs"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg border border-stone-200 bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 transition-colors cursor-pointer flex items-center gap-1 font-semibold text-stone-700"
+                title="Previous page"
               >
-                Load Next 25 Records
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Prev</span>
               </button>
+              <span className="px-3 py-1 font-mono font-medium text-xs bg-white border border-stone-200 rounded-lg">
+                Page {currentPage} of {totalPages}
+              </span>
               <button
                 type="button"
-                onClick={() => setRecordsVisibleCount(filteredRecords.length)}
-                className="px-3.5 py-1.5 bg-white border border-stone-200 hover:bg-stone-100 text-stone-700 rounded-lg font-semibold transition-colors cursor-pointer text-xs"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 rounded-lg border border-stone-200 bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 transition-colors cursor-pointer flex items-center gap-1 font-semibold text-stone-700"
+                title="Next page"
               >
-                Show All ({filteredRecords.length})
+                <span>Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>

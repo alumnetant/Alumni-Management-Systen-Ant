@@ -1,0 +1,346 @@
+Table users {
+  uid varchar [pk, note: 'Document ID / Firebase Auth UID']
+  name varchar [not null]
+  email varchar [not null, unique]
+  role varchar [not null, note: 'superadmin | admin | moderator | employer | alumni']
+  batch varchar [note: 'Graduation Year e.g., 2024']
+  course varchar [note: 'Academic Degree Program']
+  location varchar
+  profilePictureUrl varchar
+  coverPhotoUrl varchar
+  headline varchar
+  about text
+  phone varchar
+  isVerified boolean [default: false]
+  verified boolean [default: false]
+  verificationStatus varchar [note: 'verified | pending_review | flagged | rejected']
+  verificationFlagReason text
+  verificationProofUrl varchar
+  verificationNotes text
+  followersCount int [default: 0]
+  followingCount int [default: 0]
+  connectionsCount int [default: 0]
+  skills "varchar[]" [note: 'Denormalized string array of competencies']
+  currentPosition varchar
+  company varchar
+  experience "json[]" [note: 'Embedded array: [{id, title, company, startDate, current, ...}]']
+  education "json[]" [note: 'Embedded array: [{id, degree, institution, startYear, ...}]']
+  alumniId varchar [note: 'Official Alumni ID (e.g. SCC-ALUM-2024-0192)']
+  studentId varchar [note: 'Official Student Registry ID (e.g. SCC-2024-001)']
+  employeeId varchar
+  department varchar
+  authProvider varchar [note: 'password | google | firebase']
+  accountStatus varchar [note: 'ACTIVE | PENDING_VERIFICATION | SUSPENDED | LOCKED | REJECTED']
+  suspensionInfo json [note: 'Embedded object: {startDate, reason, suspendedBy, ...}']
+  companyName varchar
+  companyWebsite varchar
+  companyIndustry varchar
+  employerVerificationStatus varchar [note: 'pending_verification | verified | rejected']
+  canPostJobs boolean [default: false]
+  fcmTokens "varchar[]" [note: 'Cloud messaging device push tokens']
+  createdAt timestamp
+}
+
+Table user_security_vault {
+  uid varchar [pk, note: 'Subcollection Doc ID: vault (Foreign Key to users.uid)']
+  email varchar [not null]
+  password varchar [note: 'Hashed or stored auth vault credential']
+  studentId varchar
+  alumniId varchar
+  employeeId varchar
+  role varchar
+  isVerified boolean
+  updatedAt timestamp
+}
+
+Table registry_records {
+  studentId varchar [pk, note: 'Document ID: sanitized studentId e.g. SCC_2024_001']
+  fullName varchar [not null]
+  batchYear varchar [not null]
+  course varchar [not null]
+  status varchar [note: 'Graduated | Enrolled | Alumni']
+  honors varchar
+  email varchar
+  phone varchar
+  birthDate varchar
+  isRegistered boolean [default: false, note: 'True if graduate activated their account']
+  registeredAt timestamp
+  matchedUid varchar [note: 'Logical reference to users.uid']
+  uploadedAt timestamp
+  uploadedBy varchar
+  sourceFile varchar
+}
+
+Table friend_requests {
+  id varchar [pk, note: 'Document ID: composite ${fromUid}_${toUid}']
+  fromUid varchar [not null, note: 'Sender user UID']
+  toUid varchar [not null, note: 'Recipient user UID']
+  status varchar [not null, note: 'pending | accepted | declined']
+  createdAt timestamp
+}
+
+Table connections {
+  id varchar [pk, note: 'Document ID: sorted composite key ${userA}_${userB}']
+  userId varchar [not null]
+  connectedUserId varchar [not null]
+  participants "varchar[]" [not null, note: 'Indexed array: [userA, userB]']
+  status varchar [not null, note: 'pending | accepted | declined']
+  createdAt timestamp
+  updatedAt timestamp
+}
+
+Table chats {
+  id varchar [pk, note: 'Document ID: thread identifier']
+  memberIds "varchar[]" [not null, note: 'Array of user UIDs participating in thread']
+  lastMessage text
+  lastMessageAt timestamp
+  unreadCount json [note: 'Map of user UID to unread integer count']
+  isGroupChat boolean [default: false]
+  groupName varchar
+  groupDescription varchar
+  eventId varchar [note: 'Logical reference to events.id if lounge cohort chat']
+  isEventChat boolean [default: false]
+  adminUids "varchar[]"
+}
+
+Table chat_messages {
+  id varchar [pk, note: 'Message document ID']
+  chatId varchar [not null, note: 'Parent collection document ID']
+  senderId varchar [not null, note: 'Author user UID']
+  senderName varchar
+  senderAvatar varchar
+  senderRole varchar
+  text text [not null]
+  isSystemMessage boolean [default: false]
+  status varchar [note: 'sending | queued | sent | failed']
+  isUnsent boolean [default: false]
+  unsentAt timestamp
+  deletedForUsers "varchar[]"
+  reactions json [note: 'Map: emoji -> array of user UIDs']
+  createdAt timestamp
+}
+
+Table conversations {
+  id varchar [pk, note: 'Conversation document ID (Alternative direct channel)']
+  participants "varchar[]" [not null, note: 'Indexed array of user UIDs']
+  lastMessage text
+  lastMessageAt timestamp
+  unreadCount json
+  createdAt timestamp
+}
+
+Table conversation_messages {
+  id varchar [pk, note: 'Message document ID']
+  convId varchar [not null, note: 'Parent conversation document ID']
+  userId varchar [not null, note: 'Author user UID']
+  text text [not null]
+  createdAt timestamp
+}
+
+Table events {
+  id varchar [pk, note: 'Document ID: e.g. evt_1712345678']
+  title varchar [not null]
+  description text
+  location varchar
+  venue varchar
+  type varchar [note: 'reunion | workshop | networking | webinar | social']
+  startDate timestamp [not null]
+  endDate timestamp [not null]
+  startTime varchar
+  endTime varchar
+  heroImageUrl varchar
+  eventImages "varchar[]"
+  isVirtual boolean [default: false]
+  isImportant boolean [default: false]
+  maxAttendees int
+  reservedSeatsCount int [default: 0]
+  maxGuestsPerAlumni int [default: 0]
+  registrationOpenDate timestamp
+  registrationCloseDate timestamp
+  attendeesCount int [default: 0]
+  createdBy varchar [note: 'Moderator or Admin user UID']
+  createdByName varchar
+  groupChatId varchar [note: 'Associated chat thread ID']
+  likes "varchar[]" [note: 'Array of user UIDs who liked the event']
+  comments "json[]" [note: 'Embedded array of EventComment objects']
+  attendees "json[]" [note: 'Embedded array of EventAttendee objects (cached status)']
+  attendanceRecords "json[]" [note: 'Embedded array of EventAttendanceRecord objects']
+}
+
+Table event_reservations {
+  id varchar [pk, note: 'Document ID: formatted reservation code e.g. ALM-2026-00125']
+  eventId varchar [not null, note: 'Foreign reference to events.id']
+  eventTitle varchar [not null]
+  eventDate timestamp [not null]
+  eventVenue varchar
+  userId varchar [not null, note: 'Foreign reference to users.uid']
+  alumniName varchar [not null]
+  email varchar [not null]
+  contactNumber varchar
+  alumniId varchar
+  graduationYear varchar
+  course varchar
+  numberOfGuests int [default: 0]
+  totalSeats int [default: 1]
+  status varchar [note: 'confirmed | waitlisted | cancelled | attended']
+  reservedAt timestamp [not null]
+  qrCodeData varchar [note: 'Encrypted verification payload for scanner']
+  attendanceConfirmed boolean [default: false]
+}
+
+Table opportunities {
+  id varchar [pk, note: 'Document ID: e.g. opp_1712345678']
+  title varchar [not null]
+  type varchar [note: 'Full-time | Part-time | Internship | Contract | Mentorship']
+  company varchar [not null]
+  location varchar
+  description text
+  salaryOrStipend varchar
+  skills "varchar[]"
+  requirements "varchar[]"
+  applicationUrl varchar
+  contactEmail varchar
+  postedBy varchar [not null, note: 'Employer or Moderator user UID']
+  posterName varchar
+  posterRole varchar
+  status varchar [default: 'active', note: 'active | closed']
+  requiredCourse varchar
+  experienceLevel varchar
+  approvalStatus varchar [note: 'pending_approval | approved | rejected']
+  applicationsCount int [default: 0]
+  createdAt timestamp
+}
+
+Table job_applications {
+  id varchar [pk, note: 'Document ID: e.g. app_1712345678']
+  jobId varchar [not null, note: 'Foreign reference to opportunities.id']
+  jobTitle varchar [not null]
+  companyName varchar [not null]
+  employerUid varchar [note: 'UID of employer owning job posting']
+  applicantUid varchar [not null, note: 'UID of alumni applying']
+  applicantName varchar [not null]
+  applicantEmail varchar [not null]
+  applicantPhone varchar
+  applicantCourse varchar
+  applicantBatch varchar
+  applicantSkills "varchar[]"
+  resumeUrl varchar
+  resumeSummary text
+  coverLetter text
+  status varchar [note: 'Pending | Reviewed | Shortlisted | Accepted | Rejected | Interview | Offer | Hired']
+  statusNotes text
+  appliedAt timestamp [not null]
+  matchScore int [note: 'Calculated algorithmic fit score (0-100)']
+}
+
+Table announcements {
+  id varchar [pk, note: 'Document ID: e.g. ann_1712345678']
+  title varchar [not null]
+  content text [not null]
+  important boolean [default: false]
+  urgent boolean [default: false]
+  isPinned boolean [default: false]
+  category varchar [note: 'department | batch | institutional | emergency | academic | career']
+  targetBatches "varchar[]"
+  targetDepartments "varchar[]"
+  publishedAt timestamp [not null]
+  createdBy varchar [note: 'Author user UID (Moderator / Admin)']
+  authorName varchar
+  authorRole varchar
+  imageUrl varchar
+  likes int [default: 0]
+  hearts "varchar[]" [note: 'Array of user UIDs who hearted the notice']
+  views int [default: 0]
+}
+
+Table feed_posts {
+  id varchar [pk, note: 'Document ID: e.g. post_1712345678']
+  authorId varchar [not null, note: 'Author user UID']
+  authorName varchar [not null]
+  authorRole varchar [not null]
+  authorAvatar varchar
+  postType varchar [note: 'milestone | gallery | announcement']
+  title varchar
+  content text [not null]
+  imageUrl varchar
+  milestoneBadge varchar
+  likes "varchar[]" [note: 'Array of user UIDs who liked']
+  hearts "varchar[]" [note: 'Array of user UIDs who reacted with heart']
+  comments "json[]" [note: 'Embedded array: [{id, authorId, authorName, authorRole, text, createdAt}]']
+  sharesCount int [default: 0]
+  tags "varchar[]"
+  createdAt timestamp [not null]
+}
+
+Table gallery {
+  id varchar [pk, note: 'Document ID: e.g. gal_1712345678']
+  category varchar [note: 'campus | homecoming | commencement | heritage']
+  title varchar [not null]
+  year varchar [not null]
+  url varchar [not null]
+  description text
+  uploadedBy varchar [note: 'Uploader user UID (Moderator / Admin)']
+  uploadedByName varchar
+  uploaderRole varchar
+  createdAt timestamp [not null]
+}
+
+Table notifications {
+  id varchar [pk, note: 'Document ID: e.g. notif_1712345678']
+  toUid varchar [note: 'Target user UID, or literal "all" for broadcast']
+  fromUid varchar [note: 'Sender user UID']
+  type varchar [note: 'friend_request | friend_accepted | event_broadcast | message | job | security | announcement']
+  title varchar [not null]
+  body text [not null]
+  refId varchar [note: 'Polymorphic target ID (eventId, chatId, jobId, etc.)']
+  read boolean [default: false]
+  createdAt timestamp [not null]
+}
+
+Table audit_logs {
+  id varchar [pk, note: 'Document ID: e.g. log_1712345678']
+  timestamp timestamp [not null]
+  action varchar [not null]
+  actorId varchar [not null, note: 'Executing user UID']
+  actorName varchar [not null]
+  actorRole varchar [not null]
+  category varchar [note: 'alumni_registration | career | security | admin | registry_masterlist | conflict_resolution']
+  details text [not null]
+  severity varchar [note: 'info | warning | alert | success']
+  ipAddress varchar
+  targetRecordId varchar
+  targetUserId varchar [note: 'Targeted user UID']
+}
+
+Table system_health {
+  id varchar [pk, note: 'Document ID: sync_check']
+  lastCheckedAt timestamp [not null]
+  status varchar [default: 'operational']
+  databaseId varchar
+}
+
+Ref: user_security_vault.uid - users.uid 
+Ref: registry_records.matchedUid - users.uid 
+Ref: friend_requests.fromUid > users.uid 
+Ref: friend_requests.toUid > users.uid 
+Ref: connections.userId > users.uid     
+Ref: connections.connectedUserId > users.uid 
+Ref: chat_messages.chatId > chats.id    
+Ref: chat_messages.senderId > users.uid  
+Ref: chats.eventId - events.id    
+Ref: conversation_messages.convId > conversations.id 
+Ref: conversation_messages.userId > users.uid     
+Ref: events.createdBy > users.uid      
+Ref: event_reservations.eventId > events.id 
+Ref: event_reservations.userId > users.uid 
+Ref: opportunities.postedBy > users.uid  
+Ref: job_applications.jobId > opportunities.id 
+Ref: job_applications.applicantUid > users.uid 
+Ref: job_applications.employerUid > users.uid 
+Ref: announcements.createdBy > users.uid 
+Ref: feed_posts.authorId > users.uid  
+Ref: gallery.uploadedBy > users.uid    
+Ref: notifications.toUid > users.uid   
+Ref: notifications.fromUid > users.uid  
+Ref: audit_logs.actorId > users.uid    
+Ref: audit_logs.targetUserId > users.uid 
