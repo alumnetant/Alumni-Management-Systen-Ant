@@ -234,12 +234,12 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
           >
             <X className="w-4 h-4" />
           </button>
-          <div className="relative mx-auto mb-2 w-14 h-14">
+          <div className="relative mx-auto mb-2 w-12 h-12 rounded-full p-0.5 bg-gradient-to-tr from-amber-400 to-amber-200 shadow-md flex items-center justify-center shrink-0">
             <img
-              src="/assets/st-cecilias-seal-transparent.svg"
-              alt="St. Cecilia's Seal"
+              src="/assets/cecilians-seal.jpg"
+              alt="Alumni Cecilian's Seal"
               referrerPolicy="no-referrer"
-              className="w-14 h-14 object-contain drop-shadow-md"
+              className="w-full h-full rounded-full object-cover bg-white"
             />
           </div>
           <h2 className="text-xl font-bold font-sans tracking-tight">St. Cecilia's Alumni Network</h2>

@@ -1481,12 +1481,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         <div className="relative z-10 max-w-lg my-auto py-8">
           {/* Eyebrow with Team Seal */}
           <div className="flex items-center gap-2.5 mb-4">
-            <img
-              src="/assets/st-cecilias-seal-transparent.svg"
-              alt="Alumni Cecilian's Logo"
-              referrerPolicy="no-referrer"
-              className="w-8 h-8 object-contain drop-shadow-sm"
-            />
+            <div className="relative w-8 h-8 rounded-full p-0.5 bg-gradient-to-tr from-[#8B181B] to-amber-500 shadow-sm flex items-center justify-center shrink-0">
+              <img
+                src="/assets/cecilians-seal.jpg"
+                alt="Alumni Cecilian's Seal"
+                referrerPolicy="no-referrer"
+                className="w-full h-full rounded-full object-cover bg-white"
+              />
+            </div>
             <span className="w-5 h-[2px] bg-[#991B1B]" />
             <span className="editorial-kicker text-[#fca5a5]">
               ST. CECILIA'S · ALUMNI NETWORK
@@ -1629,12 +1631,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         <div className="lg:hidden mb-6 pb-4 border-b border-stone-100 dark:border-stone-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <img
-                src="/assets/st-cecilias-seal-transparent.svg"
-                alt="St. Cecilia's College Official Seal"
-                referrerPolicy="no-referrer"
-                className="w-8 h-8 object-contain drop-shadow-xs"
-              />
+              <div className="relative w-8 h-8 rounded-full p-0.5 bg-gradient-to-tr from-[#8B181B] to-amber-500 shadow-sm flex items-center justify-center shrink-0">
+                <img
+                  src="/assets/cecilians-seal.jpg"
+                  alt="Alumni Cecilian's Seal"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full rounded-full object-cover bg-white"
+                />
+              </div>
               <span className="text-xs font-bold uppercase tracking-wider text-[#991B1B] dark:text-[#f87171]">
                 St. Cecilia's Alumni
               </span>
