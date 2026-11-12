@@ -77,6 +77,7 @@ import {
 import { openExternalUrl } from '../../services/externalLinkService';
 import { shareAlumniPortal } from '../../services/nativeShareService';
 import { sendPasswordResetLinkEmail } from '../../services/emailNotificationService';
+import { SixDigitOtpModal } from '../common/SixDigitOtpModal';
 
 export const SettingsView: React.FC = () => {
   const {
@@ -85,6 +86,7 @@ export const SettingsView: React.FC = () => {
     logout,
     deleteAccount,
     changePassword,
+    changeEmail,
     showToast,
     notificationSettings,
     updateNotificationSettings,
@@ -99,11 +101,19 @@ export const SettingsView: React.FC = () => {
   // Active filter pill for Command Center navigation
   const [activeFilterPill, setActiveFilterPill] = useState<'all' | 'security' | 'notifications' | 'appearance' | 'compliance'>('all');
 
-
   // Clipboard & Modal States
   const [copiedId, setCopiedId] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  // 6-digit verification code modal states
+  const [showEmailOtpModal, setShowEmailOtpModal] = useState(false);
+  const [showPasswordOtpModal, setShowPasswordOtpModal] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [emailValidationError, setEmailValidationError] = useState<string | null>(null);
+  const [pendingOldPassword, setPendingOldPassword] = useState('');
+  const [pendingNewPassword, setPendingNewPassword] = useState('');
+
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -374,15 +384,43 @@ export const SettingsView: React.FC = () => {
     showToast(`Updated ${key} notification preference`, 'info');
   };
 
-  const handleChangeEmail = (e: React.FormEvent) => {
+  const handleInitiateEmailChange = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEmail || !newEmail.includes('@')) return;
-    setEmailStatusMessage(`Verification email sent to ${newEmail}. Please confirm to complete this change.`);
-    setTimeout(() => {
-      setShowEmailModal(false);
-      setEmailStatusMessage('');
-      setNewEmail('');
-    }, 2500);
+    setEmailValidationError(null);
+    const trimmed = newEmail.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!trimmed || !emailRegex.test(trimmed)) {
+      setEmailValidationError('Please enter a valid email format (e.g., name@domain.com).');
+      return;
+    }
+
+    if (currentUser?.email && trimmed === currentUser.email.toLowerCase()) {
+      setEmailValidationError('The new email address cannot be identical to your current email.');
+      return;
+    }
+
+    const isTaken = users.some(
+      (u) => u.uid !== currentUser?.uid && u.email && u.email.trim().toLowerCase() === trimmed
+    );
+    if (isTaken) {
+      setEmailValidationError(`An account registered with ${trimmed} already exists.`);
+      return;
+    }
+
+    setPendingEmail(trimmed);
+    setShowEmailOtpModal(true);
+  };
+
+  const handleConfirmEmailOtp = () => {
+    if (!pendingEmail) return;
+    changeEmail(pendingEmail);
+    showToast(`Email successfully updated to ${pendingEmail}!`, 'success');
+    setShowEmailOtpModal(false);
+    setShowEmailModal(false);
+    setNewEmail('');
+    setPendingEmail('');
+    setEmailValidationError(null);
   };
 
   const openPasswordModal = () => {
@@ -421,7 +459,7 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleInitiatePasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError(null);
     setPasswordSuccess(null);
@@ -430,6 +468,14 @@ export const SettingsView: React.FC = () => {
       setPasswordError('Please enter your current (old) password.');
       return;
     }
+
+    // Verify current (old) password against stored account credential
+    const currentAccount = users.find((u) => u.uid === currentUser?.uid) || currentUser;
+    if (currentAccount?.password && currentAccount.password !== oldPassword.trim()) {
+      setPasswordError('The current password you entered is incorrect.');
+      return;
+    }
+
     if (!newPassword || newPassword.length < 8) {
       setPasswordError('New password must be at least 8 characters long.');
       return;
@@ -451,24 +497,29 @@ export const SettingsView: React.FC = () => {
       return;
     }
 
-    const res = changePassword(oldPassword, newPassword);
+    setPendingOldPassword(oldPassword);
+    setPendingNewPassword(newPassword);
+    setShowPasswordOtpModal(true);
+  };
+
+  const handleConfirmPasswordOtp = () => {
+    if (!pendingOldPassword || !pendingNewPassword) return;
+    const res = changePassword(pendingOldPassword, pendingNewPassword);
     if (typeof res === 'object' && res !== null && !res.success) {
-      setPasswordError(res.message || 'The current password you entered is incorrect.');
+      setPasswordError(res.message || 'Failed to update password.');
+      setShowPasswordOtpModal(false);
       return;
     }
 
-    setPasswordSuccess(
-      `Your password has been changed successfully! A security confirmation email was dispatched to ${currentUser.email}.`
-    );
-    showToast(`Password updated! Security confirmation sent to ${currentUser.email}`, 'success');
-    setTimeout(() => {
-      setShowPasswordModal(false);
-      setPasswordSuccess(null);
-      setOldPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setResetEmailStatus(null);
-    }, 2400);
+    showToast(`Password updated successfully! Security confirmation sent to ${currentUser?.email}.`, 'success');
+    setShowPasswordOtpModal(false);
+    setShowPasswordModal(false);
+    setOldPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPendingOldPassword('');
+    setPendingNewPassword('');
+    setPasswordError(null);
   };
 
   const handleUpdateRole = async (e: React.FormEvent) => {
@@ -1560,47 +1611,50 @@ export const SettingsView: React.FC = () => {
                 </button>
               </div>
 
-              {emailStatusMessage ? (
-                <div className="my-4 p-3 bg-emerald-50 text-emerald-800 rounded-xl font-medium flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{emailStatusMessage}</span>
+              <form onSubmit={handleInitiateEmailChange} className="space-y-3.5">
+                <div className="p-3 bg-stone-50 rounded-xl border border-stone-200">
+                  <span className="text-stone-500 block text-[11px]">Current Address</span>
+                  <span className="font-bold text-stone-900 text-xs">{currentUser?.email}</span>
                 </div>
-              ) : (
-                <form onSubmit={handleChangeEmail} className="space-y-3.5">
-                  <div className="p-3 bg-stone-50 rounded-xl border border-stone-200">
-                    <span className="text-stone-500 block text-[11px]">Current Address</span>
-                    <span className="font-bold text-stone-900 text-xs">{currentUser.email}</span>
-                  </div>
 
-                  <div>
-                    <label className="font-bold text-stone-700 block mb-1">New Email Address *</label>
-                    <input
-                      type="email"
-                      required
-                      value={newEmail}
-                      onChange={(e) => setNewEmail(e.target.value)}
-                      placeholder="e.g. cecilian.alumni@domain.com"
-                      className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:border-[#8B181B]"
-                    />
+                {emailValidationError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                    <span>{emailValidationError}</span>
                   </div>
+                )}
 
-                  <div className="pt-2 flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowEmailModal(false)}
-                      className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-medium cursor-pointer"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold cursor-pointer shadow-2xs"
-                    >
-                      Dispatch Verification
-                    </button>
-                  </div>
-                </form>
-              )}
+                <div>
+                  <label className="font-bold text-stone-700 block mb-1">New Email Address *</label>
+                  <input
+                    type="email"
+                    required
+                    value={newEmail}
+                    onChange={(e) => {
+                      setNewEmail(e.target.value);
+                      setEmailValidationError(null);
+                    }}
+                    placeholder="e.g. cecilian.alumni@domain.com"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:border-[#8B181B]"
+                  />
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailModal(false)}
+                    className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-medium cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold cursor-pointer shadow-2xs"
+                  >
+                    Proceed to 6-Digit Verification
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
@@ -1646,7 +1700,7 @@ export const SettingsView: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleChangePassword} className="space-y-3.5">
+                <form onSubmit={handleInitiatePasswordChange} className="space-y-3.5">
                   {passwordError && (
                     <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
@@ -1799,7 +1853,7 @@ export const SettingsView: React.FC = () => {
                       type="submit"
                       className="px-4 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold cursor-pointer shadow-2xs"
                     >
-                      Update Password
+                      Proceed to 6-Digit Verification
                     </button>
                   </div>
                 </form>
@@ -2325,6 +2379,35 @@ export const SettingsView: React.FC = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* 6-DIGIT VERIFICATION CODE MODAL FOR EMAIL CHANGE */}
+      <SixDigitOtpModal
+        isOpen={showEmailOtpModal}
+        onClose={() => {
+          setShowEmailOtpModal(false);
+          setPendingEmail('');
+        }}
+        onSuccess={handleConfirmEmailOtp}
+        title="Verify Email Address Change"
+        subtitle="Enter the 6-digit verification code to authorize this change"
+        targetDestination={pendingEmail}
+        actionType="email"
+      />
+
+      {/* 6-DIGIT VERIFICATION CODE MODAL FOR PASSWORD CHANGE */}
+      <SixDigitOtpModal
+        isOpen={showPasswordOtpModal}
+        onClose={() => {
+          setShowPasswordOtpModal(false);
+          setPendingOldPassword('');
+          setPendingNewPassword('');
+        }}
+        onSuccess={handleConfirmPasswordOtp}
+        title="Verify Password Change"
+        subtitle="Enter the 6-digit security code to finalize your new password"
+        targetDestination={currentUser?.email || 'your registered account email'}
+        actionType="password"
+      />
     </div>
   );
 };

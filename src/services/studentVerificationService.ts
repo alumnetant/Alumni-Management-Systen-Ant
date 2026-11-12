@@ -5,7 +5,9 @@ import {
   saveRegistryRecordsBatchToFirestore,
   getRegistryRecordsFromFirestore,
   markRegistryRecordRegisteredInFirestore,
-  deleteRegistryRecordFromFirestore
+  deleteRegistryRecordFromFirestore,
+  saveConflictRecordToFirestore,
+  getConflictRecordsFromFirestore
 } from '../lib/firebase';
 import { generateSecureNumericCode, generateSecureId } from '../lib/secureId';
 
@@ -1381,9 +1383,40 @@ export function addRegistrationConflict(
     status: 'pending'
   };
 
-  const updated = [newConflict, ...current];
+  const updated = [newConflict, ...current.filter((c) => c.id !== newConflict.id)];
   saveRegistrationConflicts(updated);
+
+  // Sync directly to Cloud Firestore so admins and moderators instantly see it
+  saveConflictRecordToFirestore(newConflict).catch((err) => {
+    console.warn('Failed to save conflict record to Firestore:', err);
+  });
+
   return newConflict;
+}
+
+/**
+ * Syncs conflict records from Firestore with local storage
+ */
+export async function syncRegistrationConflictsWithFirestore(): Promise<RegistrationConflictRecord[]> {
+  try {
+    const cloudConflicts = await getConflictRecordsFromFirestore();
+    const localConflicts = getRegistrationConflicts();
+    const map = new Map<string, RegistrationConflictRecord>();
+
+    // Merge cloud and local, giving cloud authority
+    localConflicts.forEach((c) => map.set(c.id, c));
+    cloudConflicts.forEach((c) => map.set(c.id, c));
+
+    const merged = Array.from(map.values()).sort(
+      (a, b) => new Date(b.flaggedAt || 0).getTime() - new Date(a.flaggedAt || 0).getTime()
+    );
+
+    saveRegistrationConflicts(merged);
+    return merged;
+  } catch (err) {
+    console.warn('Notice syncing conflicts with Firestore:', err);
+    return getRegistrationConflicts();
+  }
 }
 
 /**
@@ -1410,6 +1443,11 @@ export function resolveConflictRecord(
 
   current[index] = updatedConflict;
   saveRegistrationConflicts(current);
+
+  // Push update to Cloud Firestore
+  saveConflictRecordToFirestore(updatedConflict).catch((err) => {
+    console.warn('Failed to update conflict record in Firestore:', err);
+  });
 
   // If verified by administrator, mark target student record as registered
   if (decision === 'resolved_verified' && conflict.targetRegistryStudentId) {

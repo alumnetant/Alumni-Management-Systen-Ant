@@ -21,7 +21,8 @@ import {
   X,
   Building2,
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  Database
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { UserProfile } from '../../types';
@@ -280,6 +281,15 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
         icon: ImageIcon,
         tab: 'gallery',
         keywords: 'gallery campus photos imagery pictures heritage'
+      },
+      {
+        id: 'mod-database',
+        title: 'Manage Database & Index Configuration',
+        subtitle: 'Firestore collections, composite indexes, real-time sync & rules',
+        category: 'Admin Modules',
+        icon: Database,
+        tab: 'database',
+        keywords: 'database indexes firestore composite collections sync query backup health'
       }
     ];
   }, []);

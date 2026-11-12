@@ -48,7 +48,8 @@ import {
   JobApplication,
   StudentVerificationRecord,
   InstitutionalFeedPost,
-  EventReservation
+  EventReservation,
+  RegistrationConflictRecord
 } from '../types';
 
 // Authoritative Firestore Database ID (ai-studio-alumnetant-92fb5716-8d56-4cfe-a603-629c0a70bf1a)
@@ -254,7 +255,8 @@ export const FIRESTORE_COLLECTIONS = {
   APPLICATIONS: 'job_applications',
   REGISTRY_RECORDS: 'registry_records',
   FEED_POSTS: 'feed_posts',
-  EVENT_RESERVATIONS: 'event_reservations'
+  EVENT_RESERVATIONS: 'event_reservations',
+  CONFLICT_RECORDS: 'conflict_records'
 };
 
 export interface FirestoreConnectionDoc {
@@ -1139,6 +1141,66 @@ export function subscribeToRegistryRecords(onUpdate: (records: StudentVerificati
       onUpdate(list);
     },
     (err) => console.warn('Firestore Registry subscription notice:', err)
+  );
+}
+
+/**
+ * Save registration conflict / manual verification appeal to Firestore
+ */
+export async function saveConflictRecordToFirestore(conflict: RegistrationConflictRecord): Promise<void> {
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.CONFLICT_RECORDS, conflict.id);
+    const sanitized = JSON.parse(JSON.stringify(conflict));
+    await setDoc(docRef, sanitized, { merge: true });
+  } catch (err) {
+    console.warn('Failed to save conflict record to Firestore:', err);
+  }
+}
+
+/**
+ * Delete conflict record from Firestore
+ */
+export async function deleteConflictRecordFromFirestore(conflictId: string): Promise<void> {
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.CONFLICT_RECORDS, conflictId);
+    await deleteDoc(docRef);
+  } catch (err) {
+    console.warn('Failed to delete conflict record from Firestore:', err);
+  }
+}
+
+/**
+ * Fetch all conflict records from Firestore
+ */
+export async function getConflictRecordsFromFirestore(): Promise<RegistrationConflictRecord[]> {
+  try {
+    const colRef = collection(db, FIRESTORE_COLLECTIONS.CONFLICT_RECORDS);
+    const snap = await getDocs(colRef);
+    const list: RegistrationConflictRecord[] = [];
+    snap.forEach((d) => {
+      list.push(d.data() as RegistrationConflictRecord);
+    });
+    return list;
+  } catch (err) {
+    console.warn('Failed to fetch conflict records from Firestore:', err);
+    return [];
+  }
+}
+
+/**
+ * Real-time subscription to conflict records
+ */
+export function subscribeToConflictRecords(onUpdate: (conflicts: RegistrationConflictRecord[]) => void) {
+  const colRef = collection(db, FIRESTORE_COLLECTIONS.CONFLICT_RECORDS);
+  return onSnapshot(
+    colRef,
+    (snap) => {
+      const list: RegistrationConflictRecord[] = [];
+      snap.forEach((d) => list.push(d.data() as RegistrationConflictRecord));
+      list.sort((a, b) => new Date(b.flaggedAt || 0).getTime() - new Date(a.flaggedAt || 0).getTime());
+      onUpdate(list);
+    },
+    (err) => console.warn('Firestore Conflict Records subscription notice:', err)
   );
 }
 

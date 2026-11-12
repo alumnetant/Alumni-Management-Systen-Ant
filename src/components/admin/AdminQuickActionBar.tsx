@@ -205,15 +205,6 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
             <span>New Gathering</span>
           </button>
 
-          {/* Quick Action: Gallery Upload */}
-          <button
-            type="button"
-            onClick={onOpenGalleryUpload}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95"
-          >
-            <ImageIcon className="w-3.5 h-3.5 text-stone-600" />
-            <span>Add Photo</span>
-          </button>
 
           {/* Quick Action: Database Sample Seeder */}
           {onOpenDatabaseSeeder && (

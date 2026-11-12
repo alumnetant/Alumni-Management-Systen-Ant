@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { compressImage } from '../../lib/utils';
-import { normalizeStudentId } from '../../services/studentVerificationService';
+import { normalizeStudentId, addRegistrationConflict } from '../../services/studentVerificationService';
 
 interface RegistrarSelfVerificationModalProps {
   isOpen: boolean;
@@ -138,6 +138,20 @@ const RegistrarSelfVerificationModalContent: React.FC<{ onClose: () => void }> =
       if (typeof updater === 'function') {
         updater(requestPayload);
       }
+
+      // 1. Add formal verification conflict/appeal to the Requests & Conflicts queue (persisted to Firestore)
+      addRegistrationConflict({
+        applicantUid: currentUser.uid,
+        applicantName: currentUser.name,
+        applicantEmail: currentUser.email,
+        applicantStudentId: cleanId,
+        applicantBatch: reqBatch.trim(),
+        applicantCourse: reqCourse.trim(),
+        conflictType: 'manual_verification_request',
+        severity: 'medium',
+        confidenceScore: 60,
+        notes: `MANUAL DEGREE VERIFICATION WITH PROOF: ${currentUser.name} (${currentUser.email}) uploaded document proof ("${proofFileName || 'Proof Document'}") for Student ID ${cleanId}. Batch: ${reqBatch.trim()}, Course: ${reqCourse.trim()}. Notes: "${reqNotes.trim() || 'Please verify my diploma and transcript of records.'}".`
+      });
 
       // Synchronize with backend verification queue
       await fetch('/api/alumni/verification-request', {

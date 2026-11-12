@@ -8230,6 +8230,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
 
       const target = users.find((u) => u.uid === uid);
+      if (target && target.role !== 'alumni') {
+        const errMsg = 'Role restriction: Only Alumni accounts can be suspended. Staff, Administrators, and Corporate Partners cannot be suspended.';
+        showToast(errMsg, 'error');
+        return { success: false, message: errMsg };
+      }
       const isLock = !!data.isPermanentLock;
       const effectiveStartDate = data.startDate || new Date().toISOString();
       const effectiveEndDate = isLock ? undefined : data.endDate;

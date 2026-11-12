@@ -49,8 +49,10 @@ import {
   resolveConflictRecord,
   getRegistrarRecords,
   normalizeStudentId,
-  markRegistryRecordAsRegistered
+  markRegistryRecordAsRegistered,
+  syncRegistrationConflictsWithFirestore
 } from '../../services/studentVerificationService';
+import { subscribeToConflictRecords } from '../../lib/firebase';
 import {
   analyzeUserRegistryIntegrity,
   calculateGovernanceIntegrityMetrics,
@@ -107,7 +109,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
   const [isReconciling, setIsReconciling] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
-  // Sync conflicts from storage
+  // Sync conflicts from storage & cloud Firestore
   const loadConflicts = useCallback(() => {
     try {
       const data = getRegistrationConflicts();
@@ -119,10 +121,23 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
   useEffect(() => {
     loadConflicts();
+    // Initial fetch from Cloud Firestore to merge any cross-browser requests
+    syncRegistrationConflictsWithFirestore().then((merged) => {
+      setConflicts(merged);
+    });
+
+    // Real-time Firestore listener: instant updates when alumnus submits dispute/manual verification
+    const unsubscribeFirestore = subscribeToConflictRecords((cloudConflicts) => {
+      if (cloudConflicts && cloudConflicts.length > 0) {
+        setConflicts(cloudConflicts);
+      }
+    });
+
     const handleUpdate = () => loadConflicts();
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('conflicts-updated', handleUpdate);
     return () => {
+      unsubscribeFirestore();
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('conflicts-updated', handleUpdate);
     };

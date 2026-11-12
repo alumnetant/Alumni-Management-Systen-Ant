@@ -16,7 +16,9 @@ import {
   Sparkles,
   FileDown,
   Clock,
-  Check
+  Check,
+  Megaphone,
+  Heart
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { exportProfileToPdfResume } from '../../services/pdfResumeService';
@@ -46,7 +48,8 @@ export const PublicProfileModal: React.FC = () => {
     cancelFriendRequest,
     getOrCreateChat,
     setActiveTab,
-    showToast
+    showToast,
+    feedPosts
   } = useAlumni();
 
   const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
@@ -57,6 +60,12 @@ export const PublicProfileModal: React.FC = () => {
 
   const targetUser = users.find((u) => u.uid === selectedUserIdForModal);
   if (!targetUser) return null;
+
+  // Administrator and superadmin accounts are strictly confidential and hidden from alumni/public view
+  const isPrivilegedViewer = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+  if ((targetUser.role === 'admin' || targetUser.role === 'superadmin') && !isPrivilegedViewer) {
+    return null;
+  }
 
   // Task 2: pending and rejected employers must never appear in direct links accessible to alumni
   const isAlumniViewer = !currentUser || currentUser.role === 'alumni';
@@ -343,6 +352,73 @@ export const PublicProfileModal: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Activity & Community Timeline Posts */}
+              {(() => {
+                const targetUserPosts = (feedPosts || []).filter(
+                  (p) => p.authorId === targetUser.uid || p.authorName === targetUser.name
+                );
+                return (
+                  <div className="mt-6">
+                    <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Megaphone className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
+                        <span>Timeline & Community Posts</span>
+                      </div>
+                      <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 font-semibold">
+                        {targetUserPosts.length} updates
+                      </span>
+                    </h3>
+
+                    {targetUserPosts.length === 0 ? (
+                      <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-200 dark:border-stone-700 text-center text-xs text-stone-400">
+                        No community updates published yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {targetUserPosts.map((post) => (
+                          <div
+                            key={post.id}
+                            className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200/70 dark:border-stone-700/60 text-xs space-y-2"
+                          >
+                            <div className="flex items-center justify-between text-[11px] text-stone-400">
+                              <span className="font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white dark:bg-stone-700 text-stone-700 dark:text-stone-300 border border-stone-200/60 dark:border-stone-600">
+                                {post.postType}
+                              </span>
+                              <span>
+                                {new Date(post.createdAt).toLocaleDateString([], {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </span>
+                            </div>
+
+                            <h4 className="font-bold text-stone-900 dark:text-white text-sm">{post.title}</h4>
+                            <p className="text-stone-600 dark:text-stone-300 leading-relaxed whitespace-pre-line">
+                              {post.content}
+                            </p>
+
+                            {post.imageUrl && (
+                              <div className="rounded-lg overflow-hidden max-h-48 border border-stone-200 dark:border-stone-700">
+                                <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover" />
+                              </div>
+                            )}
+
+                            <div className="pt-2 border-t border-stone-200/60 dark:border-stone-700/60 flex items-center justify-between text-stone-400 text-[11px]">
+                              <span className="flex items-center gap-1">
+                                <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" />
+                                <span>{(post.hearts || []).length || post.likes || 0} hearts</span>
+                              </span>
+                              <span>{post.comments?.length || 0} comments</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

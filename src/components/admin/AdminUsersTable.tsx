@@ -140,7 +140,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
   const totalPending = useMemo(() => users.filter((u) => !u.isVerified).length, [users]);
   const totalAlumniOnly = useMemo(() => users.filter((u) => u.role === 'alumni').length, [users]);
   const totalStaffAdmin = useMemo(
-    () => users.filter((u) => isAdministrativeOrStaffRole(u.role) || u.role !== 'alumni').length,
+    () => users.filter((u) => u.role !== 'employer' && (u.role === 'admin' || u.role === 'superadmin' || u.role === 'moderator')).length,
     [users]
   );
   const totalEmployers = useMemo(() => users.filter((u) => u.role === 'employer').length, [users]);
@@ -225,10 +225,10 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
           );
         });
 
-      // Role filter
+      // Role filter: Staff & Administration strictly excludes employers (employers are under Corporate Partners only)
       let matchesRole = true;
       if (roleFilter === 'staff_admin') {
-        matchesRole = isAdministrativeOrStaffRole(u.role) || u.role !== 'alumni';
+        matchesRole = u.role !== 'employer' && u.role !== 'alumni' && (u.role === 'admin' || u.role === 'superadmin' || u.role === 'moderator');
       } else if (roleFilter !== 'all') {
         matchesRole = u.role === roleFilter;
       }
@@ -801,7 +801,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                   )}
 
                   <div className="flex items-center gap-1 flex-wrap justify-end">
-                    {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && (
+                    {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && u.role === 'alumni' && (
                       <>
                         {(u.accountStatus === 'SUSPENDED' || u.accountStatus === 'LOCKED') ? (
                           <>
@@ -1088,7 +1088,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                       {/* Action Buttons Column */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="inline-flex items-center gap-1 flex-wrap justify-end">
-                          {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && (
+                          {permissions.canAccessAdminPanel && u.uid !== currentUser?.uid && u.role === 'alumni' && (
                             <>
                               {(u.accountStatus === 'SUSPENDED' || u.accountStatus === 'LOCKED') ? (
                                 <>

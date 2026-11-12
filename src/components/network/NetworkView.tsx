@@ -776,11 +776,9 @@ export const NetworkView: React.FC = () => {
               aria-label="Filter by Role"
               className="w-full md:w-auto px-3 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 rounded-xl text-stone-700 dark:text-stone-300 focus:outline-hidden focus:border-[#8B181B] cursor-pointer"
             >
-              <option value="all">All Roles</option>
+              <option value="all">All Members</option>
               <option value="alumni">Alumni Only</option>
-              <option value="moderator">Moderators</option>
-              <option value="admin">Administrators</option>
-              <option value="employer">Employers</option>
+              <option value="employer">Corporate Partners</option>
             </select>
 
             <select
@@ -864,7 +862,7 @@ export const NetworkView: React.FC = () => {
                 : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200/80'
             }`}
           >
-            All Members ({users.filter((u) => u.uid !== currentUser?.uid && (u.role !== 'employer' || isEmployerVisibleInDirectory(u))).length})
+            All Members ({users.filter((u) => u.uid !== currentUser?.uid && u.role !== 'admin' && u.role !== 'superadmin' && u.role !== 'moderator' && (u.role !== 'employer' || isEmployerVisibleInDirectory(u))).length})
           </button>
 
           <button

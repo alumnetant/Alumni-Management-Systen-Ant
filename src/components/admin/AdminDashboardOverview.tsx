@@ -1074,55 +1074,78 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                       <TrendingUp className="w-3.5 h-3.5 stroke-[1.75]" />
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setShowMoreToolMenu((prev) => !prev)}
-                      title="More administrative options"
-                      className="w-8 h-8 rounded-full bg-white/80 hover:bg-white flex items-center justify-center text-stone-600 transition-all cursor-pointer"
-                    >
-                      <MoreHorizontal className="w-3.5 h-3.5 stroke-[1.75]" />
-                    </button>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setShowMoreToolMenu((prev) => !prev)}
+                        title="More administrative options & database tools"
+                        aria-expanded={showMoreToolMenu}
+                        aria-haspopup="true"
+                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                          showMoreToolMenu
+                            ? 'bg-stone-900 text-white shadow-2xs'
+                            : 'bg-white/80 hover:bg-white text-stone-600'
+                        }`}
+                      >
+                        <MoreHorizontal className="w-3.5 h-3.5 stroke-[1.75]" />
+                      </button>
 
-                    {/* Popover Menu for MoreHorizontal */}
-                    {showMoreToolMenu && (
-                      <div className="absolute right-0 top-36 w-48 bg-white rounded-2xl border border-stone-200 shadow-xl py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            exportAlumniRosterCsv(users, 'st_cecilia_official_alumni_roster');
-                            showToast(`Exported ${users.length} verified records!`, 'success');
-                            setShowMoreToolMenu(false);
-                          }}
-                          className="w-full text-left px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50 flex items-center gap-2 cursor-pointer font-medium"
-                        >
-                          <Download className="w-3.5 h-3.5 text-stone-400" />
-                          <span>Export CSV</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            syncAllDataToCloud();
-                            showToast('Authoritative sync initiated with Firestore', 'info');
-                            setShowMoreToolMenu(false);
-                          }}
-                          className="w-full text-left px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50 flex items-center gap-2 cursor-pointer font-medium"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5 text-stone-400" />
-                          <span>Sync Firestore</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onNavigateTab('conflicts');
-                            setShowMoreToolMenu(false);
-                          }}
-                          className="w-full text-left px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50 flex items-center gap-2 cursor-pointer font-medium"
-                        >
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
-                          <span>Conflict Inbox</span>
-                        </button>
-                      </div>
-                    )}
+                      {/* Popover Menu for MoreHorizontal (Anchored below button) */}
+                      {showMoreToolMenu && (
+                        <div className="absolute right-0 bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 w-56 bg-white dark:bg-stone-850 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onNavigateTab('database');
+                              setShowMoreToolMenu(false);
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2.5 cursor-pointer font-medium"
+                          >
+                            <Database className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
+                            <div>
+                              <span className="block font-semibold">Manage Database & Indexes</span>
+                              <span className="text-[10px] text-stone-400 block">Indexes, backups & Firestore status</span>
+                            </div>
+                          </button>
+                          <div className="my-1 border-t border-stone-100 dark:border-stone-750" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              exportAlumniRosterCsv(users, 'st_cecilia_official_alumni_roster');
+                              showToast(`Exported ${users.length} verified records!`, 'success');
+                              setShowMoreToolMenu(false);
+                            }}
+                            className="w-full text-left px-3.5 py-1.5 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer font-medium"
+                          >
+                            <Download className="w-3.5 h-3.5 text-stone-400" />
+                            <span>Export CSV</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              syncAllDataToCloud();
+                              showToast('Authoritative sync initiated with Firestore', 'info');
+                              setShowMoreToolMenu(false);
+                            }}
+                            className="w-full text-left px-3.5 py-1.5 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer font-medium"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5 text-stone-400" />
+                            <span>Sync Firestore</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onNavigateTab('conflicts');
+                              setShowMoreToolMenu(false);
+                            }}
+                            className="w-full text-left px-3.5 py-1.5 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer font-medium"
+                          >
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Conflict Inbox</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                 </div>

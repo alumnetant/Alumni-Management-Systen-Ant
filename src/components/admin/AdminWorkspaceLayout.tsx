@@ -77,6 +77,7 @@ import { ModeratorPanelView } from './ModeratorPanelView';
 import { AdminCampusGalleryView } from './AdminCampusGalleryView';
 import { AdminGovernancePoliciesView } from './AdminGovernancePoliciesView';
 import { AuditLogView } from './AuditLogView';
+import { AdminDatabaseIndexConfigView } from './AdminDatabaseIndexConfigView';
 import { EmployerDashboardView } from '../opportunities/EmployerDashboardView';
 import { MessagesView } from '../messages/MessagesView';
 import { NotificationsView } from '../notifications/NotificationsView';
@@ -107,6 +108,7 @@ export type WorkspaceModuleId =
   | 'gallery'
   | 'governance'
   | 'audit'
+  | 'database'
   | 'automations'
   | 'messages'
   | 'settings'
@@ -668,6 +670,14 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             visible: clientPlatform === 'web'
           },
           {
+            id: 'database' as WorkspaceModuleId,
+            label: 'Database & Indexes',
+            shortLabel: 'Database',
+            icon: Database,
+            badge: null,
+            visible: clientPlatform === 'web' && (currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.role === 'moderator')
+          },
+          {
             id: 'settings' as WorkspaceModuleId,
             label: 'Console Settings',
             shortLabel: 'Settings',
@@ -1203,6 +1213,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                     else if (tab === 'chapters') setCurrentModule('chapters');
                     else if (tab === 'gallery') setCurrentModule('gallery');
                     else if (tab === 'audit') setCurrentModule('audit');
+                    else if (tab === 'database') setCurrentModule('database');
                     else if (tab === 'settings') setCurrentModule('settings');
                     else if (tab === 'profile') setCurrentModule('profile');
                     else if (tab === 'messages') setCurrentModule('messages');
@@ -1583,6 +1594,13 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               >
                 <AuditLogView />
               </PlatformOnly>
+            )}
+
+            {/* MODULE: Database & Index Configuration */}
+            {currentModule === 'database' && (
+              <AdminDatabaseIndexConfigView
+                onOpenDatabaseSeeder={() => setShowDatabaseSeederModal(true)}
+              />
             )}
 
             {/* MODULE: Messages */}
@@ -2226,6 +2244,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                 else if (tab === 'chapters') setCurrentModule('chapters');
                 else if (tab === 'gallery') setCurrentModule('gallery');
                 else if (tab === 'audit') setCurrentModule('audit');
+                else if (tab === 'database') setCurrentModule('database');
                 else setCurrentModule('dashboard');
                 setShowCommandBar(false);
               }}

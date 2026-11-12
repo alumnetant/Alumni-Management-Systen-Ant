@@ -373,8 +373,16 @@ export const MessagesView: React.FC = () => {
   // Directory contacts for Zero-State & New Chat Modal
   const directoryContacts = useMemo(() => {
     if (!currentUser) return [];
+    const isPrivileged = currentUser.role === 'admin' || currentUser.role === 'superadmin';
     return users
       .filter((u) => u.uid !== currentUser.uid)
+      // Hide administrator and superadmin accounts from alumni or non-admin users
+      .filter((u) => {
+        if (!isPrivileged && (u.role === 'admin' || u.role === 'superadmin')) {
+          return false;
+        }
+        return true;
+      })
       .filter((u) => {
         const q = contactDirectorySearch.toLowerCase().trim();
         const matchesSearch =
@@ -387,7 +395,9 @@ export const MessagesView: React.FC = () => {
 
         let matchesTab = true;
         if (contactFilter === 'staff') {
-          matchesTab = ['admin', 'superadmin', 'moderator'].includes(u.role);
+          matchesTab = isPrivileged
+            ? ['admin', 'superadmin', 'moderator'].includes(u.role)
+            : u.role === 'moderator';
         } else if (contactFilter === 'classmates') {
           matchesTab = Boolean(currentUser.batch && u.batch === currentUser.batch);
         }
