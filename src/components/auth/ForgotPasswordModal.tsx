@@ -124,7 +124,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       setEmail(emailToTest);
       setVerificationCode('');
       setStep(2);
-      showToast(`Verification code sent to ${emailToTest}`);
+      showToast(`🔒 Reset Verification Code: ${data.code || localOtp} (Dispatched to ${emailToTest})`, 'info');
     } catch {
       // Graceful offline/standalone fallback: set code and proceed
       setGeneratedCode(localOtp);
@@ -133,7 +133,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       setEmail(emailToTest);
       setVerificationCode('');
       setStep(2);
-      showToast(`Verification code generated for ${emailToTest}`);
+      showToast(`🔒 Reset Verification Code: ${localOtp} (Dispatched to ${emailToTest})`, 'info');
     } finally {
       setIsSending(false);
     }

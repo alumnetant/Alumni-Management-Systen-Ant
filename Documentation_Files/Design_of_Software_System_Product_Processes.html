@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design of Software, System Product Processes — AlumNet</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap');
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Merriweather', Georgia, serif;
+      font-size: 11pt;
+      line-height: 1.65;
+      color: #1c1917;
+      background-color: #f5f5f4;
+      margin: 0;
+      padding: 40px 20px;
+    }
+
+    .page-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 60px 70px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      border-radius: 4px;
+      border: 1px solid #e7e5e4;
+      position: relative;
+    }
+
+    .header-banner {
+      border-bottom: 2px solid #8B181B;
+      padding-bottom: 14px;
+      margin-bottom: 28px;
+    }
+
+    .institution-name {
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 10pt;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+      color: #8B181B;
+      margin: 0 0 4px 0;
+    }
+
+    .system-title {
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 9pt;
+      color: #57534e;
+      margin: 0;
+    }
+
+    h1.chapter-title {
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 15pt;
+      font-weight: 700;
+      color: #1c1917;
+      margin: 24px 0 16px 0;
+      letter-spacing: -0.2px;
+    }
+
+    h2.section-heading {
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 13pt;
+      font-weight: 700;
+      color: #8B181B;
+      margin: 32px 0 14px 0;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #f5d0d0;
+    }
+
+    p {
+      text-align: justify;
+      text-justify: inter-word;
+      margin: 0 0 14px 0;
+    }
+
+    p.lead-paragraph {
+      text-indent: 0.35in;
+    }
+
+    ul.bullet-list {
+      margin: 12px 0 20px 0;
+      padding-left: 28px;
+    }
+
+    ul.bullet-list li {
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+
+    ol.numbered-processes {
+      margin: 14px 0 24px 0;
+      padding-left: 24px;
+    }
+
+    ol.numbered-processes li {
+      margin-bottom: 12px;
+      text-align: justify;
+    }
+
+    .item-label {
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-weight: 700;
+      color: #1c1917;
+    }
+
+    .footer-bar {
+      margin-top: 48px;
+      padding-top: 14px;
+      border-top: 1px solid #e7e5e4;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 9pt;
+      color: #78716c;
+    }
+
+    .print-actions {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .print-btn {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background-color: #8B181B;
+      color: #ffffff;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 10pt;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(139, 24, 27, 0.25);
+      transition: background 0.15s ease;
+    }
+
+    .print-btn:hover {
+      background-color: #721316;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+
+      .print-actions {
+        display: none;
+      }
+
+      .page-container {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="print-actions">
+    <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  </div>
+
+  <div class="page-container">
+    <div class="header-banner">
+      <div class="institution-name">St. Cecilia's College - Cebu, Inc.</div>
+      <div class="system-title">AlumNet: A Web and Mobile-Based Alumni Networking and Tracer System</div>
+    </div>
+
+    <h1 class="chapter-title">Design of Software, System Product Processes</h1>
+
+    <p class="lead-paragraph">
+      The design of <strong>AlumNet</strong>, focuses on providing an organized, efficient, and user-friendly platform for administrators, staff, clients, and public users. The software design serves as a blueprint to ensure that the system meets functional requirements such as instant registrar-cross matching & graduate verification, digital alumni ID generation, real-time messaging, continuous graduate employment tracer surveys, institutional event management with QR-code ticketing, corporate vacancy posting, and applicant tracking (ATS), while maintaining data security and accessibility:
+    </p>
+
+    <ul class="bullet-list">
+      <li>
+        <span class="item-label">High-Level Design (Architecture):</span> Defines the main modules of AlumNet, including the Authentication & Verification Engine, Alumni Directory & Network Discovery Hub, Direct Messaging & Discussion Lounges, Digital Alumni ID & Credential Vault, Event Management & QR Attendance Scanner, Corporate Job Board & Applicant Tracking System (ATS), and the Administrative Analytics & Conflict Triage Dashboard. It establishes how these modules communicate, handle data, and provide services to different user roles.
+      </li>
+      <li>
+        <span class="item-label">Low-Level Design (Detailed Design):</span> Specifies the internal workings of each module, including database structures for plots and client records, algorithms for registrar masterlist matching and dispute triage, user interface layouts, and system interactions for notifications, QR code generation, and offline access.
+      </li>
+    </ul>
+
+    <h2 class="section-heading">System Product Processes for AlumNet</h2>
+    <p>
+      The development of <strong>AlumNet</strong> follows structured processes to ensure quality, reliability, and usability:
+    </p>
+
+    <ol class="numbered-processes">
+      <li>
+        <span class="item-label">Requirements Analysis:</span> Gathering and validating requirements from St. Cecilia's College administration, staff, alumni, and employer partners, including graduate identity verification, employment status tracking, institutional event scheduling, job postings, and public accessibility.
+      </li>
+      <li>
+        <span class="item-label">System Design:</span> Converting requirements into system architecture and module specifications. This includes database design, interface mockups, and workflow definitions for user interactions and administrative tasks.
+      </li>
+      <li>
+        <span class="item-label">Implementation:</span> Developing the system using appropriate technologies, including web-based dashboards for administrators, Android mobile support for clients, and API integration for notifications and verification services.
+      </li>
+      <li>
+        <span class="item-label">Testing:</span> Conducting unit, integration, and user acceptance testing to ensure accurate graduate verification, navigation functionality, and system reliability.
+      </li>
+      <li>
+        <span class="item-label">Deployment and Maintenance:</span> This phase covers releasing AlumNet to the live environment, including server setup, app deployment, and user training. It also involves regular updates, bug fixes, and feature enhancements to keep the system secure, efficient, and aligned with institutional alumni operations and community needs.
+      </li>
+    </ol>
+
+    <div class="footer-bar">
+      <span>St. Cecilia's College - Cebu, Inc. &bull; AlumNet System Documentation</span>
+      <span>Page 32</span>
+    </div>
+  </div>
+
+</body>
+</html>

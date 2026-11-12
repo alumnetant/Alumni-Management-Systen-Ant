@@ -430,8 +430,16 @@ export const SettingsView: React.FC = () => {
       setPasswordError('Please enter your current (old) password.');
       return;
     }
-    if (!newPassword || newPassword.length < 6) {
-      setPasswordError('New password must be at least 6 characters long.');
+    if (!newPassword || newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters long.');
+      return;
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      setPasswordError('New password must contain at least one uppercase letter.');
+      return;
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      setPasswordError('New password must contain at least one number.');
       return;
     }
     if (newPassword === oldPassword) {
@@ -1681,18 +1689,31 @@ export const SettingsView: React.FC = () => {
                         required
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="At least 6 characters"
+                        placeholder="At least 8 characters"
                         className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs pr-10 focus:bg-white focus:outline-hidden focus:border-[#8B181B]"
                       />
                       <button
                         type="button"
                         onClick={() => setShowNewPass(!showNewPass)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                        aria-label={showNewPass ? 'Hide password' : 'Show password'}
                       >
                         {showNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                    <p className="text-[10px] text-stone-400 mt-1">Must be at least 6 characters and different from old password.</p>
+
+                    {/* Password criteria checklist like in registration */}
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 px-0.5 text-[11px]">
+                      <span className={`inline-flex items-center gap-1 ${newPassword.length >= 8 ? 'text-emerald-700 font-semibold' : 'text-stone-400'}`}>
+                        <span>{newPassword.length >= 8 ? '✓' : '•'}</span> 8+ chars
+                      </span>
+                      <span className={`inline-flex items-center gap-1 ${/[A-Z]/.test(newPassword) ? 'text-emerald-700 font-semibold' : 'text-stone-400'}`}>
+                        <span>{/[A-Z]/.test(newPassword) ? '✓' : '•'}</span> Uppercase
+                      </span>
+                      <span className={`inline-flex items-center gap-1 ${/[0-9]/.test(newPassword) ? 'text-emerald-700 font-semibold' : 'text-stone-400'}`}>
+                        <span>{/[0-9]/.test(newPassword) ? '✓' : '•'}</span> Number
+                      </span>
+                    </div>
                   </div>
 
                   {/* Confirm New Password */}
@@ -1707,16 +1728,35 @@ export const SettingsView: React.FC = () => {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Re-type new password"
-                        className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs pr-10 focus:bg-white focus:outline-hidden focus:border-[#8B181B]"
+                        className={`w-full px-3.5 py-2.5 rounded-xl text-xs pr-10 focus:outline-hidden transition-all ${
+                          confirmPassword && confirmPassword === newPassword
+                            ? 'bg-emerald-50/30 border border-emerald-500 text-emerald-950 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500'
+                            : confirmPassword && confirmPassword !== newPassword
+                            ? 'bg-red-50/30 border border-red-400 text-red-950 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                            : 'bg-stone-50 border border-stone-200 focus:bg-white focus:border-[#8B181B]'
+                        }`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPass(!showConfirmPass)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                        aria-label={showConfirmPass ? 'Hide password' : 'Show password'}
                       >
                         {showConfirmPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
+                    {confirmPassword && confirmPassword === newPassword && (
+                      <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-emerald-600">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Passwords match</span>
+                      </div>
+                    )}
+                    {confirmPassword && confirmPassword !== newPassword && (
+                      <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-red-500">
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                        <span>Passwords do not match</span>
+                      </div>
+                    )}
                   </div>
 
                   {resetEmailStatus && (

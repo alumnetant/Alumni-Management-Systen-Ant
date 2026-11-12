@@ -322,7 +322,7 @@ const FirstTimeProfileSetupModalContent: React.FC<{ onClose: () => void }> = ({ 
             </div>
             {employmentStatus === 'N/A' && (
               <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1.5">
-                Note: Professional fields are frozen as Not Applicable (N/A).
+                Note: Professional fields are disabled as Not Applicable (N/A).
               </p>
             )}
             {employmentStatus === 'Seeking Opportunities' && (
@@ -341,7 +341,7 @@ const FirstTimeProfileSetupModalContent: React.FC<{ onClose: () => void }> = ({ 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-bold text-stone-900 dark:text-white uppercase tracking-wider text-[11px] mb-1.5">
-                Current Job Title / Position {employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities' ? '(Frozen)' : <span className="text-stone-400 font-normal lowercase">(optional)</span>}
+                Current Job Title / Position {employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities' ? '(Disabled)' : <span className="text-stone-400 font-normal lowercase">(optional)</span>}
               </label>
               <div className="relative">
                 <Briefcase className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -358,7 +358,7 @@ const FirstTimeProfileSetupModalContent: React.FC<{ onClose: () => void }> = ({ 
 
             <div>
               <label className="block font-bold text-stone-900 dark:text-white uppercase tracking-wider text-[11px] mb-1.5">
-                Company / Organization {employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities' ? '(Frozen)' : <span className="text-stone-400 font-normal lowercase">(optional)</span>}
+                Company / Organization {employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities' ? '(Disabled)' : <span className="text-stone-400 font-normal lowercase">(optional)</span>}
               </label>
               <div className="relative">
                 <Building2 className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -378,7 +378,7 @@ const FirstTimeProfileSetupModalContent: React.FC<{ onClose: () => void }> = ({ 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block font-bold text-stone-900 dark:text-white uppercase tracking-wider text-[11px] mb-1.5">
-                Industry Sector {employmentStatus === 'N/A' || employmentStatus === 'Retired' ? '(Frozen)' : <span className="text-stone-400 font-normal lowercase">(optional)</span>}
+                Industry Sector {employmentStatus === 'N/A' || employmentStatus === 'Retired' ? '(Disabled)' : <span className="text-stone-400 font-normal lowercase">(optional)</span>}
               </label>
               <select
                 disabled={employmentStatus === 'N/A' || employmentStatus === 'Retired'}
@@ -396,7 +396,7 @@ const FirstTimeProfileSetupModalContent: React.FC<{ onClose: () => void }> = ({ 
 
             <div>
               <label className="block font-bold text-stone-900 dark:text-white uppercase tracking-wider text-[11px] mb-1.5">
-                Work Location / City {employmentStatus === 'N/A' || employmentStatus === 'Retired' ? '(Frozen)' : ''}
+                Work Location / City {employmentStatus === 'N/A' || employmentStatus === 'Retired' ? '(Disabled)' : ''}
               </label>
               <div className="relative">
                 <MapPin className="w-4 h-4 text-stone-400 dark:text-stone-500 absolute left-3.5 top-1/2 -translate-y-1/2" />

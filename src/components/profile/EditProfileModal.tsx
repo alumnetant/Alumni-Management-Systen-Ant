@@ -108,25 +108,25 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const validatePhilippinePhone = (rawPhone: string): { isValid: boolean; formatted: string; error?: string } => {
-    const cleaned = rawPhone.replace(/[\s\-()]/g, '');
+    const cleaned = rawPhone.replace(/\D/g, '');
     if (!cleaned) {
-      return { isValid: false, formatted: '', error: 'Philippine contact number is required.' };
+      return { isValid: false, formatted: '', error: 'Contact number is required.' };
     }
-    const phRegex = /^(\+639|639|09)\d{9}$/;
-    if (!phRegex.test(cleaned)) {
+    if (!cleaned.startsWith('09')) {
       return {
         isValid: false,
         formatted: cleaned,
-        error: 'Please enter a valid Philippine mobile number (e.g. 0917 123 4567 or +63 917 123 4567).'
+        error: 'Contact number must start with 09.'
       };
     }
-    let standardized = cleaned;
-    if (standardized.startsWith('639')) {
-      standardized = '+639' + standardized.slice(3);
-    } else if (standardized.startsWith('09')) {
-      standardized = '+639' + standardized.slice(2);
+    if (cleaned.length !== 11) {
+      return {
+        isValid: false,
+        formatted: cleaned,
+        error: 'Contact number must be exactly 11 digits.'
+      };
     }
-    return { isValid: true, formatted: standardized };
+    return { isValid: true, formatted: cleaned };
   };
 
   const [isUploadingCover, setIsUploadingCover] = useState(false);
@@ -629,17 +629,19 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
                 <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block">
                   Contact Phone (Philippine Mobile) *
                 </label>
-                <span className="text-[10px] text-stone-400 font-mono">09XX / +63 9XX</span>
+                <span className="text-[10px] text-stone-400 font-mono">11 digits (09XX...)</span>
               </div>
               <input
                 type="tel"
                 required
+                maxLength={11}
                 value={phone}
                 onChange={(e) => {
-                  setPhone(e.target.value);
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                  setPhone(val);
                   if (phoneError) setPhoneError(null);
                 }}
-                placeholder="0917 123 4567 or +63 917 123 4567"
+                placeholder="09123456789"
                 className={`w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border rounded-lg text-xs text-stone-900 dark:text-stone-100 transition-colors ${
                   phoneError
                     ? 'border-red-500 focus:ring-1 focus:ring-red-500'
@@ -677,7 +679,7 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
             {/* Employment Status Selector */}
             <div>
               <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1.5">
-                Current Employment Status
+                Current Employment Status *
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {(['Employed', 'Self-employed', 'Seeking Opportunities', 'Retired', 'N/A'] as const).map((st) => (
@@ -697,7 +699,7 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
               </div>
               {employmentStatus === 'N/A' && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-1.5">
-                  Note: Professional fields are frozen as Not Applicable (N/A).
+                  Note: Professional fields are disabled as Not Applicable (N/A).
                 </p>
               )}
               {employmentStatus === 'Seeking Opportunities' && (
@@ -716,7 +718,7 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
-                  Current Job Title / Position {employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities' ? '(Frozen)' : ''}
+                  Current Job Title / Position {employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities' ? '(Disabled)' : ''}
                 </label>
                 <div className="relative">
                   <Briefcase className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -733,7 +735,7 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
 
               <div>
                 <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
-                  Company / Organization {employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities' ? '(Frozen)' : ''}
+                  Company / Organization {employmentStatus === 'N/A' || employmentStatus === 'Retired' || employmentStatus === 'Seeking Opportunities' ? '(Disabled)' : ''}
                 </label>
                 <div className="relative">
                   <Building2 className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -752,7 +754,7 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
             {/* Industry Sector */}
             <div>
               <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
-                Industry Sector {employmentStatus === 'N/A' || employmentStatus === 'Retired' ? '(Frozen)' : ''}
+                Industry Sector {employmentStatus === 'N/A' || employmentStatus === 'Retired' ? '(Disabled)' : ''}
               </label>
               <select
                 disabled={employmentStatus === 'N/A' || employmentStatus === 'Retired'}

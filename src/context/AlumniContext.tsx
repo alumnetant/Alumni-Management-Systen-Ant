@@ -273,7 +273,7 @@ interface AlumniContextType {
   clearActiveSessionConflict: () => void;
   terminateOtherSessionAndLogin: (identifier: string, pass: string) => Promise<boolean>;
   register: (data: Partial<UserProfile> & { password?: string }) => boolean;
-  createUserByAdmin: (data: Partial<UserProfile> & { password?: string; role: UserRole }) => boolean;
+  createUserByAdmin: (data: Partial<UserProfile> & { password?: string; role: UserRole }) => { success: boolean; error?: string; role?: UserRole; user?: UserProfile } | boolean;
   // Platform Gate & Testing Controls
   clientPlatform: 'mobile' | 'web';
   setClientPlatformOverride: (platform: 'mobile' | 'web' | null) => void;
@@ -3793,23 +3793,37 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   // Administrator-exclusive account creation (admin accounts created by admin only)
-  const createUserByAdmin = (data: Partial<UserProfile> & { password?: string; role: UserRole }): boolean => {
+  const createUserByAdmin = (data: Partial<UserProfile> & { password?: string; role: UserRole }): { success: boolean; error?: string; role?: UserRole; user?: UserProfile } => {
     if (currentUser?.role !== 'admin' && currentUser?.role !== 'superadmin') {
-      showToast('Permission denied: Only system Administrators can provision staff and admin accounts.', 'error');
-      return false;
+      const err = 'Permission denied: Only system Administrators can provision staff and admin accounts.';
+      showToast(err, 'error');
+      return { success: false, error: err };
     }
     const role = data.role || 'alumni';
 
     // Super Admin provisioning restriction
     if (role === 'superadmin' && currentUser?.role !== 'superadmin') {
-      showToast('Permission denied: Only Super Administrators can provision superadmin accounts.', 'error');
-      return false;
+      const err = 'Permission denied: Only Super Administrators can provision superadmin accounts.';
+      showToast(err, 'error');
+      return { success: false, error: err };
     }
 
     // Strict Moderator Quota Constraint: MAX 3 ACTIVE ACCOUNTS
     if (role === 'moderator' && !moderatorQuota.canCreateModerator) {
-      showToast('Moderator quota limit reached (maximum 3 active moderators allowed). Cannot create or promote another moderator.', 'error');
-      return false;
+      const err = 'Moderator quota limit reached (maximum 3 active moderators allowed). Cannot create or promote another moderator.';
+      showToast(err, 'error');
+      return { success: false, error: err };
+    }
+
+    // Check duplicate email
+    const trimmedEmail = (data.email || '').trim().toLowerCase();
+    if (trimmedEmail) {
+      const emailExists = users.some((u) => u.email?.trim().toLowerCase() === trimmedEmail);
+      if (emailExists) {
+        const err = `An account with the email "${trimmedEmail}" already exists in the system.`;
+        showToast(err, 'error');
+        return { success: false, error: err };
+      }
     }
 
     const newUid = `user_admin_${Date.now()}`;
@@ -3840,6 +3854,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
 
     setUsers((prev) => [newUser, ...prev]);
+
+    // Save to credentials vault for instant login capability
+    saveCredentialToVault({
+      uid: newUid,
+      name: newUser.name,
+      email: newUser.email,
+      studentId: newUser.studentId,
+      employeeId: newUser.employeeId,
+      password: newUser.password,
+      role: newUser.role,
+      isVerified: newUser.isVerified
+    });
+
     alumniService.createAlumni(newUser).catch((err) => {
       console.warn('Error saving admin-created alumni to Firestore:', err);
     });
@@ -3864,7 +3891,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }).catch((err) => console.warn('Could not provision user on backend auth store:', err));
 
     showToast(`Account for ${newUser.name} provisioned as ${(newUser.role || 'alumni').toUpperCase()}!`);
-    return true;
+    return { success: true, role: newUser.role, user: newUser };
   };
 
   // Campus & Heritage Gallery: Admin, Superadmin, Moderator can upload
@@ -6066,6 +6093,65 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           return e;
         })
       );
+    }
+
+    // Automatically enroll reserving user to the official event group chat
+    if (currentUser) {
+      const eventChatId = targetEvent.groupChatId || `chat_event_${targetEvent.id}`;
+      const joinMsg: ChatMessage = {
+        id: `msg_${Date.now()}_sys_reserve`,
+        chatId: eventChatId,
+        senderId: currentUser.uid,
+        senderName: currentUser.name,
+        senderAvatar: currentUser.profilePictureUrl,
+        senderRole: currentUser.role,
+        text: `${currentUser.name} confirmed seat reservation and joined the official event group chat.`,
+        createdAt: new Date().toISOString(),
+        isSystemMessage: true
+      };
+
+      setMessages((prev) => ({
+        ...prev,
+        [eventChatId]: [...(prev[eventChatId] || []), joinMsg]
+      }));
+      saveChatMessageToFirestore(eventChatId, joinMsg).catch(() => {});
+
+      setChats((prevChats) => {
+        const existingChatIndex = prevChats.findIndex(
+          (c) => c.eventId === targetEvent.id || c.id === eventChatId
+        );
+        if (existingChatIndex >= 0) {
+          const c = prevChats[existingChatIndex];
+          const currentMembers = c.memberIds || (c as any).participants || [];
+          const hasMember = currentMembers.includes(currentUser.uid);
+          const updatedChat: ChatThread = {
+            ...c,
+            memberIds: hasMember ? currentMembers : [...currentMembers, currentUser.uid],
+            lastMessage: `${currentUser.name} joined the event group chat.`,
+            lastMessageAt: new Date().toISOString()
+          };
+          saveChatToFirestore(updatedChat).catch(() => {});
+          const updated = [...prevChats];
+          updated[existingChatIndex] = updatedChat;
+          return updated;
+        } else {
+          const newChat: ChatThread = {
+            id: eventChatId,
+            memberIds: Array.from(new Set([targetEvent.createdBy || 'admin', currentUser.uid])),
+            lastMessage: `${currentUser.name} joined the event group chat.`,
+            lastMessageAt: new Date().toISOString(),
+            unreadCount: { [currentUser.uid]: 0 },
+            isGroupChat: true,
+            groupName: `${targetEvent.title} – Group Chat`,
+            groupDescription: `Official coordination chat for ${targetEvent.title}.`,
+            eventId: targetEvent.id,
+            isEventChat: true,
+            adminUids: [targetEvent.createdBy || 'admin']
+          };
+          saveChatToFirestore(newChat).catch(() => {});
+          return [newChat, ...prevChats];
+        }
+      });
     }
 
     // In-app Notification

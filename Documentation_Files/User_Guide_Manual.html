@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Appendix G: User Guide / Manual — AlumNet (St. Cecilia's College – Cebu, Inc.)</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap');
+
+    :root {
+      --primary: #8B181B; /* St. Cecilia's Crimson */
+      --primary-dark: #660e10;
+      --gold: #D97706;
+      --charcoal: #1f242e;
+      --paper: #ffffff;
+      --muted: #555c68;
+      --border: #d8dde6;
+      --bg: #f3f4f6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      font-family: 'Crimson Pro', Georgia, serif;
+      color: var(--charcoal);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      padding: 40px 20px 80px 20px;
+    }
+
+    /* Top Floating Toolbar */
+    .toolbar {
+      position: sticky;
+      top: 20px;
+      z-index: 1000;
+      max-width: 8.5in;
+      margin: 0 auto 24px auto;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      font-family: 'Inter', sans-serif;
+    }
+
+    .toolbar-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      background-color: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.15s ease;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background-color: var(--primary-dark);
+    }
+
+    .btn-secondary {
+      background-color: #ffffff;
+      color: #374151;
+      border: 1px solid #d1d5db;
+    }
+
+    .btn-secondary:hover {
+      background-color: #f9fafb;
+    }
+
+    /* Manuscript Printable Sheet */
+    .manuscript-page {
+      background-color: var(--paper);
+      width: 8.5in;
+      min-height: 11in;
+      margin: 0 auto 30px auto;
+      padding: 1.1in 1.1in 1.1in 1.1in;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    /* Typography & Academic Layout matching image 113 */
+    .appendix-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .appendix-title {
+      font-family: 'Crimson Pro', Georgia, serif;
+      font-size: 17pt;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #000000;
+      line-height: 1.3;
+    }
+
+    .appendix-subtitle {
+      font-family: 'Crimson Pro', Georgia, serif;
+      font-size: 14pt;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #000000;
+      margin-top: 4px;
+    }
+
+    .section-title {
+      font-size: 13pt;
+      font-weight: 700;
+      color: #000000;
+      margin-top: 18px;
+      margin-bottom: 6px;
+    }
+
+    .subsection-title {
+      font-size: 12pt;
+      font-weight: 700;
+      color: #000000;
+      margin-top: 12px;
+      margin-bottom: 4px;
+    }
+
+    p {
+      font-size: 11.5pt;
+      line-height: 1.55;
+      text-align: justify;
+      margin-bottom: 10px;
+    }
+
+    .lead-intro {
+      font-size: 11.5pt;
+      line-height: 1.55;
+      margin-bottom: 8px;
+    }
+
+    ul {
+      margin-left: 26px;
+      margin-bottom: 12px;
+    }
+
+    li {
+      font-size: 11.5pt;
+      line-height: 1.55;
+      margin-bottom: 4px;
+    }
+
+    ol {
+      margin-left: 26px;
+      margin-bottom: 12px;
+    }
+
+    ol li {
+      margin-bottom: 6px;
+    }
+
+    /* Nested bullets */
+    li ul {
+      margin-top: 4px;
+      margin-bottom: 6px;
+      margin-left: 20px;
+    }
+
+    .page-footer {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: 30px;
+      font-family: 'Crimson Pro', Georgia, serif;
+      font-size: 12pt;
+      color: #000000;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 12px;
+    }
+
+    .page-num {
+      font-weight: 600;
+    }
+
+    /* Tables */
+    .manual-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 16px 0;
+      font-size: 10.5pt;
+    }
+
+    .manual-table th, .manual-table td {
+      border: 1px solid #c7c7c7;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .manual-table th {
+      background-color: #f3f4f6;
+      font-weight: 700;
+    }
+
+    /* Print Setup */
+    @media print {
+      body {
+        background-color: #ffffff;
+        padding: 0;
+      }
+
+      .toolbar {
+        display: none !important;
+      }
+
+      .manuscript-page {
+        width: 100% !important;
+        min-height: auto !important;
+        margin: 0 !important;
+        padding: 0.8in 0.9in 0.8in 0.9in !important;
+        box-shadow: none !important;
+        page-break-after: always;
+      }
+
+      .page-footer {
+        border-top: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Screen Floating Control Bar -->
+  <div class="toolbar">
+    <div class="toolbar-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+      Appendix G: User Guide / Manual &mdash; St. Cecilia's College &ndash; Cebu, Inc.
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn btn-secondary" onclick="window.scrollTo({top: 0, behavior: 'smooth'});">Back to Top</button>
+      <button class="btn" onclick="window.print();">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+        Print / Save as PDF
+      </button>
+    </div>
+  </div>
+
+  <!-- MANUSCRIPT PAGE 1 (Matching Image 113) -->
+  <div class="manuscript-page">
+    <div>
+      <div class="appendix-header">
+        <div class="appendix-title">APPENDIX G</div>
+        <div class="appendix-subtitle">USER GUIDE/MANUAL</div>
+      </div>
+
+      <div class="section-title">1. Introduction</div>
+      <p class="lead-intro">This guide provides step-by-step instructions on how to use the features of the system. It is intended for Public Users, Cecilian Alumni, Corporate Recruiters, and Administrators, helping them navigate, manage, and operate the system efficiently.</p>
+      
+      <p style="font-weight: 600; margin-bottom: 6px;">The system has been developed to:</p>
+      <ul>
+        <li>Improve alumni engagement through a centralized digital collegiate networking platform.</li>
+        <li>Eliminate post-graduation career tracking blind spots by recording graduate employment status, industry sectors, and degree alignment.</li>
+        <li>Automate event participation with encrypted QR ticketing and instant group chat synchronization for all registered attendees.</li>
+        <li>Provide alumni with a permanent interactive 3D digital alumni card featuring real-time registrar verification.</li>
+        <li>Connect Cecilian graduates directly with verified corporate partners through an integrated job portal and resume management system.</li>
+        <li>Ensure data integrity by cross-matching all alumni claims directly against the St. Cecilia's College registrar masterlist.</li>
+      </ul>
+
+      <div class="section-title">2. Getting Started</div>
+      
+      <div class="subsection-title">2.1 System Requirements</div>
+      <ul>
+        <li><strong>Operating Systems:</strong> Windows 10 or higher, macOS 11+, Linux, Android 9.0 and above, iOS 14+.</li>
+        <li><strong>Browsers:</strong> Chrome, Firefox, Safari, Edge (latest versions).</li>
+        <li><strong>Hardware:</strong> Desktop, laptop, or smartphone with camera support (for QR verification).</li>
+        <li><strong>Internet:</strong> Wi-Fi or mobile data connection (minimum 2 Mbps download/upload speed).</li>
+      </ul>
+
+      <div class="subsection-title">2.2 Accessing the System</div>
+      <ol>
+        <li>Open a supported web browser or launch the installed mobile application.</li>
+        <li>Enter the system's URL (<code>https://alumnet.stcecilia.edu.ph</code>) or scan the official QR code provided by the alumni office.</li>
+        <li><strong>Login:</strong>
+          <ul>
+            <li><strong>Public User:</strong> No login required. Can view public announcements, general news, and institutional graduate tracer statistics.</li>
+            <li><strong>Alumni:</strong> Log in using verified student number and password credentials.</li>
+            <li><strong>Corporate Recruiter:</strong> Log in using approved industry partner credentials.</li>
+            <li><strong>Administrator:</strong> Log in with institutional registrar and alumni office administrator credentials.</li>
+          </ul>
+        </li>
+      </ol>
+
+      <div class="section-title">3. User Roles and Permissions</div>
+      
+      <div class="subsection-title">3.1 Public Users</div>
+      <ul>
+        <li>View general campus news, homecoming schedules, and public event announcements.</li>
+        <li>Browse aggregated institutional graduate tracer statistics and employment rates.</li>
+        <li>Access the Alumni Registration Portal to claim and verify graduate accounts.</li>
+        <li>Cannot view private alumni profiles, contact numbers, or internal event group chats.</li>
+      </ul>
+    </div>
+
+    <div class="page-footer">
+      <span class="page-num">113</span>
+    </div>
+  </div>
+
+  <!-- MANUSCRIPT PAGE 2 (Page 114) -->
+  <div class="manuscript-page">
+    <div>
+      <div class="subsection-title">3.2 Cecilian Alumni</div>
+      <ul>
+        <li>Claim identity by verifying Student ID Number against the official registrar masterlist.</li>
+        <li>Update personal employment status, current job title, company name, and course-job alignment in the Graduate Tracer module.</li>
+        <li>Access, tilt, rotate, and present the interactive 3D Digital Alumni ID Card with encrypted QR verification.</li>
+        <li>Browse upcoming alumni events, reserve digital passes, and automatically gain access to official Event Group Chats upon RSVP.</li>
+        <li>Search verified corporate job vacancies, submit digital PDF resumes in one click, and track application stages.</li>
+        <li>Engage in batch-specific discussion circles and network directly with verified classmates.</li>
+      </ul>
+
+      <div class="subsection-title">3.3 Corporate Recruiters / Industry Partners</div>
+      <ul>
+        <li>Maintain verified company profiles, contact channels, and corporate recruitment branding.</li>
+        <li>Publish verified job vacancies, internships, and graduate career tracks.</li>
+        <li>Filter prospective Cecilian candidates by degree program, year of graduation, and specialized technical competencies.</li>
+        <li>Review applicant dossiers, download PDF resumes, and update recruitment pipeline statuses.</li>
+      </ul>
+
+      <div class="subsection-title">3.4 Institutional Administrators (Alumni Affairs Office & Registrar)</div>
+      <ul>
+        <li>Monitor the live Graduate Tracer dashboard with automated CHED-standard employment KPIs.</li>
+        <li>Manage the Registrar Masterlist Triage Queue to resolve unverified student claims or legacy record discrepancies.</li>
+        <li>Create, publish, and manage campus events, ticket quotas, and live contactless QR scanning stations.</li>
+        <li>Oversee corporate job postings, review recruiter accreditations, and moderate campus-wide discussion channels.</li>
+        <li>Generate and export audit-ready tracer reports in PDF and Excel formats.</li>
+      </ul>
+
+      <div class="section-title">4. Step-by-Step User Instructions</div>
+
+      <div class="subsection-title">4.1 Alumni Onboarding & Identity Verification</div>
+      <ol>
+        <li>Navigate to the homepage and select <strong>"Register as Alumni"</strong>.</li>
+        <li>Enter your assigned <strong>Student ID Number</strong>, <strong>Full Legal Name</strong>, <strong>Degree Program</strong>, and <strong>Year of Graduation</strong>.</li>
+        <li>The system automatically cross-references the input against the St. Cecilia's College registrar records:
+          <ul>
+            <li><em>Instant Match:</em> Create your account password and security details to activate your account immediately.</li>
+            <li><em>Record Discrepancy:</em> Submit a photo/scanned copy of your Transcript of Records (TOR) or Diploma for expedited registrar verification.</li>
+          </ul>
+        </li>
+        <li>Upon verification, your profile is unlocked, and your 3D Digital Alumni Card is generated.</li>
+      </ol>
+
+      <div class="subsection-title">4.2 Updating the Graduate Employment Tracer</div>
+      <ol>
+        <li>From the primary navigation menu, click <strong>"Tracer / My Career"</strong>.</li>
+        <li>Select <strong>"Update Employment Profile"</strong>.</li>
+        <li>Provide your current professional details:
+          <ul>
+            <li><em>Employment Status:</em> Employed Full-Time, Employed Part-Time, Self-Employed / Freelancer, Actively Seeking Employment, or Enrolled in Graduate School.</li>
+            <li><em>Job Title & Company Name:</em> Current position and employer.</li>
+            <li><em>Sector & Location:</em> Local (Cebu), Regional (National), Overseas (OFW), or Remote.</li>
+            <li><em>Program Alignment:</em> Indicate whether your current work aligns with your Cecilian college degree.</li>
+          </ul>
+        </li>
+        <li>Click <strong>"Save Changes"</strong> to sync with institutional accreditation metrics.</li>
+      </ol>
+    </div>
+
+    <div class="page-footer">
+      <span class="page-num">114</span>
+    </div>
+  </div>
+
+  <!-- MANUSCRIPT PAGE 3 (Page 115) -->
+  <div class="manuscript-page">
+    <div>
+      <div class="subsection-title">4.3 Event Registration & Automatic Group Chat Access</div>
+      <ol>
+        <li>Navigate to the <strong>"Events"</strong> tab.</li>
+        <li>Select the desired event (e.g., <em>Grand Alumni Homecoming 2026</em> or <em>Alumni Tech Congress</em>).</li>
+        <li>Review the date, venue, guest speakers, and available seat allocation.</li>
+        <li>Click <strong>"Reserve Seat / Get Pass"</strong>.</li>
+        <li>Upon confirmation:
+          <ul>
+            <li>A digital event ticket pass containing a dynamic encrypted QR code is added to your account.</li>
+            <li><strong>Automated Group Chat Join:</strong> The system automatically admits you into the official Event Group Chat room, enabling immediate communication and coordination with fellow registered attendees.</li>
+          </ul>
+        </li>
+      </ol>
+
+      <div class="subsection-title">4.4 Operating the 3D Digital Alumni Card</div>
+      <ol>
+        <li>Click the <strong>"Digital ID"</strong> option from the top navigation bar.</li>
+        <li>Interact with the card using mouse click-and-drag or mobile touch gestures to tilt and inspect the 3D depth, institutional seal, and security hologram.</li>
+        <li>Click <strong>"Flip Card"</strong> to reveal the encrypted cryptographic QR code.</li>
+        <li>Present the QR code at campus gates or event reception checkpoints for immediate identity confirmation.</li>
+      </ol>
+
+      <div class="subsection-title">4.5 Applying for Jobs in the Career Portal</div>
+      <ol>
+        <li>Open the <strong>"Careers & Jobs"</strong> module.</li>
+        <li>Filter active job vacancies by department, job role, or employment type.</li>
+        <li>Click on any vacancy card to view role descriptions, responsibilities, and qualifications.</li>
+        <li>Click <strong>"Quick Apply"</strong> to forward your verified AlumNet profile and attached PDF resume directly to the recruiter.</li>
+        <li>Track real-time application status updates (<em>Submitted, Under Review, Shortlisted, Interview Scheduled</em>) under the <strong>"My Applications"</strong> dashboard.</li>
+      </ol>
+
+      <div class="section-title">5. Administrator Operating Procedures</div>
+
+      <div class="subsection-title">5.1 Real-Time Contactless QR Event Check-In</div>
+      <ol>
+        <li>Log into the Administrator Portal and navigate to <strong>"Events Management"</strong>.</li>
+        <li>Select the ongoing event and click <strong>"Open QR Ticket Scanner"</strong>.</li>
+        <li>Point the connected device camera or handheld 2D barcode scanner at the arriving alumnus's digital ticket QR pass.</li>
+        <li>The system decrypts the ticket signature:
+          <ul>
+            <li><em>Valid Ticket:</em> Displays attendee name, batch, seat number, and logs check-in timestamp with an audible confirmation chime.</li>
+            <li><em>Duplicate Pass:</em> Flags red alert if the pass has previously been checked in, preventing duplicate entries.</li>
+          </ul>
+        </li>
+      </ol>
+
+      <div class="subsection-title">5.2 Generating Accreditation & Tracer Reports</div>
+      <ol>
+        <li>Navigate to <strong>"Analytics & Reports"</strong> on the admin menu.</li>
+        <li>Select the report category: <em>Graduate Tracer Report</em>, <em>Event Attendance Audit</em>, or <em>Corporate Hiring Report</em>.</li>
+        <li>Set the target filters (Academic Year, College Department, Employment Status).</li>
+        <li>Click <strong>"Generate Report"</strong>, then choose <strong>"Export to PDF"</strong> or <strong>"Export to Excel"</strong>.</li>
+      </ol>
+    </div>
+
+    <div class="page-footer">
+      <span class="page-num">115</span>
+    </div>
+  </div>
+
+  <!-- MANUSCRIPT PAGE 4 (Page 116) -->
+  <div class="manuscript-page">
+    <div>
+      <div class="section-title">6. Troubleshooting & Support</div>
+      <p>In the event of operational difficulties or data discrepancies, refer to the diagnostic procedures below:</p>
+
+      <table class="manual-table">
+        <thead>
+          <tr>
+            <th style="width: 28%;">Issue / Error Message</th>
+            <th style="width: 32%;">Probable Cause</th>
+            <th style="width: 40%;">Recommended Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>"Student Number Not Found in Masterlist"</strong></td>
+            <td>Typographical error in student ID or student record has not yet been digitized by the registrar.</td>
+            <td>Verify the correct format (e.g., <code>2022-0412</code>). If accurate, click "Submit Manual Verification" and attach a photo of your Diploma or TOR for administrator approval.</td>
+          </tr>
+          <tr>
+            <td><strong>"Invalid or Duplicate QR Pass"</strong> at check-in</td>
+            <td>Pass has already been registered as entered, or ticket screen brightness is too low.</td>
+            <td>Increase mobile display brightness. Verify the attendee identity against the manual attendee list in the admin search bar.</td>
+          </tr>
+          <tr>
+            <td><strong>"Group Chat Access Restricted"</strong></td>
+            <td>Event reservation was cancelled or event has passed its active archival window.</td>
+            <td>Verify your ticket status under "My Passes". If your ticket is active, click "Re-sync Event Channels" on the settings menu.</td>
+          </tr>
+          <tr>
+            <td><strong>3D Digital ID fails to render smoothly</strong></td>
+            <td>Web browser hardware acceleration is disabled or device GPU memory is constrained.</td>
+            <td>Enable hardware acceleration in browser settings or toggle the "2D Static View" switch on the Digital ID screen.</td>
+          </tr>
+          <tr>
+            <td><strong>Resume Upload Failed</strong></td>
+            <td>File exceeds the 10 MB limit or is in an unsupported format.</td>
+            <td>Ensure the resume document is formatted as a PDF file and does not exceed 10 MB in file size.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="subsection-title">7. Contact Information & Institutional Support</div>
+      <p>For technical inquiries, password resets, or identity dispute resolutions, please contact the institution directly:</p>
+      
+      <ul>
+        <li><strong>Office:</strong> Alumni Affairs and Placement Office</li>
+        <li><strong>Institution:</strong> St. Cecilia’s College – Cebu, Inc.</li>
+        <li><strong>Physical Address:</strong> Ward II, Poblacion, Minglanilla, Cebu, Philippines 6046</li>
+        <li><strong>Official Email:</strong> <code>alumni.office@stcecilia.edu.ph</code> / <code>registrar@stcecilia.edu.ph</code></li>
+        <li><strong>Helpdesk Hotline:</strong> (032) 272-3604 / (032) 490-2500</li>
+        <li><strong>Operating Hours:</strong> Monday to Friday, 8:00 AM – 5:00 PM (Philippine Standard Time)</li>
+      </ul>
+
+      <div style="margin-top: 36px; padding: 14px 18px; border: 1px solid #d1d5db; background-color: #fafaf9; border-radius: 4px;">
+        <p style="font-size: 10.5pt; margin-bottom: 0; text-align: center; font-style: italic;">
+          &copy; 2026 St. Cecilia’s College – Cebu, Inc. AlumNet Project Team. All rights reserved. This document forms an integral part of Appendix G of the official capstone manuscript.
+        </p>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span class="page-num">116</span>
+    </div>
+  </div>
+
+</body>
+</html>

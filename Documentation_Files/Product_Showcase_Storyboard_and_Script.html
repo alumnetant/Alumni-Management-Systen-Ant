@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlumNet 60-Second Video Storyboard & Production Script</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --primary: #8B181B;
+      --primary-dark: #721316;
+      --primary-light: #fef2f2;
+      --gold: #D97706;
+      --emerald: #059669;
+      --canvas: #FAF9F6;
+      --text: #1C1917;
+      --text-muted: #57534E;
+      --border: #E7E5E4;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background-color: #f5f5f4;
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 30px 15px;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 50px 60px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+
+    .header-bar {
+      border-bottom: 2.5px solid var(--primary);
+      padding-bottom: 20px;
+      margin-bottom: 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .inst-label {
+      font-size: 11pt;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--primary);
+      margin: 0 0 4px 0;
+    }
+
+    .doc-title {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #111827;
+      margin: 0 0 6px 0;
+      letter-spacing: -0.3px;
+    }
+
+    .doc-meta {
+      font-size: 9.5pt;
+      color: var(--text-muted);
+    }
+
+    .badge-pill {
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 9pt;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid #fecaca;
+    }
+
+    .summary-card {
+      background: var(--canvas);
+      border-left: 4px solid var(--primary);
+      padding: 18px 24px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 30px;
+      font-size: 10pt;
+    }
+
+    .summary-card h3 {
+      margin: 0 0 8px 0;
+      color: var(--primary);
+      font-size: 11pt;
+    }
+
+    /* Production Table */
+    table.storyboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+      margin: 20px 0 30px 0;
+    }
+
+    table.storyboard-table th {
+      background: var(--primary);
+      color: #ffffff;
+      padding: 12px 14px;
+      text-align: left;
+      font-weight: 700;
+      border: 1px solid #6b1214;
+    }
+
+    table.storyboard-table td {
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    table.storyboard-table tr:nth-child(even) {
+      background: #fafaf9;
+    }
+
+    .time-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8.5pt;
+      font-weight: 700;
+      background: #1C1917;
+      color: #FACC15;
+      padding: 3px 7px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 4px;
+    }
+
+    .scene-title {
+      font-weight: 700;
+      color: var(--primary);
+      font-size: 9.5pt;
+      margin-top: 4px;
+    }
+
+    .script-quote {
+      background: #fffbeb;
+      border-left: 3px solid var(--gold);
+      padding: 8px 12px;
+      border-radius: 0 4px 4px 0;
+      font-style: italic;
+      color: #78350f;
+      margin: 6px 0;
+      font-size: 9pt;
+    }
+
+    .sfx-tag {
+      font-size: 8.5pt;
+      color: #047857;
+      font-weight: 600;
+    }
+
+    .tagline-box {
+      background: linear-gradient(135deg, #8B181B, #5b0f11);
+      color: #ffffff;
+      padding: 24px;
+      border-radius: 8px;
+      text-align: center;
+      margin: 30px 0;
+    }
+
+    .tagline-box h2 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-style: italic;
+      font-size: 20pt;
+      margin: 0 0 8px 0;
+      color: #fef08a;
+    }
+
+    .tagline-box p {
+      font-size: 10pt;
+      margin: 0;
+      opacity: 0.9;
+    }
+
+    .print-bar {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .btn-print {
+      background: var(--primary);
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 10pt;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(139, 24, 27, 0.25);
+    }
+
+    @media print {
+      body { background: #ffffff; padding: 0; }
+      .print-bar { display: none; }
+      .container { box-shadow: none; border: none; padding: 0; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="print-bar">
+    <button class="btn-print" onclick="window.print()">🖨️ Print / Save as PDF Storyboard</button>
+  </div>
+
+  <div class="container">
+    <div class="header-bar">
+      <div>
+        <div class="inst-label">St. Cecilia's College - Cebu, Inc.</div>
+        <div class="doc-title">60-Second Video Storyboard & Production Script</div>
+        <div class="doc-meta">AlumNet Product Showcase & Explainer Video • Exact Duration: 60s</div>
+      </div>
+      <div class="badge-pill">Master Script • 138 Words</div>
+    </div>
+
+    <div class="summary-card">
+      <h3>Core Creative Concept & Narrative Arc</h3>
+      <p style="margin: 0 0 6px 0;">
+        <strong>The Problem:</strong> When students graduate, colleges lose track of where they are working, creating an accreditation blindspot. Furthermore, when organizing campus events, gathering attendees into unified group chats is notoriously chaotic.
+      </p>
+      <p style="margin: 0;">
+        <strong>The Solution:</strong> AlumNet provides instant registrar verification, live employment tracer tracking, 3D digital alumni ID cards, and <strong>automatic event group chat enrollment upon RSVP</strong>, culminating in the collegiate tagline: <em>"Where Legacy Lives On."</em>
+      </p>
+    </div>
+
+    <table class="storyboard-table">
+      <thead>
+        <tr>
+          <th style="width: 14%;">Timecode & Scene</th>
+          <th style="width: 28%;">Visual & Camera Action</th>
+          <th style="width: 38%;">Voiceover Narration (Filipino-English)</th>
+          <th style="width: 20%;">Sound FX & Music Direction</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="time-badge">0:00 – 0:06</span>
+            <div class="scene-title">Scene 1: Graduate Blindspot</div>
+          </td>
+          <td>
+            Graduation caps tossed outside the Academic Tower. Transition to an administrator desk with empty question marks over alumni career paths.
+          </td>
+          <td>
+            <div class="script-quote">
+              "When students graduate, universities lose track of where they work..."
+            </div>
+          </td>
+          <td>
+            <span class="sfx-tag">Uplifting piano note; subtle crowd cheer fades out.</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="time-badge">0:06 – 0:13</span>
+            <div class="scene-title">Scene 2: Group Chat Chaos</div>
+          </td>
+          <td>
+            Smartphone screen flooded with 8 different inactive Messenger groups, highlighting the frustration of coordinating a campus reunion.
+          </td>
+          <td>
+            <div class="script-quote">
+              "...and whenever campus events happen, gathering alumni into scattered group chats is chaotic and frustrating. Valuable Cecilian connections simply fade."
+            </div>
+          </td>
+          <td>
+            <span class="sfx-tag">Rhythmic electronic beat enters; scattered notification pings.</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="time-badge">0:13 – 0:22</span>
+            <div class="scene-title">Scene 3: The Solution Reveal</div>
+          </td>
+          <td>
+            Crimson light sweep (`#8B181B`). St. Cecilia's golden seal spins into focus, unveiling AlumNet's responsive web and mobile application mockup.
+          </td>
+          <td>
+            <div class="script-quote">
+              "Introducing AlumNet—the official web and mobile alumni network built for St. Cecilia's College, bringing every Cecilian home to one secure platform."
+            </div>
+          </td>
+          <td>
+            <span class="sfx-tag">Driving 120 BPM corporate synth beat kicks in; uplifting chord swell.</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="time-badge">0:22 – 0:27</span>
+            <div class="scene-title">Scene 4: Instant Registrar Match</div>
+          </td>
+          <td>
+            Alumnus enters Student ID `SC-2020-0192`. An instant green validation wave confirms registry match: <em>Verified Cecilian Graduate</em>.
+          </td>
+          <td>
+            <div class="script-quote">
+              "Onboarding is instant. Enter your student ID to verify directly against official registrar records with zero waiting."
+            </div>
+          </td>
+          <td>
+            <span class="sfx-tag">High-tech confirmation chime and affirming whoosh.</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="time-badge">0:27 – 0:34</span>
+            <div class="scene-title">Scene 5: Career Tracer & 3D ID</div>
+          </td>
+          <td>
+            Graduate updates employment to <em>"Software Engineer at Lexmark"</em>. Live admin tracer updates. 3D Digital ID card flips with dynamic QR code.
+          </td>
+          <td>
+            <div class="script-quote">
+              "Graduates easily share where they work, keeping college records fresh in real time, while accessing their permanent 3D digital alumni card."
+            </div>
+          </td>
+          <td>
+            <span class="sfx-tag">Card swoosh SFX; holographic shimmer audio accent.</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="time-badge">0:34 – 0:41</span>
+            <div class="scene-title">Scene 6: Event RSVP & Auto Chat</div>
+          </td>
+          <td>
+            Alumnus taps <em>"Reserve Seat"</em> for Grand Homecoming. Animated banner confirms seat, immediately launching user into the <strong>Live Event Group Chat</strong>!
+          </td>
+          <td>
+            <div class="script-quote">
+              "Heading to an alumni event? One tap reserves your digital ticket and automatically adds you to the official event group chat—no manual invites needed!"
+            </div>
+          </td>
+          <td>
+            <span class="sfx-tag">Double pop notification; upbeat active typing sounds.</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="time-badge">0:41 – 0:48</span>
+            <div class="scene-title">Scene 7: Accredited Jobs & ATS</div>
+          </td>
+          <td>
+            Showcase of accredited hiring partners (Lexmark, Accenture). Alumnus clicks <em>"1-Click Apply"</em>; employer reviews certified PDF resume.
+          </td>
+          <td>
+            <div class="script-quote">
+              "Explore verified corporate career opportunities, apply in one click, and track your hiring status in real time."
+            </div>
+          </td>
+          <td>
+            <span class="sfx-tag">Paper slide and hiring success bell ping.</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="time-badge">0:48 – 1:00</span>
+            <div class="scene-title">Scene 8: Call to Action & Tagline</div>
+          </td>
+          <td>
+            Inspiring montage of smiling alumni and campus drone vista. St. Cecilia's seal locks into place with the official collegiate tagline.
+          </td>
+          <td>
+            <div class="script-quote">
+              "Never lose touch. Reconnect, collaborate, and grow with your alma mater. Join AlumNet today—where legacy lives on."
+            </div>
+          </td>
+          <td>
+            <span class="sfx-tag">Full musical crescendo with warm acoustic chords & lingering chime.</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="tagline-box">
+      <h2>"Where Legacy Lives On."</h2>
+      <p>St. Cecilia's College - Cebu, Inc. &bull; AlumNet Official Platform</p>
+    </div>
+  </div>
+
+</body>
+</html>

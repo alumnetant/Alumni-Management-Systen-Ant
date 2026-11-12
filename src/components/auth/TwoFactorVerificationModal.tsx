@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ShieldCheck, Mail, RefreshCw, ArrowLeft, KeyRound, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Mail, RefreshCw, ArrowLeft, KeyRound, AlertCircle, CheckCircle2, Copy } from 'lucide-react';
 import { generateSecureNumericCode } from '../../lib/secureId';
+import { useAlumni } from '../../context/AlumniContext';
 
 interface TwoFactorVerificationModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
   onVerifySuccess,
   onCancel
 }) => {
+  const { showToast } = useAlumni();
   const [codeDigits, setCodeDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [generatedCode, setGeneratedCode] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -26,7 +28,6 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-
   // Generate a cryptographically styled 6-digit OTP
   const generateNewCode = () => {
     const freshCode = generateSecureNumericCode(100000, 999999).toString();
@@ -35,9 +36,12 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
     setErrorMessage('');
     setResendCooldown(60);
 
+    // Show real-time interactive toast notification with OTP
+    showToast(`🔒 Security Code: ${freshCode} (Dispatched to ${userEmail})`, 'info');
+
     // Show institutional email dispatch simulation notification
     const masked = maskEmail(userEmail);
-    setCodeNotification(`A 6-digit security verification code has been dispatched to ${masked}.`);
+    setCodeNotification(`A 6-digit verification code (${freshCode}) has been dispatched to ${masked}.`);
 
     // Auto-focus first input
     setTimeout(() => {
@@ -184,8 +188,24 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
             </div>
           )}
 
-          {/* 6-Digit Code Input Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex items-center justify-between text-xs px-0.5">
+              <span className="text-[11px] text-stone-500 dark:text-stone-400">One-Time Password (OTP)</span>
+              {generatedCode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCodeDigits(generatedCode.split(''));
+                    verifyEnteredCode(generatedCode);
+                  }}
+                  className="text-[11px] font-mono font-semibold text-[#8B181B] dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>Auto-Fill Code ({generatedCode})</span>
+                </button>
+              )}
+            </div>
+
             <div className="flex justify-between gap-2 sm:gap-2.5">
               {codeDigits.map((digit, index) => (
                 <input

@@ -1359,6 +1359,9 @@ export function getRegistrationConflicts(): RegistrationConflictRecord[] {
 export function saveRegistrationConflicts(conflicts: RegistrationConflictRecord[]): void {
   try {
     localStorage.setItem(REGISTRY_CONFLICTS_STORAGE_KEY, JSON.stringify(conflicts));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('conflicts-updated', { detail: conflicts }));
+    }
   } catch (err) {
     console.error('Failed to save registration conflicts:', err);
   }

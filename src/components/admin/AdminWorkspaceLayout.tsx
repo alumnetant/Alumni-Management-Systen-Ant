@@ -207,13 +207,17 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
   // Firestore Database Seeder Modal state
   const [showDatabaseSeederModal, setShowDatabaseSeederModal] = useState(false);
 
-  // Create User Modal state
+  // Create User Modal state & validation
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('Password123!');
   const [newUserRole, setNewUserRole] = useState<UserRole>('admin');
   const [newUserDepartment, setNewUserDepartment] = useState('');
+  const [createUserFieldErrors, setCreateUserFieldErrors] = useState<Record<string, string>>({});
+  const [createUserGeneralError, setCreateUserGeneralError] = useState<string | null>(null);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [createdMemberResult, setCreatedMemberResult] = useState<{ role: string; name: string; email: string } | null>(null);
 
   // Milestone Modal state
   const [showMilestoneModal, setShowMilestoneModal] = useState(false);
@@ -312,24 +316,114 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
     }
   };
 
-  const handleCreateUserSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newUserName.trim() || !newUserEmail.trim()) {
-      showToast('Name and institutional email are required', 'error');
-      return;
-    }
-    createUserByAdmin({
-      name: newUserName.trim(),
-      email: newUserEmail.trim(),
-      password: newUserPassword,
-      role: newUserRole,
-      department: newUserDepartment.trim() || 'Institutional Operations'
-    });
+  const resetCreateUserForm = () => {
     setNewUserName('');
     setNewUserEmail('');
+    setNewUserPassword('Password123!');
+    setNewUserRole('admin');
     setNewUserDepartment('');
-    setShowCreateUserModal(false);
-    showToast(`Created new ${newUserRole} account successfully`, 'success');
+    setCreateUserFieldErrors({});
+    setCreateUserGeneralError(null);
+    setIsCreatingUser(false);
+    setCreatedMemberResult(null);
+  };
+
+  const handleCreateUserSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateUserGeneralError(null);
+    const errors: Record<string, string> = {};
+
+    // 1. Check all required fields. If incomplete, highlight missing fields and display error message
+    const trimmedName = newUserName.trim();
+    const trimmedEmail = newUserEmail.trim();
+    const trimmedPassword = newUserPassword.trim();
+
+    if (!trimmedName) {
+      errors.name = 'Full legal name is required.';
+    } else if (trimmedName.length < 2) {
+      errors.name = 'Name must be at least 2 characters.';
+    }
+
+    // 2. Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!trimmedEmail) {
+      errors.email = 'Email address is required.';
+    } else if (!emailRegex.test(trimmedEmail)) {
+      errors.email = 'Please provide a valid email format (e.g., name@stcecilia.edu.ph).';
+    } else {
+      // 3. Prevent duplicate email registration
+      const isDuplicate = users.some(
+        (u) => u.email && u.email.trim().toLowerCase() === trimmedEmail.toLowerCase()
+      );
+      if (isDuplicate) {
+        errors.email = `An account with ${trimmedEmail} already exists in the system.`;
+      }
+    }
+
+    // 4. Validate password
+    if (!trimmedPassword) {
+      errors.password = 'Password is required.';
+    } else if (trimmedPassword.length < 6) {
+      errors.password = 'Password must be at least 6 characters.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setCreateUserFieldErrors(errors);
+      const firstError = Object.values(errors)[0];
+      setCreateUserGeneralError(firstError || 'Please complete all required fields correctly.');
+      showToast('Validation failed. Please review the highlighted fields.', 'error');
+      return;
+    }
+
+    // Clear previous field errors
+    setCreateUserFieldErrors({});
+
+    // 5. Show a loading indicator while processing
+    setIsCreatingUser(true);
+
+    try {
+      // Simulate real auth handshake and register in Firebase Auth / Firestore via context
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      const result = createUserByAdmin({
+        name: trimmedName,
+        email: trimmedEmail,
+        password: trimmedPassword,
+        role: newUserRole,
+        department: newUserDepartment.trim() || 'Institutional Operations'
+      });
+
+      if (typeof result === 'object' && !result.success) {
+        setCreateUserGeneralError(result.error || 'Failed to create member account.');
+        showToast(result.error || 'Account creation failed.', 'error');
+        setIsCreatingUser(false);
+        return;
+      }
+
+      // Format role label for display
+      const roleLabels: Record<string, string> = {
+        admin: 'Administrator',
+        moderator: 'Institutional Moderator',
+        superadmin: 'Super Administrator',
+        employer: 'Employer Partner',
+        alumni: 'Alumnus'
+      };
+      const assignedRoleLabel = roleLabels[newUserRole] || newUserRole.toUpperCase();
+
+      // Set success state only when account is successfully created
+      setCreatedMemberResult({
+        role: assignedRoleLabel,
+        name: trimmedName,
+        email: trimmedEmail
+      });
+      showToast('ADDING MEMBER SUCCESSFULLY!', 'success');
+    } catch (err: any) {
+      const msg = err?.message || 'An unexpected error occurred during account creation.';
+      setCreateUserGeneralError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsCreatingUser(false);
+    }
   };
 
   const handleExportCsv = () => {
@@ -1516,110 +1610,251 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
       </div>
 
       {/* ========================================================
-          CREATE USER MODAL
+          CREATE USER / ADD MEMBER MODAL
           ======================================================== */}
       {showCreateUserModal && (
         <div className="fixed inset-0 bg-stone-950/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-lg w-full p-6 sm:p-7 relative">
-            <div className="flex items-center justify-between pb-4 border-b border-stone-100">
+          <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200 dark:border-stone-800 shadow-2xl max-w-lg w-full p-6 sm:p-7 relative transition-all">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-stone-100 dark:border-stone-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-red-50 text-[#8B181B] flex items-center justify-center">
+                <div className="w-9 h-9 rounded-xl bg-red-50 dark:bg-red-950/50 text-[#8B181B] dark:text-red-400 flex items-center justify-center">
                   <UserPlus className="w-4 h-4 stroke-[2]" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-stone-900">Provision University Account</h3>
-                  <p className="text-xs text-stone-500">Authorize staff, registrar, or admin privileges</p>
+                  <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Provision University Account</h3>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">Authorize staff, registrar, or alumni privileges</p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setShowCreateUserModal(false)}
-                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 cursor-pointer"
+                onClick={() => {
+                  setShowCreateUserModal(false);
+                  resetCreateUserForm();
+                }}
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateUserSubmit} className="space-y-4 mt-5">
-              <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Full Legal Name</label>
-                <input
-                  type="text"
-                  required
-                  value={newUserName}
-                  onChange={(e) => setNewUserName(e.target.value)}
-                  placeholder="e.g. Dr. Maria Santos"
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-medium text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Institutional Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={newUserEmail}
-                  onChange={(e) => setNewUserEmail(e.target.value)}
-                  placeholder="name@stcecilia.edu.ph"
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-medium text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">System Role</label>
-                  <select
-                    value={newUserRole}
-                    onChange={(e) => setNewUserRole(e.target.value as UserRole)}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-semibold text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 cursor-pointer"
-                  >
-                    <option value="admin">Administrator</option>
-                    <option value="moderator">Institutional Moderator</option>
-                    <option value="superadmin">Super Administrator</option>
-                    <option value="employer">Employer Partner</option>
-                    <option value="alumni">Alumnus</option>
-                  </select>
+            {/* CASE 1: SUCCESS VIEW (Only displayed when successfully created) */}
+            {createdMemberResult ? (
+              <div className="py-6 flex flex-col items-center text-center space-y-4 animate-in zoom-in-95 duration-200">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shadow-xs">
+                  <CheckCircle2 className="w-9 h-9 stroke-[2.2]" />
                 </div>
 
+                <div className="space-y-1.5">
+                  <h4 className="text-base font-extrabold text-stone-900 dark:text-stone-100 tracking-tight">
+                    ADDING MEMBER SUCCESSFULLY!
+                  </h4>
+                  <p className="text-xs text-stone-600 dark:text-stone-300">
+                    <span className="font-bold">Role:</span> {createdMemberResult.role}
+                  </p>
+                  <p className="text-[11px] text-stone-400 dark:text-stone-500">
+                    Account provisioned for <span className="font-semibold text-stone-700 dark:text-stone-300">{createdMemberResult.name}</span> ({createdMemberResult.email}). Record saved to Cloud Firestore and credentials vault.
+                  </p>
+                </div>
+
+                <div className="w-full pt-4 border-t border-stone-100 dark:border-stone-800 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateUserModal(false);
+                      resetCreateUserForm();
+                    }}
+                    className="w-full sm:w-auto px-8 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-4 h-4 stroke-[2.5]" />
+                    <span>Done</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* CASE 2: INPUT FORM WITH CONDITIONAL VALIDATION */
+              <form onSubmit={handleCreateUserSubmit} noValidate className="space-y-4 mt-5">
+                
+                {/* General Error Banner */}
+                {createUserGeneralError && (
+                  <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/80 text-red-800 dark:text-red-300 flex items-start gap-2 text-xs">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+                    <div className="flex-1 font-medium leading-relaxed">
+                      {createUserGeneralError}
+                    </div>
+                  </div>
+                )}
+
+                {/* Field: Full Name */}
                 <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Default Password</label>
+                  <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block mb-1">
+                    Full Legal Name <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
-                    required
-                    value={newUserPassword}
-                    onChange={(e) => setNewUserPassword(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-mono text-stone-900"
+                    value={newUserName}
+                    disabled={isCreatingUser}
+                    onChange={(e) => {
+                      setNewUserName(e.target.value);
+                      if (createUserFieldErrors.name) {
+                        setCreateUserFieldErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.name;
+                          return next;
+                        });
+                      }
+                      if (createUserGeneralError) setCreateUserGeneralError(null);
+                    }}
+                    placeholder="e.g. Dr. Maria Santos"
+                    className={`w-full px-3.5 py-2 rounded-xl border text-xs font-medium text-stone-900 dark:text-stone-100 focus:outline-none transition-colors ${
+                      createUserFieldErrors.name
+                        ? 'border-red-400 bg-red-50/50 dark:bg-red-950/20 focus:ring-2 focus:ring-red-400/30'
+                        : 'border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 focus:bg-white dark:focus:bg-stone-900 focus:ring-2 focus:ring-[#8B181B]/20'
+                    }`}
+                  />
+                  {createUserFieldErrors.name && (
+                    <p className="text-[11px] text-red-600 dark:text-red-400 font-semibold mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      <span>{createUserFieldErrors.name}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Field: Email */}
+                <div>
+                  <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block mb-1">
+                    Institutional Email Address <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={newUserEmail}
+                    disabled={isCreatingUser}
+                    onChange={(e) => {
+                      setNewUserEmail(e.target.value);
+                      if (createUserFieldErrors.email) {
+                        setCreateUserFieldErrors((prev) => {
+                          const next = { ...prev };
+                          delete next.email;
+                          return next;
+                        });
+                      }
+                      if (createUserGeneralError) setCreateUserGeneralError(null);
+                    }}
+                    placeholder="name@stcecilia.edu.ph"
+                    className={`w-full px-3.5 py-2 rounded-xl border text-xs font-medium text-stone-900 dark:text-stone-100 focus:outline-none transition-colors ${
+                      createUserFieldErrors.email
+                        ? 'border-red-400 bg-red-50/50 dark:bg-red-950/20 focus:ring-2 focus:ring-red-400/30'
+                        : 'border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 focus:bg-white dark:focus:bg-stone-900 focus:ring-2 focus:ring-[#8B181B]/20'
+                    }`}
+                  />
+                  {createUserFieldErrors.email && (
+                    <p className="text-[11px] text-red-600 dark:text-red-400 font-semibold mt-1 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      <span>{createUserFieldErrors.email}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Grid: Role & Password */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block mb-1">
+                      System Role <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={newUserRole}
+                      disabled={isCreatingUser}
+                      onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+                      className="w-full px-3 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 text-xs font-semibold text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 cursor-pointer"
+                    >
+                      <option value="admin">Administrator</option>
+                      <option value="moderator">Institutional Moderator</option>
+                      <option value="superadmin">Super Administrator</option>
+                      <option value="employer">Employer Partner</option>
+                      <option value="alumni">Alumnus</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block mb-1">
+                      Password <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newUserPassword}
+                      disabled={isCreatingUser}
+                      onChange={(e) => {
+                        setNewUserPassword(e.target.value);
+                        if (createUserFieldErrors.password) {
+                          setCreateUserFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.password;
+                            return next;
+                          });
+                        }
+                        if (createUserGeneralError) setCreateUserGeneralError(null);
+                      }}
+                      className={`w-full px-3 py-2 rounded-xl border text-xs font-mono text-stone-900 dark:text-stone-100 focus:outline-none transition-colors ${
+                        createUserFieldErrors.password
+                          ? 'border-red-400 bg-red-50/50 dark:bg-red-950/20 focus:ring-2 focus:ring-red-400/30'
+                          : 'border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 focus:bg-white dark:focus:bg-stone-900 focus:ring-2 focus:ring-[#8B181B]/20'
+                      }`}
+                    />
+                    {createUserFieldErrors.password && (
+                      <p className="text-[11px] text-red-600 dark:text-red-400 font-semibold mt-1 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                        <span>{createUserFieldErrors.password}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Field: Campus Department */}
+                <div>
+                  <label className="text-xs font-bold text-stone-700 dark:text-stone-300 block mb-1">
+                    Campus Department / Office
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserDepartment}
+                    disabled={isCreatingUser}
+                    onChange={(e) => setNewUserDepartment(e.target.value)}
+                    placeholder="e.g. Office of Institutional Advancement"
+                    className="w-full px-3.5 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 focus:bg-white dark:focus:bg-stone-900 text-xs font-medium text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Campus Department / Office</label>
-                <input
-                  type="text"
-                  value={newUserDepartment}
-                  onChange={(e) => setNewUserDepartment(e.target.value)}
-                  placeholder="e.g. Office of Institutional Advancement"
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-medium text-stone-900"
-                />
-              </div>
-
-              <div className="pt-4 border-t border-stone-100 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateUserModal(false)}
-                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-xs font-semibold hover:bg-stone-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-                >
-                  Create Member Account
-                </button>
-              </div>
-            </form>
+                {/* Action Buttons */}
+                <div className="pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    disabled={isCreatingUser}
+                    onClick={() => {
+                      setShowCreateUserModal(false);
+                      resetCreateUserForm();
+                    }}
+                    className="px-4 py-2 rounded-xl border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 text-xs font-semibold hover:bg-stone-50 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCreatingUser}
+                    className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isCreatingUser ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Creating Account...</span>
+                      </>
+                    ) : (
+                      <span>Create Member Account</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

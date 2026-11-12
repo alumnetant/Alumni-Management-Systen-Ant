@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>E.4 Sample Reports — St. Cecilia's College AlumNet</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300&display=swap');
+
+    :root {
+      --primary: #8B181B;
+      --primary-dark: #721316;
+      --primary-light: #fef2f2;
+      --gold: #D97706;
+      --emerald: #059669;
+      --canvas: #FAF9F6;
+      --text: #1C1917;
+      --text-muted: #57534E;
+      --border: #E7E5E4;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Merriweather', Georgia, serif;
+      background-color: #e5e5e5;
+      color: var(--text);
+      line-height: 1.6;
+      margin: 0;
+      padding: 30px 15px;
+    }
+
+    .page-sheet {
+      max-width: 850px;
+      margin: 0 auto 30px auto;
+      background: #ffffff;
+      padding: 55px 65px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      border-radius: 4px;
+      border: 1px solid #d4d4d8;
+      position: relative;
+      min-height: 1100px;
+    }
+
+    .chapter-header {
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 16pt;
+      font-weight: 800;
+      color: #111827;
+      margin: 0 0 20px 0;
+      letter-spacing: -0.3px;
+    }
+
+    .section-intro {
+      font-size: 10.5pt;
+      text-align: justify;
+      margin-bottom: 24px;
+      color: #374151;
+    }
+
+    /* Browser Mockup Window (Screenshot Look) */
+    .mockup-window {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+      margin: 18px 0 10px 0;
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    .window-titlebar {
+      background: #f1f5f9;
+      border-bottom: 1px solid #cbd5e1;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .window-address {
+      font-size: 8pt;
+      color: #64748b;
+      background: #ffffff;
+      padding: 3px 18px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Inner Dashboard Mockup */
+    .dashboard-container {
+      display: flex;
+      height: 380px;
+      background: #f8fafc;
+      font-size: 9pt;
+      position: relative;
+    }
+
+    .sidebar {
+      width: 170px;
+      background: #1e293b;
+      color: #f1f5f9;
+      padding: 14px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 12px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid #334155;
+    }
+
+    .brand-logo {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 8pt;
+    }
+
+    .brand-text {
+      font-weight: 800;
+      font-size: 9pt;
+      letter-spacing: 0.5px;
+      color: #ffffff;
+    }
+
+    .nav-item {
+      padding: 6px 10px;
+      border-radius: 6px;
+      color: #94a3b8;
+      font-weight: 500;
+      font-size: 8pt;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .nav-item.active {
+      background: var(--primary);
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .main-content {
+      flex: 1;
+      padding: 16px 20px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: #ffffff;
+    }
+
+    .content-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 10px;
+    }
+
+    .report-title-text {
+      font-size: 11pt;
+      font-weight: 800;
+      color: #0f172a;
+      margin: 0;
+    }
+
+    .report-meta-text {
+      font-size: 7.5pt;
+      color: #64748b;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .stat-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 12px;
+    }
+
+    .stat-label {
+      font-size: 7pt;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #64748b;
+      margin-bottom: 3px;
+    }
+
+    .stat-value {
+      font-size: 13pt;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .stat-sub {
+      font-size: 6.5pt;
+      color: #059669;
+      font-weight: 600;
+    }
+
+    /* Inner Data Table Mockup */
+    .mock-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 7.5pt;
+      margin-top: 4px;
+    }
+
+    .mock-table th {
+      background: #f1f5f9;
+      padding: 6px 8px;
+      text-align: left;
+      font-weight: 700;
+      color: #475569;
+      border-bottom: 1px solid #cbd5e1;
+    }
+
+    .mock-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #334155;
+    }
+
+    .badge-verified {
+      background: #dcfce7;
+      color: #15803d;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 6.5pt;
+    }
+
+    .badge-blocked {
+      background: #fee2e2;
+      color: #b91c1c;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 6.5pt;
+    }
+
+    /* Floating Modal in Mockup */
+    .mockup-modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(1.5px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .mockup-modal {
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      border: 1px solid #cbd5e1;
+      width: 380px;
+      padding: 16px 20px;
+      font-size: 8pt;
+    }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .modal-title {
+      font-weight: 800;
+      font-size: 9.5pt;
+      color: var(--primary);
+    }
+
+    .figure-caption {
+      font-family: 'Merriweather', Georgia, serif;
+      font-size: 9.5pt;
+      font-style: italic;
+      text-align: center;
+      color: #1f2937;
+      margin: 8px 0 35px 0;
+    }
+
+    .figure-caption strong {
+      font-style: normal;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .page-footer {
+      position: absolute;
+      bottom: 30px;
+      right: 65px;
+      left: 65px;
+      display: flex;
+      justify-content: space-between;
+      font-family: 'Inter', sans-serif;
+      font-size: 9pt;
+      color: #94a3b8;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 10px;
+    }
+
+    .print-control-bar {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .btn-print {
+      background: var(--primary);
+      color: #ffffff;
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 10pt;
+      border: none;
+      padding: 11px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(139, 24, 27, 0.25);
+    }
+
+    .btn-print:hover {
+      background: var(--primary-dark);
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+      .print-control-bar {
+        display: none;
+      }
+      .page-sheet {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+        margin: 0;
+        max-width: 100%;
+        page-break-after: always;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="print-control-bar">
+    <button class="btn-print" onclick="window.print()">🖨️ Print Manuscript Page / Save as PDF</button>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MANUSCRIPT PAGE 1: FIGURES 32.1 & 32.2 (PAGE 109)              -->
+  <!-- ============================================================== -->
+  <div class="page-sheet">
+    <div class="chapter-header">E.4 Sample Reports</div>
+    <div class="section-intro">
+      The automated reports generated by <strong>AlumNet</strong> provide the St. Cecilia's College administration, College Registrar, and accreditation bodies with real-time empirical data. The interface mockups below showcase live graduate tracer demographics and the contactless QR event admission reconciliation logs.
+    </div>
+
+    <!-- FIGURE 32.1: MOCKUP 1 -->
+    <div class="mockup-window">
+      <div class="window-titlebar">
+        <div class="window-dots">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yellow"></span>
+          <span class="dot dot-green"></span>
+        </div>
+        <div class="window-address">https://alumnet.stcecilia.edu.ph/admin/tracer-analytics</div>
+        <div style="font-size:7pt; color:#64748b;">Admin: Dr. M. Abellana</div>
+      </div>
+
+      <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+          <div class="sidebar-brand">
+            <div class="brand-logo">SCC</div>
+            <div class="brand-text">ALUMNET</div>
+          </div>
+          <div class="nav-item">📊 Dashboard</div>
+          <div class="nav-item">👥 Alumni Directory</div>
+          <div class="nav-item active">📈 Graduate Tracer</div>
+          <div class="nav-item">🎟️ Event Passes</div>
+          <div class="nav-item">💼 Career Hub / ATS</div>
+          <div class="nav-item">⚖️ Disputes Queue</div>
+          <div class="nav-item">🛡️ Security Logs</div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+          <div class="content-header">
+            <div>
+              <div class="report-title-text">Live Graduate Tracer & Employment Demographics</div>
+              <div class="report-meta-text">Academic Batches 2018–2025 • CHED Accreditation Standard</div>
+            </div>
+            <div style="background:#8B181B; color:#fff; font-size:7pt; font-weight:700; padding:4px 8px; border-radius:4px;">
+              Live Repository
+            </div>
+          </div>
+
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-label">Verified Alumni</div>
+              <div class="stat-value">2,480</div>
+              <div class="stat-sub">100% Registry Matched</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Traced Response</div>
+              <div class="stat-value">91.4%</div>
+              <div class="stat-sub">2,267 Traced Records</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Full-Time Work</div>
+              <div class="stat-value">76.8%</div>
+              <div class="stat-sub">1,742 Graduates</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Actively Seeking</div>
+              <div class="stat-value">5.1%</div>
+              <div class="stat-sub">116 in ATS Pipeline</div>
+            </div>
+          </div>
+
+          <table class="mock-table">
+            <thead>
+              <tr>
+                <th>Academic Degree Program</th>
+                <th>Traced</th>
+                <th>Employed</th>
+                <th>Placement %</th>
+                <th>Avg Job Search</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>BS Information Technology</strong></td>
+                <td>680</td>
+                <td>642</td>
+                <td><span class="badge-verified">94.41% Placement</span></td>
+                <td>1.8 Months</td>
+              </tr>
+              <tr>
+                <td><strong>BS Computer Science</strong></td>
+                <td>412</td>
+                <td>391</td>
+                <td><span class="badge-verified">94.90% Placement</span></td>
+                <td>1.5 Months</td>
+              </tr>
+              <tr>
+                <td><strong>BS Business Administration</strong></td>
+                <td>498</td>
+                <td>446</td>
+                <td><span class="badge-verified">89.56% Placement</span></td>
+                <td>2.7 Months</td>
+              </tr>
+              <tr>
+                <td><strong>BS Hospitality Management</strong></td>
+                <td>382</td>
+                <td>338</td>
+                <td><span class="badge-verified">88.48% Placement</span></td>
+                <td>3.1 Months</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption">
+      <strong>Figure 32.1.</strong> Proposed Sample Report – 1
+    </div>
+
+    <!-- FIGURE 32.2: MOCKUP 2 (WITH MODAL POPUP AS SHOWN IN USER IMAGE) -->
+    <div class="mockup-window">
+      <div class="window-titlebar">
+        <div class="window-dots">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yellow"></span>
+          <span class="dot dot-green"></span>
+        </div>
+        <div class="window-address">https://alumnet.stcecilia.edu.ph/admin/events/checkin-audit</div>
+        <div style="font-size:7pt; color:#64748b;">Desk: Gate 1 Scanner</div>
+      </div>
+
+      <div class="dashboard-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+          <div class="sidebar-brand">
+            <div class="brand-logo">SCC</div>
+            <div class="brand-text">ALUMNET</div>
+          </div>
+          <div class="nav-item">📊 Dashboard</div>
+          <div class="nav-item">👥 Alumni Directory</div>
+          <div class="nav-item">📈 Graduate Tracer</div>
+          <div class="nav-item active">🎟️ Event Passes</div>
+          <div class="nav-item">💼 Career Hub / ATS</div>
+          <div class="nav-item">⚖️ Disputes Queue</div>
+          <div class="nav-item">🛡️ Security Logs</div>
+        </div>
+
+        <!-- Main Content with Modal Overlay -->
+        <div class="main-content">
+          <div class="content-header">
+            <div>
+              <div class="report-title-text">Event Attendance & Contactless QR Check-In Audit</div>
+              <div class="report-meta-text">Grand Alumni Homecoming 2026 • 564 of 588 Attendees Scanned</div>
+            </div>
+            <div style="background:#059669; color:#fff; font-size:7pt; font-weight:700; padding:4px 8px; border-radius:4px;">
+              95.9% Turnout
+            </div>
+          </div>
+
+          <table class="mock-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Ticket UUID</th>
+                <th>Alumnus Complete Name</th>
+                <th>Program / Batch</th>
+                <th>Gate Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>05:12:04 PM</td>
+                <td>a71e-0192-bc</td>
+                <td>ABARCA, JOHN CHRISTIAN P.</td>
+                <td>BSIT - 2023</td>
+                <td><span class="badge-verified">VALIDATED ENTRY</span></td>
+              </tr>
+              <tr>
+                <td>05:14:19 PM</td>
+                <td>b882-9011-fe</td>
+                <td>ALIMPOOS, MA. ANGELICA S.</td>
+                <td>BSIT - 2023</td>
+                <td><span class="badge-verified">VALIDATED ENTRY</span></td>
+              </tr>
+              <tr>
+                <td>05:25:30 PM</td>
+                <td>d991-8812-cc</td>
+                <td>DELA CRUZ, MARK ANTHONY B.</td>
+                <td>BSIT - 2023</td>
+                <td><span class="badge-blocked">DUPLICATE BLOCKED</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Floating Inspection Modal Overlay (Just like user's reference image!) -->
+          <div class="mockup-modal-overlay">
+            <div class="mockup-modal">
+              <div class="modal-head">
+                <div class="modal-title">QR Ticket Scanner Resolution</div>
+                <div style="font-size:7pt; color:#64748b;">Gate 1 • Cam #2</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px; background:#dcfce7; padding:8px 10px; border-radius:6px; border:1px solid #86efac;">
+                <div style="font-size:16pt;">✅</div>
+                <div>
+                  <div style="font-weight:800; color:#15803d; font-size:9pt;">TICKET VALIDATED • ADMISSION GRANTED</div>
+                  <div style="font-size:7pt; color:#166534;">Timestamp: 05:12:04 PM PHT • Scanned at Gate 1</div>
+                </div>
+              </div>
+              <div style="line-height:1.5; font-size:7.5pt; color:#334155; margin-bottom:12px;">
+                <strong>Attendee:</strong> ABARCA, JOHN CHRISTIAN P.<br>
+                <strong>Student ID:</strong> SC-2019-0112 • BSIT (Batch 2023)<br>
+                <strong>Seat Reserved:</strong> VIP Seat A-14 • Pass ID: ALM-2026-901<br>
+                <strong>Cryptographic Hash:</strong> SHA256: 8a4c99e21f... verified
+              </div>
+              <div style="display:flex; justify-content:flex-end; gap:6px;">
+                <button style="background:#e2e8f0; border:none; padding:4px 10px; border-radius:4px; font-size:7pt; font-weight:700;">View Roster</button>
+                <button style="background:#8B181B; color:#fff; border:none; padding:4px 10px; border-radius:4px; font-size:7pt; font-weight:700;">Next Scan</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="figure-caption">
+      <strong>Figure 32.2.</strong> Proposed Sample Report – 2
+    </div>
+
+    <div class="page-footer">
+      <span>St. Cecilia's College - Cebu, Inc. &bull; AlumNet Prototype Documentation</span>
+      <span>109</span>
+    </div>
+  </div>
+
+</body>
+</html>

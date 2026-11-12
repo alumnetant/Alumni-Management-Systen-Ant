@@ -1043,7 +1043,14 @@ button.bg-red-800:not([disabled]):hover,
 button.bg-red-900:not([disabled]):hover {
   box-shadow: 0 10px 28px -4px rgba(139, 24, 27, 0.38),
               0 4px 12px -2px rgba(139, 24, 27, 0.22);
+}/* Suppress redundant browser-native password reveal and clear buttons */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none !important;
 }
-
-
-
+input::-webkit-credentials-auto-fill-button {
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  right: 0 !important;
+}

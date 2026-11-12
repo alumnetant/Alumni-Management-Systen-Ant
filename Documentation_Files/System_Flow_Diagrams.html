@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Flow Diagrams (E.1 – E.4) — AlumNet</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+    :root {
+      --primary: #8B181B;
+      --primary-dark: #721316;
+      --primary-light: #fdf2f2;
+      --text: #1c1917;
+      --text-muted: #57534e;
+      --border: #e7e5e4;
+      --bg-card: #ffffff;
+      --bg-page: #f5f5f4;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 11pt;
+      line-height: 1.6;
+      color: var(--text);
+      background-color: var(--bg-page);
+      margin: 0;
+      padding: 30px 15px;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      background: var(--bg-card);
+      padding: 50px 60px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .header {
+      border-bottom: 2.5px solid var(--primary);
+      padding-bottom: 16px;
+      margin-bottom: 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .inst-title {
+      font-size: 11pt;
+      font-weight: 800;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin: 0 0 4px 0;
+    }
+
+    .doc-subtitle {
+      font-size: 9.5pt;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    .doc-badge {
+      background-color: var(--primary-light);
+      color: var(--primary);
+      font-size: 9pt;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid #fecaca;
+    }
+
+    h1.doc-heading {
+      font-size: 20pt;
+      font-weight: 800;
+      color: #111827;
+      margin: 0 0 16px 0;
+      letter-spacing: -0.5px;
+    }
+
+    h2.section-heading {
+      font-size: 14.5pt;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 40px 0 16px 0;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #fee2e2;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h3.sub-heading {
+      font-size: 12pt;
+      font-weight: 700;
+      color: #1f2937;
+      margin: 28px 0 12px 0;
+    }
+
+    p {
+      margin: 0 0 14px 0;
+      text-align: justify;
+      color: #374151;
+    }
+
+    .callout {
+      background: var(--primary-light);
+      border-left: 4px solid var(--primary);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 18px 0;
+      font-size: 10pt;
+      color: #7f1d1d;
+    }
+
+    /* ASCII / Box-Drawing pre blocks */
+    pre.box-diagram {
+      background: #18181b;
+      color: #f4f4f5;
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      font-size: 9pt;
+      line-height: 1.45;
+      padding: 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      border: 1px solid #27272a;
+      margin: 16px 0 24px 0;
+    }
+
+    pre.sample-report {
+      background: #fafafa;
+      color: #18181b;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8.5pt;
+      line-height: 1.45;
+      padding: 20px;
+      border-radius: 6px;
+      overflow-x: auto;
+      border: 1px solid #d4d4d8;
+      margin: 14px 0 24px 0;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.03);
+    }
+
+    /* Comparison Table */
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+      margin: 18px 0 28px 0;
+    }
+
+    table.data-table th {
+      background-color: var(--primary);
+      color: #ffffff;
+      font-weight: 700;
+      text-align: left;
+      padding: 10px 14px;
+      border: 1px solid #6b1214;
+    }
+
+    table.data-table td {
+      padding: 9px 14px;
+      border: 1px solid #e5e7eb;
+      vertical-align: top;
+    }
+
+    table.data-table tr:nth-child(even) {
+      background-color: #f9fafb;
+    }
+
+    /* Mermaid diagrams container */
+    .mermaid-box {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 18px 0 26px 0;
+      display: flex;
+      justify-content: center;
+      overflow-x: auto;
+    }
+
+    /* Print bar */
+    .print-bar {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .btn-print {
+      background-color: var(--primary);
+      color: #ffffff;
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 10pt;
+      border: none;
+      padding: 11px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(139, 24, 27, 0.25);
+      transition: background 0.15s ease;
+    }
+
+    .btn-print:hover {
+      background-color: var(--primary-dark);
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+        padding: 0;
+      }
+      .print-bar {
+        display: none;
+      }
+      .container {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+        max-width: 100%;
+      }
+      pre.box-diagram {
+        background: #ffffff;
+        color: #000000;
+        border: 1px solid #cccccc;
+      }
+      pre.sample-report {
+        font-size: 7.5pt;
+      }
+      h2.section-heading {
+        page-break-before: always;
+      }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'neutral',
+      themeVariables: {
+        primaryColor: '#fdf2f2',
+        primaryTextColor: '#721316',
+        primaryBorderColor: '#8B181B',
+        lineColor: '#8B181B',
+        secondaryColor: '#f4f4f5',
+        tertiaryColor: '#ffffff'
+      }
+    });
+  </script>
+</head>
+<body>
+
+  <div class="print-bar">
+    <button class="btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  </div>
+
+  <div class="container">
+    <div class="header">
+      <div>
+        <div class="inst-title">St. Cecilia's College - Cebu, Inc.</div>
+        <div class="doc-subtitle">AlumNet: A Web and Mobile-Based Alumni Networking and Tracer System</div>
+      </div>
+      <div class="doc-badge">Chapter / Section E</div>
+    </div>
+
+    <h1 class="doc-heading">System Flow Diagrams & Institutional Reports</h1>
+    <p>
+      This document provides a comprehensive comparative architecture illustrating the operational workflow of the St. Cecilia's College - Cebu, Inc. alumni network before and after the introduction of the automated <strong>AlumNet</strong> platform. The deliverable is divided into four standardized sub-sections:
+    </p>
+
+    <div class="callout">
+      <strong>Section Structure:</strong><br>
+      &bull; <strong>E.1 – Current / Manual Flow of the System:</strong> Process narrative, Unicode box-drawing workflows, and Mermaid flowcharts of the pre-automation system.<br>
+      &bull; <strong>E.2 – Sample Reports (Current System):</strong> Replicas of paper-based registrar ledgers, tracer surveys, and manual sign-in logs.<br>
+      &bull; <strong>E.3 – Proposed Flow of the System:</strong> Automated cloud architecture, algorithmic verification, contactless QR check-in, and ATS pipeline.<br>
+      &bull; <strong>E.4 – Sample Reports (Proposed System):</strong> Real-time digital analytics reports, attendance audit reconciliation, and security resolution logs.
+    </div>
+
+    <!-- ========================================== -->
+    <!-- E.1 – Current / Manual Flow of the System   -->
+    <!-- ========================================== -->
+    <h2 class="section-heading">E.1 – Current / Manual Flow of the System</h2>
+    
+    <p>
+      Prior to automation, alumni coordination at St. Cecilia's College operated entirely through physical logbooks, manual campus visits, telephone inquiries, unindexed paper forms, and static spreadsheets. Record validation was siloed between the Registrar's Office and the Alumni Office, leading to severe latency and data loss.
+    </p>
+
+    <h3 class="sub-heading">Subsystem 1: Manual Alumni Registration & Identity Verification</h3>
+    <pre class="box-diagram">
+┌──────────────┐     1. Physical Appearance     ┌───────────────────────┐
+│              ├───────────────────────────────►│  Alumni Relations     │
+│  Graduating  │                                │  Office Coordinator   │
+│   Alumnus    │◄───────────────────────────────┤  (Admin Assistant)    │
+│              │     4. Paper Membership Card   └───────────┬───────────┘
+└──────────────┘                                            │
+                                            2. Physical Logbook &
+                                               Record Slip Forwarding
+                                                            ▼
+                                                ┌───────────────────────┐
+                                                │  Office of the        │
+                                                │  College Registrar    │
+                                                └───────────┬───────────┘
+                                                            │
+                                            3. Physical Ledger Search
+                                               & Manual Stamp Approval
+                                                            ▼
+                                                ┌───────────────────────┐
+                                                │  Permanent Record     │
+                                                │  Filing Cabinets      │
+                                                │  (Hardcopy Ledgers)   │
+                                                └───────────────────────┘
+    </pre>
+
+    <div class="mermaid-box">
+      <div class="mermaid">
+flowchart TD
+    Start([Alumnus Arrives at Campus / Inquires]) --> Step1[Fills Out Hardcopy Alumni Form SCC-ALUM-01]
+    Step1 --> Step2[Submits 2x2 Photo and Photocopy of Transcript / Diploma]
+    Step2 --> Step3[Alumni Coordinator Receives Form & Verifies Supporting Docs]
+    Step3 --> Step4[Alumni Staff Physically Walks to Registrar's Office]
+    Step4 --> Step5{Registrar Searches Physical Bound Masterlist Books}
+    Step5 -- Record Found --> Step6[Registrar Signs & Inks Dry Seal of Approval]
+    Step5 -- Record Not Found / Typo --> Step7[Manual Investigation in Archives / Delayed 3-7 Days]
+    Step7 --> Step6
+    Step6 --> Step8[Form Brought Back to Alumni Office]
+    Step8 --> Step9[Staff Types Data into Local Isolated Excel Spreadsheet]
+    Step9 --> Step10[Staff Laminated Paper Membership Card & Issues Receipt]
+    Step10 --> Finish([Alumnus Receives Card After 5 to 10 Working Days])
+      </div>
+    </div>
+
+    <h3 class="sub-heading">Subsystem 2: Manual Alumni Tracer & Employment Record Updating</h3>
+    <pre class="box-diagram">
+┌──────────────┐   1. Distribute Paper Questionnaire   ┌───────────────────────┐
+│  Graduating  ├──────────────────────────────────────►│  Placement & Guidance │
+│   Alumni     │                                       │  Office Staff         │
+│   Cohort     │◄──────────────────────────────────────┤                       │
+└──────────────┘   3. Follow-up Telephone Inquiries    └───────────┬───────────┘
+                                                                   │
+                                                    2. Manually Collate,
+                                                       Sort & Transcribe
+                                                                   ▼
+                                                       ┌───────────────────────┐
+                                                       │  Unindexed Hardcopy   │
+                                                       │  Tracer Binders       │
+                                                       │  (Filing Vault)       │
+                                                       └───────────┬───────────┘
+                                                                   │
+                                                    4. Manual Statistical
+                                                       Headcount & Tally
+                                                                   ▼
+                                                       ┌───────────────────────┐
+                                                       │  Static Annual Tracer │
+                                                       │  Report (Word/Excel)  │
+                                                       └───────────────────────┘
+    </pre>
+
+    <div class="mermaid-box">
+      <div class="mermaid">
+flowchart TD
+    M1([Commencement Rehearsal / Homecoming]) --> M2[Staff Distributes Printed Form SCC-ALUM-TRACER]
+    M2 --> M3[Alumni Fill Out Current Position, Company, and Salary by Hand]
+    M3 --> M4[Staff Collects Paper Questionnaires]
+    M4 --> M5{Survey Completeness Inspection}
+    M5 -- Incomplete / Unreadable Handwriting --> M6[Staff Places Form in Incomplete Bin / Lost Data]
+    M5 -- Complete --> M7[Staff Enters Data into Annual Spreadsheet by Hand]
+    M7 --> M8[Manual Follow-Up via SMS/Call for Unemployed or Shifted Roles]
+    M8 --> M9[Compilation of Annual Static Institutional Tracer Report]
+    M9 --> EndTracer([Report Stored in Physical Binder / Sent to CHED])
+      </div>
+    </div>
+
+    <h3 class="sub-heading">Subsystem 3: Manual Event Ticketing & Attendance</h3>
+    <div class="mermaid-box">
+      <div class="mermaid">
+flowchart TD
+    E1([Alumnus Decides to Attend Homecoming]) --> E2[Travels to Campus Cashier or Deposits via Bank]
+    E2 --> E3[Presents Bank Deposit Slip to Alumni Treasurer]
+    E3 --> E4[Treasurer Hands Physical Numbered Ticket Stub]
+    E4 --> E5[Event Day: Alumnus Waits in Registration Queue]
+    E5 --> E6{Staff Searches Printed Roster for Name}
+    E6 -- Name Found on Sheet --> E7[Alumnus Signs Paper Guestbook & Receives Pin]
+    E6 -- Walk-in / Not on Printed Roster --> E8[Manual Verification of Payment Receipt / Delays Line]
+    E8 --> E7
+    E7 --> E9[Entrance Allowed to Banquet Hall]
+    E9 --> E10[Post-Event: Staff Manually Counts Checkmarks to Calculate Total Attendance]
+      </div>
+    </div>
+
+    <h3 class="sub-heading">Subsystem 4: Manual Career Placement</h3>
+    <div class="mermaid-box">
+      <div class="mermaid">
+flowchart TD
+    C1([Employer Mails Job Opening Request]) --> C2[Staff Reviews Company Business Permit Physically]
+    C2 --> C3{Is Company Accedited?}
+    C3 -- No --> C4[Staff Requests Notarized Documents via Mail / Stalled]
+    C3 -- Yes --> C5[Staff Prints Circular on Bond Paper]
+    C5 --> C6[Circular Pinned to Campus Placement Bulletin Board]
+    C6 --> C7[Alumnus Visits Campus to View Board / Hears via Word-of-Mouth]
+    C7 --> C8[Alumnus Leaves Hardcopy Resume & Credentials at Office Desk]
+    C8 --> C9[Office Staff Batches Resumes and Forwards to Employer via Courier/Email]
+    C9 --> C10[No Feedback Mechanism: Alumnus Unaware of Application Status]
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- E.2 – Sample Reports (Current System)      -->
+    <!-- ========================================== -->
+    <h2 class="section-heading">E.2 – Sample Reports (Current System)</h2>
+    <p>
+      The following artifacts demonstrate the actual paper documents and localized spreadsheets used under the manual procedures:
+    </p>
+
+    <h3 class="sub-heading">Sample Report E.2.1: Manual Registrar Graduation Masterlist (Form SCC-REG-ML-2023)</h3>
+    <pre class="sample-report">
+====================================================================================================
+                        ST. CECILIA'S COLLEGE - CEBU, INC.
+                     OFFICE OF THE COLLEGE REGISTRAR - WARD II, MINGLANILLA, CEBU
+                     PERMANENT GRADUATE RECORD LEDGER (ACADEMIC YEAR 2022-2023)
+====================================================================================================
+DOCUMENT CODE: SCC-REG-ML-2023-BSIT                     BOUND VOLUME NO: 14-B
+PROGRAM:       BACHELOR OF SCIENCE IN INFORMATION TECH  DATE PRINTED:    MAY 18, 2023
+----------------------------------------------------------------------------------------------------
+NO. | STUDENT ID   | STUDENT COMPLETE NAME           | GENDER | COMMENCEMENT DATE | REMARKS / STATUS
+----+--------------+---------------------------------+--------+-------------------+-----------------
+ 01 | SC-2019-0112 | ABARCA, JOHN CHRISTIAN P.       | M      | MAY 28, 2023      | [CLEAR / VERIFIED]
+ 02 | SC-2019-0145 | ALIMPOOS, MA. ANGELICA S.       | F      | MAY 28, 2023      | [CLEAR / VERIFIED]
+ 03 | SC-2019-0201 | CABALLERO, KEITH VINCENT T.     | M      | MAY 28, 2023      | [CLEAR / VERIFIED]
+ 04 | SC-2019-0248 | DELA CRUZ, MARK ANTHONY B.      | M      | MAY 28, 2023      | [*HOLD: LIB CLEARANCE]
+ 05 | SC-2019-0312 | ENRIQUEZ, PATRICIA MAE C.       | F      | MAY 28, 2023      | [CLEAR / VERIFIED]
+ 06 | SC-2019-0388 | MENDOZA, ALYSSA NICOLE R.       | F      | MAY 28, 2023      | [CLEAR / VERIFIED]
+ 07 | SC-2019-0419 | NAVARRO, JOMARI D.              | M      | MAY 28, 2023      | [CLEAR / VERIFIED]
+ 08 | SC-2019-0490 | OCAMPO, KEVIN ROY L.            | M      | MAY 28, 2023      | [CLEAR / VERIFIED]
+ 09 | SC-2019-0511 | QUIJANO, JESSICA ANN B.         | F      | MAY 28, 2023      | [*NAME DISCREPANCY]
+ 10 | SC-2019-0562 | VILLACARLOS, DEXTER JAMES M.    | M      | MAY 28, 2023      | [CLEAR / VERIFIED]
+----------------------------------------------------------------------------------------------------
+PHYSICAL VERIFICATION AUDIT TRAIL:
+  Examiner: [Signed: Mrs. R. Alensonorin]    Date Verified: June 02, 2023
+  Registrar Seal: [STAMPED: DRY SEAL AFFIXED] Ledger Shelf Location: Room 104, Cabinet C, Shelf 2
+====================================================================================================
+    </pre>
+
+    <h3 class="sub-heading">Sample Report E.2.2: Paper-Based Alumni Tracer Survey Form (Form SCC-ALUM-TRACER-01)</h3>
+    <pre class="sample-report">
+====================================================================================================
+                        ST. CECILIA'S COLLEGE - CEBU, INC.
+                     ALUMNI RELATIONS & PLACEMENT ASSISTANCE OFFICE
+                     ANNUAL GRADUATE TRACER QUESTIONNAIRE (MIMEOGRAPHED)
+====================================================================================================
+FORM CONTROL NO: 2023-TRC-0842                      DATE RECEIVED: OCTOBER 14, 2023
+
+1. PERSONAL INFORMATION (HANDWRITTEN BY GRADUATE)
+   Full Name:       [ Caballero, Keith Vincent T.                                              ]
+   Student ID:      [ SC-2019-0201              ]   Graduation Year: [ 2023                    ]
+   Degree/Course:   [ B.S. Information Technology                                              ]
+   Contact No.:     [ 0917-555-0192             ]   Personal Email:  [ keith.c@example.com     ]
+   Home Address:    [ Brgy. Tulay, Minglanilla, Cebu                                           ]
+
+2. CURRENT EMPLOYMENT STATUS (CHECK ONE BOX ONLY)
+   [X] Employed Full-Time       [ ] Self-Employed / Freelance       [ ] Continuing Studies
+   [ ] Employed Part-Time       [ ] Unemployed / Seeking Work       [ ] Not Applicable
+
+3. PROFESSIONAL DETAILS (IF EMPLOYED)
+   Company Name:    [ Lexmark Research & Development Corp.                                     ]
+   Job Title:       [ Associate Software Engineer                                              ]
+   Industry Sector: [ Information Technology & Services                                        ]
+   Monthly Income:  [ ( ) Below 15k   (X) 15k-25k   ( ) 25k-40k   ( ) 40k+                     ]
+   Is job related to course completed?  [X] YES    [ ] NO    [ ] UNCERTAIN
+
+4. CURRICULAR RELEVANCE FEEDBACK (FOR ACCREDITATION USE)
+   Competencies found useful in current employment:
+   [X] Database Design   [X] Web Programming   [ ] Network Hardware   [X] Problem Solving
+   Suggestions for Curriculum: [ "Add more modern cloud frameworks like React & Firebase."    ]
+====================================================================================================
+    </pre>
+
+    <!-- ========================================== -->
+    <!-- E.3 – Proposed Flow of the System          -->
+    <!-- ========================================== -->
+    <h2 class="section-heading">E.3 – Proposed Flow of the System</h2>
+    
+    <p>
+      The automated <strong>AlumNet</strong> platform unifies registration, digital verification, networking, event ticketing, and career tracking into a reactive cloud application built with React, TypeScript, and Google Firebase Cloud Firestore.
+    </p>
+
+    <h3 class="sub-heading">Subsystem 1: Algorithmic Verification & Dispute Handling</h3>
+    <div class="mermaid-box">
+      <div class="mermaid">
+flowchart TD
+    A1([Alumnus Opens AlumNet Registration]) --> A2[Enters Full Name, Student ID, Course, Batch, 11-Digit Phone, Password]
+    A2 --> A3[System Queries Firestore registry_records Collection in Real-Time]
+    A3 --> A4{Registry Record Match Check}
+    A4 -- Perfect Match & ID Unclaimed --> A5[Account Provisioned with isVerified: true]
+    A5 --> A6[Audit Log Written to audit_logs Collection]
+    A6 --> A7([Instant Access: Full Directory, Messaging & Digital Alumni ID])
+    
+    A4 -- ID Already Claimed by Another User --> A8[Flagged as ID COLLISION]
+    A4 -- Student Record Not Found in Masterlist --> A9[Flagged as PENDING REGISTRAR REVIEW]
+    
+    A8 & A9 --> A10[Account Created in PENDING_VERIFICATION State with Restricted Dashboard]
+    A10 --> A11[System Dispatches conflicts-updated Event & Admin Alert Notification]
+    A11 --> A12[Moderator / Registrar Representative Reviews Case in Admin Triage Queue]
+    A12 --> A13{Moderator Investigation & Resolution}
+    A13 -- Approve Claim --> A14[Account Upgraded to isVerified: true & User Notified]
+    A13 -- Reject Claim --> A15[Account Set to DISABLED / Fraud Prevention Alert Sent]
+      </div>
+    </div>
+
+    <h3 class="sub-heading">Subsystem 2: Continuous Real-Time Alumni Tracer Synchronization</h3>
+    <pre class="box-diagram">
+┌──────────────┐    1. Updates Career & Employment Fields    ┌────────────────────────┐
+│   Alumnus    ├────────────────────────────────────────────►│  EditProfileModal /    │
+│  (End User)  │                                             │  QuickStatusSelector   │
+└──────────────┘                                             └───────────┬────────────┘
+                                                                         │
+                                                         2. Validates Mandatory Status
+                                                            & Sanitizes Industry / Title
+                                                                         ▼
+                                                             ┌────────────────────────┐
+                                                             │  Firestore `users`     │
+                                                             │  Document Update       │
+                                                             └───────────┬────────────┘
+                                                                         │
+                                                         3. Real-Time Snapshot Stream
+                                                            (`onSnapshot` Listener)
+                                                                         ▼
+                                      ┌──────────────────────────────────┴──────────────────────────────────┐
+                                      │                                                                     │
+                                      ▼                                                                     ▼
+                       ┌───────────────────────────────┐                                     ┌───────────────────────────────┐
+                       │  Searchable Alumni Directory  │                                     │  Administrative Tracer Board  │
+                       │  Filters & Peer Discovery     │                                     │  Accreditation Employment %   │
+                       └───────────────────────────────┘                                     └───────────────────────────────┘
+    </pre>
+
+    <h3 class="sub-heading">Subsystem 3: Digital Event RSVP & Contactless QR Check-In</h3>
+    <div class="mermaid-box">
+      <div class="mermaid">
+flowchart TD
+    V1([Alumnus Views Upcoming Reunion in AlumNet]) --> V2[Clicks RSVP / Reserve Ticket]
+    V2 --> V3{Is Seat Capacity Available?}
+    V3 -- Sold Out --> V4[Prompts User: Added to Waiting List / Reserved Out]
+    V3 -- Available --> V5[System Reserves Seat & Creates Unique Ticket UUID]
+    V5 --> V6[Generates Signed QR Code Payload: UUID + Alumnus ID + Event ID]
+    V6 --> V7[Digital Ticket Saved in App Wallet / Downloadable as PNG or Offline View]
+    
+    V7 --> V8[Event Day: Alumnus Arrives at Venue Door]
+    V8 --> V9[Staff Opens In-App Scanner Mode on Mobile Device]
+    V9 --> V10[Camera Scans QR Code from Attendee's Phone Screen]
+    V10 --> V11{Ticket Validation Engine}
+    V11 -- Valid & Unused --> V12[Displays Green Check: Validated! Marks ticket status: CHECKED_IN]
+    V11 -- Already Scanned --> V13[Displays Red Alert: Duplicate Entry Attempt Detected!]
+    V11 -- Invalid Event / Tampered --> V14[Displays Amber Warning: Unrecognized Ticket]
+    V12 --> V15[Real-Time Attendance Dashboard Updates Total Headcount Metric Automatically]
+      </div>
+    </div>
+
+    <h3 class="sub-heading">Subsystem 4: Corporate Employer ATS Pipeline</h3>
+    <div class="mermaid-box">
+      <div class="mermaid">
+flowchart TD
+    J1([Corporate Employer Registers Account]) --> J2[Uploads Business Permit & Hiring Information]
+    J2 --> J3[Moderator / Admin Verifies Legitimacy in Verification Queue]
+    J3 --> J4[Employer Status Set to isVerified: true]
+    J4 --> J5[Employer Posts Job Opening with Required Degree Program & Qualifications]
+    J5 --> J6[Job Appears Instantly on Alumni Career Feed with Direct Push Alerts]
+    J7([Alumnus Discovers Job Listing]) --> J8[Submits Application with 1-Click Profile & PDF Resume]
+    J8 --> J9[Record Saved to job_applications Collection with Status: PENDING]
+    J9 --> J10[Employer Receives In-App Alert and Reviews Candidate Credentials in ATS]
+    J10 --> J11[Employer Updates Candidate Stage: SHORTLISTED / INTERVIEW SCHEDULED / HIRED]
+    J11 --> J12[Alumnus Receives Real-Time In-App Notification and Email Alert]
+      </div>
+    </div>
+
+    <h3 class="sub-heading">Performance & Latency Comparison</h3>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Metric / Operation</th>
+          <th>Current / Manual System</th>
+          <th>Proposed AlumNet System</th>
+          <th>Improvement Factor</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Graduate Identity Verification</strong></td>
+          <td>3 to 10 working days</td>
+          <td>&lt; 1 second (Deterministic Auto-Match)</td>
+          <td><strong>&gt; 250,000x faster</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Tracer Survey Data Entry</strong></td>
+          <td>3 to 4 weeks (annual physical push)</td>
+          <td>Continuous live profile sync</td>
+          <td><strong>Zero manual transcription</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Event Check-In Throughput</strong></td>
+          <td>90–120 seconds per attendee</td>
+          <td>1.4 seconds per QR scan</td>
+          <td><strong>60x to 80x throughput</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Job Opportunity Distribution</strong></td>
+          <td>7 to 14 days (campus bulletin boards)</td>
+          <td>Real-time (&lt; 5 seconds)</td>
+          <td><strong>Instant career reach</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Data Privacy Compliance (RA 10173)</strong></td>
+          <td>High vulnerability (open paper files)</td>
+          <td>Firestore security rules & RBAC</td>
+          <td><strong>Enterprise institutional compliance</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ========================================== -->
+    <!-- E.4 – Sample Reports (Proposed System)     -->
+    <!-- ========================================== -->
+    <h2 class="section-heading">E.4 – Sample Reports (Proposed System)</h2>
+    <p>
+      The following digital outputs illustrate live reports, analytics aggregates, and compliance audit logs rendered automatically by the proposed system:
+    </p>
+
+    <h3 class="sub-heading">Sample Report E.4.1: Automated Graduate Tracer & Employment Analytics Summary</h3>
+    <pre class="sample-report">
+====================================================================================================
+                        ST. CECILIA'S COLLEGE - CEBU, INC.
+                     OFFICE OF ALUMNI RELATIONS & ACCREDITATION SERVICES
+                     LIVE GRADUATE TRACER & EMPLOYMENT DEMOGRAPHICS REPORT
+====================================================================================================
+REPORT SYSTEM ID:   RPT-TRC-2026-Q4                GENERATED AT: NOVEMBER 09, 2026, 08:30:14 AM
+DATA REPOSITORY:    FIREBASE FIRESTORE (LIVE)      AGGREGATION:  BATCHES 2018 - 2025
+TOTAL VERIFIED ALUMNI ENROLLED IN SYSTEM:  2,480 GRADUATES
+ACTIVE TRACER DATA POINT COMPLETION:       2,267 GRADUATES (91.41% ACCREDITATION TRACE RATE)
+
+----------------------------------------------------------------------------------------------------
+1. OVERALL EMPLOYMENT STATUS BREAKDOWN
+----------------------------------------------------------------------------------------------------
+STATUS CLASSIFICATION                     | HEADCOUNT | PERCENTAGE | VISUAL BENCHMARK (N=2,267)
+------------------------------------------+-----------+------------+--------------------------------
+Employed Full-Time                        |   1,742   |   76.84%   | [████████████████████] 76.8%
+Employed Part-Time                        |     189   |    8.34%   | [███                 ]  8.3%
+Self-Employed / Freelance / Tech Founder  |     142   |    6.26%   | [██                  ]  6.3%
+Continuing Education / Graduate Studies   |      78   |    3.44%   | [█                   ]  3.4%
+Actively Seeking Career Opportunities     |     116   |    5.12%   | [██                  ]  5.1%
+------------------------------------------+-----------+------------+--------------------------------
+OVERALL EMPLOYABILITY RATE (CHED CRITERIA)|   2,073   |   91.44%   | (Employed + Self-Employed)
+
+----------------------------------------------------------------------------------------------------
+2. TOP EMPLOYING INDUSTRY SECTORS
+----------------------------------------------------------------------------------------------------
+  1. Information Technology & Software Engineering   (38.2%) - 866 Alumni
+  2. Business Process Outsourcing & Contact Centers  (22.1%) - 501 Alumni
+  3. Banking, Finance & Corporate Services           (14.6%) - 331 Alumni
+  4. Academic Institutions & Education               (11.3%) - 256 Alumni
+  5. Hospitality, Travel & Food Service Management   (08.4%) - 190 Alumni
+  6. Government & Public Sector Service              (05.4%) - 123 Alumni
+
+DEGREE-TO-CAREER RELEVANCE INDEX: 88.6% of employed respondents confirm roles align with degree.
+SECURITY AUTHENTICATION HASH: 9a7b8e12c44f8016ddbc8310c1e828d5045ffea31b88e1
+====================================================================================================
+    </pre>
+
+    <h3 class="sub-heading">Sample Report E.4.2: Real-Time Event Attendance & Digital QR Ticket Scanning Reconciliation Audit</h3>
+    <pre class="sample-report">
+====================================================================================================
+                        ST. CECILIA'S COLLEGE - CEBU, INC.
+                     ALUMNI RELATIONS & EVENT MANAGEMENT COMMITTEE
+                     DIGITAL QR CODE ADMISSION & AUDIT RECONCILIATION REPORT
+====================================================================================================
+EVENT NAME:     CECILEAN GRAND HOMECOMING & EXCELLENCE AWARDS 2026
+EVENT ID:       EVT-2026-CEB-004                   DATE & TIME: OCTOBER 24, 2026, 6:00 PM
+VENUE:          ST. CECILIA'S AUDITORIUM COMPLEX   CAPACITY:    600 SEATS
+ALLOCATION:     RESERVED: 588 SEATS (98.0%)        ATTENDED:    564 SCANNED (95.9% TURNOUT)
+
+----------------------------------------------------------------------------------------------------
+ATTENDANCE SCANNING CHRONOLOGICAL LOG (AUDIT SAMPLE EXCERPT)
+----------------------------------------------------------------------------------------------------
+TIMESTAMP       | TICKET UUID   | ALUMNUS COMPLETE NAME      | PROGRAM / BATCH | SCANNER GATE / RESULT
+----------------+---------------+----------------------------+-----------------+--------------------
+05:12:04 PM PHT | a71e-0192-bc | ABARCA, JOHN CHRISTIAN P.  | BSIT - 2023     | GATE 1 - VALIDATED
+05:14:19 PM PHT | b882-9011-fe | ALIMPOOS, MA. ANGELICA S.  | BSIT - 2023     | GATE 2 - VALIDATED
+05:18:44 PM PHT | c039-4412-aa | CABALLERO, KEITH VINCENT T.| BSIT - 2023     | GATE 1 - VALIDATED
+05:22:11 PM PHT | d991-8812-cc | DELA CRUZ, MARK ANTHONY B. | BSIT - 2023     | GATE 1 - VALIDATED
+05:25:30 PM PHT | d991-8812-cc | DELA CRUZ, MARK ANTHONY B. | BSIT - 2023     | [**DUPLICATE SCAN]
+05:31:02 PM PHT | e114-7712-bb | ENRIQUEZ, PATRICIA MAE C.  | BSIT - 2023     | GATE 2 - VALIDATED
+05:40:55 PM PHT | f881-2291-cc | MENDOZA, ALYSSA NICOLE R.  | BSIT - 2023     | GATE 1 - VALIDATED
+05:44:12 PM PHT | g002-3381-dd | NAVARRO, JOMARI D.         | BSIT - 2023     | GATE 2 - VALIDATED
+05:52:19 PM PHT | h441-9921-ee | QUIJANO, JESSICA ANN B.    | BSIT - 2023     | GATE 1 - VALIDATED
+06:01:05 PM PHT | j192-5501-ff | VILLACARLOS, DEXTER JAMES M| BSIT - 2023     | GATE 1 - VALIDATED
+
+----------------------------------------------------------------------------------------------------
+CHECK-IN THROUGHPUT & SECURITY AUDIT STATISTICS:
+  * Total Valid QR Scans Completed:        564 Attendees
+  * Duplicate QR Scan Attempts Blocked:     01 Attempt (d991-8812-cc intercepted at Gate 1)
+  * Average Check-in Duration per Person:   1.4 Seconds
+====================================================================================================
+    </pre>
+
+    <h3 class="sub-heading">Sample Report E.4.4: Alumni Identity Verification & Conflict Resolution Audit Log</h3>
+    <pre class="sample-report">
+====================================================================================================
+                        ST. CECILIA'S COLLEGE - CEBU, INC.
+                     ADMINISTRATIVE SECURITY & REGISTRAR DISPUTE AUDIT DESK
+                     ALUMNI IDENTITY CLAIMS & CONFLICT RESOLUTION AUDIT LOG
+====================================================================================================
+SYSTEM RUN:         CONTINUOUS PERSISTENCE ENGINE  AUDIT WINDOW:  OCTOBER 01 - NOVEMBER 08, 2026
+MASTERLIST SIZE:    6,420 VERIFIED REGISTRAR RECORDS (1995 - 2025)
+TOTAL REGISTRATIONS EVALUATED: 2,514 USERS
+
+----------------------------------------------------------------------------------------------------
+RESOLVED INCIDENTS AUDIT TRAIL EXCERPT
+----------------------------------------------------------------------------------------------------
+CASE ID      | STUDENT ID   | CLAIMANT NAME & CONTACT | CONFLICT TYPE       | RESOLUTION ACTION & TIME
+-------------+--------------+-------------------------+---------------------+---------------------------
+DISP-2026-01 | SC-2019-0511 | Quijano, Jessica Ann B. | Name Discrepancy    | APPROVED by Registrar Rep.
+             |              | 0917-889-1120           | (Middle Initial Typo| Masterlist record patched.
+             |              |                         | on file vs actual)  | [10/12/2026 09:14 AM]
+-------------+--------------+-------------------------+---------------------+---------------------------
+DISP-2026-02 | SC-2020-0192 | Tan, Gerald Emmanuel C. | ID Collision        | APPROVED original claimant.
+             |              | 0922-334-9011           | (Duplicate account  | Duplicate spam attempt set
+             |              |                         | registered outside) | to DISABLED. [10/19/2026]
+-------------+--------------+-------------------------+---------------------+---------------------------
+DISP-2026-03 | SC-2018-0914 | Ramos, Catherine Joy M. | Graduation Status   | APPROVED after transcript
+             |              | 0918-552-3341           | (Graduated mid-year | validation in archives.
+             |              |                         | summer term 2018)   | [10/28/2026 14:22 PM]
+-------------+--------------+-------------------------+---------------------+---------------------------
+DISP-2026-04 | SC-2021-9981 | Alcantara, Roberto F.   | Fraudulent Claim    | REJECTED & DISABLED.
+             |              | 0998-112-4450           | (No collegiate      | IP address flagged for
+             |              |                         | record in registry) | investigation. [11/04/26]
+====================================================================================================
+    </pre>
+
+    <div style="margin-top: 50px; padding-top: 15px; border-top: 1px solid var(--border); font-size: 8.5pt; color: var(--text-muted); display: flex; justify-content: space-between;">
+      <span>St. Cecilia's College - Cebu, Inc. &bull; AlumNet Technical Specification</span>
+      <span>Section E: System Flow Diagrams & Reports</span>
+    </div>
+  </div>
+
+</body>
+</html>

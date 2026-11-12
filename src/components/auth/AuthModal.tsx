@@ -72,11 +72,13 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   const [companyIndustry, setCompanyIndustry] = useState('Information Technology & Software');
   const [companyWebsite, setCompanyWebsite] = useState('');
   const [companyAddress, setCompanyAddress] = useState('Cebu IT Park, Cebu City');
-  const [contactPhone, setContactPhone] = useState('+63 917 123 4567');
+  const [contactPhone, setContactPhone] = useState('09123456789');
 
   const [resetSent, setResetSent] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Real-time check if student details match the registrar masterlist
   const registryMatch = useMemo(() => {
@@ -128,6 +130,21 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     e.preventDefault();
     if (!email || !password || !name) {
       setErrorMsg('Please complete all required fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match.');
+      return;
+    }
+
+    if (!contactPhone || contactPhone.length !== 11 || !contactPhone.startsWith('09')) {
+      setErrorMsg('Contact number must be strictly 11 digits starting with 09 (e.g. 09123456789).');
+      return;
+    }
+
+    if (role === 'alumni' && !employmentStatus) {
+      setErrorMsg('Current employment status is required.');
       return;
     }
 
@@ -510,29 +527,50 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     )}
                   </div>
 
-                  {/* Optional Employment / Job Information */}
-                  <div className="p-3 bg-stone-50 rounded-xl border border-stone-200/90 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-stone-700 font-semibold text-xs">
-                        <Briefcase className="w-3.5 h-3.5 text-[#8B181B]" />
-                        <span>Job / Employment Info <span className="font-normal text-stone-500">(Optional)</span></span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCurrentPosition('N/A');
-                          setCompany('N/A');
-                          setEmploymentStatus('N/A');
-                        }}
-                        className="text-[10px] text-stone-500 hover:text-[#8B181B] font-medium underline cursor-pointer"
-                      >
-                        Set as N/A / Blank
-                      </button>
+                  {/* Contact Phone */}
+                  <div>
+                    <label className="font-semibold text-stone-700 block mb-1">
+                      Contact Phone (Philippine Mobile) *
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        required
+                        value={contactPhone}
+                        onChange={(e) => setContactPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                        maxLength={11}
+                        placeholder="09123456789"
+                        className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-mono text-sm"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-stone-400 font-mono">
+                        {contactPhone.length}/11
+                      </span>
                     </div>
+                    {contactPhone && (!contactPhone.startsWith('09') || contactPhone.length !== 11) && (
+                      <p className="text-[11px] text-red-600 mt-1">Must start with 09 and have exactly 11 digits.</p>
+                    )}
+                  </div>
 
-                    <p className="text-[10px] text-stone-500 leading-snug">
-                      Currently seeking opportunities or have no current employer? You may leave fields blank or set as N/A.
-                    </p>
+                  {/* Mandatory Employment / Job Information */}
+                  <div className="p-3 bg-stone-50 rounded-xl border border-stone-200/90 space-y-2.5">
+                    <div>
+                      <label className="font-semibold text-stone-700 block mb-1">
+                        Current Employment Status *
+                      </label>
+                      <select
+                        required
+                        value={employmentStatus}
+                        onChange={(e) => setEmploymentStatus(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs font-medium"
+                      >
+                        <option value="Employed Full-time">Employed Full-time</option>
+                        <option value="Employed Part-time">Employed Part-time</option>
+                        <option value="Self-Employed / Freelance">Self-Employed / Freelance</option>
+                        <option value="Seeking Opportunities">Seeking Opportunities</option>
+                        <option value="Continuing Education / Graduate Studies">Continuing Education / Graduate Studies</option>
+                        <option value="Not Applicable (N/A)">Not Applicable (N/A)</option>
+                      </select>
+                    </div>
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -590,7 +628,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
               ) : (
                 /* Employer Registration Fields */
                 <>
-                  <div className="p-2.5 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-900 leading-relaxed">
+                  <div className="p-2.5 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-900 leading-relaxed">
                     <strong>Corporate Accreditation Notice:</strong> Employer accounts are reviewed and verified by the Alumni Office before job postings are published live.
                   </div>
 
@@ -655,14 +693,24 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     </div>
 
                     <div>
-                      <label className="font-semibold text-stone-700 block mb-1">Contact Phone</label>
-                      <input
-                        type="text"
-                        value={contactPhone}
-                        onChange={(e) => setContactPhone(e.target.value)}
-                        placeholder="+63 917 123 4567"
-                        className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl"
-                      />
+                      <label className="font-semibold text-stone-700 block mb-1">Contact Phone *</label>
+                      <div className="relative">
+                        <input
+                          type="tel"
+                          required
+                          value={contactPhone}
+                          onChange={(e) => setContactPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                          maxLength={11}
+                          placeholder="09123456789"
+                          className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-mono text-sm"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-stone-400 font-mono">
+                          {contactPhone.length}/11
+                        </span>
+                      </div>
+                      {contactPhone && (!contactPhone.startsWith('09') || contactPhone.length !== 11) && (
+                        <p className="text-[11px] text-red-600 mt-1">Must start with 09 and have exactly 11 digits.</p>
+                      )}
                     </div>
                   </div>
                 </>
@@ -681,7 +729,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
               </div>
 
               <div>
-                <label className="font-semibold text-stone-700 block mb-1">Password *</label>
+                <label className="font-semibold text-stone-700 block mb-1">Create Password *</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -702,9 +750,45 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                 </div>
               </div>
 
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-stone-700 block">Confirm Password *</label>
+                  {confirmPassword && confirmPassword === password && (
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      Passwords match
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className={`w-full pl-3 pr-10 py-2 bg-stone-50 border rounded-xl ${
+                      confirmPassword && confirmPassword === password
+                        ? 'border-emerald-500 ring-2 ring-emerald-500/20'
+                        : confirmPassword && confirmPassword !== password
+                        ? 'border-amber-400'
+                        : 'border-stone-200'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
               <button
                 type="submit"
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-xs transition-colors mt-2"
+                className="w-full py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold shadow-xs transition-colors mt-2"
               >
                 Register Alumni Profile
               </button>
@@ -717,7 +801,7 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                     setMode('login');
                     setErrorMsg('');
                   }}
-                  className="text-blue-600 font-bold hover:underline"
+                  className="text-[#8B181B] font-bold hover:underline"
                 >
                   Sign In
                 </button>

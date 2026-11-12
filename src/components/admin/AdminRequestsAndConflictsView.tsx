@@ -119,6 +119,13 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
   useEffect(() => {
     loadConflicts();
+    const handleUpdate = () => loadConflicts();
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('conflicts-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('conflicts-updated', handleUpdate);
+    };
   }, [loadConflicts]);
 
   // Sync if initialSubTab prop changes

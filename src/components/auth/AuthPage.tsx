@@ -743,7 +743,27 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
 
     const targetStudentId = disputeStudentId.trim() || studentId.trim();
+    const claimantProvisionalId = `SCC-DISPUTE-${Date.now().toString().slice(-4)}`;
 
+    // 1. Provision account with pending review & restricted dashboard access
+    register({
+      name: disputeFullName.trim(),
+      email: disputeEmail.trim().toLowerCase(),
+      password: 'TemporaryPassword123!',
+      role: 'alumni',
+      batch: disputeBatch.trim(),
+      course: disputeCourse.trim(),
+      phone: phone || '09123456789',
+      contactNumber: phone || '09123456789',
+      location: 'Cebu, Philippines',
+      headline: `Claimant for Contested ID ${targetStudentId} • Class of ${disputeBatch.trim()}`,
+      studentId: claimantProvisionalId,
+      isVerified: false,
+      accountStatus: 'PENDING_VERIFICATION',
+      verificationStatus: 'in_review'
+    } as any);
+
+    // 2. Add conflict directly to Requests & Conflicts triage workbench
     const conflict = addRegistrationConflict({
       applicantName: disputeFullName.trim(),
       applicantEmail: disputeEmail.trim().toLowerCase(),
@@ -767,8 +787,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       severity: 'alert'
     });
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('conflicts-updated', { detail: [conflict] }));
+    }
+
     setDisputeReferenceId(conflict.id);
-    showToast(`Registration conflict filed! Reference #${conflict.id}`, 'success');
+    showToast(`Registration conflict filed! Reference #${conflict.id}. Case forwarded to Registrar.`, 'success');
   };
 
   // Submit Manual Verification Request (when No ID or Unlisted Record)
@@ -1229,6 +1253,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       setStep2Error('Passwords do not match.');
       return;
     }
+    if (!phone || phone.length !== 11 || !phone.startsWith('09')) {
+      setStep2Error('Contact number must not be empty, must be exactly 11 digits, and must start with 09 (e.g. 09123456789).');
+      return;
+    }
+    if (!regEmploymentStatus) {
+      setStep2Error('Current employment status is required.');
+      return;
+    }
 
     setStep(3);
   };
@@ -1316,6 +1348,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
     if (!employerContactPerson.trim()) {
       setEmployerError('Contact Person / HR Representative full name is required.');
+      return;
+    }
+    if (!employerPhone || employerPhone.length !== 11 || !employerPhone.startsWith('09')) {
+      setEmployerError('Contact number must not be empty, must be exactly 11 digits, and must start with 09 (e.g. 09123456789).');
       return;
     }
     if (!employerEmail.trim() || !employerEmail.includes('@')) {
@@ -2295,12 +2331,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               <input
                                 type="tel"
                                 required
+                                maxLength={11}
                                 value={employerPhone}
-                                onChange={(e) => setEmployerPhone(e.target.value)}
-                                placeholder="+63 917 123 4567"
-                                className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
+                                onChange={(e) => setEmployerPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                                placeholder="09123456789"
+                                className={`w-full pl-10 pr-4 py-2.5 bg-white border rounded-xl text-sm focus:outline-hidden focus:ring-2 ${
+                                  employerPhone && (!employerPhone.startsWith('09') || employerPhone.length !== 11)
+                                    ? 'border-red-400 focus:border-red-500 focus:ring-red-400/20'
+                                    : employerPhone && employerPhone.startsWith('09') && employerPhone.length === 11
+                                    ? 'border-emerald-500 focus:border-emerald-600 focus:ring-emerald-500/20'
+                                    : 'border-stone-200 focus:ring-[#8B181B]/20 focus:border-[#8B181B]'
+                                }`}
                               />
                             </div>
+                            <span className="text-[10px] text-stone-400 mt-1 block">11 digits starting with 09 (e.g. 09123456789)</span>
                           </div>
                         </div>
 
@@ -2362,7 +2406,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                                 value={employerConfirmPassword}
                                 onChange={(e) => setEmployerConfirmPassword(e.target.value)}
                                 placeholder="Re-enter password"
-                                className="w-full pl-10 pr-10 py-2.5 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
+                                className={`w-full pl-10 pr-10 py-2.5 rounded-xl text-sm focus:outline-hidden focus:ring-2 ${
+                                  employerConfirmPassword && employerConfirmPassword === employerPassword
+                                    ? 'bg-emerald-50/20 border border-emerald-500 text-emerald-950 focus:border-emerald-600 focus:ring-emerald-500/20'
+                                    : employerConfirmPassword && employerConfirmPassword !== employerPassword
+                                    ? 'bg-red-50/20 border border-red-400 text-red-950 focus:border-red-500 focus:ring-red-400/20'
+                                    : 'bg-white border border-stone-200 focus:ring-[#8B181B]/20 focus:border-[#8B181B]'
+                                }`}
                               />
                               <button
                                 type="button"
@@ -2373,6 +2423,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                                 {showEmployerConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                               </button>
                             </div>
+                            {employerConfirmPassword && employerConfirmPassword === employerPassword && (
+                              <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-emerald-600">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Passwords match</span>
+                              </div>
+                            )}
+                            {employerConfirmPassword && employerConfirmPassword !== employerPassword && (
+                              <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-red-500">
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                                <span>Passwords do not match</span>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -3006,7 +3068,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               value={confirmPassword}
                               onChange={(e) => setConfirmPassword(e.target.value)}
                               placeholder="••••••••••••"
-                              className="w-full pl-9 pr-10 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 rounded-xl text-sm focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
+                              className={`w-full pl-9 pr-10 py-2.5 rounded-xl text-sm transition-all ${
+                                confirmPassword && confirmPassword === regPassword
+                                  ? 'bg-emerald-50/20 hover:bg-white focus:bg-white border border-emerald-500 text-emerald-950 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20'
+                                  : confirmPassword && confirmPassword !== regPassword
+                                  ? 'bg-red-50/20 hover:bg-white focus:bg-white border border-red-400 text-red-950 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
+                                  : 'bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15'
+                              }`}
                             />
                             <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <button
@@ -3018,6 +3086,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                           </div>
+                          {confirmPassword && confirmPassword === regPassword && (
+                            <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-emerald-600">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Passwords match</span>
+                            </div>
+                          )}
+                          {confirmPassword && confirmPassword !== regPassword && (
+                            <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-red-500">
+                              <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                              <span>Passwords do not match</span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Account Classification */}
@@ -3044,65 +3124,88 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         </div>
                       </div>
 
-                      {/* Section 3: Professional & Contact Details (Optional) */}
+                      {/* Section 3: Professional & Contact Details (Mandatory) */}
                       <div className="p-4 bg-stone-50/70 rounded-2xl border border-stone-200/80 space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider flex items-center gap-1.5">
                             <Briefcase className="w-3.5 h-3.5 text-[#8B181B]" />
-                            <span>Professional Profile <span className="font-normal text-stone-500 normal-case">(Optional)</span></span>
+                            <span>Professional Profile & Contact Details</span>
                           </h4>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRegPosition('N/A');
-                              setRegCompany('N/A');
-                              setRegEmploymentStatus('N/A');
-                            }}
-                            className="text-[11px] text-stone-500 hover:text-[#8B181B] font-semibold underline cursor-pointer"
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                            Current Employment Status <span className="text-red-600">*</span>
+                          </label>
+                          <select
+                            required
+                            value={regEmploymentStatus}
+                            onChange={(e) => setRegEmploymentStatus(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 focus:outline-hidden focus:border-[#8B181B]"
                           >
-                            Skip / N/A
-                          </button>
+                            <option value="Employed">Employed</option>
+                            <option value="Self-employed">Self-employed</option>
+                            <option value="Seeking Opportunities">Seeking Opportunities</option>
+                            <option value="Student / Continuing Studies">Student / Continuing Studies</option>
+                            <option value="Retired">Retired</option>
+                            <option value="N/A">Not Applicable (N/A)</option>
+                          </select>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           <div>
                             <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                              Current Role / Position
+                              Current Role / Position {regEmploymentStatus === 'N/A' || regEmploymentStatus === 'Retired' ? '(Disabled)' : ''}
                             </label>
                             <input
                               type="text"
+                              disabled={regEmploymentStatus === 'N/A' || regEmploymentStatus === 'Retired'}
                               value={regPosition}
                               onChange={(e) => setRegPosition(e.target.value)}
                               placeholder="e.g. Software Engineer, Teacher, N/A"
-                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
+                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs disabled:bg-stone-100 disabled:cursor-not-allowed"
                             />
                           </div>
                           <div>
                             <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                              Company / Organization
+                              Company / Organization {regEmploymentStatus === 'N/A' || regEmploymentStatus === 'Retired' ? '(Disabled)' : ''}
                             </label>
                             <input
                               type="text"
+                              disabled={regEmploymentStatus === 'N/A' || regEmploymentStatus === 'Retired'}
                               value={regCompany}
                               onChange={(e) => setRegCompany(e.target.value)}
                               placeholder="e.g. DepEd, Tech Corp, N/A"
-                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
+                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs disabled:bg-stone-100 disabled:cursor-not-allowed"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                           <div>
-                            <label className="block text-[11px] font-medium text-stone-600 mb-1">
-                              Phone Number <span className="text-stone-400 font-normal">(optional)</span>
+                            <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                              Contact Number <span className="text-red-600">*</span>
                             </label>
                             <input
-                              type="text"
+                              type="tel"
+                              required
+                              maxLength={11}
                               value={phone}
-                              onChange={(e) => setPhone(e.target.value)}
-                              placeholder="+63 917 123 4567"
-                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                setPhone(val);
+                                if (step2Error) setStep2Error('');
+                              }}
+                              placeholder="09123456789"
+                              className={`w-full px-3 py-2 bg-white border rounded-xl text-xs ${
+                                phone && (!phone.startsWith('09') || phone.length !== 11)
+                                  ? 'border-red-400 focus:border-red-500'
+                                  : phone && phone.startsWith('09') && phone.length === 11
+                                  ? 'border-emerald-500 focus:border-emerald-600'
+                                  : 'border-stone-200 focus:border-[#8B181B]'
+                              }`}
                             />
+                            <span className="text-[10px] text-stone-400 mt-0.5 block">11 digits starting with 09 (e.g. 09123456789)</span>
                           </div>
                           <div>
                             <label className="block text-[11px] font-medium text-stone-600 mb-1">
@@ -3365,7 +3468,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                           }}
                           className={`group relative p-3.5 rounded-xl border transition-all duration-150 cursor-pointer select-none ${
                             agreedToZeroDisclosure
-                              ? 'bg-amber-50/30 border-amber-200/90 shadow-2xs'
+                              ? 'bg-red-50/30 border-red-200/90 shadow-2xs'
                               : 'bg-white border-stone-200 hover:border-stone-300 hover:bg-stone-50/50'
                           }`}
                         >

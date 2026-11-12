@@ -869,45 +869,6 @@ export const NetworkView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setSelectedStatus('Open to Networking')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 ${
-              selectedStatus === 'Open to Networking'
-                ? 'bg-emerald-700 text-white font-semibold shadow-2xs'
-                : 'bg-emerald-50 text-emerald-800 border border-emerald-200/70 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Open to Networking</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSelectedStatus('Mentoring')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 ${
-              selectedStatus === 'Mentoring'
-                ? 'bg-teal-700 text-white font-semibold shadow-2xs'
-                : 'bg-teal-50 text-teal-800 border border-teal-200/70 hover:bg-teal-100 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-teal-500" />
-            <span>Mentors Available</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSelectedStatus('Hiring')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium shrink-0 transition-colors cursor-pointer flex items-center gap-1.5 ${
-              selectedStatus === 'Hiring'
-                ? 'bg-purple-700 text-white font-semibold shadow-2xs'
-                : 'bg-purple-50 text-purple-800 border border-purple-200/70 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-purple-500" />
-            <span>Actively Hiring</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setSelectedBatch('2024')}
             className={`px-3 py-1 rounded-lg text-xs font-medium shrink-0 transition-colors cursor-pointer ${
               selectedBatch === '2024'
