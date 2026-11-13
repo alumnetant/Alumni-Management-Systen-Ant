@@ -53,7 +53,7 @@ import {
 import { useAlumni } from '../../context/AlumniContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getRegistrationConflicts, resolveConflictRecord } from '../../services/studentVerificationService';
-import { exportAlumniRosterCsv } from '../../services/adminExportService';
+import { exportAlumniRosterCsv, exportAlumniRosterExcel } from '../../services/adminExportService';
 import { AdminDashboardBentoSkeleton } from '../common/BentoSkeleton';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 
@@ -1111,13 +1111,25 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                             type="button"
                             onClick={() => {
                               exportAlumniRosterCsv(users, 'st_cecilia_official_alumni_roster');
-                              showToast(`Exported ${users.length} verified records!`, 'success');
+                              showToast(`Exported ${users.length} verified records to CSV!`, 'success');
                               setShowMoreToolMenu(false);
                             }}
                             className="w-full text-left px-3.5 py-1.5 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer font-medium"
                           >
                             <Download className="w-3.5 h-3.5 text-stone-400" />
                             <span>Export CSV</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              exportAlumniRosterExcel(users, 'st_cecilia_official_alumni_roster');
+                              showToast(`Exported ${users.length} verified records to Excel (.xlsx)!`, 'success');
+                              setShowMoreToolMenu(false);
+                            }}
+                            className="w-full text-left px-3.5 py-1.5 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer font-medium"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Export Excel (.xlsx)</span>
                           </button>
                           <button
                             type="button"

@@ -26,8 +26,10 @@ import {
   deleteRegistrarRecord,
   syncRegistrarRecordsWithFirestore,
   exportRegistryRecordsToCsv,
+  exportRegistryRecordsToExcel,
   addRegistrarRecords,
   downloadSampleCsvTemplate,
+  downloadSampleExcelTemplate,
   isValidStudentIdPattern,
   normalizeStudentId
 } from '../../services/studentVerificationService';
@@ -56,7 +58,11 @@ export const RegistrarRegistryMatcher: React.FC = () => {
     studentId: '',
     fullName: '',
     batchYear: new Date().getFullYear().toString(),
-    course: 'B.S. Information Technology',
+    course: 'BSIT',
+    guardianName: '',
+    phone: '',
+    birthDate: '',
+    homeAddress: '',
     email: '',
     honors: ''
   });
@@ -94,6 +100,15 @@ export const RegistrarRegistryMatcher: React.FC = () => {
     syncRegistrarRecordsWithFirestore().then(() => {
       refreshRecords();
     });
+    const handlePortalRefresh = () => {
+      syncRegistrarRecordsWithFirestore().then(() => {
+        refreshRecords();
+      });
+    };
+    window.addEventListener('scc:portal-refreshed', handlePortalRefresh);
+    return () => {
+      window.removeEventListener('scc:portal-refreshed', handlePortalRefresh);
+    };
   }, [users]);
 
   // Delete individual record
@@ -138,6 +153,26 @@ export const RegistrarRegistryMatcher: React.FC = () => {
     });
   };
 
+  // Export current records to Excel (.xlsx)
+  const handleExportExcel = () => {
+    const recordsToExport = filteredRecords.length > 0 ? filteredRecords : records;
+    if (recordsToExport.length === 0) {
+      showToast('No student records available to export.', 'warning');
+      return;
+    }
+    exportRegistryRecordsToExcel(recordsToExport);
+    showToast(`Exported ${recordsToExport.length} student records to Excel (.xlsx)!`, 'success');
+    addAuditLog({
+      action: 'REGISTRY_ROSTER_EXPORTED',
+      actorId: currentUser?.uid || 'moderator',
+      actorName: currentUser?.name || 'Moderator',
+      actorRole: currentUser?.role || 'moderator',
+      category: 'registry_masterlist',
+      details: `Exported ${recordsToExport.length} official student records to Excel (.xlsx) spreadsheet.`,
+      severity: 'info'
+    });
+  };
+
   // Add individual student record
   const handleAccreditStudent = (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,6 +193,10 @@ export const RegistrarRegistryMatcher: React.FC = () => {
           fullName: accreditForm.fullName.trim(),
           batchYear: accreditForm.batchYear.trim() || '2024',
           course: accreditForm.course.trim(),
+          guardianName: accreditForm.guardianName.trim() || undefined,
+          phone: accreditForm.phone.trim() || undefined,
+          birthDate: accreditForm.birthDate.trim() || undefined,
+          homeAddress: accreditForm.homeAddress.trim() || undefined,
           email: accreditForm.email.trim() || undefined,
           honors: accreditForm.honors.trim() || undefined,
           status: 'Graduated',
@@ -174,7 +213,11 @@ export const RegistrarRegistryMatcher: React.FC = () => {
       studentId: '',
       fullName: '',
       batchYear: new Date().getFullYear().toString(),
-      course: 'B.S. Information Technology',
+      course: 'BSIT',
+      guardianName: '',
+      phone: '',
+      birthDate: '',
+      homeAddress: '',
       email: '',
       honors: ''
     });
@@ -298,10 +341,20 @@ export const RegistrarRegistryMatcher: React.FC = () => {
             type="button"
             onClick={handleExportCsv}
             className="px-3.5 py-2 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Export accredited roster to CSV spreadsheet"
+            title="Export accredited roster to 7-column CSV spreadsheet"
           >
             <Download className="w-3.5 h-3.5 text-stone-500" />
             <span>Export CSV</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="px-3.5 py-2 bg-emerald-50/70 border border-emerald-200 hover:bg-emerald-100/70 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Export accredited roster to 7-column Excel (.xlsx) workbook"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Export Excel</span>
           </button>
         </div>
       </div>
@@ -316,9 +369,12 @@ export const RegistrarRegistryMatcher: React.FC = () => {
             <thead className="bg-stone-50 text-stone-600 font-bold border-b border-stone-200 text-[11px] tracking-wide">
               <tr>
                 <th className="py-3 px-4 pl-6">Student ID</th>
-                <th className="py-3 px-4">Graduate Full Name</th>
-                <th className="py-3 px-4">Degree & Academic Program</th>
-                <th className="py-3 px-4">Cohort</th>
+                <th className="py-3 px-4">FullName</th>
+                <th className="py-3 px-4">Course</th>
+                <th className="py-3 px-4">G_name</th>
+                <th className="py-3 px-4">Home_No</th>
+                <th className="py-3 px-4">B_date</th>
+                <th className="py-3 px-4">Home_Add</th>
                 <th className="py-3 px-4">Verification</th>
                 <th className="py-3 px-4 pr-6 text-right">Actions</th>
               </tr>
@@ -326,7 +382,7 @@ export const RegistrarRegistryMatcher: React.FC = () => {
             <tbody className="divide-y divide-stone-100 text-stone-800">
               {filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-14 text-center text-stone-500">
+                  <td colSpan={9} className="py-14 text-center text-stone-500">
                     <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-[#8B181B] mx-auto mb-3 shadow-2xs">
                       <FileSpreadsheet className="w-6 h-6" />
                     </div>
@@ -351,7 +407,15 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                         className="px-3.5 py-2 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <FileDown className="w-3.5 h-3.5 text-stone-500" />
-                        <span>Download Sample CSV</span>
+                        <span>Sample CSV</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={downloadSampleExcelTemplate}
+                        className="px-3.5 py-2 bg-emerald-50/70 border border-emerald-200 hover:bg-emerald-100/70 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Sample Excel (.xlsx)</span>
                       </button>
                     </div>
                   </td>
@@ -362,9 +426,9 @@ export const RegistrarRegistryMatcher: React.FC = () => {
 
                   return (
                     <tr key={record.studentId} className="hover:bg-stone-50/70 transition-colors">
-                      <td className="py-3 px-4 pl-6">
+                      <td className="py-3 px-4 pl-6 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-stone-900 bg-stone-100 px-2 py-0.5 rounded border border-stone-200/80">
+                          <span className="font-mono tabular-nums font-bold text-stone-900 bg-stone-100 px-2 py-0.5 rounded border border-stone-200/80">
                             {record.studentId}
                           </span>
                           <button
@@ -382,7 +446,7 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                         </div>
                       </td>
 
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 whitespace-nowrap">
                         <div className="font-bold text-stone-900">{record.fullName}</div>
                         {record.email && (
                           <div className="text-[11px] text-stone-400 font-mono mt-0.5">
@@ -391,17 +455,27 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                         )}
                       </td>
 
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 whitespace-nowrap">
                         <span className="font-medium text-stone-700">{record.course}</span>
                       </td>
 
-                      <td className="py-3 px-4">
-                        <span className="font-mono tabular-nums font-semibold text-stone-800">
-                          {record.batchYear}
-                        </span>
+                      <td className="py-3 px-4 max-w-[160px] truncate text-stone-600" title={record.guardianName}>
+                        {record.guardianName || '—'}
                       </td>
 
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 font-mono tabular-nums text-stone-700 whitespace-nowrap">
+                        {record.phone || '—'}
+                      </td>
+
+                      <td className="py-3 px-4 font-mono tabular-nums text-stone-700 whitespace-nowrap">
+                        {record.birthDate || '—'}
+                      </td>
+
+                      <td className="py-3 px-4 max-w-[200px] truncate text-stone-500" title={record.homeAddress}>
+                        {record.homeAddress || '—'}
+                      </td>
+
+                      <td className="py-3 px-4 whitespace-nowrap">
                         {isReg ? (
                           <div className="inline-flex items-center gap-1.5 text-emerald-700 text-xs font-semibold">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -533,22 +607,22 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                   required
                   value={accreditForm.studentId}
                   onChange={(e) => setAccreditForm({ ...accreditForm, studentId: e.target.value.toUpperCase() })}
-                  placeholder="e.g. SCC-2024-0428"
+                  placeholder="e.g. SCC-22-00017358 or SCC-2024-0428"
                   className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs font-mono text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:bg-white transition-all"
                 />
-                <p className="text-[11px] text-stone-400 mt-1">Format: SCC-YYYY-XXXX (Centennial formula)</p>
+                <p className="text-[11px] text-stone-400 mt-1">Formats: SCC-22-00017358 or SCC-YYYY-XXXX</p>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Full Name <span className="text-red-500">*</span>
+                  FullName <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={accreditForm.fullName}
                   onChange={(e) => setAccreditForm({ ...accreditForm, fullName: e.target.value })}
-                  placeholder="e.g. Maria Clara Santos"
+                  placeholder="e.g. Abellana, Vincent Anthony"
                   className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:bg-white transition-all"
                 />
               </div>

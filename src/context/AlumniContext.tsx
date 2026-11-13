@@ -116,6 +116,7 @@ import {
   isValidStudentIdPattern,
   normalizeStudentId,
   syncRegistrarRecordsWithFirestore,
+  syncRegistrationConflictsWithFirestore,
   generateAlumniId
 } from '../services/studentVerificationService';
 import {
@@ -1612,6 +1613,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
       })();
 
+      // 8. Sync Registrar Registry & Verification Conflicts in parallel
+      const registrySyncPromise = (async () => {
+        try {
+          await Promise.allSettled([
+            syncRegistrarRecordsWithFirestore(),
+            syncRegistrationConflictsWithFirestore()
+          ]);
+        } catch (err) {
+          console.warn('Background sync registry/conflicts notice:', err);
+        }
+      })();
+
       await Promise.allSettled([
         usersPromise,
         eventsPromise,
@@ -1620,10 +1633,15 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         opportunitiesPromise,
         applicationsPromise,
         feedPostsPromise,
-        userSpecificPromise
+        userSpecificPromise,
+        registrySyncPromise
       ]);
 
       setLastBackgroundSyncTime(new Date());
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('scc:portal-refreshed'));
+        window.dispatchEvent(new CustomEvent('conflicts-updated'));
+      }
     } finally {
       setIsBackgroundSyncing(false);
       isSyncInProgressRef.current = false;
@@ -3623,10 +3641,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     let verifiedRegistrarRecord: any = null;
     if (role === 'alumni' && !isAppealRegistration) {
-      // Specifically reject accounts if Student ID is missing or does not match expected format SCC-YYYY-XXXX
+      // Specifically reject accounts if Student ID is missing or does not match supported SCC ID formats
       if (!rawStudentId || !isValidStudentIdPattern(rawStudentId)) {
         showToast(
-          `Student ID '${rawStudentId || 'None'}' could not be confirmed in St. Cecilia's College registrar records. Expected format: SCC-YYYY-XXXX (e.g. SCC-2024-0001 or SCC-2020-0192).`,
+          `Student ID '${rawStudentId || 'None'}' could not be confirmed in St. Cecilia's College registrar records. Accepted formats: SCC-22-00017358 or SCC-2024-0001.`,
           'error'
         );
         return false;
@@ -3637,7 +3655,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (!verification.isVerified || !verification.record) {
         showToast(
           verification.message ||
-            `Student ID '${rawStudentId}' could not be confirmed in St. Cecilia's College registrar records. Expected format: SCC-YYYY-XXXX (e.g. SCC-2024-0001 or SCC-2020-0192).`,
+            `Student ID '${rawStudentId}' could not be confirmed in St. Cecilia's College registrar records. Accepted formats: SCC-22-00017358 or SCC-2024-0001.`,
           'error'
         );
         return false;
@@ -3677,7 +3695,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       role,
       batch: finalBatch,
       course: finalCourse,
-      location: data.location || (role === 'employer' ? 'Cebu City, Philippines' : 'Cebu, Philippines'),
+      location: data.location || verifiedRegistrarRecord?.homeAddress || (role === 'employer' ? 'Cebu City, Philippines' : 'Cebu, Philippines'),
       alumniId: data.alumniId || (role === 'alumni' && isAlumniVerified ? generateAlumniId(finalBatch, finalStudentId, newUid) : undefined),
       studentId: finalStudentId,
       employeeId: data.employeeId,
@@ -3696,7 +3714,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       coverPhotoUrl: data.coverPhotoUrl || DEFAULT_COVER_PHOTO,
       headline: data.headline || (role === 'employer' ? `Hiring Partner • ${data.companyName || 'Corporate Partner'}` : `${role === 'alumni' ? (finalCourse || 'Alumni') + ' Graduate' : role.toUpperCase() + ' Specialist'} • St. Cecilia’s College`),
       about: data.about || (role === 'employer' ? `Official employer and industry partner recruiting talented graduates of St. Cecilia’s College.` : 'Excited to be part of the St. Cecilia’s College alumni and institutional community.'),
-      phone: data.phone || data.contactPhone || '+63 917 123 4567',
+      phone: data.phone || data.contactPhone || verifiedRegistrarRecord?.phone || '+63 917 123 4567',
+      guardianName: data.guardianName || verifiedRegistrarRecord?.guardianName,
+      homeAddress: data.homeAddress || verifiedRegistrarRecord?.homeAddress,
+      birthday: data.birthday || verifiedRegistrarRecord?.birthDate,
       isVerified: isAlumniVerified,
       verified: isAlumniVerified,
       verificationStatus: isAlumniVerified ? 'verified' : (data.verificationStatus || 'pending_review'),

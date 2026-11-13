@@ -25,6 +25,7 @@ body,
   width: 100%;
   max-width: 100%;
   overflow-x: clip;
+  overscroll-behavior-y: contain;
   font-family: var(--font-sans);
   color: var(--foreground, #111827);
   background-color: var(--background, #F9FAFB);

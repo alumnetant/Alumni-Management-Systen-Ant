@@ -64,6 +64,7 @@ import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { FloatingQuickDock } from '../common/FloatingQuickDock';
 import { AuditLogView } from '../admin/AuditLogView';
+import { PullToRefreshWrapper } from '../common/PullToRefreshWrapper';
 
 export type AlumniModuleId =
   | 'dashboard'
@@ -97,6 +98,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     announcements,
     opportunities,
     syncAllDataToCloud,
+    refreshData,
     isFirestoreSyncing,
     logout,
     notifications,
@@ -1151,68 +1153,70 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
             PRIMARY ALUMNI CONTENT VIEWPORT
             ====================================================== */}
         <main className="flex-1 min-w-0 w-full max-w-full px-3 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
-          <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto">
-            <AnimatePresence mode="wait" custom={slideDirection}>
-              <motion.div
-                key={currentModule}
-                custom={slideDirection}
-                variants={directionalVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-              >
-                {/* MODULE: Dashboard Overview (Alumni Hub) */}
-                {currentModule === 'dashboard' && <DashboardView />}
+          <PullToRefreshWrapper onRefresh={refreshData} isOnline={isOnline}>
+            <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto">
+              <AnimatePresence mode="wait" custom={slideDirection}>
+                <motion.div
+                  key={currentModule}
+                  custom={slideDirection}
+                  variants={directionalVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                >
+                  {/* MODULE: Dashboard Overview (Alumni Hub) */}
+                  {currentModule === 'dashboard' && <DashboardView />}
 
-                {/* MODULE: Dedicated Notifications Page */}
-                {currentModule === 'notifications' && <NotificationsView />}
+                  {/* MODULE: Dedicated Notifications Page */}
+                  {currentModule === 'notifications' && <NotificationsView />}
 
-                {/* MODULE: Alumni Directory & Network */}
-                {currentModule === 'network' && (
-                  <VerificationGate routeName="Alumni Directory & Networking">
-                    <NetworkView />
-                  </VerificationGate>
-                )}
+                  {/* MODULE: Alumni Directory & Network */}
+                  {currentModule === 'network' && (
+                    <VerificationGate routeName="Alumni Directory & Networking">
+                      <NetworkView />
+                    </VerificationGate>
+                  )}
 
-                {/* MODULE: Direct Peer Messaging */}
-                {currentModule === 'messages' && (
-                  <VerificationGate routeName="Direct Peer Messaging">
-                    <MessagesView />
-                  </VerificationGate>
-                )}
+                  {/* MODULE: Direct Peer Messaging */}
+                  {currentModule === 'messages' && (
+                    <VerificationGate routeName="Direct Peer Messaging">
+                      <MessagesView />
+                    </VerificationGate>
+                  )}
 
-                {/* MODULE: Campus Reunions & Events */}
-                {currentModule === 'events' && (
-                  <VerificationGate routeName="Campus Reunions & Official Events">
-                    <EventsView />
-                  </VerificationGate>
-                )}
+                  {/* MODULE: Campus Reunions & Events */}
+                  {currentModule === 'events' && (
+                    <VerificationGate routeName="Campus Reunions & Official Events">
+                      <EventsView />
+                    </VerificationGate>
+                  )}
 
-                {/* MODULE: Institutional Bulletins */}
-                {currentModule === 'announcements' && (
-                  <VerificationGate routeName="Institutional Announcements">
-                    <AnnouncementsView />
-                  </VerificationGate>
-                )}
+                  {/* MODULE: Institutional Bulletins */}
+                  {currentModule === 'announcements' && (
+                    <VerificationGate routeName="Institutional Announcements">
+                      <AnnouncementsView />
+                    </VerificationGate>
+                  )}
 
-                {/* MODULE: Career Opportunities & Jobs */}
-                {currentModule === 'opportunities' && (
-                  <VerificationGate routeName="Career Opportunities & Job Board">
-                    <OpportunitiesView />
-                  </VerificationGate>
-                )}
+                  {/* MODULE: Career Opportunities & Jobs */}
+                  {currentModule === 'opportunities' && (
+                    <VerificationGate routeName="Career Opportunities & Job Board">
+                      <OpportunitiesView />
+                    </VerificationGate>
+                  )}
 
-                {/* MODULE: Profile & Card */}
-                {currentModule === 'profile' && <ProfileView />}
+                  {/* MODULE: Profile & Card */}
+                  {currentModule === 'profile' && <ProfileView />}
 
-                {/* MODULE: Account Settings */}
-                {currentModule === 'settings' && <SettingsView />}
+                  {/* MODULE: Account Settings */}
+                  {currentModule === 'settings' && <SettingsView />}
 
-                {/* MODULE: Activity Logs */}
-                {currentModule === 'activity' && <AuditLogView />}
-              </motion.div>
-            </AnimatePresence>
-          </div>
+                  {/* MODULE: Activity Logs */}
+                  {currentModule === 'activity' && <AuditLogView />}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </PullToRefreshWrapper>
         </main>
       </div>
 

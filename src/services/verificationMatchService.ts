@@ -81,12 +81,22 @@ export function normalizeTinOrReg(id: string = ''): string {
 }
 
 export function normalizeStudentIdCode(id: string = ''): string {
-  const digits = id.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  const cleaned = id.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  if (/^\d{4}-\d{3,5}$/.test(cleaned)) {
+    return `SCC-${cleaned}`;
+  }
+  if (/^\d{2}-\d{6,9}$/.test(cleaned)) {
+    return `SCC-${cleaned}`;
+  }
+  if (cleaned.startsWith('SC-') && !cleaned.startsWith('SCC-')) {
+    return `SCC-${cleaned.slice(3)}`;
+  }
+  const digits = cleaned.replace(/[^A-Z0-9]/g, '');
   const withoutPrefix = digits.replace(/^SCC/i, '');
-  if (withoutPrefix.length === 8) {
+  if (/^\d{8}$/.test(withoutPrefix) && !cleaned.includes('-')) {
     return `SCC-${withoutPrefix.slice(0, 4)}-${withoutPrefix.slice(4)}`;
   }
-  return id.trim().toUpperCase();
+  return cleaned;
 }
 
 // ============================================================================

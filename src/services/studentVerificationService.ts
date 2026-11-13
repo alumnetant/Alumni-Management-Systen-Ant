@@ -41,12 +41,17 @@ export interface RegistryMatchResult {
 }
 
 /**
- * Normalizes Student ID strings to standard St. Cecilia format: SCC-YYYY-XXXX
+ * Normalizes Student ID strings to standard St. Cecilia formats:
+ * - New cohort format: SCC-YY-XXXXXXXX (e.g., SCC-22-00017358, SCC-17-0004402)
+ * - Legacy format: SCC-YYYY-XXXX (e.g., SCC-2024-1001)
  */
 export function normalizeStudentId(rawId?: any): string {
   if (!rawId || typeof rawId !== 'string') return '';
   const cleaned = rawId.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
   if (/^\d{4}-\d{3,5}$/.test(cleaned)) {
+    return `SCC-${cleaned}`;
+  }
+  if (/^\d{2}-\d{6,9}$/.test(cleaned)) {
     return `SCC-${cleaned}`;
   }
   if (cleaned.startsWith('SC-') && !cleaned.startsWith('SCC-')) {
@@ -56,14 +61,67 @@ export function normalizeStudentId(rawId?: any): string {
 }
 
 /**
- * Validates whether the student ID follows St. Cecilia's College official centenary ID formula:
- * SCC-YYYY-XXXX (where YYYY is between 1950 and 2159, followed by 3-5 digits, built to endure 100+ years)
+ * Derives a 4-digit cohort/batch year from a Student ID when no explicit batch column exists.
+ * Examples: SCC-22-00017358 -> "2022", SCC-17-0004402 -> "2017", SCC-2024-1001 -> "2024"
+ */
+export function deriveBatchYearFromStudentId(studentId?: string, fallback: string = '2024'): string {
+  const norm = normalizeStudentId(studentId);
+  const fourDigitMatch = /^(?:SCC|SC)-(19[5-9]\d|20\d\d|21[0-5]\d)-\d{3,5}$/.exec(norm);
+  if (fourDigitMatch) return fourDigitMatch[1];
+
+  const twoDigitMatch = /^(?:SCC|SC)-(\d{2})-\d{6,9}$/.exec(norm);
+  if (twoDigitMatch) {
+    const yy = parseInt(twoDigitMatch[1], 10);
+    return yy >= 50 ? `19${twoDigitMatch[1]}` : `20${twoDigitMatch[1]}`;
+  }
+  return fallback;
+}
+
+/**
+ * Splits a full name stored either as "Last Name, First Name M." or "First Name M. Last Name"
+ * into normalized components for accurate registration pre-fill & matching.
+ */
+export function splitFullNameParts(fullName: string = ''): {
+  firstName: string;
+  lastName: string;
+  fullNameNatural: string;
+} {
+  const trimmed = fullName.trim();
+  if (!trimmed) return { firstName: '', lastName: '', fullNameNatural: '' };
+
+  if (trimmed.includes(',')) {
+    const commaIdx = trimmed.indexOf(',');
+    const lastPart = trimmed.slice(0, commaIdx).trim();
+    const firstPart = trimmed.slice(commaIdx + 1).trim();
+    return {
+      firstName: firstPart,
+      lastName: lastPart,
+      fullNameNatural: `${firstPart} ${lastPart}`.replace(/\s+/g, ' ').trim()
+    };
+  }
+
+  const parts = trimmed.split(/\s+/).filter(Boolean);
+  if (parts.length > 1) {
+    return {
+      firstName: parts.slice(0, -1).join(' '),
+      lastName: parts[parts.length - 1],
+      fullNameNatural: trimmed
+    };
+  }
+
+  return { firstName: trimmed, lastName: '', fullNameNatural: trimmed };
+}
+
+/**
+ * Validates whether the student ID follows either official St. Cecilia's College format:
+ * - Cohort format: SCC-YY-XXXXXXX[X] (e.g., SCC-22-00017358, SCC-17-0004402)
+ * - Legacy centenary format: SCC-YYYY-XXXX (e.g., SCC-2024-1001)
  */
 export function isValidStudentIdPattern(id: string): boolean {
   const norm = normalizeStudentId(id);
-  // Century-scale regex covering cohorts across 100+ years (1950 through 2159)
-  const regex = /^(SCC|SC)-(19[5-9]\d|20\d\d|21[0-5]\d)-\d{3,5}$/;
-  return regex.test(norm);
+  const legacyRegex = /^(SCC|SC)-(19[5-9]\d|20\d\d|21[0-5]\d)-\d{3,5}$/;
+  const cohortRegex = /^(SCC|SC)-\d{2}-\d{6,9}$/;
+  return legacyRegex.test(norm) || cohortRegex.test(norm);
 }
 
 /**
@@ -142,8 +200,8 @@ export function addRegistrarRecords(
       ...rec,
       studentId: normId,
       fullName: rec.fullName.trim(),
-      batchYear: rec.batchYear ? String(rec.batchYear).trim() : '2024',
-      course: rec.course ? rec.course.trim() : 'B.S. Information Technology',
+      batchYear: rec.batchYear ? String(rec.batchYear).trim() : deriveBatchYearFromStudentId(normId),
+      course: rec.course ? rec.course.trim() : 'BSIT',
       status: rec.status || 'Graduated',
       uploadedAt: rec.uploadedAt || now,
       uploadedBy: uploadedBy || rec.uploadedBy || 'Registrar Office',
@@ -338,12 +396,13 @@ export function validateStudentRegistrationStrict(
     };
   }
 
-  // Strict Name Validation:
-  // Full entered name:
+  // Strict Name Validation (supports both "Last, First M." and "First M. Last"):
   const enteredFullName = normalizeName(`${trimmedFirst} ${trimmedLast}`);
+  const recordParts = splitFullNameParts(record.fullName);
   const recordFullName = normalizeName(record.fullName);
+  const recordNaturalName = normalizeName(recordParts.fullNameNatural);
 
-  if (enteredFullName !== recordFullName) {
+  if (enteredFullName !== recordFullName && enteredFullName !== recordNaturalName) {
     return {
       isValid: false,
       errorCode: 'NAME_MISMATCH',
@@ -353,7 +412,8 @@ export function validateStudentRegistrationStrict(
 
   // Strict Last Name Check:
   const enteredLastNorm = normalizeName(trimmedLast);
-  if (!recordFullName.endsWith(enteredLastNorm)) {
+  const recordLastNorm = normalizeName(recordParts.lastName);
+  if (!recordNaturalName.endsWith(enteredLastNorm) && recordLastNorm !== enteredLastNorm) {
     return {
       isValid: false,
       errorCode: 'LAST_NAME_MISMATCH',
@@ -409,7 +469,7 @@ export function lookupStudentBySchoolId(
       isValid: false,
       isDuplicate: false,
       matchedRecord: null,
-      errorMessage: 'Please enter your School ID Number (format: SCC-YYYY-XXXX).'
+      errorMessage: 'Please enter your School ID Number (e.g. SCC-22-00017358 or SCC-2024-1001).'
     };
   }
 
@@ -437,7 +497,7 @@ export function lookupStudentBySchoolId(
       isValid: false,
       isDuplicate: false,
       matchedRecord: null,
-      errorMessage: `School ID "${studentId}" was not found in the registrar archive. Expected format: SCC-YYYY-XXXX.`
+      errorMessage: `School ID "${studentId}" was not found in the registrar archive. Accepted formats: SCC-22-00017358 or SCC-2024-1001.`
     };
   }
 
@@ -502,7 +562,7 @@ export function findRegistryMatch(query: {
           isMatched: false,
           confidence: 0,
           matchReasons: [],
-          message: `Student ID '${normId}' could not be confirmed in St. Cecilia's College registrar records. Expected format: SCC-YYYY-XXXX.`,
+          message: `Student ID '${normId}' could not be confirmed in St. Cecilia's College registrar records. Accepted formats: SCC-22-00017358 or SCC-2024-1001.`,
           canBypassVerification: false
         };
       }
@@ -511,11 +571,12 @@ export function findRegistryMatch(query: {
       // An applicant claiming this ID MUST provide their matching details to prove rightful ownership
       // NEVER disclose the name, batch, or course stored in the record to an unverified claimant!
       const recordNameNorm = normalizeName(idMatch.fullName);
+      const recordNaturalNorm = normalizeName(splitFullNameParts(idMatch.fullName).fullNameNatural);
       const qNameNorm = queryName ? normalizeName(queryName) : '';
 
       const hasName = Boolean(qNameNorm && qNameNorm.length >= 2);
-      // Zero-tolerance exact match for name (letter for letter, including second name)
-      const nameMatches = hasName && recordNameNorm === qNameNorm;
+      // Zero-tolerance exact match supporting both "Last, First M." and "First M. Last"
+      const nameMatches = hasName && (recordNameNorm === qNameNorm || recordNaturalNorm === qNameNorm);
 
       const hasBatch = Boolean(queryBatch && queryBatch.trim().length >= 4);
       const batchMatches = hasBatch && idMatch.batchYear.trim() === queryBatch?.trim();
@@ -678,7 +739,7 @@ export async function verifyStudentRecord(params: {
     if (isUnverified) {
       return {
         isVerified: false,
-        message: `Student ID '${params.studentId}' could not be confirmed in St. Cecilia's College registrar records. Expected format: SCC-YYYY-XXXX (e.g. SCC-2020-0192).`,
+        message: `Student ID '${params.studentId}' could not be confirmed in St. Cecilia's College registrar records. Accepted formats: SCC-22-00017358 or SCC-2024-1001.`,
         source: 'unverified'
       };
     }
@@ -696,11 +757,15 @@ export async function verifyStudentRecord(params: {
     if (params.fullName) {
       const qNorm = normalizeName(params.fullName);
       const rNorm = normalizeName(recordMatch.fullName);
+      const rNaturalNorm = normalizeName(splitFullNameParts(recordMatch.fullName).fullNameNatural);
       const qParts = qNorm.split(' ').filter((p) => p.length >= 2);
       const nameMatches =
         rNorm === qNorm ||
+        rNaturalNorm === qNorm ||
         rNorm.includes(qNorm) ||
+        rNaturalNorm.includes(qNorm) ||
         qNorm.includes(rNorm) ||
+        qNorm.includes(rNaturalNorm) ||
         qParts.some((p) => rNorm.includes(p));
 
       if (!nameMatches) {
@@ -723,9 +788,54 @@ export async function verifyStudentRecord(params: {
   // 2. Strict verification check: specifically rejects accounts where the academic record cannot be confirmed by the registrar
   return {
     isVerified: false,
-    message: `Student ID '${params.studentId}' could not be confirmed in St. Cecilia's College registrar records. Expected format: SCC-YYYY-XXXX (e.g. SCC-2020-0192).`,
+    message: `Student ID '${params.studentId}' could not be confirmed in St. Cecilia's College registrar records. Accepted formats: SCC-22-00017358 or SCC-2024-1001.`,
     source: 'unverified'
   };
+}
+
+/**
+ * Converts Excel serial date numbers or ISO date strings to MM/DD/YYYY
+ */
+function formatSpreadsheetDateValue(val: any): string {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'number' && val > 1000 && val < 90000) {
+    const parsed = XLSX.SSF.parse_date_code(val);
+    if (parsed && parsed.y && parsed.m && parsed.d) {
+      const mm = String(parsed.m).padStart(2, '0');
+      const dd = String(parsed.d).padStart(2, '0');
+      return `${mm}/${dd}/${parsed.y}`;
+    }
+  }
+  const str = String(val).trim().replace(/^["']|["']$/g, '').trim();
+  if (!str) return '';
+
+  // Numeric Excel serial passed as string
+  if (/^\d{5}$/.test(str)) {
+    const serial = parseInt(str, 10);
+    if (serial > 1000 && serial < 90000) {
+      const parsed = XLSX.SSF.parse_date_code(serial);
+      if (parsed && parsed.y && parsed.m && parsed.d) {
+        return `${String(parsed.m).padStart(2, '0')}/${String(parsed.d).padStart(2, '0')}/${parsed.y}`;
+      }
+    }
+  }
+
+  // YYYY-MM-DD -> MM/DD/YYYY
+  const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(str);
+  if (isoMatch) {
+    return `${isoMatch[2].padStart(2, '0')}/${isoMatch[3].padStart(2, '0')}/${isoMatch[1]}`;
+  }
+
+  // M/D/YYYY or M/D/YY -> MM/DD/YYYY
+  const slashMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(str);
+  if (slashMatch) {
+    const year = slashMatch[3].length === 2
+      ? (parseInt(slashMatch[3], 10) >= 50 ? `19${slashMatch[3]}` : `20${slashMatch[3]}`)
+      : slashMatch[3];
+    return `${slashMatch[1].padStart(2, '0')}/${slashMatch[2].padStart(2, '0')}/${year}`;
+  }
+
+  return str;
 }
 
 /**
@@ -761,14 +871,32 @@ export async function parseRegistrarFile(file: File): Promise<StudentVerificatio
     const worksheet = workbook.Sheets[firstSheetName];
 
     // Read as 2D array of rows to intelligently find the true header row
-    const rawMatrix: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+    const rawMatrix: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', raw: false });
     if (!rawMatrix || rawMatrix.length === 0) {
       throw new Error('Excel sheet contains no data.');
     }
 
-    // Identify header row index (scanning first 10 rows for known header indicators)
+    // Identify header row index (scanning first 10 rows for known 7-column & legacy header indicators)
     let headerRowIndex = 0;
-    const headerIndicators = ['id', 'student', 'graduate', 'name', 'batch', 'year', 'course', 'program', 'degree', 'cohort', 'status'];
+    const headerIndicators = [
+      'id',
+      'student',
+      'fullname',
+      'name',
+      'course',
+      'gname',
+      'guardian',
+      'homeno',
+      'bdate',
+      'homeadd',
+      'address',
+      'batch',
+      'year',
+      'program',
+      'degree',
+      'cohort',
+      'status'
+    ];
 
     for (let r = 0; r < Math.min(rawMatrix.length, 10); r++) {
       const rowValues = (rawMatrix[r] || []).map((c) => String(c || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
@@ -779,9 +907,11 @@ export async function parseRegistrarFile(file: File): Promise<StudentVerificatio
       }
     }
 
+    // raw: false preserves formatted phone numbers (leading zero) and MM/DD/YYYY dates cleanly
     const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, {
       range: headerRowIndex,
-      defval: ''
+      defval: '',
+      raw: false
     });
 
     return mapRowsToStudentRecords(rawData);
@@ -791,9 +921,9 @@ export async function parseRegistrarFile(file: File): Promise<StudentVerificatio
 }
 
 /**
- * Flexible column mapper to handle diverse Registrar CSV/Excel headers
- * Auto-detects all variations of Name columns, split first/middle/last names,
- * and falls back cleanly without defaulting to 'Cecilian Graduate'.
+ * Flexible column mapper to handle the official 7-column Registrar format
+ * (Student ID, FullName, Course, G_name, Home_No, B_date, Home_Add)
+ * as well as legacy header variations.
  */
 function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
   const records: StudentVerificationRecord[] = [];
@@ -810,25 +940,24 @@ function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
     let suffix = '';
     let batchYear = '';
     let course = '';
+    let guardianName = '';
+    let phone = '';
+    let birthDate = '';
+    let homeAddress = '';
     let status: 'Graduated' | 'Enrolled' | 'Alumni' | 'unverified' = 'Graduated';
     let honors = '';
     let email = '';
-    let phone = '';
-
-    const nonNameCells: string[] = [];
 
     for (const [key, value] of Object.entries(row)) {
       const k = key.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const rawV = String(value || '').trim();
-      // Remove surrounding quotes if present
+      const rawV = String(value ?? '').trim();
       const v = rawV.replace(/^["']|["']$/g, '').trim();
 
       if (!v) continue;
 
-      // Ignore metadata keys generated by sheet parsers
       const isSheetParserEmptyKey = k.startsWith('empty') || k.startsWith('__empty');
 
-      // 1. Student ID variations: studentid, idnumber, studentno, id, idnum, schoolid, matriculation
+      // 1. Student ID variations
       if (
         k.includes('studentid') ||
         k === 'id' ||
@@ -839,7 +968,23 @@ function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
       ) {
         studentId = normalizeStudentId(v);
       }
-      // 2. Split Name Columns
+      // 2. Guardian Name (G_name) - checked BEFORE general name matching
+      else if (k === 'gname' || k.includes('guardian') || k.includes('parentname')) {
+        guardianName = v;
+      }
+      // 3. Home Address (Home_Add)
+      else if (k === 'homeadd' || k.includes('homeaddress') || k === 'address' || k.includes('permanentaddress')) {
+        homeAddress = v;
+      }
+      // 4. Home / Contact Number (Home_No)
+      else if (k === 'homeno' || k.includes('homenum') || k.includes('phone') || k.includes('contact') || k.includes('mobile') || k.includes('tel')) {
+        phone = v;
+      }
+      // 5. Birthdate (B_date)
+      else if (k === 'bdate' || k.includes('birthdate') || k === 'dob' || k.includes('birthday') || k.includes('dateofbirth')) {
+        birthDate = formatSpreadsheetDateValue(value);
+      }
+      // 6. Split Name Columns
       else if (k.includes('firstname') || k === 'first' || k.includes('fname') || k.includes('givenname')) {
         firstName = v;
       } else if (k.includes('middlename') || k === 'middle' || k.includes('mname') || k === 'mi' || k.includes('middleinitial')) {
@@ -849,9 +994,9 @@ function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
       } else if (k.includes('suffix') || k.includes('ext')) {
         suffix = v;
       }
-      // 3. Combined Full Name variations:
-      // Any key containing 'name' unless it explicitly refers to company, course, school, file, or department
+      // 7. Combined Full Name (FullName)
       else if (
+        k === 'fullname' ||
         (k.includes('name') &&
           !k.includes('course') &&
           !k.includes('program') &&
@@ -871,7 +1016,7 @@ function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
       ) {
         fullName = v;
       }
-      // 4. Batch / Graduation Year / Cohort
+      // 8. Batch / Graduation Year / Cohort
       else if (
         k.includes('batch') ||
         k.includes('gradyear') ||
@@ -886,7 +1031,7 @@ function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
           batchYear = `20${digits}`;
         }
       }
-      // 5. Course / Degree / Program / Major
+      // 9. Course / Degree / Program / Major
       else if (
         k.includes('course') ||
         k.includes('degree') ||
@@ -896,19 +1041,15 @@ function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
       ) {
         course = v;
       }
-      // 6. Honors / Remarks / Awards
+      // 10. Honors / Remarks / Awards
       else if (k.includes('honor') || k.includes('award') || k.includes('remark') || k.includes('distinction')) {
         honors = v;
       }
-      // 7. Email
+      // 11. Email
       else if (k.includes('email') || k.includes('mail')) {
         email = v;
       }
-      // 8. Phone
-      else if (k.includes('phone') || k.includes('contact') || k.includes('mobile') || k.includes('tel')) {
-        phone = v;
-      }
-      // 9. Status
+      // 12. Status
       else if (k.includes('status')) {
         if (
           v.toLowerCase().includes('unverif') ||
@@ -925,42 +1066,43 @@ function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
           status = 'Graduated';
         }
       } else if (!isSheetParserEmptyKey) {
-        nonNameCells.push(v);
+        // Keep unmapped non-empty cells ignored cleanly
       }
     }
 
     // Assemble split names if full name not explicitly provided
-    if (!fullName) {
-      if (firstName || lastName) {
-        fullName = [firstName, middleName, lastName, suffix].filter(Boolean).join(' ').trim();
-      }
+    if (!fullName && (firstName || lastName)) {
+      fullName = [firstName, middleName, lastName, suffix].filter(Boolean).join(' ').trim();
     }
 
     // Fallback: If no explicit student ID was found, check if any column value matches ID pattern
     if (!studentId) {
       for (const val of Object.values(row)) {
         const str = String(val || '').trim();
-        if (/^(SCC-)?\d{4}-\d{3,5}$/i.test(str) || /^[A-Z]{3,6}\d{2,6}$/i.test(str)) {
+        if (
+          /^(SCC-|SC-)?\d{2}-\d{6,9}$/i.test(str) ||
+          /^(SCC-|SC-)?\d{4}-\d{3,5}$/i.test(str)
+        ) {
           studentId = normalizeStudentId(str);
           break;
         }
       }
     }
 
-    // Intelligent Name Fallback:
-    // If student ID is found but full name is still missing, inspect remaining string cells
-    // that look like a person's name (letters and spaces, no digits, no email symbols, not a degree name)
+    // Intelligent Name Fallback
     if (!fullName) {
       for (const cellVal of Object.values(row)) {
         const str = String(cellVal || '').trim().replace(/^["']|["']$/g, '');
         if (
           str.length >= 3 &&
           str !== studentId &&
+          str !== guardianName &&
+          str !== homeAddress &&
           !/^\d+$/.test(str) &&
           !/^[A-Z0-9-]{6,}$/i.test(str) &&
           !/@/.test(str) &&
           !/^(https?:\/\/|\+?\d)/.test(str) &&
-          !/^(bs|b\.s\.|bachelor|master|associate|diploma|college|university|graduated|enrolled|active|pending)/i.test(str) &&
+          !/^(bs|b\.s\.|bachelor|master|associate|diploma|college|university|graduated|enrolled|active|pending|none)/i.test(str) &&
           /^[a-zA-Z\s.,'-]+$/.test(str)
         ) {
           fullName = str;
@@ -969,17 +1111,22 @@ function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
       }
     }
 
-    // Only add if at least student ID or Name is present
     if (studentId || fullName) {
+      const resolvedId = studentId || `SCC-${batchYear || '2024'}-${generateSecureNumericCode(1000, 9999)}`;
+      const derivedBatch = batchYear || deriveBatchYearFromStudentId(resolvedId);
+
       records.push({
-        studentId: studentId || `SCC-${batchYear || '2024'}-${generateSecureNumericCode(1000, 9999)}`,
+        studentId: resolvedId,
         fullName: fullName || 'Accredited Graduate',
-        batchYear: batchYear || '2024',
-        course: course || 'Bachelor Degree Program',
+        batchYear: derivedBatch,
+        course: course || 'BSIT',
+        guardianName: guardianName || undefined,
+        phone: phone || undefined,
+        birthDate: birthDate || undefined,
+        homeAddress: homeAddress || undefined,
         status,
         honors: honors || undefined,
         email: email || undefined,
-        phone: phone || undefined,
         verifiedAt: new Date().toISOString().split('T')[0]
       });
     }
@@ -989,131 +1136,130 @@ function mapRowsToStudentRecords(rows: any[]): StudentVerificationRecord[] {
 }
 
 /**
- * Curated list of test student records available for instant CSV/Excel export
- * and actual registration testing
+ * Curated list of test student records matching the official 7-column institutional spreadsheet schema
  */
 export const SAMPLE_TEST_STUDENTS: Array<{
   studentId: string;
   fullName: string;
   batchYear: string;
   course: string;
-  status: 'Graduated' | 'Enrolled' | 'Alumni';
-  honors: string;
-  email: string;
+  guardianName: string;
   phone: string;
+  birthDate: string;
+  homeAddress: string;
+  status: 'Graduated' | 'Enrolled' | 'Alumni';
+  honors?: string;
+  email?: string;
 }> = [
   {
+    studentId: 'SCC-22-00017358',
+    fullName: 'Abellana, Vincent Anthony D.',
+    batchYear: '2022',
+    course: 'BSIT',
+    guardianName: 'Andrea Q. Abellana',
+    phone: '09608218788',
+    birthDate: '07/08/2002',
+    homeAddress: 'Pakigne, Minglanilla, Cebu',
+    status: 'Graduated'
+  },
+  {
+    studentId: 'SCC-20-00010846',
+    fullName: 'Abendan, Christian James R.',
+    batchYear: '2020',
+    course: 'BSIT',
+    guardianName: 'none',
+    phone: '0919-362-2447',
+    birthDate: '04/27/2004',
+    homeAddress: 'Pob. Ward 2, Minglanilla, Cebu',
+    status: 'Graduated'
+  },
+  {
+    studentId: 'SCC-20-00010862',
+    fullName: 'Adlawan, Eljohn Dave L.',
+    batchYear: '2020',
+    course: 'BSIT',
+    guardianName: 'Merlin L. Adlawan',
+    phone: '0963-900-8718',
+    birthDate: '10/31/2003',
+    homeAddress: 'Spring Village Pakigne Minglanilla Cebu',
+    status: 'Graduated'
+  },
+  {
+    studentId: 'SCC-22-00017264',
+    fullName: 'Albarando, Romeo Jr. V.',
+    batchYear: '2022',
+    course: 'BSIT',
+    guardianName: 'Romeo G. Albarando Sr.',
+    phone: '09201358004',
+    birthDate: '11/11/1997',
+    homeAddress: 'Tubod Minglanilla Cebu',
+    status: 'Graduated'
+  },
+  {
+    studentId: 'SCC-17-0004402',
+    fullName: 'ALBARICO, ARCHIE A.',
+    batchYear: '2017',
+    course: 'BSIT',
+    guardianName: 'JESSIE A. ALBARICO',
+    phone: '0949-185-3866',
+    birthDate: '10/24/2000',
+    homeAddress: 'TUNGHA-AN, MINGLANILLA, CEBU',
+    status: 'Graduated'
+  },
+  {
+    studentId: 'SCC-22-00014927',
+    fullName: 'Almendras, Josh Vincent',
+    batchYear: '2022',
+    course: 'BSIT',
+    guardianName: 'Lillian Konrad',
+    phone: '09368437163',
+    birthDate: '09/04/2003',
+    homeAddress: '1823, Lawaan I, Talisay City, Cebu',
+    status: 'Graduated'
+  },
+  {
     studentId: 'SCC-2024-1001',
-    fullName: 'Alexander James Morales',
+    fullName: 'Morales, Alexander James',
     batchYear: '2024',
-    course: 'B.S. Information Technology',
-    status: 'Graduated',
-    honors: 'Summa Cum Laude, Best Capstone Lead',
-    email: 'alex.morales@alumni.stcecilia.edu',
-    phone: '+63 917 123 4567'
-  },
-  {
-    studentId: 'SCC-2024-1002',
-    fullName: 'Patricia Anne Navarro',
-    batchYear: '2024',
-    course: 'B.S. Computer Science',
-    status: 'Graduated',
-    honors: 'Magna Cum Laude',
-    email: 'patricia.navarro@alumni.stcecilia.edu',
-    phone: '+63 918 234 5678'
-  },
-  {
-    studentId: 'SCC-2024-1003',
-    fullName: 'Christian Dave Velasco',
-    batchYear: '2024',
-    course: 'B.S. Accountancy',
-    status: 'Graduated',
-    honors: 'Cum Laude, CPA Board Candidate',
-    email: 'cd.velasco@alumni.stcecilia.edu',
-    phone: '+63 919 345 6789'
-  },
-  {
-    studentId: 'SCC-2025-2001',
-    fullName: 'Janelle Therese Ramos',
-    batchYear: '2025',
-    course: 'B.S. Nursing',
-    status: 'Graduated',
-    honors: 'Dean’s Lister, Clinical Excellence',
-    email: 'janelle.ramos@alumni.stcecilia.edu',
-    phone: '+63 920 456 7890'
-  },
-  {
-    studentId: 'SCC-2025-2002',
-    fullName: 'Miguel Rafael Gutierrez',
-    batchYear: '2025',
-    course: 'B.S. Business Administration',
-    status: 'Graduated',
-    honors: 'Leadership Excellence Award',
-    email: 'miguel.gutierrez@alumni.stcecilia.edu',
-    phone: '+63 921 567 8901'
-  },
-  {
-    studentId: 'SCC-2026-3001',
-    fullName: 'Samantha Rose Del Rosario',
-    batchYear: '2026',
-    course: 'B.S. Information Technology',
-    status: 'Graduated',
-    honors: 'Outstanding Software Project',
-    email: 'samantha.delrosario@alumni.stcecilia.edu',
-    phone: '+63 922 678 9012'
-  },
-  {
-    studentId: 'SCC-2026-3002',
-    fullName: 'Francis Kenneth Aquino',
-    batchYear: '2026',
-    course: 'B.S. Hospitality Management',
-    status: 'Graduated',
-    honors: 'Presidential Scholar',
-    email: 'francis.aquino@alumni.stcecilia.edu',
-    phone: '+63 923 789 0123'
-  },
-  {
-    studentId: 'SCC-2023-4001',
-    fullName: 'Katrina Marie Mendoza',
-    batchYear: '2023',
-    course: 'B.S. Education',
-    status: 'Graduated',
-    honors: 'Magna Cum Laude',
-    email: 'katrina.mendoza@alumni.stcecilia.edu',
-    phone: '+63 924 890 1234'
+    course: 'BSIT',
+    guardianName: 'Elena Morales',
+    phone: '09171234567',
+    birthDate: '05/14/2002',
+    homeAddress: 'Linao, Minglanilla, Cebu',
+    status: 'Graduated'
   }
 ];
 
+const REGISTRAR_SEVEN_COLUMN_HEADERS = [
+  'Student ID',
+  'FullName',
+  'Course',
+  'G_name',
+  'Home_No',
+  'B_date',
+  'Home_Add'
+] as const;
+
 /**
- * Downloads a pre-formatted CSV template populated with ready-to-test student records
+ * Downloads a pre-formatted 7-column CSV template populated with ready-to-test student records
  */
 export function downloadSampleCsvTemplate(): void {
-  const headers = [
-    'Student ID',
-    'Full Name',
-    'Batch Year',
-    'Course',
-    'Status',
-    'Honors',
-    'Email Address',
-    'Contact Phone'
-  ];
-
   const sampleRows = SAMPLE_TEST_STUDENTS.map((s) => [
     s.studentId,
     s.fullName,
-    s.batchYear,
     s.course,
-    s.status,
-    s.honors,
-    s.email,
-    s.phone
+    s.guardianName,
+    s.phone,
+    s.birthDate,
+    s.homeAddress
   ]);
 
-  const csvContent = [
-    headers.join(','),
-    ...sampleRows.map((row) => row.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(','))
-  ].join('\n');
+  const csvContent =
+    '\uFEFF' +
+    [
+      REGISTRAR_SEVEN_COLUMN_HEADERS.join(','),
+      ...sampleRows.map((row) => row.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\r\n');
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -1127,34 +1273,44 @@ export function downloadSampleCsvTemplate(): void {
 }
 
 /**
- * Downloads a pre-formatted Excel (.xlsx) file populated with ready-to-test student records
+ * Downloads a pre-formatted 7-column Excel (.xlsx) file populated with ready-to-test student records
  */
 export function downloadSampleExcelTemplate(): void {
   const data = SAMPLE_TEST_STUDENTS.map((s) => ({
     'Student ID': s.studentId,
-    'Full Name': s.fullName,
-    'Batch Year': s.batchYear,
-    'Course': s.course,
-    'Status': s.status,
-    'Honors': s.honors,
-    'Email Address': s.email,
-    'Contact Phone': s.phone
+    FullName: s.fullName,
+    Course: s.course,
+    G_name: s.guardianName,
+    Home_No: s.phone,
+    B_date: s.birthDate,
+    Home_Add: s.homeAddress
   }));
 
-  const worksheet = XLSX.utils.json_to_sheet(data);
+  const worksheet = XLSX.utils.json_to_sheet(data, { header: [...REGISTRAR_SEVEN_COLUMN_HEADERS] });
+  for (let r = 1; r <= data.length; r++) {
+    const phoneRef = XLSX.utils.encode_cell({ r, c: 4 });
+    if (worksheet[phoneRef]) {
+      worksheet[phoneRef].t = 's';
+      worksheet[phoneRef].z = '@';
+    }
+    const bdateRef = XLSX.utils.encode_cell({ r, c: 5 });
+    if (worksheet[bdateRef]) {
+      worksheet[bdateRef].t = 's';
+      worksheet[bdateRef].z = '@';
+    }
+  }
+
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Students Masterlist');
 
-  // Auto-size columns for clear readability
   worksheet['!cols'] = [
-    { wch: 16 }, // Student ID
-    { wch: 30 }, // Full Name
-    { wch: 12 }, // Batch Year
-    { wch: 32 }, // Course
-    { wch: 14 }, // Status
-    { wch: 32 }, // Honors
-    { wch: 36 }, // Email Address
-    { wch: 20 }  // Phone
+    { wch: 18 }, // Student ID
+    { wch: 30 }, // FullName
+    { wch: 12 }, // Course
+    { wch: 24 }, // G_name
+    { wch: 16 }, // Home_No
+    { wch: 13 }, // B_date
+    { wch: 38 }  // Home_Add
   ];
 
   XLSX.writeFile(workbook, 'st_cecilias_students_masterlist_template.xlsx');
@@ -1218,12 +1374,15 @@ export async function bulkImportStudentsToFirestore(
       ...raw,
       studentId: normId,
       fullName: raw.fullName.trim(),
-      batchYear: raw.batchYear ? String(raw.batchYear).trim() : (current?.batchYear || '2024'),
-      course: raw.course ? raw.course.trim() : (current?.course || 'Bachelor Degree Program'),
+      batchYear: raw.batchYear ? String(raw.batchYear).trim() : (current?.batchYear || deriveBatchYearFromStudentId(normId)),
+      course: raw.course ? raw.course.trim() : (current?.course || 'BSIT'),
+      guardianName: raw.guardianName ?? current?.guardianName,
+      phone: raw.phone ?? current?.phone,
+      birthDate: raw.birthDate ?? current?.birthDate,
+      homeAddress: raw.homeAddress ?? current?.homeAddress,
       status: raw.status || current?.status || 'Graduated',
       honors: raw.honors || current?.honors || undefined,
       email: raw.email || current?.email || undefined,
-      phone: raw.phone || current?.phone || undefined,
       isRegistered: current?.isRegistered ?? false,
       registeredAt: current?.registeredAt,
       matchedUid: current?.matchedUid,
@@ -1275,49 +1434,28 @@ export async function bulkImportStudentsToFirestore(
 }
 
 /**
- * Downloads the active registry records as a formatted CSV file for offline auditing
+ * Downloads the active registry records as a formatted 7-column CSV file:
+ * Student ID | FullName | Course | G_name | Home_No | B_date | Home_Add
  */
 export function exportRegistryRecordsToCsv(recordsToExport?: StudentVerificationRecord[]): void {
   const records = recordsToExport || getRegistrarRecords();
 
-  const headers = [
-    'Student ID',
-    'Full Name',
-    'Batch Year',
-    'Degree / Course',
-    'Academic Status',
-    'Honors & Distinctions',
-    'Institutional Email',
-    'Contact Phone',
-    'Registration Status',
-    'Matched Account UID',
-    'Registration Date',
-    'Uploaded Timestamp',
-    'Uploaded By',
-    'Source Spreadsheet'
-  ];
-
   const rows = records.map((r) => [
     r.studentId || '',
     r.fullName || '',
-    r.batchYear || '',
     r.course || '',
-    r.status || 'Graduated',
-    r.honors || '',
-    r.email || '',
+    r.guardianName || '',
     r.phone || '',
-    r.isRegistered ? 'Registered & Verified' : 'Pending Sign-Up',
-    r.matchedUid || '',
-    r.registeredAt || '',
-    r.uploadedAt || '',
-    r.uploadedBy || '',
-    r.sourceFile || ''
+    r.birthDate || '',
+    r.homeAddress || ''
   ]);
 
-  const csvContent = [
-    headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(','),
-    ...rows.map((row) => row.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(','))
-  ].join('\n');
+  const csvContent =
+    '\uFEFF' +
+    [
+      REGISTRAR_SEVEN_COLUMN_HEADERS.map((h) => `"${h}"`).join(','),
+      ...rows.map((row) => row.map((val) => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\r\n');
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -1329,6 +1467,54 @@ export function exportRegistryRecordsToCsv(recordsToExport?: StudentVerification
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Downloads the active registry records as a formatted 7-column Excel (.xlsx) file:
+ * Student ID | FullName | Course | G_name | Home_No | B_date | Home_Add
+ */
+export function exportRegistryRecordsToExcel(recordsToExport?: StudentVerificationRecord[]): void {
+  const records = recordsToExport || getRegistrarRecords();
+
+  const data = records.map((r) => ({
+    'Student ID': r.studentId || '',
+    FullName: r.fullName || '',
+    Course: r.course || '',
+    G_name: r.guardianName || '',
+    Home_No: r.phone || '',
+    B_date: r.birthDate || '',
+    Home_Add: r.homeAddress || ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(data, { header: [...REGISTRAR_SEVEN_COLUMN_HEADERS] });
+  for (let r = 1; r <= data.length; r++) {
+    const phoneRef = XLSX.utils.encode_cell({ r, c: 4 });
+    if (worksheet[phoneRef]) {
+      worksheet[phoneRef].t = 's';
+      worksheet[phoneRef].z = '@';
+    }
+    const bdateRef = XLSX.utils.encode_cell({ r, c: 5 });
+    if (worksheet[bdateRef]) {
+      worksheet[bdateRef].t = 's';
+      worksheet[bdateRef].z = '@';
+    }
+  }
+
+  worksheet['!cols'] = [
+    { wch: 18 },
+    { wch: 30 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 16 },
+    { wch: 13 },
+    { wch: 38 }
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Registrar Registry');
+
+  const dateStr = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `st_cecilias_alumni_registry_audit_${dateStr}.xlsx`);
 }
 
 // =========================================================================

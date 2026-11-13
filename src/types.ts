@@ -162,6 +162,8 @@ export interface UserProfile {
   about: string;
   bio?: string;
   phone: string;
+  guardianName?: string;
+  homeAddress?: string;
   isVerified?: boolean;
   verified?: boolean;
   followersCount: number;
@@ -665,6 +667,8 @@ export interface StudentVerificationRecord {
   email?: string;
   phone?: string;
   birthDate?: string;
+  guardianName?: string;
+  homeAddress?: string;
   graduationStatus?: string;
   latinHonors?: string;
   isRegistered?: boolean;

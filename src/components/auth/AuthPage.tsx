@@ -70,7 +70,8 @@ import {
   validateStudentRegistrationStrict,
   generateAlumniId,
   lookupStudentBySchoolId,
-  addRegistrationConflict
+  addRegistrationConflict,
+  splitFullNameParts
 } from '../../services/studentVerificationService';
 import { saveConflictRecordToFirestore } from '../../lib/firebase';
 import { getCentenaryBatchYears } from '../../services/longevityService';
@@ -924,24 +925,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       );
       setScreeningError('');
 
-      // Auto-populate user details from registrar record to reduce user typing and clicks
-      const fullName = lookup.matchedRecord.fullName.trim();
-      const parts = fullName.split(' ');
-      if (parts.length > 1) {
-        setLastName(parts[parts.length - 1]);
-        setFirstName(parts.slice(0, -1).join(' '));
-      } else {
-        setFirstName(fullName);
-        setLastName('');
-      }
+      // Auto-populate user details from registrar record (handles both "Last, First M." and "First M. Last")
+      const { firstName: parsedFirst, lastName: parsedLast } = splitFullNameParts(lookup.matchedRecord.fullName);
+      setFirstName(parsedFirst);
+      setLastName(parsedLast);
       if (lookup.matchedRecord.batchYear) setBatch(lookup.matchedRecord.batchYear);
       if (lookup.matchedRecord.course) setCourse(lookup.matchedRecord.course);
       if (lookup.matchedRecord.email && !regEmail) setRegEmail(lookup.matchedRecord.email);
+      if (lookup.matchedRecord.phone && !phone) setPhone(lookup.matchedRecord.phone.replace(/[^0-9]/g, '').slice(0, 11));
+      if (lookup.matchedRecord.homeAddress && !location) setLocation(lookup.matchedRecord.homeAddress);
     } else {
       setStudentVerificationStatus('failed');
       setIsRegistryMatched(false);
       setVerifiedRecord(null);
-      const msg = lookup.errorMessage || `School ID "${targetId}" was not found in the official registrar masterlist. Expected format: SCC-YYYY-XXXX (e.g. SCC-2020-0192).`;
+      const msg = lookup.errorMessage || `School ID "${targetId}" was not found in the official registrar masterlist. Accepted formats: SCC-22-00017358 or SCC-2020-0192.`;
       setScreeningError(msg);
       setVerificationMessage(msg);
     }
@@ -1239,25 +1236,21 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         setStudentVerificationStatus('verified');
         setIsRegistryMatched(true);
         setVerifiedRecord(lookup.matchedRecord);
-        const fullName = lookup.matchedRecord.fullName.trim();
-        const parts = fullName.split(' ');
-        if (parts.length > 1) {
-          setFirstName(parts.slice(0, -1).join(' '));
-          setLastName(parts[parts.length - 1]);
-        } else {
-          setFirstName(fullName);
-          setLastName('');
-        }
+        const { firstName: parsedFirst, lastName: parsedLast } = splitFullNameParts(lookup.matchedRecord.fullName);
+        setFirstName(parsedFirst);
+        setLastName(parsedLast);
         if (lookup.matchedRecord.batchYear) setBatch(lookup.matchedRecord.batchYear);
         if (lookup.matchedRecord.course) setCourse(lookup.matchedRecord.course);
         if (lookup.matchedRecord.email && !regEmail) setRegEmail(lookup.matchedRecord.email);
+        if (lookup.matchedRecord.phone && !phone) setPhone(lookup.matchedRecord.phone.replace(/[^0-9]/g, '').slice(0, 11));
+        if (lookup.matchedRecord.homeAddress && !location) setLocation(lookup.matchedRecord.homeAddress);
         setStep(2);
         return;
       } else {
         setStudentVerificationStatus('failed');
         setIsRegistryMatched(false);
         setVerifiedRecord(null);
-        const msg = lookup.errorMessage || `School ID "${targetId}" was not found in the official registrar masterlist. Expected format: SCC-YYYY-XXXX (e.g. SCC-2020-0192).`;
+        const msg = lookup.errorMessage || `School ID "${targetId}" was not found in the official registrar masterlist. Accepted formats: SCC-22-00017358 or SCC-2020-0192.`;
         setScreeningError(msg);
         setVerificationMessage(msg);
         return;
@@ -1331,9 +1324,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       employmentStatus: finalEmploymentStatus as any,
       batch: finalBatch,
       course: finalCourse,
-      location: location.trim() || 'Cebu, Philippines',
+      location: location.trim() || verifiedRecord?.homeAddress || 'Cebu, Philippines',
       headline: generatedHeadline,
-      phone: phone.trim() || '+63 917 123 4567',
+      phone: phone.trim() || verifiedRecord?.phone || '+63 917 123 4567',
+      guardianName: verifiedRecord?.guardianName,
+      homeAddress: verifiedRecord?.homeAddress || location.trim() || undefined,
+      birthday: verifiedRecord?.birthDate,
       studentId: finalStudentId,
       alumniId: generatedAlumniId,
       isVerified: isAutoVerified,
@@ -2817,9 +2813,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                                 <p className="text-stone-300 leading-relaxed mb-2">
                                   Your official Student ID is printed on your SCC Student/Alumni Card, Official Transcript of Records (TOR), or graduation diploma.
                                 </p>
-                                <div className="p-1.5 bg-stone-800/90 rounded-lg font-mono text-[10px] text-amber-300 flex items-center justify-between">
-                                  <span>Format: SCC-YYYY-XXXX</span>
-                                  <span className="text-stone-400">e.g. SCC-2020-0192</span>
+                                <div className="p-1.5 bg-stone-800/90 rounded-lg font-mono text-[10px] text-amber-300 flex items-center justify-between gap-2">
+                                  <span>SCC-YY-XXXXXXXX / SCC-YYYY-XXXX</span>
+                                  <span className="text-stone-400">e.g. SCC-22-00017358</span>
                                 </div>
                                 <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-stone-900" />
                               </div>
@@ -2827,7 +2823,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                           </div>
 
                           <span className="text-[10px] text-stone-400 font-mono">
-                            Format: SCC-YYYY-XXXX
+                            SCC-22-00017358 / SCC-2020-0192
                           </span>
                         </div>
 
@@ -2844,7 +2840,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                                 setVerificationMessage('');
                               }
                             }}
-                            placeholder="e.g. SCC-2020-0192"
+                            placeholder="e.g. SCC-22-00017358 or SCC-2020-0192"
                             className={`w-full pl-4 pr-10 py-3 bg-white border rounded-xl text-sm font-mono tracking-wide transition-all shadow-2xs ${
                               studentVerificationStatus === 'verified'
                                 ? 'border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-950 font-semibold'

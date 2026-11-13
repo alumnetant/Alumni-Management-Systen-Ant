@@ -94,6 +94,7 @@ import { subscribeToConflictRecords } from '../../lib/firebase';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
 import { compressImage } from '../../lib/utils';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
+import { PullToRefreshWrapper } from '../common/PullToRefreshWrapper';
 
 export type WorkspaceModuleId =
   | 'dashboard'
@@ -140,6 +141,8 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
     announcements,
     events,
     syncAllDataToCloud,
+    refreshData,
+    isOnline,
     isFirestoreSyncing,
     showToast,
     logout,
@@ -1172,6 +1175,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             PRIMARY ADMINISTRATIVE CONTENT VIEWPORT
             ====================================================== */}
         <main className="flex-1 min-w-0 w-full max-w-full px-3 sm:px-6 lg:px-8 py-6">
+          <PullToRefreshWrapper onRefresh={refreshData} isOnline={isOnline}>
           <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto animate-in fade-in duration-200">
             
             {/* MODULE: Dashboard Overview (REFERENCE DESIGN) */}
@@ -1503,6 +1507,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             )}
 
           </div>
+          </PullToRefreshWrapper>
         </main>
       </div>
 

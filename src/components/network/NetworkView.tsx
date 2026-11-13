@@ -36,14 +36,15 @@ import {
   Activity,
   Layers,
   Send,
-  ShieldAlert
+  ShieldAlert,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { UserProfile } from '../../types';
 import { getStatusConfig, QUICK_STATUS_OPTIONS, QuickStatusSelector } from '../dashboard/QuickStatusSelector';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
-import { exportAlumniRosterCsv } from '../../services/adminExportService';
+import { exportAlumniRosterCsv, exportAlumniRosterExcel } from '../../services/adminExportService';
 import { getUserOnlineStatus } from '../../lib/userStatus';
 import { isEmployerVisibleInDirectory } from '../../lib/employerValidation';
 import { PaginationControl } from '../common/PaginationControl';
@@ -689,17 +690,28 @@ export const NetworkView: React.FC = () => {
           </button>
         </div>
 
-        {/* Download Alumni List CSV */}
+        {/* Download Alumni List CSV & Excel */}
         <button
           type="button"
           onClick={() => {
             exportAlumniRosterCsv(users, 'st_cecilia_alumni_directory');
             showToast?.(`Exported ${users.length} alumni to CSV!`, 'success');
           }}
-          title="Download Alumni CSV"
+          title="Download Alumni CSV (7-column format)"
           className="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 flex items-center justify-center text-stone-700 dark:text-stone-300 transition-all cursor-pointer shrink-0"
         >
           <Download className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            exportAlumniRosterExcel(users, 'st_cecilia_alumni_directory');
+            showToast?.(`Exported ${users.length} alumni to Excel (.xlsx)!`, 'success');
+          }}
+          title="Download Alumni Excel (.xlsx) (7-column format)"
+          className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-700 dark:text-emerald-300 transition-all cursor-pointer shrink-0"
+        >
+          <FileSpreadsheet className="w-4 h-4" />
         </button>
       </div>
     </div>

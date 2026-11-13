@@ -43,12 +43,13 @@ import {
   CheckSquare,
   Loader2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { UserProfile, UserRole, isAdministrativeOrStaffRole } from '../../types';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
-import { exportAlumniRosterCsv } from '../../services/adminExportService';
+import { exportAlumniRosterCsv, exportAlumniRosterExcel } from '../../services/adminExportService';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { AdminAccountSuspensionModal } from './AdminAccountSuspensionModal';
 import { SuspensionHistoryModal } from './SuspensionHistoryModal';
@@ -437,6 +438,34 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                   {secondaryFiltersCount}
                 </span>
               )}
+            </button>
+
+            {/* Export CSV & Excel (.xlsx) */}
+            <button
+              type="button"
+              onClick={() => {
+                const target = filteredUsers.length > 0 ? filteredUsers : users;
+                exportAlumniRosterCsv(target, 'st_cecilia_alumni_directory');
+                showToast(`Exported ${target.length} directory records to CSV!`, 'success');
+              }}
+              className="px-2.5 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700/70 text-stone-700 dark:text-stone-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Export Alumni Directory to CSV (7-column format)"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const target = filteredUsers.length > 0 ? filteredUsers : users;
+                exportAlumniRosterExcel(target, 'st_cecilia_alumni_directory');
+                showToast(`Exported ${target.length} directory records to Excel (.xlsx)!`, 'success');
+              }}
+              className="px-2.5 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800/70 bg-emerald-50/60 dark:bg-emerald-950/40 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Export Alumni Directory to Excel (.xlsx) (7-column format)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Excel</span>
             </button>
 
             {/* View Mode Switcher: Cards vs Table */}

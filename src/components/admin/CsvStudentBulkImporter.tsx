@@ -98,19 +98,15 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
       if (!normId) {
         errors.push('Student ID is missing');
       } else if (!isValidStudentIdPattern(normId)) {
-        warnings.push(`Non-standard ID format (Expected SC-YYYY-XXXX)`);
+        warnings.push('Non-standard ID format (Expected SCC-22-00017358 or SCC-2024-1001)');
       }
 
       if (!rec.fullName || !rec.fullName.trim()) {
-        errors.push('Full name is required');
-      }
-
-      if (!rec.batchYear) {
-        warnings.push('Batch year missing (defaulted to 2024)');
+        errors.push('FullName is required');
       }
 
       if (!rec.course) {
-        warnings.push('Course / Program missing (defaulted)');
+        warnings.push('Course missing (defaulted to BSIT)');
       }
 
       if (rec.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rec.email.trim())) {
@@ -236,10 +232,13 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
       fullName: s.fullName,
       batchYear: s.batchYear,
       course: s.course,
+      guardianName: s.guardianName,
+      phone: s.phone,
+      birthDate: s.birthDate,
+      homeAddress: s.homeAddress,
       status: s.status,
       honors: s.honors,
       email: s.email,
-      phone: s.phone,
       uploadedAt: new Date().toISOString(),
       uploadedBy: 'Pre-loaded Cecilian Sample'
     }));
@@ -607,18 +606,19 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
                 <tr>
                   <th className="p-2.5">Status</th>
                   <th className="p-2.5">Student ID</th>
-                  <th className="p-2.5">Full Name</th>
-                  <th className="p-2.5">Batch</th>
-                  <th className="p-2.5">Course / Degree</th>
-                  <th className="p-2.5">Honors</th>
-                  <th className="p-2.5">Email</th>
+                  <th className="p-2.5">FullName</th>
+                  <th className="p-2.5">Course</th>
+                  <th className="p-2.5">G_name</th>
+                  <th className="p-2.5">Home_No</th>
+                  <th className="p-2.5">B_date</th>
+                  <th className="p-2.5">Home_Add</th>
                   <th className="p-2.5">Notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100 text-stone-800">
                 {displayedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="p-6 text-center text-stone-400">
+                    <td colSpan={9} className="p-6 text-center text-stone-400">
                       No records match the current filter.
                     </td>
                   </tr>
@@ -652,20 +652,25 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
                           </span>
                         )}
                       </td>
-                      <td className="p-2.5 font-mono font-bold text-stone-900">
+                      <td className="p-2.5 font-mono tabular-nums font-bold text-stone-900 whitespace-nowrap">
                         {row.record.studentId || <span className="text-rose-500 italic">Empty</span>}
                       </td>
-                      <td className="p-2.5 font-semibold text-stone-900">
+                      <td className="p-2.5 font-semibold text-stone-900 whitespace-nowrap">
                         {row.record.fullName || <span className="text-rose-500 italic">Missing</span>}
                       </td>
-                      <td className="p-2.5 font-mono text-stone-600">{row.record.batchYear || '—'}</td>
-                      <td className="p-2.5 text-stone-700 max-w-[180px] truncate" title={row.record.course}>
-                        {row.record.course || '—'}
+                      <td className="p-2.5 text-stone-700 whitespace-nowrap">{row.record.course || '—'}</td>
+                      <td className="p-2.5 text-stone-600 max-w-[160px] truncate" title={row.record.guardianName}>
+                        {row.record.guardianName || '—'}
                       </td>
-                      <td className="p-2.5 text-stone-500 max-w-[150px] truncate" title={row.record.honors}>
-                        {row.record.honors || '—'}
+                      <td className="p-2.5 font-mono tabular-nums text-stone-600 whitespace-nowrap">
+                        {row.record.phone || '—'}
                       </td>
-                      <td className="p-2.5 text-stone-500">{row.record.email || '—'}</td>
+                      <td className="p-2.5 font-mono tabular-nums text-stone-600 whitespace-nowrap">
+                        {row.record.birthDate || '—'}
+                      </td>
+                      <td className="p-2.5 text-stone-500 max-w-[200px] truncate" title={row.record.homeAddress}>
+                        {row.record.homeAddress || '—'}
+                      </td>
                       <td className="p-2.5 text-[11px]">
                         {row.errors.length > 0 && (
                           <span className="text-rose-600 font-semibold">{row.errors.join(', ')}</span>
