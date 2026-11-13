@@ -666,7 +666,7 @@ export const MessagesView: React.FC = () => {
               backgroundColor: 'var(--dm-bg-deck)',
               borderColor: 'var(--dm-border)',
             }}
-            className="rounded-[24px] sm:rounded-[32px] border shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden flex flex-col lg:flex-row h-[calc(100dvh-100px)] min-h-[500px]"
+            className="rounded-[24px] sm:rounded-[32px] border shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-x-clip lg:overflow-hidden flex flex-col lg:flex-row h-[calc(100dvh-11.5rem)] lg:h-[calc(100dvh-100px)] min-h-[420px] lg:min-h-[500px]"
           >
             
             {/* LEFT RAIL: CHANNELS STREAM */}
@@ -1001,7 +1001,7 @@ export const MessagesView: React.FC = () => {
               style={{
                 backgroundColor: 'var(--dm-bg-chat)',
               }}
-              className={`flex-1 flex flex-col min-w-0 h-full ${
+              className={`flex-1 flex flex-col min-w-0 min-h-0 h-full ${
                 !activeChatId ? 'hidden lg:flex' : 'flex'
               }`}
             >
@@ -1013,7 +1013,7 @@ export const MessagesView: React.FC = () => {
                       backgroundColor: 'var(--dm-bg-header)',
                       borderColor: 'var(--dm-border)',
                     }}
-                    className="p-3 sm:p-4 border-b flex items-center justify-between gap-2.5 shrink-0 sticky top-0 z-20 backdrop-blur-md"
+                    className="p-3 sm:p-4 border-b flex items-center justify-between gap-2.5 shrink-0 sticky top-[calc(4rem+env(safe-area-inset-top,0px))] lg:top-0 z-30 backdrop-blur-md rounded-t-[24px] sm:rounded-t-[32px] lg:rounded-none"
                   >
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <button
@@ -1188,11 +1188,11 @@ export const MessagesView: React.FC = () => {
                   {/* Messages Feed + Dossier */}
                   <div
                     style={{ backgroundColor: 'var(--dm-bg-chat)' }}
-                    className="flex-1 flex overflow-hidden"
+                    className="flex-1 flex min-h-0 overflow-hidden"
                   >
                     <div
                       style={{ backgroundColor: 'var(--dm-bg-chat)' }}
-                      className="flex-1 flex flex-col overflow-hidden"
+                      className="flex-1 flex flex-col min-h-0 overflow-hidden"
                     >
                       {/* Message Bubble Feed */}
                       <div className="flex-1 p-4 overflow-y-auto space-y-3.5">
