@@ -50,7 +50,8 @@ import {
   getRegistrarRecords,
   normalizeStudentId,
   markRegistryRecordAsRegistered,
-  syncRegistrationConflictsWithFirestore
+  syncRegistrationConflictsWithFirestore,
+  mergeCloudConflictsWithLocal
 } from '../../services/studentVerificationService';
 import { subscribeToConflictRecords } from '../../lib/firebase';
 import {
@@ -102,8 +103,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
   const [selectedConflictIds, setSelectedConflictIds] = useState<string[]>([]);
   const [bulkNote, setBulkNote] = useState('');
   const [isProcessingBulk, setIsProcessingBulk] = useState(false);
-  const [resolvingConflictId, setResolvingConflictId] = useState<string | null>(null);
-  const [singleNote, setSingleNote] = useState('');
+  const [singleNotesById, setSingleNotesById] = useState<Record<string, string>>({});
 
   // Auto-reconciliation loading state
   const [isReconciling, setIsReconciling] = useState(false);
@@ -126,11 +126,10 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
       setConflicts(merged);
     });
 
-    // Real-time Firestore listener: instant updates when alumnus submits dispute/manual verification
+    // Real-time Firestore listener: merge cloud snapshot into local cache & state
     const unsubscribeFirestore = subscribeToConflictRecords((cloudConflicts) => {
-      if (cloudConflicts && cloudConflicts.length > 0) {
-        setConflicts(cloudConflicts);
-      }
+      const merged = mergeCloudConflictsWithLocal(cloudConflicts || []);
+      setConflicts(merged);
     });
 
     const handleUpdate = () => loadConflicts();
@@ -335,6 +334,35 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     setTimeout(() => setCopiedText(null), 1800);
   };
 
+  // Helper to resolve any pending conflicts matching an approved user
+  const autoResolveMatchingConflicts = (userId: string, studentId?: string) => {
+    const matchedUser = users.find((u) => u.uid === userId);
+    const emailLower = matchedUser?.email?.trim().toLowerCase();
+    const normSid = studentId ? normalizeStudentId(studentId).toUpperCase() : '';
+    const actorName = currentUser?.name || 'Registrar Officer';
+
+    conflicts
+      .filter((c) => c.status === 'pending')
+      .forEach((c) => {
+        const matchesUid = c.applicantUid && c.applicantUid === userId;
+        const matchesEmail = emailLower && c.applicantEmail?.trim().toLowerCase() === emailLower;
+        const matchesSid =
+          normSid &&
+          c.applicantStudentId &&
+          normalizeStudentId(c.applicantStudentId).toUpperCase() === normSid;
+
+        if (matchesUid || matchesEmail || matchesSid) {
+          resolveConflictRecord(
+            c.id,
+            'resolved_verified',
+            actorName,
+            `Auto-resolved upon alumni account approval by ${actorName}.`,
+            c
+          );
+        }
+      });
+  };
+
   // 1-Click Smart Auto-Reconcile for all 100% matched alumni
   const handleSmartAutoReconcile = async () => {
     if (perfectMatchAnalyses.length === 0) {
@@ -351,6 +379,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
         if (item.registryRecord) {
           markRegistryRecordAsRegistered(item.registryRecord.studentId, item.userId);
         }
+        autoResolveMatchingConflicts(item.userId, item.registryRecord?.studentId || item.user.studentId);
       }
 
       addAuditLog({
@@ -364,6 +393,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
       });
 
       showToast(`✓ Auto-reconciled ${count} verified Cecilian graduates!`, 'success');
+      loadConflicts();
     } finally {
       setIsReconciling(false);
     }
@@ -374,6 +404,8 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     const reg = analysis.registryRecord;
     if (!reg) {
       setUserVerified(analysis.userId, true);
+      autoResolveMatchingConflicts(analysis.userId, analysis.user.studentId);
+      loadConflicts();
       showToast(`Verified applicant ${analysis.user.name}.`, 'success');
       return;
     }
@@ -385,6 +417,8 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
     setUserVerified(analysis.userId, true);
     markRegistryRecordAsRegistered(reg.studentId, analysis.userId);
+    autoResolveMatchingConflicts(analysis.userId, reg.studentId);
+    loadConflicts();
 
     addAuditLog({
       action: 'REGISTRAR_TRANSCRIPT_SYNC_VERIFY',
@@ -405,6 +439,8 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     if (studentId) {
       markRegistryRecordAsRegistered(studentId, userId);
     }
+    autoResolveMatchingConflicts(userId, studentId);
+    loadConflicts();
 
     addAuditLog({
       action: 'MANUAL_ALUMNI_VERIFY',
@@ -425,9 +461,9 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     action: 'resolved_verified' | 'resolved_rejected' | 'dismissed'
   ) => {
     const actorName = currentUser?.name || 'Registrar Officer';
-    const note = singleNote.trim() || undefined;
+    const note = (singleNotesById[conflict.id] || '').trim() || undefined;
 
-    const success = resolveConflictRecord(conflict.id, action, actorName, note);
+    const success = resolveConflictRecord(conflict.id, action, actorName, note, conflict);
 
     if (success) {
       if (conflict.applicantUid) {
@@ -457,14 +493,17 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
         action === 'resolved_verified'
           ? `✓ Applicant ${conflict.applicantName} approved and verified.`
           : action === 'resolved_rejected'
-          ? `Duplicate registration for ${conflict.applicantName} rejected to maintain masterlist integrity.`
+          ? `Registration claim for ${conflict.applicantName} rejected.`
           : `Dispute flag dismissed.`,
         action === 'resolved_verified' ? 'success' : 'info'
       );
 
       loadConflicts();
-      setResolvingConflictId(null);
-      setSingleNote('');
+      setSingleNotesById((prev) => {
+        const copy = { ...prev };
+        delete copy[conflict.id];
+        return copy;
+      });
     }
   };
 
@@ -481,7 +520,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
       return;
     }
 
-    const note = singleNote.trim() || `Merged duplicate applicant (${conflict.applicantEmail}) into primary verified account (${existingPrimary.email}).`;
+    const note = (singleNotesById[conflict.id] || '').trim() || `Merged duplicate applicant (${conflict.applicantEmail}) into primary verified account (${existingPrimary.email}).`;
 
     // 1. Update primary profile with note of alternate contact info
     const mergedUpdates: Partial<UserProfile> = {};
@@ -493,7 +532,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     }
 
     // 2. Mark conflict resolved as rejected/merged
-    resolveConflictRecord(conflict.id, 'resolved_rejected', actorName, note);
+    resolveConflictRecord(conflict.id, 'resolved_rejected', actorName, note, conflict);
 
     addAuditLog({
       action: 'CONFLICT_RESOLUTION_MERGED',
@@ -507,8 +546,11 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
     showToast(`✓ Accounts merged. ${existingPrimary.name} remains the verified primary account.`);
     loadConflicts();
-    setResolvingConflictId(null);
-    setSingleNote('');
+    setSingleNotesById((prev) => {
+      const copy = { ...prev };
+      delete copy[conflict.id];
+      return copy;
+    });
   };
 
   // Dedicated Duplicate Conflict Solution 2: Reassign Student ID & Approve
@@ -519,7 +561,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     if (!reassignModalConflict || !newReassignedId.trim()) return;
     const actorName = currentUser?.name || 'Registrar Officer';
     const cleanId = newReassignedId.trim().toUpperCase();
-    const note = singleNote.trim() || `Student ID corrected to ${cleanId} to resolve clerical collision with existing record.`;
+    const note = (singleNotesById[reassignModalConflict.id] || '').trim() || `Student ID corrected to ${cleanId} to resolve clerical collision with existing record.`;
 
     const targetUser = users.find(
       (u) =>
@@ -535,7 +577,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
       setUserVerified(targetUser.uid, true);
     }
 
-    resolveConflictRecord(reassignModalConflict.id, 'resolved_verified', actorName, note);
+    resolveConflictRecord(reassignModalConflict.id, 'resolved_verified', actorName, note, reassignModalConflict);
 
     addAuditLog({
       action: 'CONFLICT_RESOLUTION_REASSIGNED',
@@ -550,8 +592,6 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     showToast(`✓ Student ID updated to ${cleanId} and applicant approved!`, 'success');
     setReassignModalConflict(null);
     setNewReassignedId('');
-    setResolvingConflictId(null);
-    setSingleNote('');
     loadConflicts();
   };
 
@@ -587,12 +627,19 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
       if (!conflict) return;
 
       const note = bulkNote.trim() || `Bulk resolution (${action}) by ${actorName}`;
-      const success = resolveConflictRecord(id, action, actorName, note);
+      const success = resolveConflictRecord(id, action, actorName, note, conflict);
 
       if (success) {
         processed++;
         if (conflict.applicantUid) {
           setUserVerified(conflict.applicantUid, action === 'resolved_verified');
+        } else {
+          const matched = users.find(
+            (u) => u.email.toLowerCase() === conflict.applicantEmail.toLowerCase()
+          );
+          if (matched) {
+            setUserVerified(matched.uid, action === 'resolved_verified');
+          }
         }
       }
     });
@@ -714,10 +761,13 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
 
 
-  // Strict RBAC Gate
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+  // Strict RBAC Gate (Administrators, Super Administrators, and Moderators)
+  const isAuthorizedTriage =
+    currentUser?.role === 'admin' ||
+    currentUser?.role === 'superadmin' ||
+    currentUser?.role === 'moderator';
 
-  if (!isAdmin) {
+  if (!isAuthorizedTriage) {
     return (
       <div className="bg-white rounded-3xl border border-stone-200/90 p-10 text-center max-w-xl mx-auto shadow-2xs space-y-4 my-8">
         <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
@@ -725,7 +775,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
         </div>
         <h3 className="text-lg font-bold text-stone-900 font-sans">Administrative Clearance Required</h3>
         <p className="text-xs text-stone-600 leading-relaxed">
-          The Requests & Conflict Resolution Tribunal is restricted to authorized St. Cecilia's College System Administrators and University Registrar Officers.
+          The Requests & Conflict Resolution Tribunal is restricted to authorized St. Cecilia's College Administrators and Moderators.
         </p>
       </div>
     );
@@ -778,7 +828,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                 : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
             }`}
           >
-            <span>ID Collisions</span>
+            <span>Collisions & Appeals</span>
             <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
               activeTab === 'conflicts'
                 ? 'bg-white/20 text-white'
@@ -1283,6 +1333,12 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                                 <span className="text-stone-500">Declared Name:</span>
                                 <span className="font-bold text-stone-900">{conflict.applicantName}</span>
                               </div>
+                              {conflict.applicantCourse && (
+                                <div className="flex justify-between">
+                                  <span className="text-stone-500">Program:</span>
+                                  <span className="font-semibold text-stone-800 truncate max-w-[200px]">{conflict.applicantCourse}</span>
+                                </div>
+                              )}
                               <div className="flex justify-between">
                                 <span className="text-stone-500">Cohort:</span>
                                 <span className="font-semibold text-stone-800">Class of {conflict.applicantBatch || 'N/A'}</span>
@@ -1317,23 +1373,30 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                           </div>
                         </div>
 
+                        {conflict.notes && (
+                          <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 text-xs text-stone-800 leading-relaxed">
+                            <span className="font-bold text-stone-900 block text-[11px] uppercase tracking-wider mb-1">
+                              Claimant Statement & Details
+                            </span>
+                            <p className="text-stone-700 whitespace-pre-wrap">{conflict.notes}</p>
+                          </div>
+                        )}
+
                         {conflict.status === 'pending' && (
                           <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-stone-100">
                             <div className="flex-1">
-                              {resolvingConflictId === conflict.id ? (
-                                <input
-                                  type="text"
-                                  value={singleNote}
-                                  onChange={(e) => setSingleNote(e.target.value)}
-                                  placeholder="Official hearing justification note..."
-                                  className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs"
-                                  autoFocus
-                                />
-                              ) : (
-                                <p className="text-[11px] text-stone-400">
-                                  Verify identity documents or diplomas before resolving.
-                                </p>
-                              )}
+                              <input
+                                type="text"
+                                value={singleNotesById[conflict.id] || ''}
+                                onChange={(e) =>
+                                  setSingleNotesById((prev) => ({
+                                    ...prev,
+                                    [conflict.id]: e.target.value
+                                  }))
+                                }
+                                placeholder="Optional hearing justification or verification note..."
+                                className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20"
+                              />
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -1372,39 +1435,21 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                                 <>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      if (resolvingConflictId !== conflict.id) {
-                                        setResolvingConflictId(conflict.id);
-                                      } else {
-                                        handleResolveConflict(conflict, 'resolved_rejected');
-                                      }
-                                    }}
+                                    onClick={() => handleResolveConflict(conflict, 'resolved_rejected')}
                                     className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                                   >
                                     Reject
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      if (resolvingConflictId !== conflict.id) {
-                                        setResolvingConflictId(conflict.id);
-                                      } else {
-                                        handleResolveConflict(conflict, 'dismissed');
-                                      }
-                                    }}
+                                    onClick={() => handleResolveConflict(conflict, 'dismissed')}
                                     className="px-3 py-1.5 text-stone-500 hover:text-stone-800 text-xs font-medium cursor-pointer"
                                   >
                                     Dismiss
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      if (resolvingConflictId !== conflict.id) {
-                                        setResolvingConflictId(conflict.id);
-                                      } else {
-                                        handleResolveConflict(conflict, 'resolved_verified');
-                                      }
-                                    }}
+                                    onClick={() => handleResolveConflict(conflict, 'resolved_verified')}
                                     className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
                                   >
                                     <UserCheck className="w-3.5 h-3.5" />
@@ -1596,8 +1641,13 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                 </label>
                 <input
                   type="text"
-                  value={singleNote}
-                  onChange={(e) => setSingleNote(e.target.value)}
+                  value={singleNotesById[reassignModalConflict.id] || ''}
+                  onChange={(e) =>
+                    setSingleNotesById((prev) => ({
+                      ...prev,
+                      [reassignModalConflict.id]: e.target.value
+                    }))
+                  }
                   placeholder="e.g. Verified official transcript; corrected typo in registration ID."
                   className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white"
                 />

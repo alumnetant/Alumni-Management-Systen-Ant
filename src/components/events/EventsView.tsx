@@ -29,7 +29,6 @@ import {
   Image as ImageIcon,
   LayoutGrid,
   List,
-  Flame,
   ArrowRight,
   ExternalLink,
   Loader2,
@@ -154,13 +153,6 @@ export const EventsView: React.FC = () => {
   };
 
   const now = new Date();
-
-
-  // Featured flagship or nearest upcoming event
-  const spotlightEvent = useMemo(() => {
-    const upcoming = events.filter((e) => new Date(e.startDate) >= now);
-    return upcoming.find((e) => e.isImportant) || upcoming[0] || null;
-  }, [events, now]);
 
   const filteredEvents = useMemo(() => {
     return events.filter((e) => {
@@ -376,7 +368,7 @@ export const EventsView: React.FC = () => {
                 Campus Gatherings <span className="editorial-accent italic">& Reunions</span>
               </h1>
               <p className="editorial-sub text-xs sm:text-sm max-w-2xl mt-0.5">
-                Alumni homecomings, batch reunions, chapter assemblies, and fellowship gatherings uniting generations of Cecilians.
+                Alumni homecomings, batch reunions, and fellowship gatherings uniting generations of Cecilians.
               </p>
             </div>
 
@@ -396,119 +388,6 @@ export const EventsView: React.FC = () => {
         </div>
       </div>
 
-
-      {/* Flagship Gathering Spotlight Bento Hero (Show when upcoming and available) */}
-      {spotlightEvent && filterType !== 'past' && !searchQuery && categoryFilter === 'all' && (
-        <motion.div
-          whileHover={{ y: -3, transition: { duration: 0.2, ease: "easeOut" } }}
-          className="relative overflow-hidden rounded-2xl bg-white border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] grid grid-cols-1 lg:grid-cols-12 cursor-pointer group"
-          onClick={() => setSelectedEventForDetail(spotlightEvent)}
-        >
-          <div className="lg:col-span-5 relative h-56 sm:h-64 lg:h-auto bg-stone-100 overflow-hidden">
-            <img
-              src={getEventImage(spotlightEvent.heroImageUrl)}
-              alt={spotlightEvent.title}
-              onError={handleEventImageError}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent lg:hidden" />
-            <div className="absolute top-4 left-4 flex items-center gap-2">
-              <span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider bg-[#8B181B] text-white rounded-lg shadow-sm flex items-center gap-1.5">
-                <Flame className="w-3 h-3 fill-white" />
-                Featured Flagship Convocation
-              </span>
-            </div>
-          </div>
-
-          <div className="lg:col-span-7 p-5 sm:p-7 flex flex-col justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500 mb-2">
-                <span className="font-bold text-[#8B181B] uppercase tracking-wider">
-                  {spotlightEvent.type}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="inline-flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-stone-400" />
-                  {new Date(spotlightEvent.startDate).toLocaleDateString([], {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                  })}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="inline-flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-stone-400" />
-                  {spotlightEvent.location}
-                </span>
-              </div>
-
-              <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-stone-900 group-hover:text-[#8B181B] transition-colors tracking-tight leading-snug">
-                {spotlightEvent.title}
-              </h3>
-
-              <p className="text-xs sm:text-sm text-stone-600 mt-2 line-clamp-3 leading-relaxed">
-                {spotlightEvent.description}
-              </p>
-            </div>
-
-            <div className="mt-5 pt-4 border-t border-stone-100 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className="flex -space-x-2 overflow-hidden py-0.5">
-                  {(spotlightEvent.attendees || []).slice(0, 4).map((att, idx) => (
-                    <img
-                      key={att.uid || idx}
-                      src={getUserAvatar(att.avatar || att.avatarUrl)}
-                      alt={att.name}
-                      onError={handleUserAvatarError}
-                      className="w-6 h-6 rounded-full ring-2 ring-white object-cover shadow-2xs"
-                    />
-                  ))}
-                </div>
-                <span className="text-xs font-semibold text-stone-700">
-                  <strong className="text-stone-900">{spotlightEvent.attendeesCount}</strong> alumni attending
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <EventReminderToggle
-                  event={spotlightEvent}
-                  variant="button"
-                  size="sm"
-                />
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRsvpClick(spotlightEvent);
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5 ${
-                    spotlightEvent.userRsvp === 'going'
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                      : 'bg-[#8B181B] hover:bg-[#721316] text-white'
-                  }`}
-                >
-                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>{spotlightEvent.userRsvp === 'going' ? 'Attending • Cancel RSVP' : 'RSVP Going'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedEventForDetail(spotlightEvent);
-                  }}
-                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                >
-                  <span>Event Details</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       {/* Filter, Search and View Controls Bar */}
       <div className="bg-white rounded-2xl border border-stone-200/90 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-4">
@@ -783,11 +662,6 @@ export const EventsView: React.FC = () => {
 
                     {/* Flags */}
                     <div className="absolute top-3 left-3 flex items-center gap-2">
-                      {evt.isImportant && (
-                        <span className="px-2 py-0.5 text-[10px] font-bold bg-[#8B181B] text-white rounded-md shadow-xs">
-                          Flagship
-                        </span>
-                      )}
                       {evt.isVirtual ? (
                         <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-600 text-white rounded-md flex items-center gap-1 shadow-xs">
                           <Video className="w-3 h-3" />

@@ -4,8 +4,7 @@ import {
   Clock,
   MapPin,
   Users,
-  ArrowRight,
-  Flame
+  ArrowRight
 } from 'lucide-react';
 import { AlumniEvent } from '../../types';
 import { EventReminderToggle } from '../events/EventReminderToggle';
@@ -117,16 +116,9 @@ export const LandingEventCard: React.FC<LandingEventCardProps> = ({
               style={{ transform: 'translateZ(30px)' }}
               className="absolute top-3.5 left-3.5 flex items-center gap-2 z-10"
             >
-              {priority || event.isImportant ? (
-                <span className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-widest bg-[#8B181B] text-white rounded-xl shadow-md border border-red-300/30 flex items-center gap-1.5 backdrop-blur-md">
-                  <Flame className="w-3 h-3 fill-amber-300 text-amber-300" />
-                  <span>Flagship Convocation</span>
-                </span>
-              ) : (
-                <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-black/60 backdrop-blur-md text-stone-200 rounded-xl border border-white/15 shadow-sm">
-                  {event.type}
-                </span>
-              )}
+              <span className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-black/60 backdrop-blur-md text-stone-200 rounded-xl border border-white/15 shadow-sm">
+                {event.type}
+              </span>
             </div>
 
             {/* Floating Date Badge (Floated in 3D with depth) */}

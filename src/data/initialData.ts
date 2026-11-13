@@ -9,7 +9,6 @@ import {
   Announcement,
   Opportunity,
   JobApplication,
-  Chapter,
   CareerMilestone,
   GalleryItem,
   AuditLogEntry,
@@ -104,7 +103,7 @@ export const INITIAL_USERS: UserProfile[] = [
     profilePictureUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80',
     coverPhotoUrl: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&auto=format&fit=crop&q=80',
     headline: 'Director of Alumni Affairs & Institutional Advancement',
-    about: 'Leading global alumni engagement, campus reunions, regional chapter charters, and institutional endowments at St. Cecilia’s College.',
+    about: 'Leading global alumni engagement, campus reunions, alumni council charters, and institutional endowments at St. Cecilia’s College.',
     phone: '+63 917 222 3002',
     employeeId: 'SCC-ADM-002',
     department: 'Institutional Advancement & Alumni Operations',
@@ -192,10 +191,10 @@ export const INITIAL_USERS: UserProfile[] = [
     profilePictureUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=400&auto=format&fit=crop&q=80',
     coverPhotoUrl: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=1200&auto=format&fit=crop&q=80',
     headline: 'Alumni Affairs Logistics Officer & Campus Event Coordinator',
-    about: 'Coordinating event logistics for grand reunions, campus assemblies, attendee check-ins, regional chapter meetups, and campus gallery curation.',
+    about: 'Coordinating event logistics for grand reunions, campus assemblies, attendee check-ins, alumni meetups, and campus gallery curation.',
     phone: '+63 917 444 5004',
     employeeId: 'SCC-STF-004',
-    department: 'Campus Operations, Logistics & Regional Chapters',
+    department: 'Campus Operations & Event Logistics',
     isVerified: true,
     followersCount: 48,
     followingCount: 32,
@@ -208,7 +207,7 @@ export const INITIAL_USERS: UserProfile[] = [
         location: 'Campus Activity Center',
         startDate: '2020-01',
         current: true,
-        description: 'Managing alumni reunions, operational announcements, and regional chapter coordination.'
+        description: 'Managing alumni reunions, operational announcements, and campus coordination.'
       }
     ],
     education: [
@@ -458,7 +457,6 @@ export const INITIAL_JOB_APPLICATIONS: JobApplication[] = [
     }
   }
 ];
-export const INITIAL_CHAPTERS: Chapter[] = [];
 export const INITIAL_MILESTONES: CareerMilestone[] = [];
 export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [];
 

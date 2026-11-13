@@ -47,9 +47,9 @@ export function isNotificationRelevantToUser(
 
   // 1. Direct User Targeting
   if (notif.toUid && notif.toUid !== 'all') {
-    // Admin queue alias: notifications targeted to "admin" or "administrators"
+    // Admin & Moderator queue alias: notifications targeted to "admin" or "administrators"
     if (notif.toUid === 'admin' || notif.toUid === 'administrators') {
-      return isUserAdmin || (permissions?.canManageJobModeration ?? false);
+      return isUserAdmin || isUserModerator || (permissions?.canManageJobModeration ?? false);
     }
     // Directly addressed to another specific user UID
     if (notif.toUid !== user.uid) {
@@ -90,11 +90,13 @@ export function isNotificationRelevantToUser(
     titleLower.includes('awaiting approval') ||
     titleLower.includes('awaiting review') ||
     titleLower.includes('conflict detected') ||
+    titleLower.includes('verification appeal') ||
+    titleLower.includes('id dispute') ||
     titleLower.includes('employer partner registered') ||
     titleLower.includes('renewal request submitted');
 
   if (isAdminQueueNotice) {
-    return isUserAdmin || (permissions?.canManageJobModeration ?? false);
+    return isUserAdmin || isUserModerator || (permissions?.canManageJobModeration ?? false);
   }
 
   // 4. Employer-Specific Notices

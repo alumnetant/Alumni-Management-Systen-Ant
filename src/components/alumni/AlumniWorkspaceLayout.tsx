@@ -34,7 +34,6 @@ import {
   Grid,
   MoreHorizontal,
   WifiOff,
-  Globe,
   FileText,
   Landmark,
   GraduationCap,
@@ -54,7 +53,6 @@ import { OpportunitiesView } from '../opportunities/OpportunitiesView';
 import { ProfileView } from '../profile/ProfileView';
 import { SettingsView } from '../settings/SettingsView';
 import { CampusGalleryModal } from '../gallery/CampusGalleryModal';
-import { AlumniChaptersModal } from '../common/AlumniChaptersModal';
 import { DigitalAlumniCard } from '../profile/DigitalAlumniCard';
 import { VerificationGate } from '../common/VerificationGate';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
@@ -222,7 +220,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
   const [showDigitalPassModal, setShowDigitalPassModal] = useState(false);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [showChaptersModal, setShowChaptersModal] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
 
   // Hardware Back Button action stack: Closes topmost modals/drawers first, then navigates back to dashboard
@@ -252,15 +249,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       });
     }
   }, [showGalleryModal]);
-
-  useEffect(() => {
-    if (showChaptersModal) {
-      return registerBackAction(() => {
-        setShowChaptersModal(false);
-        return true;
-      });
-    }
-  }, [showChaptersModal]);
 
   useEffect(() => {
     if (showCommandPalette) {
@@ -860,21 +848,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 Community & Heritage
               </div>
               <div className="space-y-0.5">
-                {/* Regional Chapters */}
-                <button
-                  type="button"
-                  onClick={() => setShowChaptersModal(true)}
-                  className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-normal text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Globe className="w-4 h-4 text-stone-400 group-hover:text-sky-600 dark:group-hover:text-sky-400 shrink-0 stroke-[1.5] transition-colors" />
-                    <span className="truncate">Regional Chapters</span>
-                  </div>
-                  <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
-                    Hub
-                  </span>
-                </button>
-
                 {/* Campus Archival Gallery */}
                 <button
                   type="button"
@@ -1041,25 +1014,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                       Institutional Services
                     </div>
                     <div className="space-y-0.5">
-                      {/* 1. Regional Chapters Hub */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowChaptersModal(true);
-                          setShowMobileNav(false);
-                        }}
-                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-normal text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50 transition-colors cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Globe className="w-4 h-4 text-stone-400 group-hover:text-sky-600 dark:group-hover:text-sky-400 shrink-0 stroke-[1.5] transition-colors" />
-                          <span className="truncate">Regional Chapters</span>
-                        </div>
-                        <span className="text-[10px] text-stone-400 dark:text-stone-500 group-hover:text-stone-600 dark:group-hover:text-stone-300">
-                          Hub
-                        </span>
-                      </button>
-
-                      {/* 2. Campus Memory Gallery */}
+                      {/* Campus Memory Gallery */}
                       <button
                         type="button"
                         onClick={() => {
@@ -1412,12 +1367,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       <CampusGalleryModal
         isOpen={showGalleryModal}
         onClose={() => setShowGalleryModal(false)}
-      />
-
-      {/* Regional Alumni Chapters & Diaspora Hub Modal */}
-      <AlumniChaptersModal
-        isOpen={showChaptersModal}
-        onClose={() => setShowChaptersModal(false)}
       />
 
       {/* Global Command Palette (Cmd+K / Ctrl+K) */}

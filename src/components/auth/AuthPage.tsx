@@ -72,6 +72,7 @@ import {
   lookupStudentBySchoolId,
   addRegistrationConflict
 } from '../../services/studentVerificationService';
+import { saveConflictRecordToFirestore } from '../../lib/firebase';
 import { getCentenaryBatchYears } from '../../services/longevityService';
 import { getEmployerAuthStatus } from '../../lib/employerAuthStatus';
 
@@ -735,38 +736,44 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   };
 
   // Submit ID Ownership Dispute & Conflict
-  const handleDisputeSubmit = (e: React.FormEvent) => {
+  const handleDisputeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!disputeFullName.trim() || !disputeEmail.trim() || !disputeReason.trim()) {
       showToast('Please fill out all required fields.', 'error');
       return;
     }
 
+    const cleanEmail = disputeEmail.trim().toLowerCase();
     const targetStudentId = disputeStudentId.trim() || studentId.trim();
     const claimantProvisionalId = `SCC-DISPUTE-${Date.now().toString().slice(-4)}`;
+    const existingByEmail = users.find((u) => u.email?.trim().toLowerCase() === cleanEmail);
 
-    // 1. Provision account with pending review & restricted dashboard access
-    register({
-      name: disputeFullName.trim(),
-      email: disputeEmail.trim().toLowerCase(),
-      password: 'TemporaryPassword123!',
-      role: 'alumni',
-      batch: disputeBatch.trim(),
-      course: disputeCourse.trim(),
-      phone: phone || '09123456789',
-      contactNumber: phone || '09123456789',
-      location: 'Cebu, Philippines',
-      headline: `Claimant for Contested ID ${targetStudentId} • Class of ${disputeBatch.trim()}`,
-      studentId: claimantProvisionalId,
-      isVerified: false,
-      accountStatus: 'PENDING_VERIFICATION',
-      verificationStatus: 'in_review'
-    } as any);
+    // 1. Provision provisional account if email is not yet registered
+    if (!existingByEmail) {
+      register({
+        name: disputeFullName.trim(),
+        email: cleanEmail,
+        password: 'TemporaryPassword123!',
+        role: 'alumni',
+        batch: disputeBatch.trim(),
+        course: disputeCourse.trim(),
+        phone: phone || '09123456789',
+        contactNumber: phone || '09123456789',
+        location: 'Cebu, Philippines',
+        headline: `Claimant for Contested ID ${targetStudentId} • Class of ${disputeBatch.trim()}`,
+        studentId: claimantProvisionalId,
+        isVerified: false,
+        accountStatus: 'PENDING_VERIFICATION',
+        verificationStatus: 'in_review',
+        isAppealRegistration: true
+      } as any);
+    }
 
-    // 2. Add conflict directly to Requests & Conflicts triage workbench
+    // 2. Add conflict directly to Requests & Conflicts triage workbench & persist to Firestore
     const conflict = addRegistrationConflict({
+      applicantUid: existingByEmail?.uid,
       applicantName: disputeFullName.trim(),
-      applicantEmail: disputeEmail.trim().toLowerCase(),
+      applicantEmail: cleanEmail,
       applicantStudentId: targetStudentId,
       applicantBatch: disputeBatch.trim(),
       applicantCourse: disputeCourse.trim(),
@@ -774,16 +781,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       conflictType: 'claimed_id_dispute',
       severity: 'high',
       confidenceScore: 85,
-      notes: `STUDENT ID CLAIM DISPUTE: Claimant ${disputeFullName.trim()} (${disputeEmail.trim()}) is contesting ownership of Student ID "${targetStudentId}". Course: ${disputeCourse.trim()}, Batch: Class of ${disputeBatch.trim()}. Statement: "${disputeReason.trim()}". Verification of diploma/TOR required.`
+      notes: `STUDENT ID CLAIM DISPUTE: Claimant ${disputeFullName.trim()} (${cleanEmail}) is contesting ownership of Student ID "${targetStudentId}". Course: ${disputeCourse.trim()}, Batch: Class of ${disputeBatch.trim()}. Statement: "${disputeReason.trim()}". Verification of diploma/TOR required.`
     });
+
+    await saveConflictRecordToFirestore(conflict);
 
     addAuditLog({
       action: 'REGISTRATION_CONFLICT_DISPUTE_FILED',
-      actorId: `claimant_${Date.now()}`,
+      actorId: existingByEmail?.uid || `claimant_${Date.now()}`,
       actorName: disputeFullName.trim(),
       actorRole: 'alumni',
       category: 'conflict_resolution',
-      details: `Official ID dispute filed for Student ID "${targetStudentId}" by ${disputeFullName} (${disputeEmail}). Forwarded to Requests & Conflicts queue.`,
+      details: `Official ID dispute filed for Student ID "${targetStudentId}" by ${disputeFullName} (${cleanEmail}). Forwarded to Requests & Conflicts queue.`,
       severity: 'alert'
     });
 
@@ -792,61 +801,88 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
 
     setDisputeReferenceId(conflict.id);
-    showToast(`Registration conflict filed! Reference #${conflict.id}. Case forwarded to Registrar.`, 'success');
+    showToast(`Registration conflict filed! Reference #${conflict.id}. Case forwarded to Registrar & Admin.`, 'success');
   };
 
   // Submit Manual Verification Request (when No ID or Unlisted Record)
-  const handleManualVerificationSubmit = (e: React.FormEvent) => {
+  const handleManualVerificationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualFullName.trim() || !manualEmail.trim() || !manualBatch.trim() || !manualCourse.trim() || !manualPassword.trim()) {
       showToast('Please complete all required fields including password.', 'error');
       return;
     }
 
+    if (manualPassword.trim().length < 6) {
+      showToast('Account password must be at least 6 characters.', 'error');
+      return;
+    }
+
+    const cleanEmail = manualEmail.trim().toLowerCase();
+    const existingByEmail = users.find((u) => u.email?.trim().toLowerCase() === cleanEmail);
+    if (existingByEmail && existingByEmail.isVerified) {
+      showToast('An account with this email is already verified. Please sign in instead.', 'error');
+      return;
+    }
+
     setIsSubmittingAppeal(true);
-    const provisionalStudentId = `SCC-PENDING-${Date.now().toString().slice(-4)}`;
+    try {
+      const provisionalStudentId = existingByEmail?.studentId || `SCC-PENDING-${Date.now().toString().slice(-4)}`;
 
-    // 1. Create provisional account so they exist in user records & request lists
-    register({
-      name: manualFullName.trim(),
-      email: manualEmail.trim().toLowerCase(),
-      password: manualPassword.trim(),
-      role: 'alumni',
-      batch: manualBatch.trim(),
-      course: manualCourse.trim(),
-      phone: manualPhone.trim() || '+63 917 123 4567',
-      location: 'Cebu, Philippines',
-      headline: `${manualCourse.trim()} Alumnus • Class of ${manualBatch.trim()}`,
-      studentId: provisionalStudentId,
-      isVerified: false
-    });
+      // 1. Create provisional account if not already present in users
+      if (!existingByEmail) {
+        const registered = register({
+          name: manualFullName.trim(),
+          email: cleanEmail,
+          password: manualPassword.trim(),
+          role: 'alumni',
+          batch: manualBatch.trim(),
+          course: manualCourse.trim(),
+          phone: manualPhone.trim() || '+63 917 123 4567',
+          location: 'Cebu, Philippines',
+          headline: `${manualCourse.trim()} Alumnus • Class of ${manualBatch.trim()}`,
+          studentId: provisionalStudentId,
+          isVerified: false,
+          accountStatus: 'PENDING_VERIFICATION',
+          verificationStatus: 'pending_review',
+          isAppealRegistration: true
+        } as any);
 
-    // 2. Also register conflict/appeal in Registration Conflicts queue
-    const conflict = addRegistrationConflict({
-      applicantName: manualFullName.trim(),
-      applicantEmail: manualEmail.trim().toLowerCase(),
-      applicantStudentId: provisionalStudentId,
-      applicantBatch: manualBatch.trim(),
-      applicantCourse: manualCourse.trim(),
-      conflictType: 'manual_verification_request',
-      severity: 'medium',
-      confidenceScore: 50,
-      notes: `MANUAL REGISTRAR APPEAL (NO ID / UNLISTED): Alumnus requested manual identity confirmation. Degree: ${manualCourse.trim()}, Cohort: Class of ${manualBatch.trim()}, Phone: ${manualPhone.trim() || 'N/A'}. Details: "${manualNotes.trim() || 'No electronic student ID record on file. Academic archive verification requested.'}".`
-    });
+        if (!registered) {
+          return;
+        }
+      }
 
-    addAuditLog({
-      action: 'MANUAL_VERIFICATION_REQUEST_SUBMITTED',
-      actorId: `appeal_${Date.now()}`,
-      actorName: manualFullName.trim(),
-      actorRole: 'alumni',
-      category: 'alumni_registration',
-      details: `Manual verification appeal submitted for ${manualFullName.trim()} (${manualEmail.trim()}) for Degree ${manualCourse.trim()}, Batch ${manualBatch.trim()}. Placed in Requests & Conflicts inbox.`,
-      severity: 'info'
-    });
+      // 2. Register conflict/appeal in Registration Conflicts queue & persist to Cloud Firestore
+      const conflict = addRegistrationConflict({
+        applicantUid: existingByEmail?.uid,
+        applicantName: manualFullName.trim(),
+        applicantEmail: cleanEmail,
+        applicantStudentId: provisionalStudentId,
+        applicantBatch: manualBatch.trim(),
+        applicantCourse: manualCourse.trim(),
+        conflictType: 'manual_verification_request',
+        severity: 'medium',
+        confidenceScore: 50,
+        notes: `MANUAL REGISTRAR APPEAL (NO ID / UNLISTED): Alumnus requested manual identity confirmation. Degree: ${manualCourse.trim()}, Cohort: Class of ${manualBatch.trim()}, Phone: ${manualPhone.trim() || 'N/A'}. Details: "${manualNotes.trim() || 'No electronic student ID record on file. Academic archive verification requested.'}".`
+      });
 
-    setIsSubmittingAppeal(false);
-    setManualReferenceId(conflict.id);
-    showToast(`Verification appeal submitted! Case #${conflict.id}`, 'success');
+      await saveConflictRecordToFirestore(conflict);
+
+      addAuditLog({
+        action: 'MANUAL_VERIFICATION_REQUEST_SUBMITTED',
+        actorId: existingByEmail?.uid || `appeal_${Date.now()}`,
+        actorName: manualFullName.trim(),
+        actorRole: 'alumni',
+        category: 'alumni_registration',
+        details: `Manual verification appeal submitted for ${manualFullName.trim()} (${cleanEmail}) for Degree ${manualCourse.trim()}, Batch ${manualBatch.trim()}. Placed in Requests & Conflicts inbox.`,
+        severity: 'info'
+      });
+
+      setManualReferenceId(conflict.id);
+      showToast(`Verification appeal submitted! Case #${conflict.id}`, 'success');
+    } finally {
+      setIsSubmittingAppeal(false);
+    }
   };
 
   // Step 1 Screening Verification Handler (Primary School ID Verification & Duplicate Prevention)

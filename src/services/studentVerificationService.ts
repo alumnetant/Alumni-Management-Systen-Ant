@@ -1,13 +1,14 @@
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { StudentVerificationRecord, RegistrationConflictRecord } from '../types';
+import { StudentVerificationRecord, RegistrationConflictRecord, AppNotification } from '../types';
 import {
   saveRegistryRecordsBatchToFirestore,
   getRegistryRecordsFromFirestore,
   markRegistryRecordRegisteredInFirestore,
   deleteRegistryRecordFromFirestore,
   saveConflictRecordToFirestore,
-  getConflictRecordsFromFirestore
+  getConflictRecordsFromFirestore,
+  saveNotificationToFirestore
 } from '../lib/firebase';
 import { generateSecureNumericCode, generateSecureId } from '../lib/secureId';
 
@@ -1358,10 +1359,10 @@ export function getRegistrationConflicts(): RegistrationConflictRecord[] {
 /**
  * Saves conflict records
  */
-export function saveRegistrationConflicts(conflicts: RegistrationConflictRecord[]): void {
+export function saveRegistrationConflicts(conflicts: RegistrationConflictRecord[], silent: boolean = false): void {
   try {
     localStorage.setItem(REGISTRY_CONFLICTS_STORAGE_KEY, JSON.stringify(conflicts));
-    if (typeof window !== 'undefined') {
+    if (!silent && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('conflicts-updated', { detail: conflicts }));
     }
   } catch (err) {
@@ -1370,7 +1371,29 @@ export function saveRegistrationConflicts(conflicts: RegistrationConflictRecord[
 }
 
 /**
- * Adds a new conflict record to the queue
+ * Merges real-time cloud conflict snapshot with local cache and persists quietly
+ */
+export function mergeCloudConflictsWithLocal(cloudConflicts: RegistrationConflictRecord[]): RegistrationConflictRecord[] {
+  const localConflicts = getRegistrationConflicts();
+  const map = new Map<string, RegistrationConflictRecord>();
+
+  localConflicts.forEach((c) => {
+    if (c && c.id) map.set(c.id, c);
+  });
+  (cloudConflicts || []).forEach((c) => {
+    if (c && c.id) map.set(c.id, c);
+  });
+
+  const merged = Array.from(map.values()).sort(
+    (a, b) => new Date(b.flaggedAt || 0).getTime() - new Date(a.flaggedAt || 0).getTime()
+  );
+
+  saveRegistrationConflicts(merged, true);
+  return merged;
+}
+
+/**
+ * Adds a new conflict record to the queue and notifies Administrators & Moderators
  */
 export function addRegistrationConflict(
   data: Omit<RegistrationConflictRecord, 'id' | 'flaggedAt' | 'status'>
@@ -1391,6 +1414,33 @@ export function addRegistrationConflict(
     console.warn('Failed to save conflict record to Firestore:', err);
   });
 
+  // Notify Administrators & Moderators via Cloud Firestore notification queue
+  const isManualAppeal =
+    newConflict.conflictType === 'manual_verification_request' ||
+    newConflict.conflictType === 'unlisted_record';
+  const notif: AppNotification = {
+    id: generateSecureId('notif_conflict'),
+    toUid: 'admin',
+    type: 'general',
+    title: isManualAppeal
+      ? 'New Manual Verification Appeal'
+      : 'Student ID Dispute / Conflict Claim Filed',
+    body: isManualAppeal
+      ? `${newConflict.applicantName} (${newConflict.applicantEmail}) requested manual Registrar identity verification for ${newConflict.applicantCourse || 'Degree Program'}, Class of ${newConflict.applicantBatch || 'N/A'}.`
+      : `${newConflict.applicantName} (${newConflict.applicantEmail}) submitted an ownership dispute for Student ID ${newConflict.applicantStudentId || 'N/A'}.`,
+    refId: newConflict.id,
+    read: false,
+    createdAt: new Date().toISOString(),
+    metadata: {
+      targetRole: 'moderator',
+      conflictId: newConflict.id,
+      conflictType: newConflict.conflictType
+    }
+  };
+  saveNotificationToFirestore(notif).catch((err) => {
+    console.warn('Failed to dispatch conflict notification to Firestore:', err);
+  });
+
   return newConflict;
 }
 
@@ -1404,8 +1454,12 @@ export async function syncRegistrationConflictsWithFirestore(): Promise<Registra
     const map = new Map<string, RegistrationConflictRecord>();
 
     // Merge cloud and local, giving cloud authority
-    localConflicts.forEach((c) => map.set(c.id, c));
-    cloudConflicts.forEach((c) => map.set(c.id, c));
+    localConflicts.forEach((c) => {
+      if (c && c.id) map.set(c.id, c);
+    });
+    cloudConflicts.forEach((c) => {
+      if (c && c.id) map.set(c.id, c);
+    });
 
     const merged = Array.from(map.values()).sort(
       (a, b) => new Date(b.flaggedAt || 0).getTime() - new Date(a.flaggedAt || 0).getTime()
@@ -1426,22 +1480,27 @@ export function resolveConflictRecord(
   conflictId: string,
   decision: 'resolved_verified' | 'resolved_rejected' | 'dismissed',
   resolvedBy: string = 'Registrar Officer',
-  resolutionNote?: string
+  resolutionNote?: string,
+  conflictFallback?: RegistrationConflictRecord
 ): boolean {
   const current = getRegistrationConflicts();
   const index = current.findIndex((c) => c.id === conflictId);
-  if (index === -1) return false;
+  const existing = index !== -1 ? current[index] : conflictFallback;
+  if (!existing) return false;
 
-  const conflict = current[index];
   const updatedConflict: RegistrationConflictRecord = {
-    ...conflict,
+    ...existing,
     status: decision,
     resolvedAt: new Date().toISOString(),
     resolvedBy,
     resolutionNote: resolutionNote || `Marked as ${decision} by ${resolvedBy}`
   };
 
-  current[index] = updatedConflict;
+  if (index !== -1) {
+    current[index] = updatedConflict;
+  } else {
+    current.unshift(updatedConflict);
+  }
   saveRegistrationConflicts(current);
 
   // Push update to Cloud Firestore
@@ -1450,8 +1509,8 @@ export function resolveConflictRecord(
   });
 
   // If verified by administrator, mark target student record as registered
-  if (decision === 'resolved_verified' && conflict.targetRegistryStudentId) {
-    markRegistryRecordAsRegistered(conflict.targetRegistryStudentId, conflict.applicantUid || '');
+  if (decision === 'resolved_verified' && existing.targetRegistryStudentId) {
+    markRegistryRecordAsRegistered(existing.targetRegistryStudentId, existing.applicantUid || '');
   }
 
   return true;

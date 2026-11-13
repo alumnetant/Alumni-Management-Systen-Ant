@@ -2048,7 +2048,7 @@ export const SettingsView: React.FC = () => {
                 <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80">
                   <h4 className="font-bold text-stone-900">Who can create events and circulars?</h4>
                   <p className="mt-1">
-                    Admins, Registrars, Staff members, and Chapter Leaders have publishing privileges for official campus events and announcements.
+                    Admins, Registrars, and Staff members have publishing privileges for official campus events and announcements.
                   </p>
                 </div>
 

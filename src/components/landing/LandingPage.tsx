@@ -15,7 +15,6 @@ import {
   Landmark,
   BookOpen,
   ShieldCheck,
-  Globe,
   Award,
   Building2,
   CheckCircle2,
@@ -906,10 +905,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <Award className="w-4 h-4 text-amber-400" />
                   <span>CHED & DepEd Recognized</span>
                 </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 backdrop-blur-xs">
-                  <Globe className="w-4 h-4 text-sky-400" />
-                  <span>Global Chapters Network</span>
-                </div>
               </motion.div>
 
               {/* CTA Buttons */}
@@ -1009,7 +1004,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div className="w-full max-w-[1800px] mx-auto px-6 sm:px-10 lg:px-14 xl:px-18 py-6 sm:py-8">
           <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-white/20 py-2 sm:py-4">
             <AnimatedStat value={5000} suffix="+" label="Graduates" sublabel="Across 28 Countries Worldwide" />
-            <AnimatedStat value={12} label="Active Chapters" sublabel="Regional & International Hubs" />
+            <AnimatedStat value={10} suffix="+" label="Accredited Programs" sublabel="CHED & DepEd Recognized Degrees" />
             <AnimatedStat value={98} suffix="%" label="Registrar Match Rate" sublabel="Official Cecilian Registry" />
             <AnimatedStat value={27} suffix="+" label="Years of Legacy" sublabel="Founded 1999 • Minglanilla, Cebu" />
           </div>
@@ -1380,30 +1375,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </TiltCard>
 
-            {/* Card 5: Batch Chapters */}
-            <TiltCard className="p-8 sm:p-10 lg:p-12 flex flex-col justify-between bg-stone-50/60 hover:bg-white border border-stone-200/90 rounded-3xl transition-all shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] group cursor-default">
-              <div>
-                <div className="mb-8 w-14 h-14 rounded-2xl bg-red-50 text-[#8B181B] border border-red-100 flex items-center justify-center group-hover:scale-110 transition-transform origin-left shadow-2xs">
-                  <Globe className="w-7 h-7 stroke-[1.75]" />
-                </div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8B181B]">
-                    05 • CHAPTERS
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-[#111827] mb-3">
-                  Global Batch Chapters
-                </h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">
-                  Join regional Cecilian chapters across Cebu, Metro Manila, Singapore, the Middle East, North America, and Europe.
-                </p>
-              </div>
-              <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
-                <span>12 Active Hubs</span>
-              </div>
-            </TiltCard>
-
-            {/* Card 6: Career Milestones */}
+            {/* Card 5: Career Milestones */}
             <TiltCard className="p-8 sm:p-10 lg:p-12 flex flex-col justify-between bg-stone-50/60 hover:bg-white border border-stone-200/90 rounded-3xl transition-all shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] group cursor-default">
               <div>
                 <div className="mb-8 w-14 h-14 rounded-2xl bg-amber-50 text-[#B45309] border border-amber-100 flex items-center justify-center group-hover:scale-110 transition-transform origin-left shadow-2xs">
@@ -1411,7 +1383,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B45309]">
-                    06 • ACHIEVEMENTS
+                    05 • ACHIEVEMENTS
                   </span>
                 </div>
                 <h3 className="text-xl font-bold text-[#111827] mb-3">
@@ -1427,7 +1399,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </TiltCard>
           </motion.div>
 
-          {/* Panoramic Collegiate Chapter & Batch Locator Banner */}
+          {/* Panoramic Collegiate Batch Locator Banner */}
           <div className="mt-12 bg-stone-900 text-white rounded-3xl p-8 sm:p-12 border border-stone-800 shadow-xl relative overflow-hidden">
             <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-[#8B181B]/30 to-transparent pointer-events-none" />
             <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
@@ -1602,7 +1574,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Col 4: Community & Campus */}
             <div>
               <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider mb-4">
-                Campus & Chapters
+                Campus & Community
               </h4>
               <ul className="space-y-2.5 text-[13px] text-stone-600">
                 <li>
@@ -1613,11 +1585,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <li>
                   <a href="#about" className="hover:text-[#8B181B] transition-colors">
                     Institutional Heritage
-                  </a>
-                </li>
-                <li>
-                  <a href="#features" className="hover:text-[#8B181B] transition-colors">
-                    Global Alumni Chapters
                   </a>
                 </li>
                 <li>

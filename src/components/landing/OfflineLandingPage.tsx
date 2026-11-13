@@ -428,7 +428,7 @@ export const OfflineLandingPage: React.FC<OfflineLandingPageProps> = ({
                     <h4 className="font-bold text-sm text-stone-900 dark:text-white">Alumni Association Board</h4>
                   </div>
                   <p className="text-xs text-stone-600 dark:text-stone-400 mb-2">
-                    Cecilian Alumnet Leadership & Chapter Support
+                    Cecilian Alumnet Leadership & Alumni Support
                   </p>
                   <div className="space-y-1 text-xs text-stone-700 dark:text-stone-300">
                     <div className="flex items-center gap-2">

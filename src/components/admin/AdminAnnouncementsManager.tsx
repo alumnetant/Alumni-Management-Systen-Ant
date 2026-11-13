@@ -93,7 +93,7 @@ export const AdminAnnouncementsManager: React.FC = () => {
       { id: 'all', label: 'All Announcements' },
       { id: 'directive', label: 'Notices', match: ['directive', 'institutional', 'administration'] },
       { id: 'academic', label: 'Academic', match: ['academic', 'curriculum', 'registrar'] },
-      { id: 'alumni', label: 'Alumni Affairs', match: ['alumni', 'reunion', 'chapter', 'general'] },
+      { id: 'alumni', label: 'Alumni Affairs', match: ['alumni', 'reunion', 'general'] },
       { id: 'career', label: 'Career & Placement', match: ['career', 'job', 'internship'] }
     ];
 

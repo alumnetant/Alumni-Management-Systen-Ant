@@ -204,7 +204,7 @@ export async function exportAlumniCardToPng(user: UserProfile, formattedId: stri
   // Membership Type
   ctx.fillStyle = '#f59e0b';
   ctx.font = 'bold 17px sans-serif';
-  ctx.fillText(user.membershipType || 'Alumni Council Fellow, Chapter Cebu', 320, 365);
+  ctx.fillText(user.membershipType || 'Alumni Council Fellow', 320, 365);
 
   // Alumni ID Number Callout
   ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
@@ -350,7 +350,7 @@ export async function exportAlumniCardToPdf(user: UserProfile, formattedId: stri
 
   doc.setTextColor(253, 230, 138);
   doc.setFontSize(10);
-  doc.text(user.membershipType || 'Alumni Council Fellow, Chapter Cebu', 105, 121, { align: 'center' });
+  doc.text(user.membershipType || 'Alumni Council Fellow', 105, 121, { align: 'center' });
 
   // Official ID Number Box
   doc.setFillColor(10, 10, 12);

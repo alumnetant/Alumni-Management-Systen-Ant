@@ -17,7 +17,6 @@ import {
   FileText,
   BarChart3,
   Award,
-  MapPin,
   ImageIcon,
   ShieldCheck,
   ShieldAlert,
@@ -86,7 +85,12 @@ import { ProfileView } from '../profile/ProfileView';
 import { PlatformOnly } from '../common/PlatformOnly';
 import { AdminCommandBar } from './AdminCommandBar';
 import { AdminQuickActionBar } from './AdminQuickActionBar';
-import { getRegistrationConflicts } from '../../services/studentVerificationService';
+import {
+  getRegistrationConflicts,
+  mergeCloudConflictsWithLocal,
+  syncRegistrationConflictsWithFirestore
+} from '../../services/studentVerificationService';
+import { subscribeToConflictRecords } from '../../lib/firebase';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
 import { compressImage } from '../../lib/utils';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
@@ -104,7 +108,6 @@ export type WorkspaceModuleId =
   | 'events'
   | 'attendance'
   | 'milestones'
-  | 'chapters'
   | 'gallery'
   | 'governance'
   | 'audit'
@@ -126,8 +129,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
   const {
     currentUser,
     users,
-    chapters,
-    createChapter,
     milestones,
     createMilestone,
     permissions,
@@ -229,13 +230,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
   const [mCompany, setMCompany] = useState('');
   const [mDescription, setMDescription] = useState('');
 
-  // Chapter Modal state
-  const [showChapterModal, setShowChapterModal] = useState(false);
-  const [cName, setCName] = useState('');
-  const [cRegion, setCRegion] = useState('');
-  const [cLeadName, setCLeadName] = useState('');
-  const [cLeadEmail, setCLeadEmail] = useState('');
-
   // Universal Theme Hook
   const { isDark, toggleTheme } = useTheme();
 
@@ -257,14 +251,44 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
   // Profile menu state
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
-  // Pending counts computation
-  const pendingConflictsCount = useMemo(() => {
+  // Live Pending Conflicts count (local + Cloud Firestore real-time subscription)
+  const [pendingConflictsCount, setPendingConflictsCount] = useState<number>(() => {
     try {
       return getRegistrationConflicts().filter((c) => c.status === 'pending').length;
     } catch {
       return 0;
     }
-  }, [currentModule]);
+  });
+
+  useEffect(() => {
+    const refreshCount = () => {
+      try {
+        setPendingConflictsCount(
+          getRegistrationConflicts().filter((c) => c.status === 'pending').length
+        );
+      } catch {
+        setPendingConflictsCount(0);
+      }
+    };
+
+    refreshCount();
+    syncRegistrationConflictsWithFirestore().then((merged) => {
+      setPendingConflictsCount(merged.filter((c) => c.status === 'pending').length);
+    });
+
+    const unsubConflicts = subscribeToConflictRecords((cloudConflicts) => {
+      const merged = mergeCloudConflictsWithLocal(cloudConflicts || []);
+      setPendingConflictsCount(merged.filter((c) => c.status === 'pending').length);
+    });
+
+    window.addEventListener('conflicts-updated', refreshCount);
+    window.addEventListener('storage', refreshCount);
+    return () => {
+      unsubConflicts();
+      window.removeEventListener('conflicts-updated', refreshCount);
+      window.removeEventListener('storage', refreshCount);
+    };
+  }, []);
 
   const pendingJobsCount = useMemo(() => {
     return (opportunities || []).filter(
@@ -279,7 +303,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
   }, [users]);
 
   const pendingUsersCount = useMemo(() => {
-    return (users || []).filter((u) => !u.isVerified).length;
+    return (users || []).filter((u) => !u.isVerified && u.role === 'alumni').length;
   }, [users]);
 
   const totalRequestsCount =
@@ -460,27 +484,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
     setMDescription('');
   };
 
-  const handleCreateChapter = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cName.trim() || !cRegion.trim() || !cLeadName.trim()) {
-      showToast('Please fill out all required fields', 'error');
-      return;
-    }
-    createChapter({
-      name: cName.trim(),
-      region: cRegion.trim(),
-      leadName: cLeadName.trim(),
-      leadEmail: cLeadEmail.trim() || `${cLeadName.toLowerCase().replace(/\s+/g, '')}@alumni.stcecilia.edu`,
-      memberCount: 1
-    });
-    showToast(`Chartered ${cName}!`, 'success');
-    setShowChapterModal(false);
-    setCName('');
-    setCRegion('');
-    setCLeadName('');
-    setCLeadEmail('');
-  };
-
   // Keyboard shortcut listener: Cmd/Ctrl + K opens Command Bar
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -638,14 +641,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             shortLabel: 'Milestones',
             icon: Award,
             badge: milestones.length > 0 ? milestones.length : null,
-            visible: true
-          },
-          {
-            id: 'chapters' as WorkspaceModuleId,
-            label: 'Chapters & Hubs',
-            shortLabel: 'Chapters',
-            icon: MapPin,
-            badge: chapters.length > 0 ? chapters.length : null,
             visible: true
           },
           {
@@ -1210,7 +1205,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                     else if (tab === 'announcements') setCurrentModule('announcements');
                     else if (tab === 'events' || tab === 'attendance') setCurrentModule('events');
                     else if (tab === 'milestones') setCurrentModule('milestones');
-                    else if (tab === 'chapters') setCurrentModule('chapters');
                     else if (tab === 'gallery') setCurrentModule('gallery');
                     else if (tab === 'audit') setCurrentModule('audit');
                     else if (tab === 'database') setCurrentModule('database');
@@ -1448,121 +1442,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                 </div>
               </div>
             )}
-
-            {/* MODULE: Chapters & Hubs Bento Grid */}
-            {currentModule === 'chapters' && (
-              <div className="space-y-6">
-                {/* Bento Hero Header */}
-                <div className="relative overflow-hidden bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-2xs">
-                  <div className="h-1 absolute top-0 left-0 right-0 bg-[#8B181B]" />
-                  <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-                    <div className="max-w-2xl space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap text-[11px] font-semibold tracking-wider text-stone-500 uppercase">
-                        <span className="text-[#8B181B] font-bold">St. Cecilia's College</span>
-                        <span aria-hidden="true" className="text-stone-300">·</span>
-                        <span>Regional & Global Chapters</span>
-                        <span aria-hidden="true" className="text-stone-300">·</span>
-                        <span>Geographical Hubs</span>
-                      </div>
-                      <h2 className="text-2xl sm:text-3xl font-bold font-sans text-stone-900 tracking-tight leading-tight">
-                        Cecilian Chapters & Geographical Hubs
-                      </h2>
-                      <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                        Official alumni community chapters organizing local meetups, mentorship cohorts, scholarships, and regional networking.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setShowChapterModal(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-[0_2px_8px_rgba(139,24,27,0.25)] cursor-pointer active:scale-95"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Charter Chapter</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Quick Metrics Strip */}
-                  <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-stone-200/70">
-                    <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Chartered Hubs</span>
-                      <span className="text-2xl font-bold text-stone-900 mt-1 block">{chapters.length}</span>
-                      <span className="text-[10px] text-stone-500 mt-0.5 block">Official regions</span>
-                    </div>
-                    <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Enrolled Members</span>
-                      <span className="text-2xl font-bold text-[#8B181B] mt-1 block">
-                        {chapters.reduce((acc, c) => acc + (c.memberCount || 0), 0).toLocaleString()}
-                      </span>
-                      <span className="text-[10px] text-stone-500 mt-0.5 block">Network membership</span>
-                    </div>
-                    <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Lead Ambassadors</span>
-                      <span className="text-2xl font-bold text-amber-800 mt-1 block">{chapters.length}</span>
-                      <span className="text-[10px] text-stone-500 mt-0.5 block">Appointed leaders</span>
-                    </div>
-                    <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Accreditation</span>
-                      <span className="text-2xl font-bold text-emerald-800 mt-1 block">100%</span>
-                      <span className="text-[10px] text-stone-500 mt-0.5 block">Institutionally recognized</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bento Chapters Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4.5">
-                  {chapters.length === 0 ? (
-                    <div className="col-span-full bg-white rounded-2xl border border-stone-200 p-8 text-center text-stone-500">
-                      No chapters chartered yet. Click &quot;Charter Chapter&quot; to establish an alumni regional chapter.
-                    </div>
-                  ) : (
-                    chapters.map((ch, idx) => (
-                      <div
-                        key={ch.id}
-                        className={`group relative overflow-hidden bg-white rounded-2xl border border-stone-200/80 p-5 shadow-2xs hover:shadow-md hover:border-[#8B181B]/40 transition-all duration-200 flex flex-col justify-between ${
-                          idx === 0 ? 'sm:col-span-2 lg:col-span-2 bg-gradient-to-br from-white via-rose-50/15 to-white' : ''
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B181B] bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200/70">
-                              {ch.region}
-                            </span>
-                            <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-600 bg-stone-100/80 px-2.5 py-1 rounded-md">
-                              <Users className="w-3.5 h-3.5 text-stone-500" />
-                              <span>{ch.memberCount.toLocaleString()} members</span>
-                            </div>
-                          </div>
-
-                          <div className="mt-3.5">
-                            <h3 className="text-lg font-bold text-stone-900 font-sans group-hover:text-[#8B181B] transition-colors">
-                              {ch.name}
-                            </h3>
-                            <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-                              Official chartered regional community of St. Cecilia's College graduates.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mt-5 pt-3.5 border-t border-stone-100 flex items-center justify-between">
-                          <div>
-                            <span className="text-stone-400 block text-[10px] font-medium uppercase tracking-wider">Chapter President / Lead</span>
-                            <span className="font-semibold text-xs text-stone-900 block mt-0.5">{ch.leadName}</span>
-                            <span className="text-[11px] text-stone-500 block truncate">{ch.leadEmail}</span>
-                          </div>
-                          <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center text-stone-500 group-hover:bg-[#8B181B] group-hover:text-white transition-colors shadow-2xs">
-                            <MapPin className="w-4 h-4" />
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-
 
             {/* MODULE: Governance Policies */}
             {currentModule === 'governance' && (
@@ -2125,101 +2004,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
       )}
 
       {/* ========================================================
-          CHARTER CHAPTER MODAL
-          ======================================================== */}
-      {showChapterModal && (
-        <div className="fixed inset-0 bg-stone-950/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-lg w-full p-6 sm:p-7 relative">
-            <div className="flex items-center justify-between pb-4 border-b border-stone-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-rose-50 text-[#8B181B] flex items-center justify-center border border-rose-200">
-                  <MapPin className="w-4 h-4 stroke-[2]" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-stone-900">Charter Regional Chapter</h3>
-                  <p className="text-xs text-stone-500">Establish a new geographical alumni community</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowChapterModal(false)}
-                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateChapter} className="space-y-4 mt-5">
-              <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Chapter Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={cName}
-                  onChange={(e) => setCName(e.target.value)}
-                  placeholder="e.g. Metro Manila Cecilian Alumni Chapter"
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-medium text-stone-900"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Region / Location *</label>
-                <input
-                  type="text"
-                  required
-                  value={cRegion}
-                  onChange={(e) => setCRegion(e.target.value)}
-                  placeholder="e.g. National Capital Region, Philippines"
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-medium text-stone-900"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Chapter President Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={cLeadName}
-                    onChange={(e) => setCLeadName(e.target.value)}
-                    placeholder="e.g. Atty. Juan Dela Cruz"
-                    className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-medium text-stone-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-stone-700 block mb-1">Official Lead Email</label>
-                  <input
-                    type="email"
-                    value={cLeadEmail}
-                    onChange={(e) => setCLeadEmail(e.target.value)}
-                    placeholder="lead@alumni.stcecilia.edu"
-                    className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 focus:bg-white text-xs font-medium text-stone-900"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-stone-100 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowChapterModal(false)}
-                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-xs font-semibold hover:bg-stone-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-                >
-                  Charter Chapter
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================
           GLOBAL COMMAND BAR MODAL
           ======================================================== */}
       {showCommandBar && (
@@ -2241,7 +2025,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                 else if (tab === 'announcements') setCurrentModule('announcements');
                 else if (tab === 'events' || tab === 'attendance') setCurrentModule('events');
                 else if (tab === 'milestones') setCurrentModule('milestones');
-                else if (tab === 'chapters') setCurrentModule('chapters');
                 else if (tab === 'gallery') setCurrentModule('gallery');
                 else if (tab === 'audit') setCurrentModule('audit');
                 else if (tab === 'database') setCurrentModule('database');

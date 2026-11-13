@@ -954,7 +954,7 @@ export async function markAllNotificationsReadInFirestore(userId: string): Promi
     let count = 0;
     snap.forEach((d) => {
       const data = d.data() as AppNotification;
-      if ((data.toUid === userId || data.toUid === 'all') && !data.read) {
+      if ((data.toUid === userId || data.toUid === 'all' || data.toUid === 'admin' || data.toUid === 'administrators') && !data.read) {
         batch.update(d.ref, { read: true });
         count++;
       }
@@ -978,7 +978,7 @@ export function subscribeToUserNotifications(userId: string, onUpdate: (notifica
       const list: AppNotification[] = [];
       snap.forEach((d) => {
         const data = d.data() as AppNotification;
-        if (!data.toUid || data.toUid === 'all' || data.toUid === userId) {
+        if (!data.toUid || data.toUid === 'all' || data.toUid === 'admin' || data.toUid === 'administrators' || data.toUid === userId) {
           list.push(data);
         }
       });
@@ -999,7 +999,7 @@ export async function getNotificationsFromFirestore(userId?: string): Promise<Ap
     const list: AppNotification[] = [];
     snap.forEach((d) => {
       const data = d.data() as AppNotification;
-      if (!userId || !data.toUid || data.toUid === 'all' || data.toUid === userId) {
+      if (!userId || !data.toUid || data.toUid === 'all' || data.toUid === 'admin' || data.toUid === 'administrators' || data.toUid === userId) {
         list.push(data);
       }
     });

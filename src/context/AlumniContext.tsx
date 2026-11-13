@@ -11,7 +11,6 @@ import {
   Opportunity,
   JobApplication,
   ApplicationStatus,
-  Chapter,
   CareerMilestone,
   UserNotificationSettings,
   Experience,
@@ -45,7 +44,6 @@ import {
   INITIAL_ANNOUNCEMENTS,
   INITIAL_OPPORTUNITIES,
   INITIAL_JOB_APPLICATIONS,
-  INITIAL_CHAPTERS,
   INITIAL_MILESTONES,
   INITIAL_GALLERY_ITEMS,
   INITIAL_AUDIT_LOGS,
@@ -211,7 +209,6 @@ interface AlumniContextType {
   events: AlumniEvent[];
   announcements: Announcement[];
   opportunities: Opportunity[];
-  chapters: Chapter[];
   milestones: CareerMilestone[];
   notificationSettings: UserNotificationSettings;
   activeTab: string;
@@ -263,7 +260,6 @@ interface AlumniContextType {
     canManageBackups: boolean;
     canAssignRoles: boolean;
     canVerifyAlumni: boolean;
-    canManageChapters: boolean;
   };
 
   // Auth & Session (One Account, One Active Login)
@@ -435,7 +431,6 @@ interface AlumniContextType {
   updateUserRole: (uid: string, newRole: UserRole) => Promise<{ success: boolean; message?: string }>;
   setUserRole: (uid: string, newRole: UserRole) => Promise<{ success: boolean; message?: string }>;
   deleteAlumni: (uid: string) => Promise<boolean>;
-  createChapter: (ch: Omit<Chapter, 'id'>) => void;
   createMilestone: (m: Omit<CareerMilestone, 'id'>) => void;
   toggleLikeMilestone: (milestoneId: string) => void;
   deleteMilestone: (milestoneId: string) => void;
@@ -483,7 +478,6 @@ export const STORAGE_KEYS = {
   ANNOUNCEMENTS: 'alumni_announcements_v5',
   OPPORTUNITIES: 'alumni_opportunities_v5',
   APPLICATIONS: 'alumni_job_applications_v5',
-  CHAPTERS: 'alumni_chapters_v5',
   MILESTONES: 'alumni_milestones_v5',
   FOLLOWING: 'alumni_following_v5',
   CONNECTIONS: 'alumni_connections_v5',
@@ -712,7 +706,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           STORAGE_KEYS.CHATS,
           STORAGE_KEYS.MESSAGES,
           STORAGE_KEYS.NOTIFICATIONS,
-          STORAGE_KEYS.CHAPTERS,
+          'st_cecilia_chapters_v1',
           STORAGE_KEYS.GALLERY,
           STORAGE_KEYS.MILESTONES,
           STORAGE_KEYS.REQUESTS,
@@ -761,7 +755,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           localStorage.removeItem(STORAGE_KEYS.FEED_POSTS);
           localStorage.removeItem(STORAGE_KEYS.RESERVATIONS);
           localStorage.removeItem(STORAGE_KEYS.GALLERY);
-          localStorage.removeItem(STORAGE_KEYS.CHAPTERS);
+          localStorage.removeItem('st_cecilia_chapters_v1');
           localStorage.removeItem(STORAGE_KEYS.MILESTONES);
           localStorage.removeItem(STORAGE_KEYS.APPLICATIONS);
           localStorage.removeItem('st_cecilia_registrar_student_records');
@@ -1100,16 +1094,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       localStorage.setItem(STORAGE_KEYS.APPLICATIONS, JSON.stringify(jobApplications));
     } catch {}
   }, [jobApplications]);
-
-  const [chapters, setChapters] = useState<Chapter[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.CHAPTERS);
-      const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
 
   const [milestones, setMilestones] = useState<CareerMilestone[]>(() => {
     try {
@@ -1797,10 +1781,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.APPLICATIONS, JSON.stringify(jobApplications));
   }, [jobApplications]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CHAPTERS, JSON.stringify(chapters));
-  }, [chapters]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.MILESTONES, JSON.stringify(milestones));
@@ -2556,13 +2536,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       // Database Backup: Super Administrator ONLY
       canManageBackups: role === 'superadmin',
 
-      // Administration & Chapters
+      // Administration
       // Role Assignment: Super Administrator (full), Administrator (approved roles)
       canAssignRoles: ['admin', 'superadmin'].includes(role || ''),
       // Alumni Verification: Moderator (primary owner, academic clearance), Admin/Superadmin (oversight)
-      canVerifyAlumni: ['moderator', 'admin', 'superadmin'].includes(role || ''),
-      // Regional Chapters: Moderator (primary owner), Admin/Superadmin (oversight)
-      canManageChapters: ['moderator', 'admin', 'superadmin'].includes(role || '')
+      canVerifyAlumni: ['moderator', 'admin', 'superadmin'].includes(role || '')
     };
   }, [currentUser]);
 
@@ -3632,11 +3610,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return false;
     }
 
-    // Strict registrar verification check for student/alumni accounts
-    let verifiedRegistrarRecord: any = null;
-    if (role === 'alumni') {
-      const rawStudentId = (data.studentId || '').trim();
+    // Strict registrar verification check for standard student/alumni registrations
+    // Manual Verification Requests & Dispute Claims bypass strict ID format checks and remain unverified until reviewed
+    const rawStudentId = (data.studentId || '').trim();
+    const isAppealRegistration =
+      Boolean((data as any).isAppealRegistration) ||
+      data.accountStatus === 'PENDING_VERIFICATION' ||
+      (data.verificationStatus as string) === 'in_review' ||
+      data.verificationStatus === 'pending_review' ||
+      rawStudentId.startsWith('SCC-PENDING-') ||
+      rawStudentId.startsWith('SCC-DISPUTE-');
 
+    let verifiedRegistrarRecord: any = null;
+    if (role === 'alumni' && !isAppealRegistration) {
       // Specifically reject accounts if Student ID is missing or does not match expected format SCC-YYYY-XXXX
       if (!rawStudentId || !isValidStudentIdPattern(rawStudentId)) {
         showToast(
@@ -3681,7 +3667,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       data.course ||
       (role === 'alumni' ? 'B.S. Information Technology' : role === 'employer' ? 'Corporate Industry Partner' : 'Campus Administration & Services');
     const finalName = data.name || verifiedRegistrarRecord?.fullName || (role === 'employer' ? data.companyName || 'Corporate Partner' : 'Cecilian Member');
-    const isAlumniVerified = role === 'alumni' ? true : Boolean(data.isVerified);
+    const isAlumniVerified = role === 'alumni' ? !isAppealRegistration : Boolean(data.isVerified);
 
     const newUser: UserProfile = {
       uid: newUid,
@@ -3692,7 +3678,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       batch: finalBatch,
       course: finalCourse,
       location: data.location || (role === 'employer' ? 'Cebu City, Philippines' : 'Cebu, Philippines'),
-      alumniId: data.alumniId || (role === 'alumni' ? generateAlumniId(finalBatch, finalStudentId, newUid) : undefined),
+      alumniId: data.alumniId || (role === 'alumni' && isAlumniVerified ? generateAlumniId(finalBatch, finalStudentId, newUid) : undefined),
       studentId: finalStudentId,
       employeeId: data.employeeId,
       department: data.department,
@@ -3713,7 +3699,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       phone: data.phone || data.contactPhone || '+63 917 123 4567',
       isVerified: isAlumniVerified,
       verified: isAlumniVerified,
-      verificationStatus: isAlumniVerified ? 'verified' : 'pending_review',
+      verificationStatus: isAlumniVerified ? 'verified' : (data.verificationStatus || 'pending_review'),
+      accountStatus: isAlumniVerified ? 'ACTIVE' : (data.accountStatus || 'PENDING_VERIFICATION'),
       followersCount: 0,
       followingCount: 0,
       connectionsCount: 0,
@@ -3760,7 +3747,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }).catch((err) => console.warn('Backend server register notice:', err));
 
     setUsers((prev) => [newUser, ...prev]);
-    // Log in immediately if verified
+    // Log in immediately only if verified
     if (newUser.isVerified) {
       saveActiveSession(newUser);
       setCurrentUserId(newUid);
@@ -3770,7 +3757,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       console.warn('Error saving new user to Firestore:', err);
     });
 
-    if (role === 'alumni' && newUser.studentId) {
+    if (role === 'alumni' && newUser.studentId && !isAppealRegistration) {
       markRegistryRecordAsRegistered(newUser.studentId, newUid);
     }
 
@@ -3778,14 +3765,31 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       // Notify admins that employer registered and requires verification
       const adminNotif: AppNotification = {
         id: `notif_emp_reg_${Date.now()}`,
+        toUid: 'admin',
         type: 'general',
-        title: '🏢 New Employer Partner Registered',
+        title: 'New Employer Partner Registered',
         body: `${newUser.companyName || newUser.name} has registered and submitted an accreditation request for Admin Verification.`,
         read: false,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        metadata: { targetRole: 'moderator' }
       };
       setNotifications((prev) => [adminNotif, ...prev]);
+      saveNotificationToFirestore(adminNotif).catch(() => {});
       showToast(`Company registered! Status: Pending Admin Verification.`, 'info');
+    } else if (isAppealRegistration) {
+      const appealNotif: AppNotification = {
+        id: `notif_appeal_${Date.now()}`,
+        toUid: 'admin',
+        type: 'general',
+        title: 'New Alumni Verification Appeal / Dispute',
+        body: `${newUser.name} (${newUser.email}) submitted a verification request or ID conflict claim for Moderator & Admin review.`,
+        refId: newUser.uid,
+        read: false,
+        createdAt: new Date().toISOString(),
+        metadata: { targetRole: 'moderator' }
+      };
+      setNotifications((prev) => [appealNotif, ...prev]);
+      saveNotificationToFirestore(appealNotif).catch(() => {});
     } else {
       showToast(`Account registered and verified with official registrar records! Welcome, ${newUser.name}!`, 'success');
     }
@@ -7653,16 +7657,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   };
 
-  const createChapter = (ch: Omit<Chapter, 'id'>) => {
-    if (!permissions.canAccessAdminPanel) return;
-    const newChap: Chapter = {
-      id: `chap_${Date.now()}`,
-      ...ch
-    };
-    setChapters((prev) => [...prev, newChap]);
-    showToast(`Alumni Chapter "${ch.name}" created!`);
-  };
-
   const createMilestone = (m: Omit<CareerMilestone, 'id'>) => {
     const isAuthorized = permissions.canAccessAdminPanel || currentUser?.role === 'alumni' || currentUser?.role === 'moderator';
     if (!isAuthorized) {
@@ -8780,7 +8774,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setReservations([]);
       setFeedPosts([]);
       setGalleryItems([]);
-      setChapters([]);
       setMilestones([]);
 
       try {
@@ -8790,7 +8783,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         localStorage.removeItem(STORAGE_KEYS.RESERVATIONS);
         localStorage.removeItem(STORAGE_KEYS.FEED_POSTS);
         localStorage.removeItem(STORAGE_KEYS.GALLERY);
-        localStorage.removeItem(STORAGE_KEYS.CHAPTERS);
         localStorage.removeItem(STORAGE_KEYS.MILESTONES);
         localStorage.removeItem('st_cecilia_registrar_student_records');
       } catch {}
@@ -8841,7 +8833,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         events,
         announcements,
         opportunities,
-        chapters,
         milestones,
         notificationSettings,
         activeTab,
@@ -8986,7 +8977,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         updateUserRole,
         setUserRole: updateUserRole,
         deleteAlumni,
-        createChapter,
         createMilestone,
         toggleLikeMilestone,
         deleteMilestone,

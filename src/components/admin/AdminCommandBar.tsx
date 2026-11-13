@@ -10,7 +10,6 @@ import {
   Briefcase,
   FileText,
   Award,
-  MapPin,
   ImageIcon,
   CheckCircle,
   Plus,
@@ -263,15 +262,6 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
         icon: Award,
         tab: 'milestones',
         keywords: 'milestones honors achievements hall of fame awards laureates'
-      },
-      {
-        id: 'mod-chapters',
-        title: 'Regional Chapters & Global Hubs',
-        subtitle: 'Manage alumni chapters across regions and international locations',
-        category: 'Admin Modules',
-        icon: MapPin,
-        tab: 'chapters',
-        keywords: 'chapters regional hubs locations branches'
       },
       {
         id: 'mod-gallery',

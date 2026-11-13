@@ -78,7 +78,7 @@
     },
     "Event": {
       "title": "Alumni Event",
-      "description": "University and chapter reunions, webinars, and workshops",
+      "description": "University reunions, webinars, and workshops",
       "type": "object",
       "properties": {
         "title": { "type": "string", "maxLength": 150 },

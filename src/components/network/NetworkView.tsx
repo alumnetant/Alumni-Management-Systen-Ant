@@ -24,7 +24,6 @@ import {
   BookOpen,
   Briefcase,
   ChevronRight,
-  Award,
   ArrowUpRight,
   CheckCircle2,
   Share2,
@@ -222,30 +221,6 @@ export const NetworkView: React.FC = () => {
     const start = (currentPageConnections - 1) * PAGE_SIZE;
     return connectedUsers.slice(start, start + PAGE_SIZE);
   }, [connectedUsers, currentPageConnections, PAGE_SIZE]);
-
-
-  // Spotlight Alumnus / Community Mentor: An inspiring Cecilian (Directory Privacy & Approved Only)
-  const spotlightAlumnus = useMemo(() => {
-    const candidates = users.filter((u) => 
-      u.uid !== currentUser?.uid && 
-      u.role !== 'admin' && 
-      u.role !== 'superadmin' && 
-      u.role !== 'moderator' &&
-      (u.accountStatus || 'ACTIVE').toUpperCase() !== 'PENDING_VERIFICATION' &&
-      (u.accountStatus || 'ACTIVE').toUpperCase() !== 'SUSPENDED' &&
-      (u.verificationStatus || '').toLowerCase() !== 'pending' &&
-      (u.verificationStatus || '').toLowerCase() !== 'in_review' &&
-      (u.isVerified || u.company || u.quickStatus === 'Mentoring' || u.quickStatus === 'Hiring') && 
-      (u.role !== 'employer' || isEmployerVisibleInDirectory(u))
-    );
-    return candidates.length > 0 ? candidates[0] : users.find((u) => 
-      u.uid !== currentUser?.uid && 
-      u.role !== 'admin' && 
-      u.role !== 'superadmin' && 
-      u.role !== 'moderator' &&
-      (u.role !== 'employer' || isEmployerVisibleInDirectory(u))
-    );
-  }, [users, currentUser]);
 
   // Filtered Directory
   const filteredDirectory = useMemo(() => {
@@ -896,132 +871,6 @@ export const NetworkView: React.FC = () => {
           ======================================================== */}
       {activeSubTab === 'directory' && (
         <div className="space-y-6">
-          {/* Spotlight Alumnus Lead Card */}
-          {spotlightAlumnus && !searchQuery && selectedBatch === 'all' && selectedCourse === 'all' && (
-            <motion.div
-              whileHover={{ y: -2, transition: { duration: 0.2, ease: 'easeOut' } }}
-              className="bg-white dark:bg-stone-900 p-5 sm:p-6 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02),0_8px_24px_rgba(0,0,0,0.03)] flex flex-col justify-between relative overflow-hidden transition-shadow duration-200"
-            >
-              <div className="h-1 bg-[#8B181B] absolute top-0 left-0 right-0" />
-
-              <div>
-                <div className="flex items-center justify-between gap-2 pb-3 border-b border-stone-100 dark:border-stone-800">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-red-50 dark:bg-red-950/40 text-[#8B181B] border border-red-200/70 dark:border-red-900/60">
-                      <Award className="w-3.5 h-3.5 text-[#8B181B]" />
-                      Featured Alumnus
-                    </span>
-                    <span className="text-stone-300 dark:text-stone-700">·</span>
-                    <span className="text-xs text-stone-500 font-medium">Featured Member</span>
-                  </div>
-
-                  {spotlightAlumnus.quickStatus && (
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                      getStatusConfig(spotlightAlumnus.quickStatus).badgeBg
-                    } ${getStatusConfig(spotlightAlumnus.quickStatus).badgeBorder} ${
-                      getStatusConfig(spotlightAlumnus.quickStatus).badgeText
-                    }`}>
-                      <span className={`w-2 h-2 rounded-full ${getStatusConfig(spotlightAlumnus.quickStatus).dotColor}`} />
-                      <span>{spotlightAlumnus.quickStatus}</span>
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="relative shrink-0">
-                    <img
-                      src={getUserAvatar(spotlightAlumnus.profilePictureUrl)}
-                      alt={spotlightAlumnus.name}
-                      onError={handleUserAvatarError}
-                      onClick={() => setSelectedUserIdForModal(spotlightAlumnus.uid)}
-                      className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover ring-2 ring-stone-200 dark:ring-stone-700 shadow-sm border border-stone-100 cursor-pointer hover:opacity-95 transition-opacity"
-                    />
-                    {spotlightAlumnus.isVerified && (
-                      <span
-                        title="Verified Alumnus"
-                        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-md bg-emerald-600 text-white flex items-center justify-center text-[10px] shadow-2xs font-bold"
-                      >
-                        ✓
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3
-                        onClick={() => setSelectedUserIdForModal(spotlightAlumnus.uid)}
-                        className="text-lg sm:text-xl font-bold text-stone-900 dark:text-white hover:text-[#8B181B] cursor-pointer tracking-tight transition-colors truncate"
-                      >
-                        {spotlightAlumnus.name}
-                      </h3>
-                      <span className="text-xs font-bold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded-md">
-                        Class of {spotlightAlumnus.batch || '2024'}
-                      </span>
-                    </div>
-
-                    <p className="text-xs font-semibold text-[#8B181B] mt-0.5">
-                      {spotlightAlumnus.course || 'Bachelor of Science Graduate'}
-                    </p>
-
-                    <p className="text-xs text-stone-600 dark:text-stone-400 mt-1 line-clamp-2 leading-relaxed">
-                      {spotlightAlumnus.headline || spotlightAlumnus.about || spotlightAlumnus.bio || 'Proud graduate of St. Cecilia’s College, contributing to regional enterprise and professional excellence.'}
-                    </p>
-
-                    <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-500">
-                      {spotlightAlumnus.company && (
-                        <span className="inline-flex items-center gap-1 font-medium text-stone-700 dark:text-stone-300">
-                          <Building2 className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                          {spotlightAlumnus.company}
-                        </span>
-                      )}
-                      <span className="inline-flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                        {spotlightAlumnus.location || 'Minglanilla, Cebu'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-3 border-t border-stone-100 dark:border-stone-800 flex flex-wrap items-center justify-between gap-3">
-                <span className="text-xs text-stone-500">
-                  Active and verified alumnus
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedUserIdForModal(spotlightAlumnus.uid)}
-                    className="px-3 py-1.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
-                  >
-                    View Profile
-                  </button>
-                  {isConnected(spotlightAlumnus.uid) ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        getOrCreateChat(spotlightAlumnus.uid);
-                        setActiveTab('messages');
-                      }}
-                      className="px-4 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>Message</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => sendFriendRequest(spotlightAlumnus.uid)}
-                      className="px-4 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer active:scale-95"
-                    >
-                      <UserPlus className="w-3.5 h-3.5" />
-                      <span>Connect</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
           {/* EMPTY STATE */}
           {filteredDirectory.length === 0 ? (
             <div className="bg-white dark:bg-stone-900 p-12 text-center rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">

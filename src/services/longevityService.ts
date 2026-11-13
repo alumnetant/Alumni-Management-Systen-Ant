@@ -265,7 +265,6 @@ export async function generateCentenaryArchivalPackage(data: {
   registryRecords: StudentVerificationRecord[];
   auditLogs: any[];
   milestones: any[];
-  chapters: any[];
   events: any[];
   announcements: any[];
 }) {
@@ -285,7 +284,6 @@ export async function generateCentenaryArchivalPackage(data: {
       accreditedRegistryRecords: data.registryRecords.length,
       historicalAuditLogs: data.auditLogs.length,
       alumniMilestones: data.milestones.length,
-      regionalChapters: data.chapters.length,
       eventsAndReunions: data.events.length,
       announcements: data.announcements.length,
       timeCapsules: getTimeCapsules().length
@@ -300,7 +298,6 @@ export async function generateCentenaryArchivalPackage(data: {
     alumniDirectory: data.users,
     registrarMasterlist: data.registryRecords,
     alumniMilestones: data.milestones,
-    regionalChapters: data.chapters,
     institutionalEvents: data.events,
     auditTrail: data.auditLogs
   };
@@ -344,7 +341,6 @@ export async function downloadCentenaryVault(data: {
   registryRecords: StudentVerificationRecord[];
   auditLogs: any[];
   milestones: any[];
-  chapters: any[];
   events: any[];
   announcements: any[];
 }) {

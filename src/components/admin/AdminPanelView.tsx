@@ -13,7 +13,6 @@ import {
   Bot,
   BarChart3,
   Award,
-  MapPin,
   ImageIcon,
   ShieldCheck,
   ShieldAlert,
@@ -64,15 +63,12 @@ export type AdminTab =
   | 'automations'
   | 'metrics'
   | 'milestones'
-  | 'chapters'
   | 'gallery';
 
 export const AdminPanelView: React.FC = () => {
   const {
     currentUser,
     users,
-    chapters,
-    createChapter,
     milestones,
     createMilestone,
     permissions,
@@ -171,12 +167,6 @@ export const AdminPanelView: React.FC = () => {
   const [mDescription, setMDescription] = useState('');
   const [mCompany, setMCompany] = useState('');
 
-  const [showChapterModal, setShowChapterModal] = useState(false);
-  const [cName, setCName] = useState('');
-  const [cRegion, setCRegion] = useState('');
-  const [cLeadName, setCLeadName] = useState('');
-  const [cLeadEmail, setCLeadEmail] = useState('');
-
   // Modules configuration with permissions, badges, groups, and responsive metadata
   const modulesList = useMemo(() => {
     return [
@@ -271,16 +261,6 @@ export const AdminPanelView: React.FC = () => {
         visible: true
       },
       {
-        id: 'chapters' as AdminTab,
-        label: 'Regional Chapters',
-        shortLabel: 'Chapters',
-        group: 'Alumni Engagement',
-        icon: MapPin,
-        badge: null,
-        badgeColor: '',
-        visible: true
-      },
-      {
         id: 'gallery' as AdminTab,
         label: 'Campus Gallery',
         shortLabel: 'Gallery',
@@ -303,7 +283,6 @@ export const AdminPanelView: React.FC = () => {
     announcements.length,
     events.length,
     milestones.length,
-    chapters.length,
     galleryItems.length
   ]);
 
@@ -350,24 +329,6 @@ export const AdminPanelView: React.FC = () => {
     setMDescription('');
     setMCompany('');
     setShowMilestoneModal(false);
-  };
-
-  const handleCreateChapter = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cName || !cRegion || !cLeadName) return;
-
-    createChapter({
-      name: cName,
-      region: cRegion,
-      leadName: cLeadName,
-      leadEmail: cLeadEmail || 'chapter@stcecilia.edu'
-    });
-
-    setCName('');
-    setCRegion('');
-    setCLeadName('');
-    setCLeadEmail('');
-    setShowChapterModal(false);
   };
 
   const handleExportCsv = () => {
@@ -859,115 +820,6 @@ export const AdminPanelView: React.FC = () => {
             </div>
           )}
 
-          {/* TAB: CHAPTERS (BENTO GRID REDESIGN) */}
-          {activeTab === 'chapters' && (
-            <div className="space-y-6">
-              {/* Bento Hero Header - Strict Minimalist Bento */}
-              <div className="relative overflow-hidden bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-                {/* Institutional St. Cecilia Crimson Architectural Top Trim */}
-                <div className="h-1 absolute top-0 left-0 right-0 bg-[#8B181B]" />
-
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-                  <div className="max-w-2xl space-y-2">
-                    <div className="flex items-center gap-2 flex-wrap text-[11px] font-semibold tracking-wider text-stone-500 uppercase">
-                      <span className="text-[#8B181B] font-bold">St. Cecilia's College</span>
-                      <span aria-hidden="true" className="text-stone-300">·</span>
-                      <span>Regional & Global Chapters</span>
-                      <span aria-hidden="true" className="text-stone-300">·</span>
-                      <span>Geographical Hubs</span>
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-bold font-sans text-stone-900 tracking-tight leading-tight">
-                      Cecilian Chapters & Geographical Hubs
-                    </h2>
-                    <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                      Official alumni community chapters organizing local meetups, mentorship cohorts, scholarships, and regional networking.
-                    </p>
-                  </div>
-
-                  {permissions.canManageChapters && (
-                    <button
-                      onClick={() => setShowChapterModal(true)}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-[0_2px_8px_rgba(139,24,27,0.25)] cursor-pointer active:scale-95 shrink-0"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Charter Chapter</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* Quick Metrics Strip */}
-                <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-stone-200/70">
-                  <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Chartered Hubs</span>
-                    <span className="text-2xl font-bold text-stone-900 mt-1 block">{chapters.length}</span>
-                    <span className="text-[10px] text-stone-500 mt-0.5 block">Official regions</span>
-                  </div>
-                  <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Enrolled Members</span>
-                    <span className="text-2xl font-bold text-[#8B181B] mt-1 block">
-                      {chapters.reduce((acc, c) => acc + (c.memberCount || 0), 0).toLocaleString()}
-                    </span>
-                    <span className="text-[10px] text-stone-500 mt-0.5 block">Network membership</span>
-                  </div>
-                  <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Lead Ambassadors</span>
-                    <span className="text-2xl font-bold text-amber-800 mt-1 block">{chapters.length}</span>
-                    <span className="text-[10px] text-stone-500 mt-0.5 block">Appointed leaders</span>
-                  </div>
-                  <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Accreditation</span>
-                    <span className="text-2xl font-bold text-emerald-800 mt-1 block">100%</span>
-                    <span className="text-[10px] text-stone-500 mt-0.5 block">Institutionally recognized</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bento Chapters Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4.5">
-                {chapters.map((ch, idx) => (
-                  <div
-                    key={ch.id}
-                    className={`group relative overflow-hidden bg-white rounded-2xl border border-stone-200/80 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-[#8B181B]/40 transition-all duration-200 flex flex-col justify-between ${
-                      idx === 0 ? 'sm:col-span-2 lg:col-span-2 bg-gradient-to-br from-white via-rose-50/15 to-white' : ''
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-3">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#8B181B] bg-rose-50 px-2.5 py-1 rounded-md border border-rose-200/70">
-                          {ch.region}
-                        </span>
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-stone-600 bg-stone-100/80 px-2.5 py-1 rounded-md">
-                          <Users className="w-3.5 h-3.5 text-stone-500" />
-                          <span>{ch.memberCount.toLocaleString()} members</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-3.5">
-                        <h3 className="text-lg font-bold text-stone-900 font-sans group-hover:text-[#8B181B] transition-colors">
-                          {ch.name}
-                        </h3>
-                        <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-                          Official chartered regional community of St. Cecilia's College graduates.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 pt-3.5 border-t border-stone-100 flex items-center justify-between">
-                      <div>
-                        <span className="text-stone-400 block text-[10px] font-medium uppercase tracking-wider">Chapter President / Lead</span>
-                        <span className="font-semibold text-xs text-stone-900 block mt-0.5">{ch.leadName}</span>
-                        <span className="text-[11px] text-stone-500 block truncate">{ch.leadEmail}</span>
-                      </div>
-                      <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center text-stone-500 group-hover:bg-[#8B181B] group-hover:text-white transition-colors shadow-2xs">
-                        <MapPin className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* TAB: GALLERY (BENTO GRID REDESIGN) */}
           {activeTab === 'gallery' && (
             <div className="space-y-6">
@@ -1331,85 +1183,6 @@ export const AdminPanelView: React.FC = () => {
                   className="px-4 py-1.5 bg-[#8B181B] text-white font-semibold rounded-lg shadow-xs"
                 >
                   Publish
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* CHAPTER MODAL */}
-      {showChapterModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-stone-200 w-full max-w-md p-5 text-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h3 className="text-sm font-bold font-sans text-stone-900">Charter Regional Chapter</h3>
-              <button onClick={() => setShowChapterModal(false)} className="text-stone-400 hover:text-stone-600">
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateChapter} className="mt-3 space-y-3">
-              <div>
-                <label className="font-semibold text-stone-700 block mb-1">Chapter Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={cName}
-                  onChange={(e) => setCName(e.target.value)}
-                  placeholder="e.g. Austin Regional Chapter"
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-stone-700 block mb-1">Region / Location *</label>
-                <input
-                  type="text"
-                  required
-                  value={cRegion}
-                  onChange={(e) => setCRegion(e.target.value)}
-                  placeholder="e.g. Texas, USA"
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-stone-700 block mb-1">Chapter President Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={cLeadName}
-                  onChange={(e) => setCLeadName(e.target.value)}
-                  placeholder="Alumni President Name"
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-stone-700 block mb-1">Lead Email</label>
-                <input
-                  type="email"
-                  value={cLeadEmail}
-                  onChange={(e) => setCLeadEmail(e.target.value)}
-                  placeholder="lead@stcecilia.edu"
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowChapterModal(false)}
-                  className="px-3 py-1.5 bg-stone-100 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-[#8B181B] text-white font-semibold rounded-lg shadow-xs"
-                >
-                  Charter
                 </button>
               </div>
             </form>

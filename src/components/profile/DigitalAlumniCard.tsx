@@ -89,7 +89,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   const avatarUrl = user.avatar || user.profilePictureUrl || user.photoUrl;
   const graduationCohort = `Class of ${user.batch || '2024'}`;
   const degreeProgram = user.course || user.department || 'B.S. Information Technology';
-  const membershipType = user.membershipType || 'Alumni Council Fellow, Chapter Cebu';
+  const membershipType = user.membershipType || 'Alumni Council Fellow';
 
   // Cache encrypted digital pass credentials to localStorage for offline readiness
   useEffect(() => {

@@ -184,7 +184,6 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
     opportunities,
     announcements,
     galleryItems,
-    chapters,
     milestones,
     chats,
     notifications,
@@ -307,7 +306,6 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
         opportunities: opportunities.length,
         announcements: announcements.length,
         gallery: galleryItems.length,
-        chapters: chapters.length,
         milestones: milestones.length,
         chats: chats.length,
         notifications: notifications.length
@@ -413,16 +411,8 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
       accessPolicy: 'Public Read / Admin Accredit',
       primaryKeys: 'milestoneId',
       indexesActive: 1
-    },
-    {
-      id: 'chapters',
-      name: 'Regional Alumni Chapters',
-      count: chapters.length,
-      accessPolicy: 'Public Read / Admin Charter',
-      primaryKeys: 'chapterId',
-      indexesActive: 1
     }
-  ], [users.length, events.length, opportunities.length, announcements.length, galleryItems.length, chapters.length, milestones.length, chats.length]);
+  ], [users.length, events.length, opportunities.length, announcements.length, galleryItems.length, milestones.length, chats.length]);
 
   return (
     <div className="space-y-6">

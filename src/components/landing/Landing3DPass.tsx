@@ -134,7 +134,7 @@ export const Landing3DPass: React.FC<Landing3DPassProps> = ({ onRegisterClick })
                 Alexandria M. Santos
               </h4>
               <p className="text-[11px] text-amber-200/90 font-medium mt-0.5">
-                Alumni Council Fellow • Chapter Cebu
+                Alumni Council Fellow • Verified Graduate
               </p>
             </div>
 

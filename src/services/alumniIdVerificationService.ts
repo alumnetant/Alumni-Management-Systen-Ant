@@ -45,7 +45,7 @@ export function createAlumniVerificationToken(user: UserProfile): string {
   const alumniId = user.alumniId || generateAlumniId(batch, user.studentId, user.uid);
   const name = user.name || 'Cecilian Alumnus';
   const degree = user.course || user.department || 'B.S. Information Technology';
-  const membershipType = user.membershipType || 'Alumni Council Member, Chapter Cebu';
+  const membershipType = user.membershipType || 'Alumni Council Member';
   const avatar = user.avatar || user.profilePictureUrl || user.photoUrl || '';
   const isVerified = Boolean(user.isVerified ?? user.verified ?? true);
   const issuedAt = new Date().toISOString().split('T')[0];

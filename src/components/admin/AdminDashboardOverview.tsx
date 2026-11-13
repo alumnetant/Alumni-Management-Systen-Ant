@@ -80,7 +80,6 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
     events,
     announcements,
     opportunities,
-    chapters,
     milestones,
     auditLogs,
     setUserVerified,

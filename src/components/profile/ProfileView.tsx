@@ -848,20 +848,18 @@ export const ProfileView: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
                     <Megaphone className="w-5 h-5 text-[#8B181B] dark:text-red-400" />
-                    <span>My Feed Posts & Updates ({feedPosts.filter((p) => p.authorId === currentUser.uid).length})</span>
+                    <span>My Feed Posts & Updates ({myPosts.length})</span>
                   </h2>
                 </div>
 
                 <div className="space-y-3">
-                  {feedPosts.filter((p) => p.authorId === currentUser.uid).length === 0 ? (
+                  {myPosts.length === 0 ? (
                     <div className="p-6 bg-white dark:bg-stone-900/60 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 text-center text-xs text-stone-500 dark:text-stone-400">
                       <Megaphone className="w-6 h-6 mx-auto mb-2 text-stone-400 dark:text-stone-500 opacity-60" />
                       You haven't published any posts to the Campus Feed yet.
                     </div>
                   ) : (
-                    feedPosts
-                      .filter((p) => p.authorId === currentUser.uid)
-                      .map((post) => (
+                    myPosts.map((post) => (
                         <div
                           key={post.id}
                           className="p-4 bg-white dark:bg-stone-900/70 rounded-xl border border-stone-200/70 dark:border-stone-700/60 shadow-2xs transition-colors"

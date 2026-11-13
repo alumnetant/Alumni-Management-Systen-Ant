@@ -245,7 +245,7 @@ const HISTORY_ERAS: HistoryEra[] = [
         details: [
           'Collaborated with national and international aerospace organizations.',
           'Put St. Cecilia’s College at the forefront of aerospace innovation and STEM leadership.',
-          'Network expanded to 5,000+ active alumni across 12 domestic and global chapters.'
+          'Network expanded to 5,000+ active alumni across 28 countries worldwide.'
         ],
         recognition: 'Philippine Space Science & Aerospace Milestone',
         iconName: 'rocket'

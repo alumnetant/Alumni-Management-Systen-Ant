@@ -180,7 +180,7 @@ export interface UserProfile {
   password?: string;
   authProvider?: 'password' | 'google' | 'firebase';
   accountType?: 'alumni' | 'employer';
-  membershipType?: string; // e.g. "Alumni Council Fellow, Chapter Cebu"
+  membershipType?: string; // e.g. "Alumni Council Fellow"
   settings?: Record<string, any>;
   // Automation & System Health Fields
   employmentStatus?: 'Employed' | 'Self-employed' | 'Seeking Opportunities' | 'Unemployed' | 'Retired' | 'N/A';
@@ -557,17 +557,6 @@ export interface JobApplication {
     totalSkillsCount: number;
     locationMatch: boolean;
   };
-}
-
-export interface Chapter {
-  id: string;
-  name: string;
-  region: string;
-  leadName: string;
-  leadEmail: string;
-  memberCount?: number;
-  meetingFrequency?: string;
-  description?: string;
 }
 
 export interface TaggedAlumnus {

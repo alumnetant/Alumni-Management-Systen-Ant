@@ -177,7 +177,7 @@ export const AlumniCredentialVerificationView: React.FC<AlumniCredentialVerifica
               <div className="flex-1 min-w-0">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-300 border border-amber-500/30 mb-2">
                   <Award className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{verificationResult.claim.membershipType || 'Alumni Council Member, Chapter Cebu'}</span>
+                  <span>{verificationResult.claim.membershipType || 'Alumni Council Member'}</span>
                 </div>
 
                 <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight uppercase font-serif drop-shadow-sm">
@@ -220,7 +220,7 @@ export const AlumniCredentialVerificationView: React.FC<AlumniCredentialVerifica
                   Membership Classification
                 </span>
                 <span className="font-semibold text-stone-100 text-sm mt-0.5 block">
-                  {verificationResult.claim.membershipType || 'Active Chapter Member'}
+                  {verificationResult.claim.membershipType || 'Active Alumni Member'}
                 </span>
               </div>
 
