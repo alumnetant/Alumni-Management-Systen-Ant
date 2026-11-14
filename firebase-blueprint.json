@@ -223,6 +223,93 @@
         "attendanceConfirmedAt": { "type": "string" }
       },
       "required": ["id", "eventId", "userId", "alumniName", "status", "reservedAt"]
+    },
+    "PostReport": {
+      "title": "Post Report",
+      "description": "Private user report filed against a feed post with priority and status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "caseId": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["post", "comment"] },
+        "targetId": { "type": "string" },
+        "reason": { "type": "string" },
+        "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+        "details": { "type": "string", "maxLength": 500 },
+        "reporterId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "dismissed", "action_taken", "post_removed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "caseId", "targetType", "targetId", "reason", "priority", "reporterId", "status", "createdAt"]
+    },
+    "ModerationCase": {
+      "title": "Moderation Case",
+      "description": "Grouped moderation review case with content snapshot and concurrency claim state",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["post", "comment"] },
+        "targetId": { "type": "string" },
+        "postAuthorId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "dismissed", "action_taken", "post_removed"] },
+        "highestPriority": { "type": "string", "enum": ["high", "medium", "low"] },
+        "reportCount": { "type": "number" },
+        "claimedBy": { "type": "string" },
+        "resolvedBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "targetType", "targetId", "postAuthorId", "status", "highestPriority", "reportCount", "createdAt"]
+    },
+    "ModerationWarning": {
+      "title": "Moderation Warning",
+      "description": "Warning issued by a moderator or admin for a reported post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "caseId": { "type": "string" },
+        "postId": { "type": "string" },
+        "issuedBy": { "type": "string" },
+        "reason": { "type": "string" },
+        "message": { "type": "string", "maxLength": 1000 },
+        "overturned": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "caseId", "postId", "issuedBy", "reason", "message", "overturned", "createdAt"]
+    },
+    "ModerationAppeal": {
+      "title": "Moderation Appeal",
+      "description": "One-time post author appeal against a warning or soft-deletion",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "caseId": { "type": "string" },
+        "actionType": { "type": "string", "enum": ["warning", "deletion"] },
+        "authorId": { "type": "string" },
+        "explanation": { "type": "string", "maxLength": 500 },
+        "originalModeratorId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "upheld", "reversed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "postId", "caseId", "actionType", "authorId", "explanation", "originalModeratorId", "status", "createdAt"]
+    },
+    "ModerationAuditLog": {
+      "title": "Moderation Audit Log",
+      "description": "Immutable append-only moderation action history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "action": { "type": "string" },
+        "actorId": { "type": "string" },
+        "actorRole": { "type": "string" },
+        "postId": { "type": "string" },
+        "caseId": { "type": "string" },
+        "note": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "action", "actorId", "actorRole", "createdAt"]
     }
   },
   "firestore": {
@@ -285,6 +372,26 @@
     "/feed_posts/{id}": {
       "schema": "Announcement",
       "description": "Institutional and alumni community social feed posts"
+    },
+    "/post_reports/{reportId}": {
+      "schema": "PostReport",
+      "description": "Confidential reports submitted by users against posts"
+    },
+    "/moderation_cases/{caseId}": {
+      "schema": "ModerationCase",
+      "description": "Grouped moderation review cases with initial content snapshots"
+    },
+    "/moderation_warnings/{warningId}": {
+      "schema": "ModerationWarning",
+      "description": "User moderation warning records for escalation tracking"
+    },
+    "/moderation_appeals/{appealId}": {
+      "schema": "ModerationAppeal",
+      "description": "Author appeals against moderator warnings or post removals"
+    },
+    "/moderation_audit_logs/{logId}": {
+      "schema": "ModerationAuditLog",
+      "description": "Immutable permanent moderation audit log"
     }
   }
 }

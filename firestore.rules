@@ -195,5 +195,63 @@ service cloud.firestore {
     match /system_health/{docId} {
       allow read, write: if true;
     }
+
+    // =========================================================================
+    // 14. POST REPORTING & MODERATION WORKFLOW (Strict Privacy & RBAC)
+    // =========================================================================
+    function isModeratorOrAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.role in ['superadmin', 'admin', 'moderator']) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['superadmin', 'admin', 'moderator'])
+      );
+    }
+
+    // Reporter identities are NEVER readable by alumni or post authors
+    match /post_reports/{reportId} {
+      allow read: if isValidId(reportId) && isModeratorOrAdmin();
+      allow list: if isModeratorOrAdmin();
+      allow write: if false;
+    }
+
+    match /moderation_cases/{caseId} {
+      allow read: if isValidId(caseId) && isModeratorOrAdmin();
+      allow list: if isModeratorOrAdmin();
+      allow create, update: if isValidId(caseId) && isModeratorOrAdmin();
+      allow delete: if false;
+    }
+
+    match /moderation_warnings/{warningId} {
+      allow get: if isValidId(warningId) && (isModeratorOrAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid));
+      allow list: if isModeratorOrAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create, update: if isValidId(warningId) && isModeratorOrAdmin();
+      allow delete: if false;
+    }
+
+    match /moderation_appeals/{appealId} {
+      allow get: if isValidId(appealId) && (isModeratorOrAdmin() || (isSignedIn() && resource.data.authorId == request.auth.uid));
+      allow list: if isModeratorOrAdmin() || (isSignedIn() && resource.data.authorId == request.auth.uid);
+      allow create, update: if isValidId(appealId) && isModeratorOrAdmin();
+      allow delete: if false;
+    }
+
+    // Permanent immutable moderation audit log (moderators & admins cannot edit or delete)
+    match /moderation_audit_logs/{logId} {
+      allow read: if isModeratorOrAdmin();
+      allow create: if isValidId(logId) && isModeratorOrAdmin();
+      allow update, delete: if false;
+    }
+
+    match /abuse_reporter_tracking/{userId} {
+      allow read: if isValidId(userId) && isModeratorOrAdmin();
+      allow list: if isModeratorOrAdmin();
+      allow create, update: if isValidId(userId) && isModeratorOrAdmin();
+      allow delete: if false;
+    }
+
+    match /moderation_config/{configId} {
+      allow read: if isModeratorOrAdmin();
+      allow write: if isModeratorOrAdmin();
+    }
   }
 }

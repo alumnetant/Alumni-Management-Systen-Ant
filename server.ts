@@ -24,6 +24,8 @@ import {
 } from './src/server/employerVerification/emailCheck';
 import { filterJobContent, recordJobReport } from './src/server/employerVerification/jobContentFilter';
 import { normalizeDomain, extractEmailDomain } from './src/server/employerVerification/domainMatch';
+import { postModerationEngine } from './src/server/postModeration/moderationEngine';
+import { createPostModerationRouter } from './src/server/postModeration/moderationRouter';
 
 const app = express();
 const PORT = 3000;
@@ -41,7 +43,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   // Full cross-origin support for native Android APK (https://localhost) and PWA
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Client-Platform, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Client-Platform, X-Requested-With, X-CSRF-Token');
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
@@ -5569,6 +5571,111 @@ app.post('/api/jobs/:id/report', (req: Request, res: Response) => {
 });
 
 // ============================================================================
+// 6.9 POST REPORTING & MODERATION WORKFLOW API
+// ============================================================================
+postModerationEngine.setUserAccountAdapter({
+  getUserByUid: (uid: string) => credentialsDb.get(uid),
+  updateUserSuspension: (uid, payload) => {
+    const targetUser = credentialsDb.get(uid);
+    if (!targetUser) return;
+    targetUser.accountStatus = payload.accountStatus;
+    targetUser.status = payload.accountStatus;
+    targetUser.isLocked = payload.accountStatus === 'LOCKED';
+    targetUser.suspensionReason = payload.reason;
+    targetUser.suspensionEndDate = payload.endDate;
+
+    if (payload.accountStatus === 'ACTIVE') {
+      if (targetUser.suspensionInfo) {
+        targetUser.suspensionInfo.unlockedAt = new Date().toISOString();
+        targetUser.suspensionInfo.unlockedBy = payload.actorId;
+        targetUser.suspensionInfo.unlockedByName = payload.actorName;
+        targetUser.suspensionInfo.unlockReason = payload.reason;
+      }
+    } else {
+      const start = payload.startDate || new Date().toISOString();
+      if (!targetUser.suspensionInfo) {
+        targetUser.suspensionInfo = {
+          startDate: start,
+          endDate: payload.endDate,
+          reason: payload.reason || 'Policy violation',
+          suspendedBy: payload.actorId,
+          suspendedByName: payload.actorName,
+          suspendedByRole: payload.actorRole,
+          isPermanentLock: !!payload.isPermanentLock,
+          history: []
+        };
+      } else {
+        targetUser.suspensionInfo.startDate = start;
+        targetUser.suspensionInfo.endDate = payload.endDate;
+        targetUser.suspensionInfo.reason = payload.reason || 'Policy violation';
+        targetUser.suspensionInfo.isPermanentLock = !!payload.isPermanentLock;
+      }
+      if (!Array.isArray(targetUser.suspensionInfo.history)) {
+        targetUser.suspensionInfo.history = [];
+      }
+      targetUser.suspensionInfo.history.push({
+        id: `hist_mod_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+        action: payload.accountStatus === 'LOCKED' ? 'ACCOUNT_LOCKED' : 'ACCOUNT_SUSPENDED',
+        timestamp: new Date().toISOString(),
+        adminId: payload.actorId,
+        adminName: payload.actorName,
+        adminRole: payload.actorRole,
+        reason: payload.reason || 'Moderation escalation policy',
+        startDate: start,
+        endDate: payload.endDate
+      });
+      activeSessions.delete(uid);
+    }
+
+    registerCredentialInDb(targetUser, true);
+  },
+  getModeratorsAndAdmins: () => {
+    const seen = new Set<string>();
+    const list: Array<{ uid: string; name: string; email: string; role: string }> = [];
+    for (const cred of credentialsDb.values()) {
+      if (seen.has(cred.uid)) continue;
+      seen.add(cred.uid);
+      const r = (cred.role || '').toLowerCase().trim();
+      if (['moderator', 'admin', 'superadmin'].includes(r)) {
+        list.push({
+          uid: cred.uid,
+          name: cred.name || cred.email,
+          email: cred.email,
+          role: r
+        });
+      }
+    }
+    return list;
+  }
+});
+
+const postModerationRouter = createPostModerationRouter({
+  requireServerAuth,
+  requireRole,
+  csrfSecret: SERVER_AUTH_SECRET,
+  engine: postModerationEngine,
+  verifyTokenOptional: (req: Request) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+    const token = authHeader.split(' ')[1];
+    if (!token || revokedTokens.has(token)) return null;
+    if (token === 'dev-admin-session-token') {
+      return { uid: 'usr_admin', name: 'Admin', email: 'admin@stcecilia.edu', role: 'admin' };
+    }
+    const payload = verifySignedSessionToken(token);
+    if (!payload) return null;
+    return {
+      uid: payload.uid || payload.user_id || payload.sub || '',
+      name: payload.name || payload.email || 'Member',
+      email: payload.email || '',
+      role: payload.role || 'alumni'
+    };
+  }
+});
+
+app.use('/api', postModerationRouter);
+
+// ============================================================================
 // 7. PRODUCTION ERROR SHIELDING (No stack traces or server paths leaked)
 // ============================================================================
 app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -5604,9 +5711,9 @@ async function startServer() {
   });
 }
 
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && !process.env.VITEST && process.env.NODE_ENV !== 'test') {
   startServer();
 }
 
 export default app;
-export { app };
+export { app, createSignedSessionToken, credentialsDb, registerCredentialInDb, hashPassword };

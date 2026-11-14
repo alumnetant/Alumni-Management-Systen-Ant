@@ -310,7 +310,13 @@ export type NotificationType =
   | 'profile_update'
   | 'security'
   | 'gallery'
-  | 'job';
+  | 'job'
+  | 'moderation_warning'
+  | 'moderation_deletion'
+  | 'moderation_report_resolved'
+  | 'moderation_high_priority'
+  | 'moderation_appeal'
+  | 'moderation_abuse_alert';
 
 export interface AppNotification {
   id: string;
@@ -644,7 +650,18 @@ export interface InstitutionalFeedPost {
   createdAt: string;
   isPinned?: boolean;
   isEdited?: boolean;
+  updatedAt?: string;
   tags?: string[];
+  // Moderation & visibility lifecycle fields (private fields are filtered server-side by viewer role)
+  isSoftDeleted?: boolean;
+  softDeletedAt?: string;
+  softDeletedBy?: string;
+  softDeletionReason?: string;
+  flaggedByModerators?: boolean;
+  flaggedMessage?: string;
+  underReviewAutoHidden?: boolean;
+  autoHiddenAt?: string;
+  viewerHasReported?: boolean;
 }
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -828,4 +845,200 @@ export interface DatabaseBackupSnapshot {
   type: 'automated' | 'manual';
 }
 
+// ==========================================
+// POST REPORTING & MODERATION WORKFLOW TYPES
+// ==========================================
+
+export type ReportTargetType = 'post' | 'comment';
+
+export const POST_REPORT_REASONS = [
+  'Spam',
+  'Harassment or bullying',
+  'Inappropriate content',
+  'Misinformation',
+  'Fake profile/impersonation',
+  'Other'
+] as const;
+
+export type ReportReason = typeof POST_REPORT_REASONS[number];
+
+export type ReportPriority = 'high' | 'medium' | 'low';
+
+export type ReportStatus = 'pending' | 'reviewed' | 'dismissed' | 'action_taken' | 'post_removed';
+
+export type ModerationActionType = 'dismiss' | 'warn' | 'delete_post';
+
+export interface PostContentSnapshot {
+  title: string;
+  content: string;
+  imageUrl?: string;
+  tags?: string[];
+  postType?: string;
+  authorId: string;
+  authorName: string;
+  capturedAt: string;
+}
+
+export interface PostReport {
+  id: string;
+  caseId: string;
+  targetType: ReportTargetType;
+  targetId: string;
+  reason: ReportReason;
+  priority: ReportPriority;
+  details?: string;
+  reporterId: string;
+  reporterName: string;
+  reporterRole: UserRole | string;
+  status: ReportStatus;
+  cycleNumber: number;
+  createdAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+  resolvedOutcome?: 'action_taken' | 'no_violation' | 'post_removed';
+}
+
+export interface ModerationCase {
+  id: string;
+  targetType: ReportTargetType;
+  targetId: string;
+  postAuthorId: string;
+  postAuthorName: string;
+  postAuthorRole: UserRole | string;
+  status: ReportStatus;
+  highestPriority: ReportPriority;
+  reportCount: number;
+  highPriorityReportCount: number;
+  reasonsSummary: Record<string, number>;
+  contentSnapshot: PostContentSnapshot;
+  currentContent?: PostContentSnapshot;
+  contentEditedSinceSnapshot: boolean;
+  autoFlaggedForPriority: boolean;
+  autoHiddenPendingReview: boolean;
+  claimedBy?: string;
+  claimedByName?: string;
+  claimedAt?: string;
+  resolvedBy?: string;
+  resolvedByName?: string;
+  resolvedByRole?: string;
+  resolvedAt?: string;
+  resolvedAction?: ModerationActionType | 'post_removed' | 'admin_override';
+  resolutionNote?: string;
+  overriddenBy?: string;
+  overriddenByName?: string;
+  overriddenAt?: string;
+  overrideNote?: string;
+  reportIds: string[];
+  cycleNumber: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ModerationWarning {
+  id: string;
+  userId: string;
+  userName?: string;
+  caseId: string;
+  postId: string;
+  targetType: ReportTargetType;
+  issuedBy: string;
+  issuedByName: string;
+  issuedByRole: string;
+  reason: string;
+  message: string;
+  note?: string;
+  overturned: boolean;
+  overturnedAt?: string;
+  overturnedBy?: string;
+  overturnedByName?: string;
+  overturnedNote?: string;
+  createdAt: string;
+}
+
+export interface ModerationAppeal {
+  id: string;
+  postId: string;
+  caseId: string;
+  warningId?: string;
+  actionType: 'warning' | 'deletion';
+  authorId: string;
+  authorName: string;
+  postAuthorRole: string;
+  explanation: string;
+  originalModeratorId: string;
+  originalModeratorName: string;
+  status: 'pending' | 'upheld' | 'reversed';
+  reviewedBy?: string;
+  reviewedByName?: string;
+  reviewedByRole?: string;
+  decisionNote?: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface ModerationAuditRecord {
+  id: string;
+  action:
+    | 'REPORT_SUBMITTED'
+    | 'CASE_CLAIMED'
+    | 'CASE_RELEASED'
+    | 'CASE_REOPENED'
+    | 'CASE_DISMISSED'
+    | 'POST_WARNED'
+    | 'POST_SOFT_DELETED'
+    | 'POST_RESTORED'
+    | 'POST_AUTO_CLOSED_ON_DELETE'
+    | 'POST_AUTO_HIDDEN_HARASSMENT'
+    | 'POST_AUTO_FLAGGED_PRIORITY'
+    | 'ADMIN_DECISION_OVERRIDE'
+    | 'USER_AUTO_SUSPENDED_WARNINGS'
+    | 'USER_FLAGGED_FOR_BAN'
+    | 'USER_SUSPENDED'
+    | 'USER_BANNED'
+    | 'USER_SANCTION_LIFTED'
+    | 'REPORTER_FLAGGED_ABUSIVE'
+    | 'REPORTER_RESTRICTED'
+    | 'REPORTER_UNRESTRICTED'
+    | 'APPEAL_SUBMITTED'
+    | 'APPEAL_UPHELD'
+    | 'APPEAL_REVERSED'
+    | 'MODERATION_CONFIG_UPDATED';
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  targetType: ReportTargetType | 'user' | 'config';
+  postId?: string;
+  caseId?: string;
+  reportIds: string[];
+  targetUserId?: string;
+  note?: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+}
+
+export interface AbuseReporterTracking {
+  userId: string;
+  userName?: string;
+  userRole?: string;
+  consecutiveDismissedCount: number;
+  totalDismissedCount: number;
+  totalReportsCount: number;
+  flaggedAbusiveReporter: boolean;
+  flaggedAt?: string;
+  warningIssuedAt?: string;
+  reportingRestricted: boolean;
+  restrictedAt?: string;
+  restrictedBy?: string;
+  restrictionReason?: string;
+}
+
+export interface ModerationConfig {
+  warningSuspensionThreshold: number;
+  suspensionDurationDays: number;
+  banReviewThreshold: number;
+  dismissedReporterThreshold: number;
+  autoFlagReportThreshold: number;
+  autoHideHarassmentThreshold: number;
+  maxReportsPerHour: number;
+}
 

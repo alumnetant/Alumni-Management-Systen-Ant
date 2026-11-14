@@ -256,7 +256,14 @@ export const FIRESTORE_COLLECTIONS = {
   REGISTRY_RECORDS: 'registry_records',
   FEED_POSTS: 'feed_posts',
   EVENT_RESERVATIONS: 'event_reservations',
-  CONFLICT_RECORDS: 'conflict_records'
+  CONFLICT_RECORDS: 'conflict_records',
+  POST_REPORTS: 'post_reports',
+  MODERATION_CASES: 'moderation_cases',
+  MODERATION_WARNINGS: 'moderation_warnings',
+  MODERATION_APPEALS: 'moderation_appeals',
+  MODERATION_AUDIT_LOGS: 'moderation_audit_logs',
+  ABUSE_REPORTER_TRACKING: 'abuse_reporter_tracking',
+  MODERATION_CONFIG: 'moderation_config'
 };
 
 export interface FirestoreConnectionDoc {
@@ -1454,6 +1461,59 @@ export async function testFirestoreWriteSync(): Promise<{ success: boolean; late
     return { success: true, latencyMs };
   } catch (err: any) {
     return { success: false, latencyMs: Date.now() - start, error: err?.message || String(err) };
+  }
+}
+
+// =========================================================================
+// POST MODERATION FIRESTORE SYNC HELPERS
+// =========================================================================
+
+export async function saveModerationCaseToFirestore(modCase: any): Promise<void> {
+  if (!modCase?.id) return;
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_CASES, modCase.id);
+    await setDoc(docRef, JSON.parse(JSON.stringify(modCase)), { merge: true });
+  } catch (err) {
+    console.warn('Moderation case Firestore sync notice:', err);
+  }
+}
+
+export async function saveModerationWarningToFirestore(warning: any): Promise<void> {
+  if (!warning?.id) return;
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_WARNINGS, warning.id);
+    await setDoc(docRef, JSON.parse(JSON.stringify(warning)), { merge: true });
+  } catch (err) {
+    console.warn('Moderation warning Firestore sync notice:', err);
+  }
+}
+
+export async function saveModerationAppealToFirestore(appeal: any): Promise<void> {
+  if (!appeal?.id) return;
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_APPEALS, appeal.id);
+    await setDoc(docRef, JSON.parse(JSON.stringify(appeal)), { merge: true });
+  } catch (err) {
+    console.warn('Moderation appeal Firestore sync notice:', err);
+  }
+}
+
+export async function saveModerationAuditRecordToFirestore(audit: any): Promise<void> {
+  if (!audit?.id) return;
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_AUDIT_LOGS, audit.id);
+    await setDoc(docRef, JSON.parse(JSON.stringify(audit)), { merge: true });
+  } catch (err) {
+    console.warn('Moderation audit Firestore sync notice:', err);
+  }
+}
+
+export async function saveModerationConfigToFirestore(config: any): Promise<void> {
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_CONFIG, 'default');
+    await setDoc(docRef, JSON.parse(JSON.stringify(config)), { merge: true });
+  } catch (err) {
+    console.warn('Moderation config Firestore sync notice:', err);
   }
 }
 
