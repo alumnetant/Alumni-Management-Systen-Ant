@@ -411,7 +411,7 @@ export function generate50SampleFeedPosts(): InstitutionalFeedPost[] {
       id: `live_post_${Date.now()}_${String(i + 1).padStart(2, '0')}`,
       authorId: 'usr_superadmin_cecilia',
       authorName: 'Dr. Emmanuel C. Salcedo',
-      authorRole: 'admin',
+      authorRole: 'superadmin',
       authorAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
       postType,
       title: i >= postTemplates.length ? `${template.title} (Part ${Math.floor(i / 10) + 1})` : template.title,

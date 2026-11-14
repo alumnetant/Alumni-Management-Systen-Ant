@@ -19,6 +19,8 @@
         "phone": { "type": "string", "maxLength": 30 },
         "quickStatus": { "type": "string" },
         "quickStatusUpdatedAt": { "type": "string" },
+        "username": { "type": "string", "maxLength": 64 },
+        "pinnedPostId": { "type": "string" },
         "followersCount": { "type": "number" },
         "followingCount": { "type": "number" },
         "connectionsCount": { "type": "number" }
@@ -310,6 +312,18 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "action", "actorId", "actorRole", "createdAt"]
+    },
+    "UserBlock": {
+      "title": "User Block",
+      "description": "Bidirectional user block relationship for hiding profiles and posts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "blockerId": { "type": "string" },
+        "blockedId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "blockerId", "blockedId", "createdAt"]
     }
   },
   "firestore": {
@@ -392,6 +406,10 @@
     "/moderation_audit_logs/{logId}": {
       "schema": "ModerationAuditLog",
       "description": "Immutable permanent moderation audit log"
+    },
+    "/user_blocks/{blockId}": {
+      "schema": "UserBlock",
+      "description": "Bidirectional user blocks between alumni profiles"
     }
   }
 }

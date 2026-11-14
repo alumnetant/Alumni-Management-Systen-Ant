@@ -250,8 +250,19 @@ service cloud.firestore {
     }
 
     match /moderation_config/{configId} {
-      allow read: if isModeratorOrAdmin();
+      allow read: if isSignedIn();
       allow write: if isModeratorOrAdmin();
+    }
+
+    match /user_blocks/{blockId} {
+      allow read: if isSignedIn() && (resource.data.blockerId == request.auth.uid || isModeratorOrAdmin());
+      allow create, update: if isSignedIn() && request.resource.data.blockerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.blockerId == request.auth.uid;
+    }
+
+    match /profile_slugs/{slugId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
   }
 }

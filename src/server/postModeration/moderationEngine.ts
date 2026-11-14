@@ -4,6 +4,10 @@ import path from 'path';
 import type {
   AbuseReporterTracking,
   AppNotification,
+  FeedComment,
+  FeedPageResponse,
+  FeedRankingConfig,
+  FeedSortMode,
   InstitutionalFeedPost,
   ModerationActionType,
   ModerationAppeal,
@@ -11,14 +15,37 @@ import type {
   ModerationCase,
   ModerationConfig,
   ModerationWarning,
+  PaginatedTimelineResponse,
   PostContentSnapshot,
   PostReport,
+  PublicProfileSummary,
   ReportPriority,
   ReportReason,
   ReportTargetType,
   UserRole
 } from '../../types';
-import { POST_REPORT_REASONS } from '../../types';
+import { POST_REPORT_REASONS, normalizeSystemRole } from '../../types';
+import {
+  AuthorAccountLike,
+  ViewerContext,
+  areUsersBlocked,
+  canUserViewPost,
+  comparePostsCreatedDesc,
+  generateUniqueUsername,
+  hydratePostWithLiveAuthor,
+  isAccountDeleted,
+  isAccountUnavailable,
+  isPinActive,
+  normalizeLegacyPostAuthor,
+  paginatePostsWithCursor,
+  slugifyUsername
+} from '../../lib/postVisibility';
+import {
+  DEFAULT_FEED_CONFIG,
+  calculateFeedRelevanceScore,
+  enforceMaxConsecutiveAuthor,
+  validateAndMergeFeedConfig
+} from '../../config/feedConfig';
 import { sendRealEmail } from '../emailService';
 
 export interface ModerationActor {
@@ -26,6 +53,43 @@ export interface ModerationActor {
   name: string;
   email: string;
   role: UserRole | string;
+  batch?: string;
+  course?: string;
+  department?: string;
+  groupIds?: string[];
+}
+
+export interface StoredProfileRecord extends AuthorAccountLike {
+  uid: string;
+  name: string;
+  email: string;
+  role: UserRole | string;
+  username: string;
+  previousUsernames: string[];
+  batch?: string;
+  course?: string;
+  department?: string;
+  location?: string;
+  profilePictureUrl?: string;
+  coverPhotoUrl?: string;
+  headline?: string;
+  about?: string;
+  company?: string;
+  currentPosition?: string;
+  phone?: string;
+  isVerified?: boolean;
+  quickStatus?: string;
+  followersCount?: number;
+  followingCount?: number;
+  connectionsCount?: number;
+  pinnedPostId?: string;
+  blockedUsers: string[];
+  groupIds?: string[];
+  show_email?: boolean;
+  show_phone?: boolean;
+  show_current_employer?: boolean;
+  deletedAt?: string;
+  createdAt?: string;
 }
 
 export interface UserAccountAdapter {
@@ -33,7 +97,7 @@ export interface UserAccountAdapter {
   updateUserSuspension: (
     uid: string,
     payload: {
-      accountStatus: 'ACTIVE' | 'SUSPENDED' | 'LOCKED';
+      accountStatus: 'ACTIVE' | 'SUSPENDED' | 'LOCKED' | 'DEACTIVATED' | 'DELETED';
       reason?: string;
       startDate?: string;
       endDate?: string;
@@ -44,6 +108,7 @@ export interface UserAccountAdapter {
     }
   ) => void;
   getModeratorsAndAdmins: () => Array<{ uid: string; name: string; email: string; role: string }>;
+  getAllUsers?: () => any[];
 }
 
 export class ModerationError extends Error {
@@ -63,11 +128,15 @@ export const DEFAULT_MODERATION_CONFIG: ModerationConfig = {
   dismissedReporterThreshold: 5,
   autoFlagReportThreshold: 5,
   autoHideHarassmentThreshold: 3,
-  maxReportsPerHour: 10
+  maxReportsPerHour: 10,
+  profileTimelineEnabled: true
 };
 
 export interface ModerationStateSnapshot {
   posts: Record<string, InstitutionalFeedPost>;
+  profiles: Record<string, StoredProfileRecord>;
+  slugRedirects: Record<string, string>;
+  postMedia: Record<string, { postId: string; mimeType: string; data: string; updatedAt: string }>;
   reports: PostReport[];
   cases: ModerationCase[];
   warnings: ModerationWarning[];
@@ -78,6 +147,8 @@ export interface ModerationStateSnapshot {
   userRateWindows: Record<string, number[]>;
   flaggedForBanUsers: Record<string, { userId: string; flaggedAt: string; activeWarnings: number; reason: string }>;
   config: ModerationConfig;
+  feedConfig: FeedRankingConfig;
+  legacyAuditReport: { checkedAt?: string; totalChecked: number; normalizedCount: number };
 }
 
 const MODERATION_DB_FILE = path.join(process.cwd(), 'data', 'moderation_db.json');
@@ -145,6 +216,9 @@ export function isAdminRole(role?: string): boolean {
 function createInitialState(): ModerationStateSnapshot {
   return {
     posts: {},
+    profiles: {},
+    slugRedirects: {},
+    postMedia: {},
     reports: [],
     cases: [],
     warnings: [],
@@ -154,8 +228,37 @@ function createInitialState(): ModerationStateSnapshot {
     notifications: [],
     userRateWindows: {},
     flaggedForBanUsers: {},
-    config: { ...DEFAULT_MODERATION_CONFIG }
+    config: { ...DEFAULT_MODERATION_CONFIG },
+    feedConfig: { ...DEFAULT_FEED_CONFIG },
+    legacyAuditReport: { totalChecked: 0, normalizedCount: 0 }
   };
+}
+
+interface FeedSessionSnapshot {
+  id: string;
+  viewerUid: string;
+  sortMode: FeedSortMode;
+  orderedIds: string[];
+  pinnedIds: string[];
+  createdAtMs: number;
+  createdAtIso: string;
+}
+
+function encodeFeedCursor(snapshotId: string, offset: number): string {
+  return Buffer.from(JSON.stringify({ snapshotId, offset }), 'utf8').toString('base64url');
+}
+
+function decodeFeedCursor(cursor?: string | null): { snapshotId: string; offset: number } | null {
+  if (!cursor || typeof cursor !== 'string') return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (typeof parsed?.snapshotId === 'string' && typeof parsed?.offset === 'number' && parsed.offset >= 0) {
+      return { snapshotId: parsed.snapshotId, offset: Math.floor(parsed.offset) };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export class PostModerationEngine {
@@ -163,6 +266,8 @@ export class PostModerationEngine {
   private persistenceEnabled: boolean;
   private accountAdapter: UserAccountAdapter | null = null;
   private emailEnabled: boolean;
+  private timelineCache = new Map<string, { expiresAt: number; value: any }>();
+  private feedSessionSnapshots = new Map<string, FeedSessionSnapshot>();
 
   constructor(options?: { persistToDisk?: boolean; emailEnabled?: boolean }) {
     this.persistenceEnabled = options?.persistToDisk ?? (process.env.NODE_ENV !== 'test' && !process.env.VITEST);
@@ -175,6 +280,8 @@ export class PostModerationEngine {
 
   public setUserAccountAdapter(adapter: UserAccountAdapter): void {
     this.accountAdapter = adapter;
+    this.syncProfilesFromAdapter();
+    this.auditAndNormalizeLegacyPosts();
   }
 
   public setEmailEnabled(enabled: boolean): void {
@@ -183,6 +290,12 @@ export class PostModerationEngine {
 
   public resetForTests(): void {
     this.state = createInitialState();
+    this.timelineCache.clear();
+    this.feedSessionSnapshots.clear();
+  }
+
+  private invalidateCaches(): void {
+    this.timelineCache.clear();
   }
 
   private loadFromDisk(): void {
@@ -194,8 +307,14 @@ export class PostModerationEngine {
           this.state = {
             ...createInitialState(),
             ...parsed,
-            config: { ...DEFAULT_MODERATION_CONFIG, ...(parsed.config || {}) }
+            profiles: parsed.profiles || {},
+            slugRedirects: parsed.slugRedirects || {},
+            postMedia: parsed.postMedia || {},
+            config: { ...DEFAULT_MODERATION_CONFIG, ...(parsed.config || {}) },
+            feedConfig: { ...DEFAULT_FEED_CONFIG, ...(parsed.feedConfig || {}) },
+            legacyAuditReport: parsed.legacyAuditReport || { totalChecked: 0, normalizedCount: 0 }
           };
+          this.auditAndNormalizeLegacyPosts();
         }
       }
     } catch (err) {
@@ -204,6 +323,7 @@ export class PostModerationEngine {
   }
 
   private persist(): void {
+    this.invalidateCaches();
     if (!this.persistenceEnabled) return;
     try {
       const dir = path.dirname(MODERATION_DB_FILE);
@@ -318,13 +438,203 @@ export class PostModerationEngine {
     return false;
   }
 
+  private getAllKnownHandlesSet(excludeUid?: string): Set<string> {
+    const handles = new Set<string>();
+    for (const prof of Object.values(this.state.profiles)) {
+      if (excludeUid && prof.uid === excludeUid) continue;
+      if (prof.username) handles.add(prof.username.toLowerCase());
+    }
+    for (const [oldSlug, targetUid] of Object.entries(this.state.slugRedirects)) {
+      if (excludeUid && targetUid === excludeUid) continue;
+      handles.add(oldSlug.toLowerCase());
+    }
+    return handles;
+  }
+
+  private resolveAuthorProfile(uid?: string): StoredProfileRecord | null {
+    if (!uid) return null;
+    const stored = this.state.profiles[uid];
+    const cred = this.accountAdapter?.getUserByUid(uid);
+    if (!stored && !cred) return null;
+
+    const mergedName = stored?.name || cred?.name || cred?.email || 'Cecilian Member';
+    const username =
+      stored?.username ||
+      cred?.username ||
+      slugifyUsername(mergedName || uid);
+
+    return {
+      uid,
+      name: mergedName,
+      email: stored?.email || cred?.email || '',
+      role: normalizeSystemRole(stored?.role || cred?.role),
+      username,
+      previousUsernames: stored?.previousUsernames || [],
+      batch: stored?.batch || cred?.batch,
+      course: stored?.course || cred?.course,
+      department: stored?.department || cred?.department,
+      location: stored?.location || cred?.location,
+      profilePictureUrl: stored?.profilePictureUrl || stored?.avatar || cred?.profilePictureUrl || cred?.avatar || '',
+      coverPhotoUrl: stored?.coverPhotoUrl || cred?.coverPhotoUrl || '',
+      headline: stored?.headline || cred?.headline || '',
+      about: stored?.about || cred?.about || '',
+      company: stored?.company || cred?.company || cred?.companyName || '',
+      currentPosition: stored?.currentPosition || cred?.currentPosition || '',
+      phone: stored?.phone || cred?.phone || '',
+      isVerified: stored?.isVerified ?? cred?.isVerified ?? false,
+      quickStatus: stored?.quickStatus || cred?.quickStatus,
+      followersCount: stored?.followersCount ?? cred?.followersCount ?? 0,
+      followingCount: stored?.followingCount ?? cred?.followingCount ?? 0,
+      connectionsCount: stored?.connectionsCount ?? cred?.connectionsCount ?? 0,
+      pinnedPostId: stored?.pinnedPostId,
+      blockedUsers: stored?.blockedUsers || [],
+      groupIds: stored?.groupIds || cred?.groupIds || [],
+      accountStatus: cred?.accountStatus || cred?.status || stored?.accountStatus || stored?.status || 'ACTIVE',
+      status: cred?.status || cred?.accountStatus || stored?.status || 'ACTIVE',
+      isDeactivated: stored?.isDeactivated ?? cred?.isDeactivated ?? false,
+      isDeleted: stored?.isDeleted ?? cred?.isDeleted ?? false,
+      isBanned: cred?.isBanned ?? stored?.isBanned ?? false,
+      suspensionInfo: cred?.suspensionInfo || stored?.suspensionInfo,
+      suspensionEndDate: cred?.suspensionEndDate || stored?.suspensionEndDate,
+      show_email: stored?.show_email ?? cred?.show_email ?? false,
+      show_phone: stored?.show_phone ?? cred?.show_phone ?? false,
+      show_current_employer: stored?.show_current_employer ?? cred?.show_current_employer ?? true,
+      deletedAt: stored?.deletedAt,
+      createdAt: stored?.createdAt || cred?.createdAt
+    };
+  }
+
+  private buildViewerContext(actor?: ModerationActor | null): ViewerContext | null {
+    if (!actor?.uid) return null;
+    const prof = this.resolveAuthorProfile(actor.uid);
+    return {
+      uid: actor.uid,
+      role: actor.role || prof?.role || 'alumni',
+      batch: actor.batch || prof?.batch,
+      course: actor.course || prof?.course,
+      department: actor.department || prof?.department,
+      groupIds: actor.groupIds || prof?.groupIds || [],
+      blockedUsers: prof?.blockedUsers || []
+    };
+  }
+
+  public syncProfilesFromAdapter(): void {
+    const adapterUsers = this.accountAdapter?.getAllUsers ? this.accountAdapter.getAllUsers() : [];
+    for (const u of adapterUsers) {
+      if (!u?.uid) continue;
+      this.upsertProfileRecord(u, false);
+    }
+  }
+
+  public upsertProfileRecord(input: Partial<StoredProfileRecord> & { uid: string }, persistChanges = true): StoredProfileRecord {
+    const existing = this.state.profiles[input.uid];
+    const handles = this.getAllKnownHandlesSet(input.uid);
+    const desiredName = input.name || existing?.name || input.email || 'Cecilian Member';
+    const rawSlug = input.username ? slugifyUsername(input.username) : existing?.username;
+    const username = rawSlug && !handles.has(rawSlug)
+      ? rawSlug
+      : generateUniqueUsername(desiredName, input.uid, handles);
+
+    const prevUsernames = Array.isArray(existing?.previousUsernames) ? [...existing!.previousUsernames] : [];
+    if (existing?.username && existing.username !== username && !prevUsernames.includes(existing.username)) {
+      prevUsernames.push(existing.username);
+      this.state.slugRedirects[existing.username.toLowerCase()] = input.uid;
+    }
+
+    const record: StoredProfileRecord = {
+      uid: input.uid,
+      name: sanitizeModerationText(desiredName, 120) || 'Cecilian Member',
+      email: input.email ?? existing?.email ?? '',
+      role: normalizeSystemRole((input.role as string) || (existing?.role as string) || 'alumni'),
+      username,
+      previousUsernames: prevUsernames,
+      batch: input.batch ?? existing?.batch,
+      course: input.course ?? existing?.course,
+      department: input.department ?? existing?.department,
+      location: input.location ?? existing?.location,
+      profilePictureUrl: input.profilePictureUrl ?? existing?.profilePictureUrl ?? '',
+      coverPhotoUrl: input.coverPhotoUrl ?? existing?.coverPhotoUrl ?? '',
+      headline: input.headline ?? existing?.headline,
+      about: input.about ?? existing?.about,
+      company: input.company ?? existing?.company,
+      currentPosition: input.currentPosition ?? existing?.currentPosition,
+      phone: input.phone ?? existing?.phone,
+      isVerified: input.isVerified ?? existing?.isVerified,
+      quickStatus: input.quickStatus ?? existing?.quickStatus,
+      followersCount: input.followersCount ?? existing?.followersCount ?? 0,
+      followingCount: input.followingCount ?? existing?.followingCount ?? 0,
+      connectionsCount: input.connectionsCount ?? existing?.connectionsCount ?? 0,
+      pinnedPostId: input.pinnedPostId ?? existing?.pinnedPostId,
+      blockedUsers: Array.isArray(input.blockedUsers) ? input.blockedUsers : existing?.blockedUsers || [],
+      groupIds: Array.isArray(input.groupIds) ? input.groupIds : existing?.groupIds || [],
+      accountStatus: input.accountStatus ?? existing?.accountStatus ?? 'ACTIVE',
+      status: input.status ?? existing?.status ?? 'ACTIVE',
+      isDeactivated: input.isDeactivated ?? existing?.isDeactivated ?? false,
+      isDeleted: input.isDeleted ?? existing?.isDeleted ?? false,
+      isBanned: input.isBanned ?? existing?.isBanned ?? false,
+      suspensionInfo: input.suspensionInfo ?? existing?.suspensionInfo,
+      suspensionEndDate: input.suspensionEndDate ?? existing?.suspensionEndDate,
+      show_email: input.show_email ?? existing?.show_email ?? false,
+      show_phone: input.show_phone ?? existing?.show_phone ?? false,
+      show_current_employer: input.show_current_employer ?? existing?.show_current_employer ?? true,
+      deletedAt: input.deletedAt ?? existing?.deletedAt,
+      createdAt: input.createdAt ?? existing?.createdAt
+    };
+
+    this.state.profiles[record.uid] = record;
+    this.invalidateCaches();
+    if (persistChanges) {
+      this.persist();
+    }
+    return record;
+  }
+
+  public auditAndNormalizeLegacyPosts(): { totalChecked: number; normalizedCount: number } {
+    const byUid = new Map<string, AuthorAccountLike>();
+    const byName = new Map<string, AuthorAccountLike>();
+
+    for (const uid of Object.keys(this.state.profiles)) {
+      const p = this.resolveAuthorProfile(uid);
+      if (p) {
+        byUid.set(p.uid, p);
+        if (p.name) byName.set(p.name.trim().toLowerCase(), p);
+      }
+    }
+    if (this.accountAdapter?.getAllUsers) {
+      for (const u of this.accountAdapter.getAllUsers()) {
+        if (u?.uid) {
+          byUid.set(u.uid, u);
+          if (u.name) byName.set(String(u.name).trim().toLowerCase(), u);
+        }
+      }
+    }
+
+    let totalChecked = 0;
+    let normalizedCount = 0;
+    for (const [id, post] of Object.entries(this.state.posts)) {
+      totalChecked++;
+      const res = normalizeLegacyPostAuthor(post, byUid, byName);
+      if (res.hadInvalidAuthor) {
+        normalizedCount++;
+      }
+      this.state.posts[id] = res.post;
+    }
+
+    this.state.legacyAuditReport = {
+      checkedAt: new Date().toISOString(),
+      totalChecked,
+      normalizedCount
+    };
+    return { totalChecked, normalizedCount };
+  }
+
   // ===========================================================================
-  // 1. POST LIFECYCLE & PRIVACY-SAFE VIEW PROJECTION
+  // 1. POST LIFECYCLE, UNIFIED VISIBILITY & PRIVACY-SAFE VIEW PROJECTION
   // ===========================================================================
 
   public upsertPost(post: InstitutionalFeedPost, actor?: ModerationActor): InstitutionalFeedPost {
-    if (!post?.id || !post?.authorId) {
-      throw new ModerationError(400, 'INVALID_POST', 'Post ID and author ID are required.');
+    if (!post?.id) {
+      throw new ModerationError(400, 'INVALID_POST', 'Post ID is required.');
     }
 
     const existing = this.state.posts[post.id];
@@ -335,17 +645,45 @@ export class PostModerationEngine {
       }
     }
 
-    const stored: InstitutionalFeedPost = {
+    const byUid = new Map<string, AuthorAccountLike>();
+    const byName = new Map<string, AuthorAccountLike>();
+    for (const p of Object.values(this.state.profiles)) {
+      byUid.set(p.uid, p);
+      if (p.name) byName.set(p.name.trim().toLowerCase(), p);
+    }
+
+    const normalizedPinExpiresAt =
+      post.pinExpiresAt !== undefined
+        ? (post.pinExpiresAt && !Number.isNaN(new Date(post.pinExpiresAt).getTime()) ? new Date(post.pinExpiresAt).toISOString() : undefined)
+        : existing?.pinExpiresAt;
+
+    const candidate: InstitutionalFeedPost = {
       ...existing,
       ...post,
       title: sanitizeModerationText(post.title || '', 200),
       content: sanitizeModerationText(post.content || '', 5000),
+      status: post.status ?? existing?.status ?? 'published',
+      visibility: post.visibility ?? existing?.visibility ?? 'alumni',
+      isAnonymous: post.isAnonymous ?? existing?.isAnonymous ?? false,
+      isPinned: post.isPinned ?? existing?.isPinned ?? false,
+      pinExpiresAt: normalizedPinExpiresAt,
       isSoftDeleted: existing?.isSoftDeleted ?? post.isSoftDeleted ?? false,
       flaggedByModerators: existing?.flaggedByModerators ?? post.flaggedByModerators ?? false,
       flaggedMessage: existing?.flaggedMessage ?? post.flaggedMessage,
       underReviewAutoHidden: existing?.underReviewAutoHidden ?? post.underReviewAutoHidden ?? false
     };
+
+    const { post: stored } = normalizeLegacyPostAuthor(candidate, byUid, byName);
     this.state.posts[stored.id] = stored;
+
+    if (stored.imageUrl) {
+      this.state.postMedia[stored.id] = {
+        postId: stored.id,
+        mimeType: stored.imageUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+        data: stored.imageUrl,
+        updatedAt: new Date().toISOString()
+      };
+    }
 
     // If post was updated and a case exists, keep original snapshot intact and flag diff
     const modCase = this.state.cases.find((c) => c.targetType === 'post' && c.targetId === stored.id);
@@ -355,6 +693,7 @@ export class PostModerationEngine {
       modCase.updatedAt = new Date().toISOString();
     }
 
+    this.invalidateCaches();
     this.persist();
     return stored;
   }
@@ -362,7 +701,16 @@ export class PostModerationEngine {
   public editPostByAuthor(
     postId: string,
     actor: ModerationActor,
-    updates: { title?: string; content?: string; imageUrl?: string; tags?: string[] }
+    updates: {
+      title?: string;
+      content?: string;
+      imageUrl?: string;
+      tags?: string[];
+      visibility?: InstitutionalFeedPost['visibility'];
+      status?: InstitutionalFeedPost['status'];
+      isPinned?: boolean;
+      pinExpiresAt?: string | null;
+    }
   ): InstitutionalFeedPost {
     const post = this.state.posts[postId];
     if (!post) {
@@ -375,17 +723,47 @@ export class PostModerationEngine {
       throw new ModerationError(400, 'POST_DELETED', 'Cannot edit a deleted post.');
     }
 
+    const canManageFeedPins = isAdminRole(actor.role);
+    const nextPinned = canManageFeedPins && updates.isPinned !== undefined ? Boolean(updates.isPinned) : post.isPinned;
+    let nextPinExpiresAt = post.pinExpiresAt;
+    if (canManageFeedPins && updates.pinExpiresAt !== undefined) {
+      if (!updates.pinExpiresAt) {
+        nextPinExpiresAt = undefined;
+      } else {
+        const ms = new Date(updates.pinExpiresAt).getTime();
+        if (Number.isNaN(ms)) {
+          throw new ModerationError(400, 'INVALID_PIN_EXPIRY', 'pinExpiresAt must be a valid ISO date.');
+        }
+        nextPinExpiresAt = new Date(ms).toISOString();
+      }
+    }
+
+    // Preserve original createdAt so editing never changes timeline/feed position or age
     const updated: InstitutionalFeedPost = {
       ...post,
       title: updates.title !== undefined ? sanitizeModerationText(updates.title, 200) : post.title,
       content: updates.content !== undefined ? sanitizeModerationText(updates.content, 5000) : post.content,
       imageUrl: updates.imageUrl !== undefined ? updates.imageUrl : post.imageUrl,
       tags: updates.tags !== undefined ? updates.tags : post.tags,
+      visibility: updates.visibility !== undefined ? updates.visibility : post.visibility,
+      status: updates.status !== undefined ? updates.status : post.status,
+      isPinned: nextPinned,
+      pinExpiresAt: nextPinExpiresAt,
+      createdAt: post.createdAt,
       isEdited: true,
       updatedAt: new Date().toISOString()
     };
 
     this.state.posts[postId] = updated;
+
+    if (updates.imageUrl !== undefined && updates.imageUrl) {
+      this.state.postMedia[postId] = {
+        postId,
+        mimeType: updates.imageUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg',
+        data: updates.imageUrl,
+        updatedAt: new Date().toISOString()
+      };
+    }
 
     // Preserve original contentSnapshot on any existing case and flag diff!
     for (const modCase of this.state.cases) {
@@ -396,6 +774,7 @@ export class PostModerationEngine {
       }
     }
 
+    this.invalidateCaches();
     this.persist();
     return this.projectPostForViewer(updated, actor);
   }
@@ -487,9 +866,7 @@ export class PostModerationEngine {
 
   /**
    * Projects a post strictly for the viewing user:
-   * - Soft-deleted posts NEVER appear to alumni/public (only moderators/admins).
-   * - Temporarily auto-hidden harassment posts disappear from public feed/search/profiles,
-   *   remaining visible ONLY to moderators/admins and to the post author (who sees "Under review").
+   * - Dynamically hydrates live author info (name, avatar, username) or "Former alumni" if account deleted.
    * - "flaggedByModerators" & "flaggedMessage" are visible ONLY to the author and moderators/admins.
    * - Reporter identity is NEVER present on any post payload.
    */
@@ -500,8 +877,12 @@ export class PostModerationEngine {
       ? this.state.reports.some((r) => r.targetType === 'post' && r.targetId === post.id && r.reporterId === viewer.uid)
       : false;
 
+    const viewerCtx = this.buildViewerContext(viewer);
+    const authorProfile = this.resolveAuthorProfile(post.authorId);
+    const hydrated = hydratePostWithLiveAuthor(post, authorProfile, viewerCtx);
+
     const clean: InstitutionalFeedPost = {
-      ...post,
+      ...hydrated,
       viewerHasReported
     };
 
@@ -516,52 +897,1001 @@ export class PostModerationEngine {
     return clean;
   }
 
-  public getVisiblePosts(viewer?: ModerationActor | null, options?: { search?: string; authorId?: string; includeDeletedForMod?: boolean }): InstitutionalFeedPost[] {
-    const isMod = viewer ? isModeratorRole(viewer.role) : false;
+  private deriveInteractedAuthorIds(viewerUid?: string, explicitIds?: string[]): Set<string> {
+    const set = new Set<string>(Array.isArray(explicitIds) ? explicitIds.filter(Boolean) : []);
+    if (!viewerUid) return set;
+
+    for (const p of Object.values(this.state.posts)) {
+      if (p.isAnonymous || !p.authorId || p.authorId === viewerUid) continue;
+      const hasLiked = Array.isArray(p.likes) && p.likes.includes(viewerUid);
+      const hasHearted = Array.isArray(p.hearts) && p.hearts.includes(viewerUid);
+      const hasCommented = Array.isArray(p.comments) && p.comments.some((c) => c.authorId === viewerUid);
+      if (hasLiked || hasHearted || hasCommented) {
+        set.add(p.authorId);
+      }
+    }
+    return set;
+  }
+
+  public getFeedConfig(): FeedRankingConfig {
+    return { ...(this.state.feedConfig || DEFAULT_FEED_CONFIG) };
+  }
+
+  public updateFeedConfig(actor: ModerationActor, updates: Partial<FeedRankingConfig>): FeedRankingConfig {
+    if (!isAdminRole(actor.role)) {
+      throw new ModerationError(403, 'ADMIN_REQUIRED', 'Only Administrators can modify main feed ranking configuration.');
+    }
+
+    let merged: FeedRankingConfig;
+    try {
+      merged = validateAndMergeFeedConfig(this.state.feedConfig || DEFAULT_FEED_CONFIG, updates);
+    } catch (err: any) {
+      throw new ModerationError(400, 'INVALID_FEED_CONFIG', err?.message || 'Invalid feed configuration.');
+    }
+
+    this.state.feedConfig = merged;
+    this.appendAudit({
+      action: 'MODERATION_CONFIG_UPDATED',
+      actorId: actor.uid,
+      actorName: actor.name,
+      actorRole: actor.role,
+      targetType: 'config',
+      reportIds: [],
+      note: `Main feed ranking configuration updated (sortMode=${merged.sortMode}).`,
+      metadata: { feedConfig: merged }
+    });
+
+    this.persist();
+    return { ...merged };
+  }
+
+  public getNewFeedPostsCount(
+    viewer?: ModerationActor | null,
+    options?: { since?: string; postType?: string }
+  ): { count: number; latestPostAt: string | null } {
+    const viewerCtx = this.buildViewerContext(viewer);
+    const sinceMs = options?.since ? new Date(options.since).getTime() : NaN;
+    const postType = options?.postType;
+
+    let count = 0;
+    let latestMs = -1;
+    let latestPostAt: string | null = null;
+
+    for (const post of Object.values(this.state.posts)) {
+      if (postType && postType !== 'all' && post.postType !== postType) continue;
+      const authorProfile = this.resolveAuthorProfile(post.authorId);
+      if (!canUserViewPost(post, { surface: 'feed', viewer: viewerCtx, authorAccount: authorProfile })) {
+        continue;
+      }
+      const createdMs = new Date(post.createdAt || 0).getTime();
+      if (!Number.isNaN(createdMs) && createdMs > latestMs) {
+        latestMs = createdMs;
+        latestPostAt = post.createdAt;
+      }
+      if (!Number.isNaN(sinceMs) && createdMs > sinceMs) {
+        if (!viewer?.uid || post.authorId !== viewer.uid) {
+          count++;
+        }
+      }
+    }
+
+    return { count, latestPostAt };
+  }
+
+  /**
+   * 4-Step Main Social Feed Builder:
+   *   Step 1: Collect candidate published posts (all alumni & institutional posts)
+   *   Step 2: Filter via ONE shared `canUserViewPost` policy (no duplicate logic)
+   *   Step 3: Sort (Mode A: Chronological createdAt+id, Mode B: Simple Relevance Score)
+   *   Step 4: Final adjustments (up to 3 active pinned announcements, max 3 consecutive same-author, no duplicates)
+   *   Plus session snapshot cursor pagination so mid-scroll inserts/edits/deletes remain consistent.
+   */
+  public getMainFeed(
+    viewer?: ModerationActor | null,
+    options?: {
+      cursor?: string;
+      limit?: number;
+      postType?: string;
+      search?: string;
+      sortMode?: FeedSortMode;
+      interactedAuthorIds?: string[];
+      seenIds?: string[];
+    }
+  ): FeedPageResponse {
+    const nowMs = Date.now();
+    const feedConfig = this.state.feedConfig || DEFAULT_FEED_CONFIG;
+    const requestedSortMode =
+      options?.sortMode === 'chronological' || options?.sortMode === 'relevance'
+        ? options.sortMode
+        : feedConfig.sortMode;
+    const limit = Math.min(50, Math.max(1, Math.floor(Number(options?.limit) || feedConfig.pageSize || 10)));
+    const viewerCtx = this.buildViewerContext(viewer);
     const search = (options?.search || '').toLowerCase().trim();
+    const surface = search ? 'search' : 'feed';
+    const postType = options?.postType;
+    const externalSeen = new Set<string>(Array.isArray(options?.seenIds) ? options.seenIds : []);
 
-    return Object.values(this.state.posts)
+    // Resume existing session snapshot when cursor is provided
+    const decodedCursor = decodeFeedCursor(options?.cursor);
+    if (decodedCursor) {
+      const snap = this.feedSessionSnapshots.get(decodedCursor.snapshotId);
+      if (snap && snap.viewerUid === (viewer?.uid || '')) {
+        const previouslyEmitted = new Set<string>([
+          ...snap.pinnedIds,
+          ...snap.orderedIds.slice(0, decodedCursor.offset),
+          ...externalSeen
+        ]);
+
+        const pagePosts: InstitutionalFeedPost[] = [];
+        let cursorOffset = decodedCursor.offset;
+
+        while (cursorOffset < snap.orderedIds.length && pagePosts.length < limit) {
+          const postId = snap.orderedIds[cursorOffset];
+          cursorOffset++;
+          if (previouslyEmitted.has(postId)) continue;
+
+          const post = this.state.posts[postId];
+          if (!post) continue;
+          if (postType && postType !== 'all' && post.postType !== postType) continue;
+
+          const authorProfile = this.resolveAuthorProfile(post.authorId);
+          if (!canUserViewPost(post, { surface, viewer: viewerCtx, authorAccount: authorProfile })) {
+            continue;
+          }
+
+          if (search) {
+            const hydrated = hydratePostWithLiveAuthor(post, authorProfile, viewerCtx);
+            const haystack = `${hydrated.title} ${hydrated.content} ${hydrated.authorName} ${(hydrated.tags || []).join(' ')}`.toLowerCase();
+            if (!haystack.includes(search)) continue;
+          }
+
+          previouslyEmitted.add(postId);
+          const projected = this.projectPostForViewer(
+            { ...post, isPinned: false },
+            viewer
+          );
+          pagePosts.push(projected);
+        }
+
+        // Check whether at least one more visible, unseen post remains in the snapshot
+        let hasMore = false;
+        for (let i = cursorOffset; i < snap.orderedIds.length; i++) {
+          const nextId = snap.orderedIds[i];
+          if (previouslyEmitted.has(nextId)) continue;
+          const candidate = this.state.posts[nextId];
+          if (!candidate) continue;
+          if (postType && postType !== 'all' && candidate.postType !== postType) continue;
+          const authorProfile = this.resolveAuthorProfile(candidate.authorId);
+          if (canUserViewPost(candidate, { surface, viewer: viewerCtx, authorAccount: authorProfile })) {
+            hasMore = true;
+            break;
+          }
+        }
+
+        return {
+          posts: pagePosts,
+          pinnedPosts: [],
+          nextCursor: hasMore ? encodeFeedCursor(snap.id, cursorOffset) : null,
+          hasMore,
+          totalCount: snap.pinnedIds.length + snap.orderedIds.length,
+          sortMode: snap.sortMode,
+          sessionSnapshotId: snap.id,
+          latestPostAt: snap.createdAtIso
+        };
+      }
+    }
+
+    // --- Step 1: Collect Candidate Posts ---
+    const allCandidates = Object.values(this.state.posts);
+    const interacted = this.deriveInteractedAuthorIds(viewer?.uid, options?.interactedAuthorIds);
+
+    // --- Step 2: Filter via ONE shared visibility policy (`canUserViewPost`) ---
+    const eligibleCandidates: Array<{ post: InstitutionalFeedPost; authorProfile: StoredProfileRecord | null }> = [];
+    for (const post of allCandidates) {
+      if (postType && postType !== 'all' && post.postType !== postType) {
+        continue;
+      }
+      const authorProfile = this.resolveAuthorProfile(post.authorId);
+      const visible = canUserViewPost(post, {
+        surface,
+        viewer: viewerCtx,
+        authorAccount: authorProfile
+      });
+      if (!visible) continue;
+
+      if (search) {
+        const hydrated = hydratePostWithLiveAuthor(post, authorProfile, viewerCtx);
+        const haystack = `${hydrated.title} ${hydrated.content} ${hydrated.authorName} ${(hydrated.tags || []).join(' ')}`.toLowerCase();
+        if (!haystack.includes(search)) continue;
+      }
+
+      eligibleCandidates.push({ post, authorProfile });
+    }
+
+    // --- Step 3: Partition Pinned Admin Announcements & Sort Regular Pool ---
+    const maxPinned = Math.min(3, Math.max(1, feedConfig.maxPinnedAnnouncements || 3));
+    const activeAdminPinned = eligibleCandidates
+      .filter(({ post, authorProfile }) => {
+        if (!isPinActive(post, nowMs)) return false;
+        const authorIsAdmin = isAdminRole(post.authorRole) || isAdminRole(authorProfile?.role as string | undefined);
+        return authorIsAdmin;
+      })
+      .sort((a, b) => {
+        const typeA = a.post.postType === 'announcement' ? 0 : 1;
+        const typeB = b.post.postType === 'announcement' ? 0 : 1;
+        if (typeA !== typeB) return typeA - typeB;
+        return comparePostsCreatedDesc(a.post, b.post);
+      });
+
+    const selectedPinned = activeAdminPinned.slice(0, maxPinned).map((item) => item.post);
+    const pinnedIds = new Set<string>(selectedPinned.map((p) => p.id));
+
+    const regularCandidates = eligibleCandidates.filter(
+      ({ post }) => !pinnedIds.has(post.id) && !externalSeen.has(post.id)
+    );
+
+    if (requestedSortMode === 'relevance') {
+      const scored = regularCandidates.map((entry) => ({
+        ...entry,
+        score: calculateFeedRelevanceScore(
+          entry.post,
+          viewerCtx,
+          feedConfig,
+          interacted,
+          nowMs,
+          entry.authorProfile
+        )
+      }));
+      scored.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return comparePostsCreatedDesc(a.post, b.post);
+      });
+      regularCandidates.splice(0, regularCandidates.length, ...scored.map((s) => ({ post: s.post, authorProfile: s.authorProfile })));
+    } else {
+      regularCandidates.sort((a, b) => comparePostsCreatedDesc(a.post, b.post));
+    }
+
+    // --- Step 4: Final Adjustments (max 3 consecutive same-author + deduplicate) ---
+    const spaced = enforceMaxConsecutiveAuthor(
+      regularCandidates.map((entry) => entry.post),
+      feedConfig.maxConsecutiveSameAuthor
+    );
+
+    const seenInSession = new Set<string>(pinnedIds);
+    const deduplicatedRegular: InstitutionalFeedPost[] = [];
+    for (const p of spaced) {
+      if (seenInSession.has(p.id) || externalSeen.has(p.id)) continue;
+      seenInSession.add(p.id);
+      deduplicatedRegular.push(p);
+    }
+
+    // Determine latest visible post timestamp for the "New posts available" banner
+    let latestPostAt: string | null = null;
+    let latestMs = -1;
+    for (const { post } of eligibleCandidates) {
+      const ms = new Date(post.createdAt || 0).getTime();
+      if (!Number.isNaN(ms) && ms > latestMs) {
+        latestMs = ms;
+        latestPostAt = post.createdAt;
+      }
+    }
+
+    // Store short-lived session snapshot so page 2+ never skips or duplicates items
+    if (this.feedSessionSnapshots.size > 250) {
+      const cutoff = nowMs - 2 * 60 * 60 * 1000;
+      for (const [k, v] of this.feedSessionSnapshots.entries()) {
+        if (v.createdAtMs < cutoff) this.feedSessionSnapshots.delete(k);
+      }
+    }
+    const snapshotId = `fsnap_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const snapshot: FeedSessionSnapshot = {
+      id: snapshotId,
+      viewerUid: viewer?.uid || '',
+      sortMode: requestedSortMode,
+      orderedIds: deduplicatedRegular.map((p) => p.id),
+      pinnedIds: Array.from(pinnedIds),
+      createdAtMs: nowMs,
+      createdAtIso: latestPostAt || new Date(nowMs).toISOString()
+    };
+    this.feedSessionSnapshots.set(snapshotId, snapshot);
+
+    const firstPageRaw = deduplicatedRegular.slice(0, limit);
+    const hasMore = deduplicatedRegular.length > limit;
+    const nextCursor = hasMore ? encodeFeedCursor(snapshotId, limit) : null;
+
+    const projectedPinned = selectedPinned.map((p) =>
+      this.projectPostForViewer({ ...p, isPinned: true }, viewer)
+    );
+    const projectedPage = firstPageRaw.map((p) =>
+      this.projectPostForViewer({ ...p, isPinned: false }, viewer)
+    );
+
+    return {
+      posts: projectedPage,
+      pinnedPosts: projectedPinned,
+      nextCursor,
+      hasMore,
+      totalCount: projectedPinned.length + deduplicatedRegular.length,
+      sortMode: requestedSortMode,
+      sessionSnapshotId: snapshotId,
+      latestPostAt: snapshot.createdAtIso
+    };
+  }
+
+  public togglePostReaction(
+    postId: string,
+    actor: ModerationActor,
+    reactionType: 'heart' | 'like' = 'heart'
+  ): { post: InstitutionalFeedPost } {
+    const blockCheck = this.checkUserBlockedFromPostingOrReporting(actor.uid);
+    if (blockCheck.blocked && !blockCheck.reason?.includes('report')) {
+      throw new ModerationError(403, 'USER_SUSPENDED', blockCheck.reason || 'Suspended users cannot react to posts.');
+    }
+    const post = this.state.posts[postId];
+    if (!post) {
+      throw new ModerationError(404, 'POST_NOT_FOUND', 'Post not found.');
+    }
+    const viewerCtx = this.buildViewerContext(actor);
+    const authorProfile = this.resolveAuthorProfile(post.authorId);
+    if (!canUserViewPost(post, { surface: 'permalink', viewer: viewerCtx, authorAccount: authorProfile })) {
+      throw new ModerationError(403, 'FORBIDDEN', 'You do not have permission to interact with this post.');
+    }
+
+    if (reactionType === 'like') {
+      const current = new Set(Array.isArray(post.likes) ? post.likes : []);
+      if (current.has(actor.uid)) current.delete(actor.uid);
+      else current.add(actor.uid);
+      post.likes = Array.from(current);
+    } else {
+      const current = new Set(Array.isArray(post.hearts) ? post.hearts : []);
+      if (current.has(actor.uid)) current.delete(actor.uid);
+      else current.add(actor.uid);
+      post.hearts = Array.from(current);
+    }
+
+    this.state.posts[postId] = post;
+    this.invalidateCaches();
+    this.persist();
+    return { post: this.projectPostForViewer(post, actor) };
+  }
+
+  public addPostComment(
+    postId: string,
+    actor: ModerationActor,
+    rawText: string
+  ): { post: InstitutionalFeedPost; comment: FeedComment } {
+    const blockCheck = this.checkUserBlockedFromPostingOrReporting(actor.uid);
+    if (blockCheck.blocked && !blockCheck.reason?.includes('report')) {
+      throw new ModerationError(403, 'USER_SUSPENDED', blockCheck.reason || 'Suspended users cannot comment on posts.');
+    }
+    const post = this.state.posts[postId];
+    if (!post) {
+      throw new ModerationError(404, 'POST_NOT_FOUND', 'Post not found.');
+    }
+    const viewerCtx = this.buildViewerContext(actor);
+    const authorProfile = this.resolveAuthorProfile(post.authorId);
+    if (!canUserViewPost(post, { surface: 'permalink', viewer: viewerCtx, authorAccount: authorProfile })) {
+      throw new ModerationError(403, 'FORBIDDEN', 'You do not have permission to comment on this post.');
+    }
+
+    const cleanText = sanitizeModerationText(rawText, 1000);
+    if (!cleanText) {
+      throw new ModerationError(400, 'EMPTY_COMMENT', 'Comment cannot be empty.');
+    }
+
+    const actorProfile = this.resolveAuthorProfile(actor.uid);
+    const comment: FeedComment = {
+      id: `cmt_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      authorId: actor.uid,
+      authorName: actorProfile?.name || actor.name || 'Cecilian Member',
+      authorAvatar: actorProfile?.profilePictureUrl || '',
+      authorRole: normalizeSystemRole(actor.role),
+      text: cleanText,
+      createdAt: new Date().toISOString()
+    };
+
+    post.comments = [...(Array.isArray(post.comments) ? post.comments : []), comment];
+    this.state.posts[postId] = post;
+    this.invalidateCaches();
+    this.persist();
+    return { post: this.projectPostForViewer(post, actor), comment };
+  }
+
+  public getVisiblePosts(
+    viewer?: ModerationActor | null,
+    options?: { search?: string; authorId?: string; includeDeletedForMod?: boolean; cursor?: string; limit?: number }
+  ): InstitutionalFeedPost[] {
+    const search = (options?.search || '').toLowerCase().trim();
+    const viewerCtx = this.buildViewerContext(viewer);
+    const surface = search ? 'search' : 'feed';
+
+    const matching = Object.values(this.state.posts)
       .filter((post) => {
-        const isAuthor = viewer ? post.authorId === viewer.uid : false;
+        const authorProfile = this.resolveAuthorProfile(post.authorId);
+        const visible = canUserViewPost(post, {
+          surface,
+          viewer: viewerCtx,
+          authorAccount: authorProfile,
+          includeDeletedForMod: options?.includeDeletedForMod
+        });
+        if (!visible) return false;
 
-        // Soft-deleted posts disappear from feed, search, profile pages, notifications for non-moderators
-        if (post.isSoftDeleted) {
-          if (!(isMod && options?.includeDeletedForMod)) {
+        if (options?.authorId) {
+          // If filtering feed by authorId, still never expose anonymous posts!
+          if (post.isAnonymous || post.authorId !== options.authorId) {
             return false;
           }
         }
 
-        // Auto-hidden harassment posts disappear from public feeds/search/other profiles
-        // Author sees it with "Under review" notice (on profile/author views), moderators see all
-        if (post.underReviewAutoHidden && !isMod && !isAuthor) {
-          return false;
-        }
-
-        if (options?.authorId && post.authorId !== options.authorId) {
-          return false;
-        }
-
         if (search) {
-          const haystack = `${post.title} ${post.content} ${post.authorName} ${(post.tags || []).join(' ')}`.toLowerCase();
+          const hydrated = hydratePostWithLiveAuthor(post, authorProfile, viewerCtx);
+          const haystack = `${hydrated.title} ${hydrated.content} ${hydrated.authorName} ${(hydrated.tags || []).join(' ')}`.toLowerCase();
           if (!haystack.includes(search)) return false;
         }
 
         return true;
       })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort(comparePostsCreatedDesc)
       .map((p) => this.projectPostForViewer(p, viewer));
+
+    if (options?.cursor !== undefined || options?.limit !== undefined) {
+      return paginatePostsWithCursor(matching, options.cursor, options.limit || 10).items;
+    }
+    return matching;
+  }
+
+  public getVisiblePostsPaginated(
+    viewer?: ModerationActor | null,
+    options?: { search?: string; cursor?: string; limit?: number; postType?: string }
+  ): { posts: InstitutionalFeedPost[]; nextCursor: string | null; hasMore: boolean; totalCount: number } {
+    let all = this.getVisiblePosts(viewer, { search: options?.search });
+    if (options?.postType && options.postType !== 'all') {
+      all = all.filter((p) => p.postType === options.postType);
+    }
+    const page = paginatePostsWithCursor(all, options?.cursor, options?.limit || 10);
+    return {
+      posts: page.items,
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore,
+      totalCount: all.length
+    };
   }
 
   public getPostByIdForViewer(postId: string, viewer?: ModerationActor | null): InstitutionalFeedPost | null {
     const post = this.state.posts[postId];
     if (!post) return null;
-    const isMod = viewer ? isModeratorRole(viewer.role) : false;
-    const isAuthor = viewer ? post.authorId === viewer.uid : false;
-
-    if (post.isSoftDeleted && !isMod) return null;
-    if (post.underReviewAutoHidden && !isMod && !isAuthor) return null;
+    const viewerCtx = this.buildViewerContext(viewer);
+    const authorProfile = this.resolveAuthorProfile(post.authorId);
+    const allowed = canUserViewPost(post, {
+      surface: 'permalink',
+      viewer: viewerCtx,
+      authorAccount: authorProfile
+    });
+    if (!allowed) return null;
 
     return this.projectPostForViewer(post, viewer);
+  }
+
+  public getPostMediaForViewer(
+    postId: string,
+    viewer?: ModerationActor | null
+  ): { allowed: boolean; status: number; error?: string; imageUrl?: string; mimeType?: string } {
+    const post = this.state.posts[postId];
+    if (!post) {
+      return { allowed: false, status: 404, error: 'Media not found.' };
+    }
+    const viewerCtx = this.buildViewerContext(viewer);
+    const authorProfile = this.resolveAuthorProfile(post.authorId);
+    const allowed = canUserViewPost(post, {
+      surface: 'media',
+      viewer: viewerCtx,
+      authorAccount: authorProfile
+    });
+    if (!allowed) {
+      return {
+        allowed: false,
+        status: viewer?.uid ? 403 : 401,
+        error: viewer?.uid ? 'You do not have permission to access media for this post.' : 'Authentication required.'
+      };
+    }
+    const url = post.imageUrl || post.mediaUrl || this.state.postMedia[postId]?.data;
+    if (!url) {
+      return { allowed: false, status: 404, error: 'No media attached to this post.' };
+    }
+    return {
+      allowed: true,
+      status: 200,
+      imageUrl: url,
+      mimeType: this.state.postMedia[postId]?.mimeType || 'image/jpeg'
+    };
+  }
+
+  // ===========================================================================
+  // 1B. PERSONAL PROFILE ACCESS, SLUG REDIRECTS & CURSOR TIMELINE
+  // ===========================================================================
+
+  private resolveProfileIdentifierInternal(identifier: string): {
+    profile: StoredProfileRecord | null;
+    redirectToSlug?: string;
+  } {
+    const raw = (identifier || '').trim();
+    if (!raw) return { profile: null };
+
+    // 1. Direct UID lookup
+    const byUid = this.resolveAuthorProfile(raw);
+    if (byUid) {
+      return { profile: byUid };
+    }
+
+    const slugLower = raw.toLowerCase();
+
+    // 2. Current username / slug lookup
+    for (const prof of Object.values(this.state.profiles)) {
+      if ((prof.username || '').toLowerCase() === slugLower) {
+        return { profile: this.resolveAuthorProfile(prof.uid) };
+      }
+    }
+
+    // 3. Slug history lookup (301/canonical redirect to current handle)
+    const redirectedUid = this.state.slugRedirects[slugLower];
+    if (redirectedUid) {
+      const target = this.resolveAuthorProfile(redirectedUid);
+      if (target) {
+        return { profile: target, redirectToSlug: target.username };
+      }
+    }
+
+    // 4. Fallback check across previousUsernames arrays
+    for (const prof of Object.values(this.state.profiles)) {
+      if (Array.isArray(prof.previousUsernames) && prof.previousUsernames.some((u) => u.toLowerCase() === slugLower)) {
+        const target = this.resolveAuthorProfile(prof.uid);
+        if (target) {
+          return { profile: target, redirectToSlug: target.username };
+        }
+      }
+    }
+
+    // 5. Fallback scan of adapter users by generated slug
+    const adapterUsers = this.accountAdapter?.getAllUsers ? this.accountAdapter.getAllUsers() : [];
+    for (const u of adapterUsers) {
+      if (!u?.uid) continue;
+      if ((u.username || '').toLowerCase() === slugLower || slugifyUsername(u.name || '') === slugLower) {
+        const synced = this.upsertProfileRecord(u, false);
+        return { profile: synced };
+      }
+    }
+
+    return { profile: null };
+  }
+
+  private getVisibleTimelinePostsForProfile(
+    targetUid: string,
+    viewerCtx: ViewerContext | null,
+    targetProfile: StoredProfileRecord
+  ): InstitutionalFeedPost[] {
+    return Object.values(this.state.posts)
+      .filter((post) =>
+        canUserViewPost(post, {
+          surface: 'profile',
+          viewer: viewerCtx,
+          targetProfileUid: targetUid,
+          authorAccount: targetProfile
+        })
+      )
+      .sort(comparePostsCreatedDesc);
+  }
+
+  public getPublicProfileForViewer(
+    identifier: string,
+    actor: ModerationActor
+  ): {
+    profile: PublicProfileSummary;
+    redirectToSlug?: string;
+    unavailable: boolean;
+  } {
+    if (!actor?.uid) {
+      throw new ModerationError(401, 'AUTH_REQUIRED', 'Please sign in to view alumni profiles.');
+    }
+
+    const { profile: resolved, redirectToSlug } = this.resolveProfileIdentifierInternal(identifier);
+    if (!resolved) {
+      throw new ModerationError(404, 'PROFILE_NOT_FOUND', 'Profile not found.');
+    }
+
+    const viewerCtx = this.buildViewerContext(actor);
+    const isSelf = actor.uid === resolved.uid;
+    const isMod = isModeratorRole(actor.role);
+    const viewerProfile = this.resolveAuthorProfile(actor.uid);
+    const blocked = areUsersBlocked(actor.uid, resolved.uid, viewerProfile, resolved);
+    const unavailable = !isSelf && (blocked || isAccountUnavailable(resolved));
+
+    if (unavailable && !isMod) {
+      return {
+        redirectToSlug,
+        unavailable: true,
+        profile: {
+          uid: resolved.uid,
+          username: resolved.username,
+          name: isAccountDeleted(resolved) ? 'Former alumni' : 'Unavailable Account',
+          role: 'alumni',
+          unavailable: true,
+          unavailableReason: 'This account is unavailable',
+          postsCount: 0,
+          isBlockedByViewer: Boolean(viewerProfile?.blockedUsers?.includes(resolved.uid))
+        }
+      };
+    }
+
+    if (isAccountDeleted(resolved)) {
+      return {
+        redirectToSlug,
+        unavailable: true,
+        profile: {
+          uid: resolved.uid,
+          username: resolved.username,
+          name: 'Former alumni',
+          role: 'alumni',
+          unavailable: true,
+          unavailableReason: 'This account is unavailable',
+          postsCount: 0
+        }
+      };
+    }
+
+    const visibleTimelinePosts = this.getVisibleTimelinePostsForProfile(resolved.uid, viewerCtx, resolved);
+    const showEmail = isSelf || isMod || Boolean(resolved.show_email);
+    const showPhone = isSelf || isMod || Boolean(resolved.show_phone);
+    const showEmployer = isSelf || isMod || (resolved.show_current_employer ?? true);
+
+    return {
+      redirectToSlug,
+      unavailable: false,
+      profile: {
+        uid: resolved.uid,
+        username: resolved.username,
+        name: resolved.name,
+        role: normalizeSystemRole(resolved.role as string),
+        batch: resolved.batch,
+        course: resolved.course,
+        department: resolved.department,
+        location: resolved.location,
+        profilePictureUrl: resolved.profilePictureUrl,
+        coverPhotoUrl: resolved.coverPhotoUrl,
+        headline: resolved.headline,
+        about: resolved.about,
+        company: showEmployer ? resolved.company : undefined,
+        currentPosition: showEmployer ? resolved.currentPosition : undefined,
+        email: showEmail ? resolved.email : undefined,
+        phone: showPhone ? resolved.phone : undefined,
+        isVerified: resolved.isVerified,
+        quickStatus: resolved.quickStatus,
+        followersCount: resolved.followersCount,
+        followingCount: resolved.followingCount,
+        connectionsCount: resolved.connectionsCount,
+        pinnedPostId: resolved.pinnedPostId,
+        postsCount: visibleTimelinePosts.length,
+        unavailable: false,
+        isBlockedByViewer: Boolean(viewerProfile?.blockedUsers?.includes(resolved.uid)),
+        show_email: resolved.show_email,
+        show_phone: resolved.show_phone,
+        show_current_employer: resolved.show_current_employer,
+        createdAt: resolved.createdAt
+      }
+    };
+  }
+
+  public getProfileTimeline(
+    identifier: string,
+    actor: ModerationActor,
+    options?: {
+      cursor?: string;
+      limit?: number;
+      tab?: 'posts' | 'media' | 'about';
+      postType?: string;
+      year?: string;
+    }
+  ): PaginatedTimelineResponse {
+    if (!actor?.uid) {
+      throw new ModerationError(401, 'AUTH_REQUIRED', 'Please sign in to view alumni profiles.');
+    }
+    if (this.state.config.profileTimelineEnabled === false) {
+      throw new ModerationError(403, 'FEATURE_DISABLED', 'Profile timelines are currently disabled by administrator configuration.');
+    }
+
+    const { profile: resolved, redirectToSlug } = this.resolveProfileIdentifierInternal(identifier);
+    if (!resolved) {
+      throw new ModerationError(404, 'PROFILE_NOT_FOUND', 'Profile not found.');
+    }
+
+    const viewerCtx = this.buildViewerContext(actor);
+    const viewerProfile = this.resolveAuthorProfile(actor.uid);
+    const isSelf = actor.uid === resolved.uid;
+    const isMod = isModeratorRole(actor.role);
+    const blocked = areUsersBlocked(actor.uid, resolved.uid, viewerProfile, resolved);
+
+    if ((!isSelf && blocked) || isAccountUnavailable(resolved)) {
+      if (!isMod || blocked || isAccountDeleted(resolved)) {
+        return {
+          posts: [],
+          pinnedPost: null,
+          nextCursor: null,
+          hasMore: false,
+          totalCount: 0,
+          redirectToSlug,
+          unavailable: true,
+          unavailableReason: 'This account is unavailable'
+        };
+      }
+    }
+
+    const cacheKey = `${resolved.uid}:${actor.uid}:${options?.cursor || ''}:${options?.limit || 10}:${options?.tab || 'posts'}:${options?.postType || 'all'}:${options?.year || 'all'}`;
+    const cached = this.timelineCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+
+    const allVisible = this.getVisibleTimelinePostsForProfile(resolved.uid, viewerCtx, resolved);
+    const totalCount = allVisible.length;
+
+    let filtered = allVisible;
+    if (options?.tab === 'media') {
+      filtered = filtered.filter((p) => Boolean(p.imageUrl || p.mediaUrl));
+    }
+    if (options?.postType && options.postType !== 'all') {
+      filtered = filtered.filter((p) => p.postType === options.postType);
+    }
+    if (options?.year && options.year !== 'all') {
+      filtered = filtered.filter((p) => String(new Date(p.createdAt).getFullYear()) === options.year);
+    }
+
+    let pinnedPost: InstitutionalFeedPost | null = null;
+    if (resolved.pinnedPostId && options?.tab !== 'media') {
+      const pinnedMatch = filtered.find((p) => p.id === resolved.pinnedPostId);
+      if (pinnedMatch) {
+        pinnedPost = this.projectPostForViewer({ ...pinnedMatch, isPinned: true }, actor);
+        filtered = filtered.filter((p) => p.id !== pinnedMatch.id);
+      }
+    }
+
+    const page = paginatePostsWithCursor(filtered, options?.cursor, options?.limit || 10);
+    const projectedItems = page.items.map((p) => this.projectPostForViewer(p, actor));
+
+    const result: PaginatedTimelineResponse = {
+      posts: projectedItems,
+      pinnedPost: !options?.cursor ? pinnedPost : null,
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore,
+      totalCount,
+      redirectToSlug,
+      unavailable: false
+    };
+
+    this.timelineCache.set(cacheKey, { expiresAt: Date.now() + 15000, value: result });
+    return result;
+  }
+
+  public setPinnedPostForUser(actor: ModerationActor, postId: string | null): { pinnedPostId: string | null } {
+    const profile = this.resolveAuthorProfile(actor.uid) || this.upsertProfileRecord({ uid: actor.uid, name: actor.name, email: actor.email, role: actor.role }, false);
+    if (!postId) {
+      profile.pinnedPostId = undefined;
+      this.state.profiles[actor.uid] = profile;
+      this.invalidateCaches();
+      this.persist();
+      return { pinnedPostId: null };
+    }
+
+    const post = this.state.posts[postId];
+    if (!post) {
+      throw new ModerationError(404, 'POST_NOT_FOUND', 'Post not found.');
+    }
+    if (post.authorId !== actor.uid) {
+      throw new ModerationError(403, 'FORBIDDEN', 'You can only pin your own posts.');
+    }
+    if (post.isSoftDeleted || post.isAnonymous || (post.status || 'published') !== 'published') {
+      throw new ModerationError(400, 'PIN_NOT_ALLOWED', 'Only your own published non-anonymous posts can be pinned.');
+    }
+
+    profile.pinnedPostId = post.id;
+    this.state.profiles[actor.uid] = profile;
+    this.invalidateCaches();
+    this.persist();
+    return { pinnedPostId: post.id };
+  }
+
+  public updateMyProfile(
+    actor: ModerationActor,
+    updates: {
+      name?: string;
+      username?: string;
+      headline?: string;
+      about?: string;
+      location?: string;
+      company?: string;
+      currentPosition?: string;
+      profilePictureUrl?: string;
+      coverPhotoUrl?: string;
+      phone?: string;
+      show_email?: boolean;
+      show_phone?: boolean;
+      show_current_employer?: boolean;
+    }
+  ): { profile: PublicProfileSummary; slugChanged: boolean } {
+    const existing = this.resolveAuthorProfile(actor.uid) || this.upsertProfileRecord({
+      uid: actor.uid,
+      name: actor.name,
+      email: actor.email,
+      role: actor.role
+    }, false);
+
+    let nextUsername = existing.username;
+    let slugChanged = false;
+    if (typeof updates.username === 'string' && updates.username.trim()) {
+      const requestedSlug = slugifyUsername(updates.username);
+      if (requestedSlug !== existing.username) {
+        const taken = this.getAllKnownHandlesSet(actor.uid);
+        if (taken.has(requestedSlug.toLowerCase())) {
+          throw new ModerationError(409, 'USERNAME_TAKEN', 'That profile username is already in use.');
+        }
+        nextUsername = requestedSlug;
+        slugChanged = true;
+      }
+    }
+
+    const updated = this.upsertProfileRecord(
+      {
+        ...existing,
+        name: updates.name !== undefined ? sanitizeModerationText(updates.name, 120) : existing.name,
+        username: nextUsername,
+        headline: updates.headline !== undefined ? sanitizeModerationText(updates.headline, 160) : existing.headline,
+        about: updates.about !== undefined ? sanitizeModerationText(updates.about, 2000) : existing.about,
+        location: updates.location !== undefined ? sanitizeModerationText(updates.location, 120) : existing.location,
+        company: updates.company !== undefined ? sanitizeModerationText(updates.company, 120) : existing.company,
+        currentPosition: updates.currentPosition !== undefined ? sanitizeModerationText(updates.currentPosition, 120) : existing.currentPosition,
+        profilePictureUrl: updates.profilePictureUrl !== undefined ? updates.profilePictureUrl : existing.profilePictureUrl,
+        coverPhotoUrl: updates.coverPhotoUrl !== undefined ? updates.coverPhotoUrl : existing.coverPhotoUrl,
+        phone: updates.phone !== undefined ? sanitizeModerationText(updates.phone, 40) : existing.phone,
+        show_email: updates.show_email !== undefined ? Boolean(updates.show_email) : existing.show_email,
+        show_phone: updates.show_phone !== undefined ? Boolean(updates.show_phone) : existing.show_phone,
+        show_current_employer: updates.show_current_employer !== undefined ? Boolean(updates.show_current_employer) : existing.show_current_employer
+      },
+      true
+    );
+
+    const view = this.getPublicProfileForViewer(updated.uid, actor);
+    return { profile: view.profile, slugChanged };
+  }
+
+  public setUserBlock(actor: ModerationActor, targetUid: string, shouldBlock: boolean): { blockedUsers: string[] } {
+    if (actor.uid === targetUid) {
+      throw new ModerationError(400, 'SELF_BLOCK_INVALID', 'You cannot block your own account.');
+    }
+    const target = this.resolveAuthorProfile(targetUid);
+    if (!target) {
+      throw new ModerationError(404, 'PROFILE_NOT_FOUND', 'Target user not found.');
+    }
+    const selfProfile = this.resolveAuthorProfile(actor.uid) || this.upsertProfileRecord({
+      uid: actor.uid,
+      name: actor.name,
+      email: actor.email,
+      role: actor.role
+    }, false);
+
+    const currentBlocks = new Set(selfProfile.blockedUsers || []);
+    if (shouldBlock) {
+      currentBlocks.add(targetUid);
+    } else {
+      currentBlocks.delete(targetUid);
+    }
+    selfProfile.blockedUsers = Array.from(currentBlocks);
+    this.state.profiles[actor.uid] = selfProfile;
+    this.invalidateCaches();
+    this.persist();
+    return { blockedUsers: selfProfile.blockedUsers };
+  }
+
+  public deleteAndAnonymizeAccount(targetUid: string, actor: ModerationActor): { success: boolean; anonymizedPosts: number } {
+    if (actor.uid !== targetUid && !isAdminRole(actor.role)) {
+      throw new ModerationError(403, 'FORBIDDEN', 'Only the account owner or an Administrator can delete this account.');
+    }
+    const existing = this.resolveAuthorProfile(targetUid) || this.upsertProfileRecord({
+      uid: targetUid,
+      name: 'Former alumni',
+      email: '',
+      role: 'alumni'
+    }, false);
+
+    existing.isDeleted = true;
+    existing.accountStatus = 'DELETED';
+    existing.status = 'DELETED';
+    existing.deletedAt = new Date().toISOString();
+    existing.name = 'Former alumni';
+    existing.profilePictureUrl = '';
+    existing.coverPhotoUrl = '';
+    existing.phone = '';
+    existing.email = '';
+    existing.pinnedPostId = undefined;
+    this.state.profiles[targetUid] = existing;
+
+    let anonymizedPosts = 0;
+    for (const post of Object.values(this.state.posts)) {
+      if (post.authorId === targetUid) {
+        post.authorName = 'Former alumni';
+        post.authorAvatar = '';
+        post.authorUsername = undefined;
+        post.authorDeleted = true;
+        anonymizedPosts++;
+      }
+    }
+
+    this.accountAdapter?.updateUserSuspension(targetUid, {
+      accountStatus: 'DELETED',
+      reason: 'Account deleted',
+      actorId: actor.uid,
+      actorName: actor.name,
+      actorRole: actor.role
+    });
+
+    this.invalidateCaches();
+    this.persist();
+    return { success: true, anonymizedPosts };
+  }
+
+  public sharePost(actor: ModerationActor, sourcePostId: string, commentary?: string): InstitutionalFeedPost {
+    const blockCheck = this.checkUserBlockedFromPostingOrReporting(actor.uid);
+    if (blockCheck.blocked && !blockCheck.reason?.includes('report')) {
+      throw new ModerationError(403, 'USER_SUSPENDED', blockCheck.reason || 'Suspended users cannot share posts.');
+    }
+
+    const source = this.state.posts[sourcePostId];
+    if (!source) {
+      throw new ModerationError(404, 'POST_NOT_FOUND', 'Source post not found.');
+    }
+
+    const viewerCtx = this.buildViewerContext(actor);
+    const sourceAuthor = this.resolveAuthorProfile(source.authorId);
+    const canView = canUserViewPost(source, {
+      surface: 'permalink',
+      viewer: viewerCtx,
+      authorAccount: sourceAuthor
+    });
+    if (!canView || source.visibility === 'private') {
+      throw new ModerationError(403, 'FORBIDDEN', 'You cannot share this post.');
+    }
+
+    const hydratedSource = hydratePostWithLiveAuthor(source, sourceAuthor, viewerCtx);
+    const cleanComment = commentary ? sanitizeModerationText(commentary, 1000) : '';
+    const sharedPost: InstitutionalFeedPost = {
+      id: `post_share_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      authorId: actor.uid,
+      authorName: actor.name,
+      authorRole: normalizeSystemRole(actor.role),
+      authorAvatar: this.resolveAuthorProfile(actor.uid)?.profilePictureUrl || '',
+      postType: source.postType || 'milestone',
+      title: hydratedSource.title,
+      content: cleanComment ? `${cleanComment}\n\n— Shared from ${hydratedSource.authorName}: ${hydratedSource.content}` : hydratedSource.content,
+      imageUrl: hydratedSource.imageUrl,
+      milestoneBadge: hydratedSource.milestoneBadge,
+      likes: [],
+      hearts: [],
+      comments: [],
+      sharesCount: 0,
+      createdAt: new Date().toISOString(),
+      status: 'published',
+      visibility: source.visibility === 'group' || source.visibility === 'batch' || source.visibility === 'department' ? source.visibility : 'alumni',
+      groupId: source.groupId,
+      targetBatch: source.targetBatch,
+      targetDepartment: source.targetDepartment,
+      isAnonymous: false,
+      sharedFromPostId: source.id,
+      sharedFromAuthorId: source.isAnonymous ? undefined : source.authorId,
+      sharedFromAuthorName: hydratedSource.authorName,
+      sharedLabel: 'Shared'
+    };
+
+    source.sharesCount = (source.sharesCount || 0) + 1;
+    this.state.posts[source.id] = source;
+    const saved = this.upsertPost(sharedPost, actor);
+    return this.projectPostForViewer(saved, actor);
   }
 
   // ===========================================================================
@@ -2147,7 +3477,11 @@ export class PostModerationEngine {
       dismissedReporterThreshold: clampInt(updates.dismissedReporterThreshold, this.state.config.dismissedReporterThreshold, 2, 50),
       autoFlagReportThreshold: clampInt(updates.autoFlagReportThreshold, this.state.config.autoFlagReportThreshold, 2, 50),
       autoHideHarassmentThreshold: clampInt(updates.autoHideHarassmentThreshold, this.state.config.autoHideHarassmentThreshold, 2, 25),
-      maxReportsPerHour: clampInt(updates.maxReportsPerHour, this.state.config.maxReportsPerHour, 1, 100)
+      maxReportsPerHour: clampInt(updates.maxReportsPerHour, this.state.config.maxReportsPerHour, 1, 100),
+      profileTimelineEnabled:
+        updates.profileTimelineEnabled !== undefined
+          ? Boolean(updates.profileTimelineEnabled)
+          : this.state.config.profileTimelineEnabled ?? true
     };
 
     this.state.config = next;
@@ -2165,6 +3499,17 @@ export class PostModerationEngine {
 
     this.persist();
     return { ...next };
+  }
+
+  public getPublicFeatureConfig(): { profileTimelineEnabled: boolean; feedSortMode: FeedSortMode } {
+    return {
+      profileTimelineEnabled: this.state.config.profileTimelineEnabled ?? true,
+      feedSortMode: this.state.feedConfig?.sortMode || DEFAULT_FEED_CONFIG.sortMode
+    };
+  }
+
+  public getLegacyAuditReport() {
+    return { ...this.state.legacyAuditReport };
   }
 
   public getNotificationsForUser(actor: ModerationActor): AppNotification[] {

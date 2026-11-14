@@ -8,7 +8,7 @@ import { createServer as createViteServer } from 'vite';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import type { Opportunity, JobApplication, ApplicationStatus, ChatThread, ChatMessage } from './src/types';
-import { INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
+import { INITIAL_USERS, INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
 import webpush from 'web-push';
 import { getEmployerAuthStatus, isEmployerApproved } from './src/lib/employerAuthStatus';
 import { sendRealEmail, buildOtpEmailTemplate, buildEmployerStatusEmailTemplate } from './src/server/emailService';
@@ -5574,24 +5574,39 @@ app.post('/api/jobs/:id/report', (req: Request, res: Response) => {
 // 6.9 POST REPORTING & MODERATION WORKFLOW API
 // ============================================================================
 postModerationEngine.setUserAccountAdapter({
-  getUserByUid: (uid: string) => credentialsDb.get(uid),
+  getUserByUid: (uid: string) => {
+    const cred = credentialsDb.get(uid);
+    const seed = INITIAL_USERS.find((u) => u.uid === uid);
+    if (cred && seed) {
+      return { ...seed, ...cred };
+    }
+    return cred || seed;
+  },
   updateUserSuspension: (uid, payload) => {
     const targetUser = credentialsDb.get(uid);
     if (!targetUser) return;
     targetUser.accountStatus = payload.accountStatus;
     targetUser.status = payload.accountStatus;
     targetUser.isLocked = payload.accountStatus === 'LOCKED';
+    if (payload.accountStatus === 'DEACTIVATED') {
+      (targetUser as any).isDeactivated = true;
+    }
+    if (payload.accountStatus === 'DELETED') {
+      (targetUser as any).isDeleted = true;
+      targetUser.name = 'Former alumni';
+    }
     targetUser.suspensionReason = payload.reason;
     targetUser.suspensionEndDate = payload.endDate;
 
     if (payload.accountStatus === 'ACTIVE') {
+      (targetUser as any).isDeactivated = false;
       if (targetUser.suspensionInfo) {
         targetUser.suspensionInfo.unlockedAt = new Date().toISOString();
         targetUser.suspensionInfo.unlockedBy = payload.actorId;
         targetUser.suspensionInfo.unlockedByName = payload.actorName;
         targetUser.suspensionInfo.unlockReason = payload.reason;
       }
-    } else {
+    } else if (payload.accountStatus === 'SUSPENDED' || payload.accountStatus === 'LOCKED') {
       const start = payload.startDate || new Date().toISOString();
       if (!targetUser.suspensionInfo) {
         targetUser.suspensionInfo = {
@@ -5625,6 +5640,8 @@ postModerationEngine.setUserAccountAdapter({
         endDate: payload.endDate
       });
       activeSessions.delete(uid);
+    } else {
+      activeSessions.delete(uid);
     }
 
     registerCredentialInDb(targetUser, true);
@@ -5646,6 +5663,17 @@ postModerationEngine.setUserAccountAdapter({
       }
     }
     return list;
+  },
+  getAllUsers: () => {
+    const byUid = new Map<string, any>();
+    for (const seed of INITIAL_USERS) {
+      byUid.set(seed.uid, { ...seed });
+    }
+    for (const cred of credentialsDb.values()) {
+      const prev = byUid.get(cred.uid) || {};
+      byUid.set(cred.uid, { ...prev, ...cred });
+    }
+    return Array.from(byUid.values());
   }
 });
 

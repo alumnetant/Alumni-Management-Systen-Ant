@@ -7699,7 +7699,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (newM.authorRole !== 'employer' && newM.authorRole !== 'alumni') {
       const feedPost: InstitutionalFeedPost = {
         id: `post_ms_${newM.id}`,
-        authorId: newM.authorId || 'admin',
+        authorId: newM.authorId || currentUser?.uid || 'usr_admin_cecilia',
         authorName: newM.authorName,
         authorRole: (newM.authorRole as any) || 'admin',
         authorAvatar: currentUser?.profilePictureUrl || '/assets/st-cecilias-college-seal.jpg',
@@ -7712,7 +7712,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         comments: [],
         sharesCount: 0,
         createdAt: new Date().toISOString(),
-        tags: ['Milestone', newM.category]
+        tags: ['Milestone', newM.category],
+        status: 'published',
+        visibility: 'alumni',
+        isAnonymous: false
       };
       setFeedPosts((prev) => [feedPost, ...prev]);
     }

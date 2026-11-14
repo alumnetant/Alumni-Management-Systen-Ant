@@ -25,7 +25,15 @@ export function normalizeSystemRole(role?: string | null): UserRole {
   return 'alumni';
 }
 
-export type AccountLifecycleStatus = 'ACTIVE' | 'PENDING_VERIFICATION' | 'SUSPENDED' | 'LOCKED' | 'UNLOCKED' | 'REJECTED';
+export type AccountLifecycleStatus =
+  | 'ACTIVE'
+  | 'PENDING_VERIFICATION'
+  | 'SUSPENDED'
+  | 'LOCKED'
+  | 'UNLOCKED'
+  | 'REJECTED'
+  | 'DEACTIVATED'
+  | 'DELETED';
 
 export interface SuspensionHistoryEntry {
   id: string;
@@ -251,6 +259,16 @@ export interface UserProfile {
   showEmail?: boolean;
   showPhone?: boolean;
   showCurrentEmployer?: boolean;
+  // Personal Profile URLs, Timeline Pinning, Blocks & Account Lifecycle
+  username?: string;
+  previousUsernames?: string[];
+  pinnedPostId?: string;
+  blockedUsers?: string[];
+  groupIds?: string[];
+  isDeactivated?: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
+  isBanned?: boolean;
 }
 
 export type FriendRequestStatus = 'pending' | 'accepted' | 'declined';
@@ -649,6 +667,7 @@ export interface InstitutionalFeedPost {
   sharesCount: number;
   createdAt: string;
   isPinned?: boolean;
+  pinExpiresAt?: string;
   isEdited?: boolean;
   updatedAt?: string;
   tags?: string[];
@@ -662,6 +681,98 @@ export interface InstitutionalFeedPost {
   underReviewAutoHidden?: boolean;
   autoHiddenAt?: string;
   viewerHasReported?: boolean;
+  // Unified Publication Status, Visibility & Personal Timeline Fields
+  status?: 'published' | 'draft' | 'scheduled' | 'pending_approval';
+  visibility?: 'public' | 'alumni' | 'batch' | 'department' | 'group' | 'private';
+  groupId?: string;
+  groupName?: string;
+  targetBatch?: string;
+  targetDepartment?: string;
+  isAnonymous?: boolean;
+  sharedFromPostId?: string;
+  sharedFromAuthorId?: string;
+  sharedFromAuthorName?: string;
+  sharedLabel?: string;
+  taggedUserIds?: string[];
+  authorUsername?: string;
+  authorDeleted?: boolean;
+  mediaUrl?: string;
+  protectedMediaUrl?: string;
+  scheduledFor?: string;
+  legacyAuthorNormalized?: boolean;
+}
+
+export type FeedSortMode = 'chronological' | 'relevance';
+
+export interface FeedRankingConfig {
+  sortMode: FeedSortMode;
+  likeWeight: number;
+  commentWeight: number;
+  decayOffsetHours: number;
+  decayExponent: number;
+  sameBatchBoost: number;
+  sameDepartmentBoost: number;
+  recentInteractionBoost: number;
+  maxPinnedAnnouncements: number;
+  maxConsecutiveSameAuthor: number;
+  pageSize: number;
+}
+
+export interface FeedPageResponse {
+  posts: InstitutionalFeedPost[];
+  pinnedPosts: InstitutionalFeedPost[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  totalCount: number;
+  sortMode: FeedSortMode;
+  sessionSnapshotId?: string;
+  latestPostAt?: string | null;
+}
+
+export type ProfileTimelineTab = 'posts' | 'media' | 'about';
+
+export interface PublicProfileSummary {
+  uid: string;
+  username: string;
+  name: string;
+  role: UserRole;
+  batch?: string;
+  course?: string;
+  department?: string;
+  location?: string;
+  profilePictureUrl?: string;
+  coverPhotoUrl?: string;
+  headline?: string;
+  about?: string;
+  company?: string;
+  currentPosition?: string;
+  email?: string;
+  phone?: string;
+  isVerified?: boolean;
+  quickStatus?: string;
+  followersCount?: number;
+  followingCount?: number;
+  connectionsCount?: number;
+  pinnedPostId?: string;
+  postsCount?: number;
+  unavailable?: boolean;
+  unavailableReason?: string;
+  isBlockedByViewer?: boolean;
+  show_email?: boolean;
+  show_phone?: boolean;
+  show_current_employer?: boolean;
+  createdAt?: string;
+}
+
+export interface PaginatedTimelineResponse {
+  posts: InstitutionalFeedPost[];
+  pinnedPost: InstitutionalFeedPost | null;
+  nextCursor: string | null;
+  hasMore: boolean;
+  totalCount: number;
+  redirectToSlug?: string;
+  unavailable?: boolean;
+  unavailableReason?: string;
 }
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
@@ -1040,5 +1151,6 @@ export interface ModerationConfig {
   autoFlagReportThreshold: number;
   autoHideHarassmentThreshold: number;
   maxReportsPerHour: number;
+  profileTimelineEnabled?: boolean;
 }
 

@@ -86,14 +86,101 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
   });
 
   // -------------------------------------------------------------------------
-  // FEED POSTS & PRIVACY-SAFE PROJECTION ENDPOINTS
+  // 4-STEP MAIN SOCIAL FEED, CONFIG, GATED MEDIA & AUTHORITATIVE POST ACTIONS
   // -------------------------------------------------------------------------
+  router.get('/config/features', (_req: Request, res: Response) => {
+    try {
+      res.json(engine.getPublicFeatureConfig());
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.get('/feed', (req: Request, res: Response) => {
+    try {
+      const viewer = deps.verifyTokenOptional ? deps.verifyTokenOptional(req) : null;
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+      const limit = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+      const postType = typeof req.query.postType === 'string' ? req.query.postType : undefined;
+      const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+      const sortMode =
+        req.query.sortMode === 'chronological' || req.query.sortMode === 'relevance'
+          ? req.query.sortMode
+          : undefined;
+      const seenIds =
+        typeof req.query.seenIds === 'string'
+          ? req.query.seenIds.split(',').map((s) => s.trim()).filter(Boolean)
+          : undefined;
+      const interactedAuthorIds =
+        typeof req.query.interactedAuthorIds === 'string'
+          ? req.query.interactedAuthorIds.split(',').map((s) => s.trim()).filter(Boolean)
+          : undefined;
+
+      const result = engine.getMainFeed(viewer, {
+        cursor,
+        limit,
+        postType,
+        search,
+        sortMode,
+        seenIds,
+        interactedAuthorIds
+      });
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.get('/feed/new-count', (req: Request, res: Response) => {
+    try {
+      const viewer = deps.verifyTokenOptional ? deps.verifyTokenOptional(req) : null;
+      const since = typeof req.query.since === 'string' ? req.query.since : undefined;
+      const postType = typeof req.query.postType === 'string' ? req.query.postType : undefined;
+      res.json(engine.getNewFeedPostsCount(viewer, { since, postType }));
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.get('/feed/config', (_req: Request, res: Response) => {
+    try {
+      res.json({ config: engine.getFeedConfig() });
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.put(
+    '/feed/config',
+    deps.requireServerAuth,
+    deps.requireRole(['admin', 'superadmin']),
+    requireCsrf,
+    (req: Request, res: Response) => {
+      try {
+        const actor = toActor(req);
+        const config = engine.updateFeedConfig(actor, req.body || {});
+        res.json({ config });
+      } catch (err) {
+        handleError(err, res);
+      }
+    }
+  );
+
   router.get('/posts', (req: Request, res: Response) => {
     try {
       const viewer = deps.verifyTokenOptional ? deps.verifyTokenOptional(req) : null;
       const search = typeof req.query.search === 'string' ? req.query.search : undefined;
       const authorId = typeof req.query.authorId === 'string' ? req.query.authorId : undefined;
       const includeDeletedForMod = req.query.includeDeleted === 'true';
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+      const limit = req.query.limit !== undefined ? Number(req.query.limit) : undefined;
+      const postType = typeof req.query.postType === 'string' ? req.query.postType : undefined;
+
+      if (cursor !== undefined || limit !== undefined || postType !== undefined) {
+        const paged = engine.getVisiblePostsPaginated(viewer, { search, cursor, limit, postType });
+        return res.json(paged);
+      }
+
       const posts = engine.getVisiblePosts(viewer, { search, authorId, includeDeletedForMod });
       res.json({ posts });
     } catch (err) {
@@ -114,10 +201,34 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     }
   });
 
+  router.get('/posts/:postId/media', (req: Request, res: Response) => {
+    try {
+      const viewer = deps.verifyTokenOptional ? deps.verifyTokenOptional(req) : null;
+      const mediaResult = engine.getPostMediaForViewer(req.params.postId, viewer);
+      if (!mediaResult.allowed) {
+        return res.status(mediaResult.status).json({ error: mediaResult.error || 'Media unavailable.' });
+      }
+      if (req.query.format === 'json') {
+        return res.json({ imageUrl: mediaResult.imageUrl, mimeType: mediaResult.mimeType });
+      }
+      if (mediaResult.imageUrl?.startsWith('data:')) {
+        const match = /^data:([^;]+);base64,(.+)$/.exec(mediaResult.imageUrl);
+        if (match) {
+          res.setHeader('Content-Type', match[1]);
+          return res.send(Buffer.from(match[2], 'base64'));
+        }
+      }
+      return res.json({ imageUrl: mediaResult.imageUrl, mimeType: mediaResult.mimeType });
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
   router.post('/posts', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
     try {
       const actor = toActor(req);
       const body = req.body || {};
+      const actorIsAdmin = ['admin', 'superadmin'].includes((actor.role || '').toLowerCase().trim());
       const post = engine.upsertPost(
         {
           id: body.id || `post_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
@@ -129,14 +240,25 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
           title: body.title || 'Community Post',
           content: body.content || '',
           imageUrl: body.imageUrl,
+          mediaUrl: body.mediaUrl,
           milestoneBadge: body.milestoneBadge,
           likes: Array.isArray(body.likes) ? body.likes : [],
           hearts: Array.isArray(body.hearts) ? body.hearts : [],
           comments: Array.isArray(body.comments) ? body.comments : [],
           sharesCount: Number(body.sharesCount) || 0,
           createdAt: body.createdAt || new Date().toISOString(),
-          isPinned: !!body.isPinned,
-          tags: Array.isArray(body.tags) ? body.tags : undefined
+          isPinned: actorIsAdmin ? !!body.isPinned : false,
+          pinExpiresAt: actorIsAdmin ? body.pinExpiresAt : undefined,
+          tags: Array.isArray(body.tags) ? body.tags : undefined,
+          status: body.status || 'published',
+          visibility: body.visibility || 'alumni',
+          groupId: body.groupId,
+          groupName: body.groupName,
+          targetBatch: body.targetBatch,
+          targetDepartment: body.targetDepartment,
+          isAnonymous: !!body.isAnonymous,
+          taggedUserIds: Array.isArray(body.taggedUserIds) ? body.taggedUserIds : undefined,
+          scheduledFor: body.scheduledFor
         },
         actor
       );
@@ -146,18 +268,56 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     }
   });
 
-  // Sync existing client posts (used during initial feed load / optimistic sync without bypassing moderation flags)
+  router.post('/posts/:postId/share', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const shared = engine.sharePost(actor, req.params.postId, req.body?.commentary);
+      res.status(201).json({ post: shared });
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.post('/posts/:postId/react', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const reactionType = req.body?.reactionType === 'like' ? 'like' : 'heart';
+      const result = engine.togglePostReaction(req.params.postId, actor, reactionType);
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.post('/posts/:postId/comments', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const result = engine.addPostComment(req.params.postId, actor, req.body?.text);
+      res.status(201).json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  // Sync existing client posts & profiles (without bypassing moderation flags)
   router.post('/posts/sync', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
     try {
       const actor = toActor(req);
+      const incomingProfiles = Array.isArray(req.body?.profiles) ? req.body.profiles : [];
+      for (const prof of incomingProfiles.slice(0, 200)) {
+        if (prof?.uid) {
+          engine.upsertProfileRecord(prof, false);
+        }
+      }
       const incomingPosts = Array.isArray(req.body?.posts) ? req.body.posts : [];
-      for (const p of incomingPosts.slice(0, 100)) {
-        if (p?.id && p?.authorId) {
+      for (const p of incomingPosts.slice(0, 200)) {
+        if (p?.id) {
           engine.upsertPost(p);
         }
       }
+      const legacyAudit = engine.auditAndNormalizeLegacyPosts();
       const visible = engine.getVisiblePosts(actor);
-      res.json({ posts: visible });
+      res.json({ posts: visible, legacyAudit });
     } catch (err) {
       handleError(err, res);
     }
@@ -170,7 +330,11 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
         title: req.body?.title,
         content: req.body?.content,
         imageUrl: req.body?.imageUrl,
-        tags: req.body?.tags
+        tags: req.body?.tags,
+        visibility: req.body?.visibility,
+        status: req.body?.status,
+        isPinned: req.body?.isPinned,
+        pinExpiresAt: req.body?.pinExpiresAt
       });
       res.json({ post: updated });
     } catch (err) {
@@ -187,6 +351,117 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
       handleError(err, res);
     }
   });
+
+  // -------------------------------------------------------------------------
+  // PERSONAL PROFILE TIMELINE, ACCESS CONTROL, PINNING & BLOCKING
+  // -------------------------------------------------------------------------
+  router.get('/profiles/:identifier', deps.requireServerAuth, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const id = req.params.identifier === 'me' ? actor.uid : req.params.identifier;
+      const result = engine.getPublicProfileForViewer(id, actor);
+      if (result.redirectToSlug && req.query.noRedirect !== 'true') {
+        const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+        return res.redirect(301, `/api/profiles/${encodeURIComponent(result.redirectToSlug)}${qs}`);
+      }
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.get('/profiles/:identifier/posts', deps.requireServerAuth, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const id = req.params.identifier === 'me' ? actor.uid : req.params.identifier;
+      const result = engine.getProfileTimeline(id, actor, {
+        cursor: typeof req.query.cursor === 'string' ? req.query.cursor : undefined,
+        limit: req.query.limit !== undefined ? Number(req.query.limit) : 10,
+        tab: (req.query.tab as any) || 'posts',
+        postType: typeof req.query.postType === 'string' ? req.query.postType : undefined,
+        year: typeof req.query.year === 'string' ? req.query.year : undefined
+      });
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.patch('/profiles/me', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const result = engine.updateMyProfile(actor, req.body || {});
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.post('/profiles/me/pin', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const result = engine.setPinnedPostForUser(actor, req.body?.postId || null);
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.delete('/profiles/me/pin', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const result = engine.setPinnedPostForUser(actor, null);
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.post('/profiles/:targetUid/block', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const result = engine.setUserBlock(actor, req.params.targetUid, true);
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.delete('/profiles/:targetUid/block', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const result = engine.setUserBlock(actor, req.params.targetUid, false);
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.delete('/profiles/me', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const result = engine.deleteAndAnonymizeAccount(actor.uid, actor);
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
+  router.delete(
+    '/profiles/:targetUid',
+    deps.requireServerAuth,
+    deps.requireRole(['admin', 'superadmin']),
+    requireCsrf,
+    (req: Request, res: Response) => {
+      try {
+        const actor = toActor(req);
+        const result = engine.deleteAndAnonymizeAccount(req.params.targetUid, actor);
+        res.json(result);
+      } catch (err) {
+        handleError(err, res);
+      }
+    }
+  );
 
   // -------------------------------------------------------------------------
   // ALUMNI: REPORT A POST
@@ -455,6 +730,19 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
         const actor = toActor(req);
         const config = engine.updateConfig(actor, req.body || {});
         res.json({ config });
+      } catch (err) {
+        handleError(err, res);
+      }
+    }
+  );
+
+  router.get(
+    '/moderation/legacy-audit',
+    deps.requireServerAuth,
+    deps.requireRole(['moderator', 'admin', 'superadmin']),
+    (_req: Request, res: Response) => {
+      try {
+        res.json({ legacyAuditReport: engine.getLegacyAuditReport() });
       } catch (err) {
         handleError(err, res);
       }
