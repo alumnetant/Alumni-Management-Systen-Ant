@@ -10,6 +10,8 @@ import {
 export interface ModerationRouterDependencies {
   requireServerAuth: (req: Request, res: Response, next: NextFunction) => void;
   requireRole: (roles: string[]) => (req: Request, res: Response, next: NextFunction) => void;
+  requireSuperAdmin?: (req: Request, res: Response, next: NextFunction) => void;
+  onUnauthorizedSuperAdmin?: (req: Request, reason: string, details?: Record<string, unknown>) => void;
   verifyTokenOptional?: (req: Request) => ModerationActor | null;
   csrfSecret: string;
   engine?: PostModerationEngine;
@@ -77,6 +79,35 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     }
     next();
   };
+
+  const strictSuperAdminGuard =
+    deps.requireSuperAdmin ||
+    ((req: Request, res: Response, next: NextFunction) => {
+      const actor = toActor(req);
+      if ((actor.role || '').toLowerCase().trim() !== 'superadmin') {
+        if (deps.onUnauthorizedSuperAdmin) {
+          deps.onUnauthorizedSuperAdmin(req, 'SUPERADMIN_ROUTE_FORBIDDEN', {
+            attemptedPath: req.originalUrl || req.path,
+            method: req.method
+          });
+        } else {
+          engine.recordExternalSecurityAudit({
+            action: 'UNAUTHORIZED_SUPERADMIN_ACCESS',
+            actorId: actor.uid || 'anonymous',
+            actorName: actor.name || 'Unknown',
+            actorRole: actor.role || 'guest',
+            note: `Blocked unauthorized access to ${req.method} ${req.originalUrl || req.path}`,
+            metadata: { attemptedPath: req.originalUrl || req.path, method: req.method }
+          });
+        }
+        return res.status(403).json({
+          error: 'Forbidden: Super Administrator role required.',
+          code: 'SUPERADMIN_REQUIRED',
+          auditLogged: true
+        });
+      }
+      next();
+    });
 
   // Issue CSRF token bound to authenticated user
   router.get('/security/csrf-token', deps.requireServerAuth, (req: Request, res: Response) => {
@@ -680,11 +711,11 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     }
   );
 
-  // Immutable Audit Logs (Read-only)
+  // Immutable Audit Logs (Read-only, strictly Superadmin only)
   router.get(
     '/moderation/audit-logs',
     deps.requireServerAuth,
-    deps.requireRole(['moderator', 'admin', 'superadmin']),
+    strictSuperAdminGuard,
     (req: Request, res: Response) => {
       try {
         const actor = toActor(req);
@@ -701,9 +732,9 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
       code: 'AUDIT_LOG_IMMUTABLE'
     });
   };
-  router.put('/moderation/audit-logs*', deps.requireServerAuth, blockAuditMutation);
-  router.patch('/moderation/audit-logs*', deps.requireServerAuth, blockAuditMutation);
-  router.delete('/moderation/audit-logs*', deps.requireServerAuth, blockAuditMutation);
+  router.put('/moderation/audit-logs*', deps.requireServerAuth, strictSuperAdminGuard, blockAuditMutation);
+  router.patch('/moderation/audit-logs*', deps.requireServerAuth, strictSuperAdminGuard, blockAuditMutation);
+  router.delete('/moderation/audit-logs*', deps.requireServerAuth, strictSuperAdminGuard, blockAuditMutation);
 
   // Admin-configurable policy thresholds
   router.get(
@@ -739,7 +770,7 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
   router.get(
     '/moderation/legacy-audit',
     deps.requireServerAuth,
-    deps.requireRole(['moderator', 'admin', 'superadmin']),
+    strictSuperAdminGuard,
     (_req: Request, res: Response) => {
       try {
         res.json({ legacyAuditReport: engine.getLegacyAuditReport() });

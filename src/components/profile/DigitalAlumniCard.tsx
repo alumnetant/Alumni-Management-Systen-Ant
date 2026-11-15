@@ -10,7 +10,6 @@ import {
   Download,
   Maximize2,
   X,
-  GraduationCap,
   Camera,
   FileText,
   Share2,
@@ -39,7 +38,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   const [showFullNumber, setShowFullNumber] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [sealImgSrc, setSealImgSrc] = useState('/assets/st-cecilias-seal-transparent.svg');
+  const [sealImgSrc, setSealImgSrc] = useState('/assets/cecilians-seal.jpg');
   const [isExportingPng, setIsExportingPng] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
@@ -53,12 +52,6 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   });
   const [rollingGateQrUrl, setRollingGateQrUrl] = useState<string>('');
   const [currentTokenHash, setCurrentTokenHash] = useState<string>('');
-
-  if (!user) return null;
-
-  // Digital Alumni Card is for alumni, student, and academic staff
-  // Partner employer companies do not receive digital alumni ID cards
-  if (user.role === 'employer') return null;
 
   const getFormattedId = (u: UserProfile) => {
     if (u.role === 'alumni') {
@@ -85,37 +78,38 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
     return `SCC-ALUM-${u.batch || '2024'}-${uidStr.slice(-4).toUpperCase()}`;
   };
 
-  const formattedId = getFormattedId(user);
-  const avatarUrl = user.avatar || user.profilePictureUrl || user.photoUrl;
-  const graduationCohort = `Class of ${user.batch || '2024'}`;
-  const degreeProgram = user.course || user.department || 'B.S. Information Technology';
-  const membershipType = user.membershipType || 'Alumni Council Fellow';
+  const isEligibleCardHolder = Boolean(user && user.role !== 'employer');
+  const formattedId = user ? getFormattedId(user) : 'SCC-ALUM-0000';
+  const avatarUrl = user ? user.avatar || user.profilePictureUrl || user.photoUrl : undefined;
+  const graduationCohort = `Class of ${user?.batch || '2024'}`;
+  const degreeProgram = user?.course || user?.department || 'B.S. Information Technology';
+  const membershipType = user?.membershipType || 'Alumni Council Fellow';
 
   // Cache encrypted digital pass credentials to localStorage for offline readiness
   useEffect(() => {
-    if (user?.uid) {
-      try {
-        const passCacheKey = `scc_offline_pass_${user.uid}`;
-        const passData = {
-          uid: user.uid,
-          name: user.name,
-          formattedId,
-          role: user.role,
-          batch: user.batch,
-          course: user.course,
-          studentId: user.studentId,
-          alumniId: formattedId,
-          membershipType,
-          avatar: avatarUrl,
-          cachedAt: new Date().toISOString()
-        };
-        secureStorageService.setSecureItem(passCacheKey, passData);
-      } catch {}
-    }
-  }, [user, formattedId, avatarUrl, membershipType]);
+    if (!isEligibleCardHolder || !user?.uid) return;
+    try {
+      const passCacheKey = `scc_offline_pass_${user.uid}`;
+      const passData = {
+        uid: user.uid,
+        name: user.name,
+        formattedId,
+        role: user.role,
+        batch: user.batch,
+        course: user.course,
+        studentId: user.studentId,
+        alumniId: formattedId,
+        membershipType,
+        avatar: avatarUrl,
+        cachedAt: new Date().toISOString()
+      };
+      secureStorageService.setSecureItem(passCacheKey, passData);
+    } catch {}
+  }, [isEligibleCardHolder, user, formattedId, avatarUrl, membershipType]);
 
   // Generate Verification QR Code for Card Front
   useEffect(() => {
+    if (!isEligibleCardHolder || !user) return;
     const publicVerifyUrl = getAlumniVerificationUrl(user);
     QRCode.toDataURL(publicVerifyUrl, {
       width: 220,
@@ -128,10 +122,11 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
     })
       .then((url) => setVerificationQrUrl(url))
       .catch((err) => console.error('Failed to generate verification QR code', err));
-  }, [user]);
+  }, [isEligibleCardHolder, user]);
 
   // 30-Second Rolling Turnstile Token (Campus Physical Gate Pass)
   useEffect(() => {
+    if (!isEligibleCardHolder || !user) return;
     const updateToken = () => {
       const nowSec = Math.floor(Date.now() / 1000);
       const rem = 30 - (nowSec % 30);
@@ -162,12 +157,18 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
       })
         .then((url) => setRollingGateQrUrl(url))
         .catch(() => {});
-  };
+    };
 
     updateToken();
     const interval = setInterval(updateToken, 1000);
     return () => clearInterval(interval);
-  }, [user, formattedId]);
+  }, [isEligibleCardHolder, user, formattedId]);
+
+  if (!user) return null;
+
+  // Digital Alumni Card is for alumni, student, and academic staff
+  // Partner employer companies do not receive digital alumni ID cards
+  if (user.role === 'employer') return null;
 
   const maskedId = showFullNumber
     ? formattedId
@@ -267,7 +268,11 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
           <img
             src={sealImgSrc}
             alt="St. Cecilia's College Seal"
-            onError={() => setSealImgSrc('/assets/st-cecilias-college-seal.jpg')}
+            onError={() => {
+              if (sealImgSrc !== '/assets/cecilians-seal.jpg') {
+                setSealImgSrc('/assets/cecilians-seal.jpg');
+              }
+            }}
             className="w-9 h-9 sm:w-11 sm:h-11 rounded-full border-2 border-amber-400 shadow-md object-cover bg-white shrink-0"
           />
           <div className="min-w-0">
@@ -624,8 +629,12 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
         <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 pt-safe pb-safe animate-in fade-in">
           <div className="bg-stone-900 border border-amber-500/30 rounded-2xl p-4 sm:p-6 max-w-md w-full text-white shadow-2xl flex flex-col items-center gap-3 sm:gap-4 max-h-[94dvh] overflow-y-auto">
             <div className="w-full flex items-center justify-between pb-2.5 sm:pb-3 border-b border-stone-800">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="w-5 h-5 text-amber-400 shrink-0" />
+              <div className="flex items-center gap-2.5">
+                <img
+                  src="/assets/cecilians-seal.jpg"
+                  alt="St. Cecilia's College Seal"
+                  className="w-6 h-6 rounded-full border border-amber-400/70 object-cover bg-white shrink-0"
+                />
                 <span className="font-bold text-xs sm:text-sm text-amber-200 truncate">
                   St. Cecilia's College Turnstile Pass
                 </span>

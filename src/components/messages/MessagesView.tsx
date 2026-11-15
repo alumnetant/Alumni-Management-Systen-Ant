@@ -59,6 +59,7 @@ import { EventEmailNotificationInbox } from './EventEmailNotificationInbox';
 import { UserRoleBadge } from '../common/UserRoleBadge';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { getUserOnlineStatus } from '../../lib/userStatus';
+import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
 export const MessagesView: React.FC = () => {
   const {
@@ -87,7 +88,9 @@ export const MessagesView: React.FC = () => {
     cancelOfflineMessage,
     isConnected,
     sendFriendRequest,
-    hasPendingRequestWith
+    hasPendingRequestWith,
+    deepLinkTarget,
+    clearDeepLinkTarget
   } = useAlumni();
 
   // Top view mode: Active chats vs Event Email Notification Inbox
@@ -297,6 +300,43 @@ export const MessagesView: React.FC = () => {
       return timeB - timeA;
     });
   }, [chats, users, currentUser, activeFilterPill, chatSearch]);
+
+  const filteredChatIds = useMemo(() => filteredChats.map((c) => c.id), [filteredChats]);
+  const { highlightedItemId, isHighlighted } = useDeepLinkHighlight(filteredChatIds, [
+    activeFilterPill,
+    chatSearch,
+    messageViewMode
+  ]);
+
+  useEffect(() => {
+    const isMsgDeepLink = deepLinkTarget?.targetType === 'message';
+    const targetId = isMsgDeepLink ? deepLinkTarget.targetId : highlightedItemId;
+    if (!targetId) return;
+
+    if (isMsgDeepLink) {
+      clearDeepLinkTarget();
+    }
+
+    const exists = chats.some((c) => c.id === targetId);
+    if (!exists) return;
+
+    setMessageViewMode('chats');
+    if (!filteredChatIds.includes(targetId)) {
+      setActiveFilterPill('all');
+      setChatSearch('');
+    }
+    if (activeChatId !== targetId) {
+      setActiveChatId(targetId);
+    }
+  }, [
+    deepLinkTarget,
+    highlightedItemId,
+    chats,
+    filteredChatIds,
+    activeChatId,
+    setActiveChatId,
+    clearDeepLinkTarget
+  ]);
 
   // Counts for pills
   const chatCounts = useMemo(() => {
@@ -824,6 +864,7 @@ export const MessagesView: React.FC = () => {
                       return (
                         <div
                           key={chat.id}
+                          data-notify-target-id={chat.id}
                           onClick={() => {
                             setActiveChatId(chat.id);
                             markChatAsRead(chat.id);
@@ -832,7 +873,9 @@ export const MessagesView: React.FC = () => {
                             backgroundColor: isSelected ? 'var(--dm-bg-item-active)' : 'transparent',
                             borderLeftColor: isSelected ? 'var(--dm-bubble-sent)' : 'transparent',
                           }}
-                          className="p-3.5 flex items-start gap-3 cursor-pointer transition-all border-l-[3px] hover:bg-[var(--dm-bg-item-hover)] active:bg-[var(--dm-bg-item-hover)]"
+                          className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all border-l-[3px] hover:bg-[var(--dm-bg-item-hover)] active:bg-[var(--dm-bg-item-hover)] ${
+                            isHighlighted(chat.id) ? HIGHLIGHT_RING_CLASS : ''
+                          }`}
                         >
                           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#8B181B] via-[#991B1B] to-amber-700 text-white flex items-center justify-center shadow-2xs shrink-0">
                             <CalendarCheck className="w-5 h-5 text-amber-200" />
@@ -888,6 +931,7 @@ export const MessagesView: React.FC = () => {
                     return (
                       <div
                         key={chat.id}
+                        data-notify-target-id={chat.id}
                         onClick={() => {
                           setActiveChatId(chat.id);
                           markChatAsRead(chat.id);
@@ -898,7 +942,7 @@ export const MessagesView: React.FC = () => {
                         }}
                         className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all border-l-[3px] hover:bg-[var(--dm-bg-item-hover)] active:bg-[var(--dm-bg-item-hover)] ${
                           isSelected ? 'bg-rose-50/40 dark:bg-stone-800/60' : ''
-                        }`}
+                        } ${isHighlighted(chat.id) ? HIGHLIGHT_RING_CLASS : ''}`}
                       >
                         <div className="relative shrink-0">
                           <img

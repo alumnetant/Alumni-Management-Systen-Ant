@@ -49,7 +49,7 @@ const PRESET_SAMPLE_PHOTOS = [
     title: "Official College Seal of St. Cecilia's",
     category: 'heritage' as const,
     year: '1999 Founding',
-    url: '/assets/st-cecilias-college-seal.jpg',
+    url: '/assets/cecilians-seal.jpg',
     description: "Official institutional circular seal of St. Cecilia's College - Cebu, Inc., Est. 1999."
   },
   {

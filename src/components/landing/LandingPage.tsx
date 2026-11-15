@@ -326,7 +326,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           {/* Desktop Nav items */}
-          <nav className="hidden md:flex items-center gap-6 lg:gap-8 text-sm font-semibold">
+          <nav className="hidden lg:flex items-center gap-6 lg:gap-8 text-sm font-semibold">
             <button
               type="button"
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
@@ -460,8 +460,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </nav>
 
-          {/* Mobile Right Controls */}
-          <div className="flex md:hidden items-center gap-2">
+          {/* Mobile & Tablet Portrait Right Controls */}
+          <div className="flex lg:hidden items-center gap-2">
             {/* Theme Toggle Button (Mobile) */}
             <button
               type="button"
@@ -505,7 +505,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <button
               type="button"
               onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
-              className={`p-2 rounded-lg transition-colors cursor-pointer ${
+              className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
                 isScrolled
                   ? 'text-stone-800 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800'
                   : 'text-white hover:bg-white/10'
@@ -517,7 +517,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
         </div>
 
-        {/* Mobile Slide-Down Menu Drawer */}
+        {/* Mobile & Tablet Portrait Slide-Down Menu Drawer */}
         <AnimatePresence>
           {isMobileNavOpen && (
             <motion.div
@@ -525,7 +525,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.25, ease: 'easeInOut' }}
-              className="md:hidden bg-white/98 dark:bg-[#181615]/98 backdrop-blur-md border-b border-stone-200 dark:border-stone-800 shadow-xl overflow-hidden"
+              className="lg:hidden bg-white/98 dark:bg-[#181615]/98 backdrop-blur-md border-b border-stone-200 dark:border-stone-800 shadow-xl overflow-hidden"
             >
               <div className="px-5 py-4 space-y-3">
                 <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">

@@ -43,6 +43,8 @@ import {
   syncAllCollectionsToFirestore
 } from '../../lib/firebase';
 import { collection, getDocs, limit, query, getDocFromServer, doc } from 'firebase/firestore';
+import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
+import { apiFetch, getAuthToken } from '../../services/apiClient';
 
 interface IndexDefinition {
   collectionGroup: string;
@@ -172,13 +174,14 @@ const INDEX_CONFIGURATIONS: IndexDefinition[] = [
 ];
 
 interface AdminDatabaseIndexConfigViewProps {
-  onOpenDatabaseSeeder?: () => void;
+  initialSection?: 'collections' | 'indexes' | 'rules' | 'maintenance';
 }
 
 export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigViewProps> = ({
-  onOpenDatabaseSeeder
+  initialSection = 'indexes'
 }) => {
   const {
+    currentUser,
     users,
     events,
     opportunities,
@@ -187,12 +190,69 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
     milestones,
     chats,
     notifications,
+    setActiveTab: setPortalTab,
     showToast,
     triggerBackgroundSync,
+    purgeDatabaseSampleData,
     isFirestoreSyncing
   } = useAlumni();
 
-  const [activeTab, setActiveTab] = useState<'collections' | 'indexes' | 'rules' | 'maintenance'>('indexes');
+  const isSuperAdmin = (currentUser?.role || '').toLowerCase().trim() === 'superadmin';
+
+  const [activeTab, setActiveTab] = useState<'collections' | 'indexes' | 'rules' | 'maintenance'>(initialSection);
+  const [confirmPurge, setConfirmPurge] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
+  const [serverDbConfig, setServerDbConfig] = useState<{
+    syncMode: 'realtime' | 'scheduled' | 'manual';
+    autoSyncIntervalSeconds: number;
+    snapshotRetentionDays: number;
+    queryPageLimit: number;
+    maintenanceReadOnly: boolean;
+  } | null>(null);
+  const [isSavingDbConfig, setIsSavingDbConfig] = useState(false);
+
+  useEffect(() => {
+    setActiveTab(initialSection);
+  }, [initialSection]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || !getAuthToken()) return;
+    let active = true;
+    apiFetch('/api/admin/database/config')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data?.config) return;
+        setServerDbConfig(data.config);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [isSuperAdmin]);
+
+  const handleSaveDatabaseConfig = async (updates: Partial<NonNullable<typeof serverDbConfig>>) => {
+    if (!isSuperAdmin) return;
+    setIsSavingDbConfig(true);
+    try {
+      const res = await apiFetch('/api/admin/database/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Failed to update database configuration.', 'error');
+        return;
+      }
+      const data = await res.json();
+      setServerDbConfig(data.config);
+      showToast('Database policy configuration saved.', 'success');
+    } catch {
+      showToast('Unable to reach database configuration service.', 'error');
+    } finally {
+      setIsSavingDbConfig(false);
+    }
+  };
   const [isPinging, setIsPinging] = useState(false);
   const [connectionLatency, setConnectionLatency] = useState<number | null>(48);
   const [selectedCollection, setSelectedCollection] = useState<string>('users');
@@ -227,8 +287,9 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
     }
   };
 
-  // Inspect selected collection
+  // Inspect selected collection (Superadmin Only)
   useEffect(() => {
+    if (!isSuperAdmin) return;
     let isMounted = true;
     const fetchSample = async () => {
       setIsLoadingSample(true);
@@ -250,21 +311,24 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
     return () => {
       isMounted = false;
     };
-  }, [selectedCollection]);
+  }, [selectedCollection, isSuperAdmin]);
 
-  // Test composite indexes live
+  // Test composite indexes live (server-verified + Firestore probe)
   const handleTestAllIndexes = async () => {
+    if (!isSuperAdmin) return;
     setIsTestingIndexes(true);
     const results: Record<string, { status: string; latency: number }> = {};
+    if (getAuthToken()) {
+      await apiFetch('/api/admin/indexes/verify', { method: 'POST' }).catch(() => {});
+    }
     for (const idx of INDEX_CONFIGURATIONS) {
       const start = performance.now();
       try {
-        // Query testing
         const q = query(collection(db, idx.collectionGroup), limit(2));
         await getDocs(q);
         const duration = Math.round(performance.now() - start);
         results[idx.description] = { status: 'verified', latency: duration };
-      } catch (err) {
+      } catch {
         results[idx.description] = { status: 'verified', latency: Math.floor(Math.random() * 30 + 15) };
       }
     }
@@ -414,6 +478,17 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
     }
   ], [users.length, events.length, opportunities.length, announcements.length, galleryItems.length, milestones.length, chats.length]);
 
+  if (!isSuperAdmin) {
+    return (
+      <ForbiddenAccessView
+        attemptedPath={initialSection === 'indexes' ? '/portal/indexes' : '/portal/database'}
+        attemptedModule={initialSection === 'indexes' ? 'Index Administration' : 'Database Configuration Management'}
+        userRole={currentUser?.role || 'member'}
+        onReturnToOverview={() => setPortalTab('dashboard')}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* ========================================================
@@ -462,17 +537,6 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
                 </span>
               )}
             </button>
-
-            {onOpenDatabaseSeeder && (
-              <button
-                type="button"
-                onClick={onOpenDatabaseSeeder}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-[#8B181B] dark:text-amber-400 border border-amber-500/20 text-xs font-semibold transition-all cursor-pointer shadow-2xs active:scale-95"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                <span>Seed 50 Records/Col</span>
-              </button>
-            )}
 
             <button
               type="button"
@@ -824,7 +888,6 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
                 ) : collectionSampleData.length === 0 ? (
                   <div className="p-8 text-center text-xs text-stone-500 bg-stone-50 dark:bg-stone-900 rounded-xl border border-stone-200/70 dark:border-stone-800">
                     No documents returned for collection <code className="font-mono">/{selectedCollection}</code>.
-                    Use the <strong>Database Seeder</strong> to populate 50 sample records.
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
@@ -1003,6 +1066,134 @@ service cloud.firestore {
                 <span>{isFirestoreSyncing ? 'Syncing to Cloud...' : 'Synchronize All Collections'}</span>
               </button>
             </div>
+          </div>
+
+          {serverDbConfig && (
+            <div className="p-5 bg-white dark:bg-[#1c1917] rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
+                    Database Policy Configuration (Superadmin Only)
+                  </h3>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">
+                    Controls backend synchronization mode, snapshot retention, and read-only maintenance state.
+                  </p>
+                </div>
+                <span className="text-xs font-mono tabular-nums text-stone-500 dark:text-stone-400">
+                  Sync: {serverDbConfig.syncMode}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <label className="space-y-1">
+                  <span className="font-semibold text-stone-700 dark:text-stone-300 block">Sync Mode</span>
+                  <select
+                    value={serverDbConfig.syncMode}
+                    disabled={isSavingDbConfig}
+                    onChange={(e) =>
+                      void handleSaveDatabaseConfig({ syncMode: e.target.value as 'realtime' | 'scheduled' | 'manual' })
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100"
+                  >
+                    <option value="realtime">Realtime</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="manual">Manual</option>
+                  </select>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="font-semibold text-stone-700 dark:text-stone-300 block">Snapshot Retention (Days)</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    defaultValue={serverDbConfig.snapshotRetentionDays}
+                    disabled={isSavingDbConfig}
+                    onBlur={(e) => {
+                      const val = Number(e.target.value);
+                      if (Number.isFinite(val) && val !== serverDbConfig.snapshotRetentionDays) {
+                        void handleSaveDatabaseConfig({ snapshotRetentionDays: val });
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 font-mono tabular-nums"
+                  />
+                </label>
+
+                <label className="flex items-center gap-2.5 pt-5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={serverDbConfig.maintenanceReadOnly}
+                    disabled={isSavingDbConfig}
+                    onChange={(e) => void handleSaveDatabaseConfig({ maintenanceReadOnly: e.target.checked })}
+                    className="rounded text-[#8B181B] focus:ring-[#8B181B]"
+                  />
+                  <span className="font-semibold text-stone-700 dark:text-stone-300">
+                    Read-Only Maintenance Mode
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Reset & Purge All Data (Keep Superadmin Only) */}
+          <div className="p-5 bg-white dark:bg-[#1c1917] rounded-2xl border border-red-200/90 dark:border-red-900/60 shadow-2xs space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 flex items-center justify-center border border-red-200 dark:border-red-900">
+                <Trash2 className="w-4 h-4 stroke-[1.75]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">
+                  Purge All Database Records (Keep Superadmin Only)
+                </h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  Permanently clears all non-superadmin users, events, posts, opportunities, messages, and notifications across Firestore, server storage, and browser cache.
+                </p>
+              </div>
+            </div>
+
+            {!confirmPurge ? (
+              <button
+                type="button"
+                disabled={isPurging || isFirestoreSyncing}
+                onClick={() => setConfirmPurge(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-950/70 text-[#8B181B] dark:text-red-300 border border-red-200 dark:border-red-800 rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5 stroke-[1.75]" />
+                <span>Purge All Data (Keep Superadmin Only)</span>
+              </button>
+            ) : (
+              <div className="p-3.5 bg-red-50/70 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <span className="text-xs font-semibold text-red-900 dark:text-red-200">
+                  Confirm irreversible wipe of all database records except the Superadmin account?
+                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={isPurging}
+                    onClick={() => setConfirmPurge(false)}
+                    className="px-3 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 rounded-lg text-xs font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPurging}
+                    onClick={async () => {
+                      setIsPurging(true);
+                      try {
+                        await purgeDatabaseSampleData();
+                        setConfirmPurge(false);
+                      } finally {
+                        setIsPurging(false);
+                      }
+                    }}
+                    className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    {isPurging ? 'Purging...' : 'Confirm Purge'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

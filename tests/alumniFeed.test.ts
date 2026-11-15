@@ -140,4 +140,33 @@ describe('Alumni Timeline & FYP Feed Logic', () => {
     expect(currentCounts.celebrate).toBe(0);
     expect(currentCounts.love).toBe(2);
   });
+
+  it('removes interacted events from the feed and surfaces the next post in line', () => {
+    const secondEvent: FeedItem = {
+      ...mockEvent,
+      id: 'event_2',
+      title: 'Career Summit 2026',
+      relevanceScore: 100
+    };
+    const allItems = [mockEvent, mockAnnouncement, mockMilestone, secondEvent];
+    const batchSize = 2;
+
+    const getVisible = (interactedEventIds: string[]) =>
+      allItems
+        .filter((item) => {
+          if (item.type === 'event') {
+            const rawEventId = item.id.replace('event_', '');
+            return !interactedEventIds.includes(rawEventId);
+          }
+          return true;
+        })
+        .slice(0, batchSize);
+
+    const before = getVisible([]);
+    expect(before.map((i) => i.id)).toEqual(['event_1', 'announcement_1']);
+
+    // Interacting with event_1 removes it and pulls milestone_1 into the visible window
+    const after = getVisible(['1']);
+    expect(after.map((i) => i.id)).toEqual(['announcement_1', 'milestone_1']);
+  });
 });

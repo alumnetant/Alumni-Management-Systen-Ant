@@ -36,6 +36,7 @@ import { useTheme } from '../../lib/theme';
 import { UserProfile } from '../../types';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
+import { areUsersBlocked, isAccountUnavailable, slugifyUsername } from '../../lib/postVisibility';
 
 interface GlobalCommandPaletteProps {
   isOpen: boolean;
@@ -57,6 +58,7 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
     activeTab,
     setActiveTab,
     setSelectedUserIdForModal,
+    openProfile,
     getOrCreateChat,
     syncAllDataToCloud,
     isFirestoreSyncing,
@@ -250,6 +252,8 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
 
     return users
       .filter((u) => {
+        if (isAccountUnavailable(u)) return false;
+        if (currentUser?.uid && areUsersBlocked(currentUser.uid, u.uid, currentUser, u)) return false;
         const name = (u.name || '').toLowerCase();
         const course = (u.course || '').toLowerCase();
         const batch = (u.batch || '').toLowerCase();
@@ -277,10 +281,10 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
         user: u,
         action: () => {
           onClose();
-          setSelectedUserIdForModal(u.uid);
+          openProfile(u.username || slugifyUsername(u.name) || u.uid);
         }
       }));
-  }, [users, query, onClose, setSelectedUserIdForModal]);
+  }, [users, currentUser, query, onClose, openProfile]);
 
   // Events Search Matching
   const matchedEvents = useMemo(() => {
@@ -529,20 +533,34 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
 
                   <div className="flex items-center gap-1.5 shrink-0 ml-3">
                     {item.user && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onClose();
-                          getOrCreateChat(item.user.uid);
-                          handleNavigate('messages');
-                        }}
-                        className="px-2.5 py-1 text-[11px] font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs mr-1"
-                        title="Send Direct Message"
-                      >
-                        <MessageSquare className="w-3 h-3" />
-                        <span className="hidden sm:inline">Message</span>
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onClose();
+                            setSelectedUserIdForModal(item.user.uid);
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-stone-700 dark:text-stone-300 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-lg cursor-pointer transition-colors"
+                          title="Quick Preview"
+                        >
+                          Quick View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onClose();
+                            getOrCreateChat(item.user.uid);
+                            handleNavigate('messages');
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-semibold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs mr-1"
+                          title="Send Direct Message"
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          <span className="hidden sm:inline">Message</span>
+                        </button>
+                      </>
                     )}
                     <ArrowRight className={`w-4 h-4 transition-transform ${isSelected ? 'text-[#8B181B] dark:text-rose-400 translate-x-0.5' : 'text-stone-300 dark:text-stone-600'}`} />
                   </div>

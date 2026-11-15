@@ -44,7 +44,16 @@ import { generateConflictResolutionPdfReport } from '../../services/conflictRepo
 import { useAlumni } from '../../context/AlumniContext';
 
 export const AdminConflictResolutionView: React.FC = () => {
-  const { currentUser, users, setUserVerified, showToast, addAuditLog, setSelectedUserIdForModal } = useAlumni();
+  const {
+    currentUser,
+    users,
+    setUserVerified,
+    showToast,
+    addAuditLog,
+    setSelectedUserIdForModal,
+    deepLinkTarget,
+    clearDeepLinkTarget
+  } = useAlumni();
 
   const [conflicts, setConflicts] = useState<RegistrationConflictRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,6 +79,22 @@ export const AdminConflictResolutionView: React.FC = () => {
   useEffect(() => {
     loadConflicts();
   }, []);
+
+  useEffect(() => {
+    if (!deepLinkTarget || deepLinkTarget.targetType !== 'conflict') return;
+    if (deepLinkTarget.targetId) {
+      const target = conflicts.find(
+        (c) => c.id === deepLinkTarget.targetId || c.applicantUid === deepLinkTarget.targetId
+      );
+      if (target) {
+        setStatusFilter('all');
+        setTypeFilter('all');
+        setSearchQuery('');
+        setSelectedConflict(target);
+      }
+    }
+    clearDeepLinkTarget();
+  }, [deepLinkTarget, conflicts, clearDeepLinkTarget]);
 
   // Filtered conflict records
   const filteredConflicts = useMemo(() => {

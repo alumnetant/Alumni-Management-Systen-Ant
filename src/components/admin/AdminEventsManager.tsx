@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   Calendar,
   Search,
@@ -66,7 +66,9 @@ export const AdminEventsManager: React.FC = () => {
     permissions,
     showToast,
     currentUser,
-    addAuditLog
+    addAuditLog,
+    deepLinkTarget,
+    clearDeepLinkTarget
   } = useAlumni();
 
   // Search & Filtering
@@ -80,6 +82,20 @@ export const AdminEventsManager: React.FC = () => {
   const [eventToDelete, setEventToDelete] = useState<{ id: string; title: string } | null>(null);
   const [inspectingEvent, setInspectingEvent] = useState<AlumniEvent | null>(null);
   const [checkInEvent, setCheckInEvent] = useState<AlumniEvent | null>(null);
+
+  useEffect(() => {
+    if (!deepLinkTarget || deepLinkTarget.targetType !== 'event') return;
+    if (deepLinkTarget.targetId) {
+      const target = events.find((e) => e.id === deepLinkTarget.targetId);
+      if (target) {
+        setSelectedCategory('all');
+        setFilterScope('all');
+        setSearchQuery('');
+        setInspectingEvent(target);
+      }
+    }
+    clearDeepLinkTarget();
+  }, [deepLinkTarget, events, clearDeepLinkTarget]);
 
   // Form State with sensible defaults
   const [formTitle, setFormTitle] = useState('');

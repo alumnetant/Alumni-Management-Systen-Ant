@@ -47,8 +47,10 @@ import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv, exportAlumniRosterExcel } from '../../services/adminExportService';
 import { getUserOnlineStatus } from '../../lib/userStatus';
 import { isEmployerVisibleInDirectory } from '../../lib/employerValidation';
+import { areUsersBlocked, isAccountUnavailable } from '../../lib/postVisibility';
 import { PaginationControl } from '../common/PaginationControl';
 import { PartneredCompaniesView } from './PartneredCompaniesView';
+import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
 export const NetworkView: React.FC = () => {
   const {
@@ -65,7 +67,10 @@ export const NetworkView: React.FC = () => {
     getOrCreateChat,
     setActiveTab,
     setSelectedUserIdForModal,
-    showToast
+    showToast,
+    deepLinkTarget,
+    clearDeepLinkTarget,
+    highlightedItemId
   } = useAlumni();
 
   const [activeSubTab, setActiveSubTab] = useState<'directory' | 'recommended' | 'connections' | 'requests'>('directory');
@@ -152,6 +157,32 @@ export const NetworkView: React.FC = () => {
     return () => window.removeEventListener('applet:open-network-requests', handleOpenRequests);
   }, []);
 
+  const missingTargetNotifiedRef = useRef<string | null>(null);
+
+  // Notification deep-link handler (scroll + highlight target without forcing modals open)
+  useEffect(() => {
+    if (!deepLinkTarget) return;
+    if (deepLinkTarget.targetType === 'network_request') {
+      setDirectorySection('alumni');
+      setActiveSubTab('requests');
+      clearDeepLinkTarget();
+    } else if (deepLinkTarget.targetType === 'network_profile') {
+      setDirectorySection('alumni');
+      const targetId = deepLinkTarget.targetId;
+      if (targetId && (connectionIds || []).includes(targetId)) {
+        setActiveSubTab('connections');
+      } else {
+        setActiveSubTab('directory');
+        setSearchQuery('');
+        setSelectedBatch('all');
+        setSelectedCourse('all');
+        setSelectedRole('all');
+        setSelectedStatus('all');
+      }
+      clearDeepLinkTarget();
+    }
+  }, [deepLinkTarget, connectionIds, clearDeepLinkTarget]);
+
   // Reset directory pagination when any filter changes
   useEffect(() => {
     setCurrentPage(1);
@@ -199,6 +230,7 @@ export const NetworkView: React.FC = () => {
     if (!currentUser) return [];
     return users.filter((u) => {
       if (u.uid === currentUser.uid) return false;
+      if (isAccountUnavailable(u) || areUsersBlocked(currentUser.uid, u.uid, currentUser, u)) return false;
       // Directory privacy: Admins & moderators cannot be displayed in public directory on the alumni side
       if (u.role === 'admin' || u.role === 'superadmin' || u.role === 'moderator') return false;
       const accountStatus = (u.accountStatus || u.status || 'ACTIVE').toUpperCase().trim();
@@ -227,6 +259,9 @@ export const NetworkView: React.FC = () => {
   const filteredDirectory = useMemo(() => {
     return users.filter((u) => {
       if (currentUser?.uid && u.uid === currentUser.uid) return false;
+      if (isAccountUnavailable(u) || (currentUser?.uid && areUsersBlocked(currentUser.uid, u.uid, currentUser, u))) {
+        return false;
+      }
 
       // Directory privacy: Admins & moderators cannot be displayed in public directory on the alumni side
       if (u.role === 'admin' || u.role === 'superadmin' || u.role === 'moderator') {
@@ -329,6 +364,105 @@ export const NetworkView: React.FC = () => {
       return (a.name || '').localeCompare(b.name || '');
     });
   }, [users, currentUser, searchQuery, selectedBatch, selectedCourse, selectedRole, selectedStatus]);
+
+  useEffect(() => {
+    if (!highlightedItemId || deepLinkTarget) return;
+
+    if (activeSubTab === 'requests') {
+      const reqMatch =
+        receivedRequests.some((r) => r.request.id === highlightedItemId || r.user.uid === highlightedItemId) ||
+        sentRequests.some((r) => r.request.id === highlightedItemId || r.user.uid === highlightedItemId);
+      if (!reqMatch && users.length > 0 && missingTargetNotifiedRef.current !== highlightedItemId) {
+        missingTargetNotifiedRef.current = highlightedItemId;
+        showToast('This connection request has already been handled or removed.', 'info');
+      }
+      return;
+    }
+
+    if ((connectionIds || []).includes(highlightedItemId)) {
+      const connIdx = connectedUsers.findIndex((u) => u.uid === highlightedItemId);
+      if (connIdx >= 0) {
+        if (activeSubTab !== 'connections' && activeSubTab !== 'directory') {
+          setActiveSubTab('connections');
+        }
+        const targetPage = Math.floor(connIdx / PAGE_SIZE) + 1;
+        if (activeSubTab === 'connections' && currentPageConnections !== targetPage) {
+          setCurrentPageConnections(targetPage);
+        }
+      }
+    }
+
+    if (activeSubTab === 'directory') {
+      const dirIdx = filteredDirectory.findIndex((u) => u.uid === highlightedItemId);
+      if (dirIdx >= 0) {
+        const targetPage = Math.floor(dirIdx / PAGE_SIZE) + 1;
+        if (currentPage !== targetPage) {
+          setCurrentPage(targetPage);
+        }
+        return;
+      }
+      if (users.some((u) => u.uid === highlightedItemId)) {
+        if (
+          searchQuery ||
+          selectedBatch !== 'all' ||
+          selectedCourse !== 'all' ||
+          selectedRole !== 'all' ||
+          selectedStatus !== 'all'
+        ) {
+          setSearchQuery('');
+          setSelectedBatch('all');
+          setSelectedCourse('all');
+          setSelectedRole('all');
+          setSelectedStatus('all');
+        }
+        return;
+      }
+      if (users.length > 0 && missingTargetNotifiedRef.current !== highlightedItemId) {
+        missingTargetNotifiedRef.current = highlightedItemId;
+        showToast('This alumnus profile is no longer available.', 'info');
+      }
+    } else if (activeSubTab === 'recommended') {
+      const recIdx = recommendedUsers.findIndex((u) => u.uid === highlightedItemId);
+      if (recIdx >= 0) {
+        const targetPage = Math.floor(recIdx / PAGE_SIZE) + 1;
+        if (currentPageRecommended !== targetPage) {
+          setCurrentPageRecommended(targetPage);
+        }
+      }
+    }
+  }, [
+    highlightedItemId,
+    deepLinkTarget,
+    activeSubTab,
+    receivedRequests,
+    sentRequests,
+    connectionIds,
+    connectedUsers,
+    filteredDirectory,
+    recommendedUsers,
+    users,
+    currentPage,
+    currentPageConnections,
+    currentPageRecommended,
+    searchQuery,
+    selectedBatch,
+    selectedCourse,
+    selectedRole,
+    selectedStatus,
+    showToast
+  ]);
+
+  const { isHighlighted } = useDeepLinkHighlight(undefined, [
+    activeSubTab,
+    directorySection,
+    viewMode,
+    currentPage,
+    currentPageConnections,
+    currentPageRecommended,
+    receivedRequests.length,
+    sentRequests.length,
+    filteredDirectory.length
+  ]);
 
 
   // Framer Motion Animation Variants
@@ -925,8 +1059,11 @@ export const NetworkView: React.FC = () => {
                     return (
                       <div
                         key={user.uid}
+                        data-notify-target-id={user.uid}
                         onClick={() => setSelectedUserIdForModal(user.uid)}
-                        className="p-3.5 sm:p-4 hover:bg-stone-50/80 dark:hover:bg-stone-800/60 active:bg-stone-100 dark:active:bg-stone-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer group"
+                        className={`p-3.5 sm:p-4 hover:bg-stone-50/80 dark:hover:bg-stone-800/60 active:bg-stone-100 dark:active:bg-stone-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer group ${
+                          isHighlighted(user.uid) ? `rounded-xl ${HIGHLIGHT_RING_CLASS}` : ''
+                        }`}
                       >
                         {/* Profile Picture + Information Column */}
                         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1099,7 +1236,12 @@ export const NetworkView: React.FC = () => {
                             return (
                               <tr
                                 key={user.uid}
-                                className="hover:bg-stone-50/70 dark:hover:bg-stone-800/50 transition-colors group"
+                                data-notify-target-id={user.uid}
+                                className={`transition-colors group ${
+                                  isHighlighted(user.uid)
+                                    ? 'bg-red-50/70 dark:bg-red-950/30 ring-2 ring-inset ring-[#8B181B] dark:ring-rose-500'
+                                    : 'hover:bg-stone-50/70 dark:hover:bg-stone-800/50'
+                                }`}
                               >
                                 <td className="py-3.5 px-4 sm:px-6">
                                   <div className="flex items-center gap-3">
@@ -1269,9 +1411,14 @@ export const NetworkView: React.FC = () => {
                       return (
                         <motion.div
                           key={user.uid}
+                          data-notify-target-id={user.uid}
                           variants={itemVariants}
                           whileHover={{ y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
-                          className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] hover:border-stone-300 dark:hover:border-stone-700 transition-all duration-200 overflow-hidden flex flex-col justify-between relative group"
+                          className={`bg-white dark:bg-stone-900 rounded-[28px] border shadow-[0_1px_3px_rgba(0,0,0,0.02),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] transition-all duration-200 overflow-hidden flex flex-col justify-between relative group ${
+                            isHighlighted(user.uid)
+                              ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                              : 'border-stone-200/90 dark:border-stone-800 hover:border-stone-300 dark:hover:border-stone-700'
+                          }`}
                         >
                           <div className="h-0.5 w-full bg-[#8B181B]/40 group-hover:bg-[#8B181B] transition-colors absolute top-0 left-0 right-0" />
 
@@ -1506,8 +1653,11 @@ export const NetworkView: React.FC = () => {
                     return (
                       <div
                         key={user.uid}
+                        data-notify-target-id={user.uid}
                         onClick={() => setSelectedUserIdForModal(user.uid)}
-                        className="p-3.5 sm:p-4 hover:bg-stone-50/80 dark:hover:bg-stone-800/60 active:bg-stone-100 dark:active:bg-stone-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer group"
+                        className={`p-3.5 sm:p-4 hover:bg-stone-50/80 dark:hover:bg-stone-800/60 active:bg-stone-100 dark:active:bg-stone-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer group ${
+                          isHighlighted(user.uid) ? `rounded-xl ${HIGHLIGHT_RING_CLASS}` : ''
+                        }`}
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <div className="relative shrink-0">
@@ -1617,9 +1767,14 @@ export const NetworkView: React.FC = () => {
                     return (
                       <motion.div
                         key={user.uid}
+                        data-notify-target-id={user.uid}
                         variants={itemVariants}
                         whileHover={{ y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
-                        className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-2xs hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] transition-all duration-200 flex flex-col justify-between overflow-hidden relative group"
+                        className={`bg-white dark:bg-stone-900 rounded-[28px] border shadow-2xs hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] transition-all duration-200 flex flex-col justify-between overflow-hidden relative group ${
+                          isHighlighted(user.uid)
+                            ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                            : 'border-stone-200/90 dark:border-stone-800'
+                        }`}
                       >
                         <div className="h-0.5 w-full bg-amber-500/60 group-hover:bg-amber-600 transition-colors absolute top-0 left-0 right-0" />
 
@@ -1808,8 +1963,11 @@ export const NetworkView: React.FC = () => {
                     return (
                       <div
                         key={user.uid}
+                        data-notify-target-id={user.uid}
                         onClick={() => setSelectedUserIdForModal(user.uid)}
-                        className="p-3.5 sm:p-4 hover:bg-stone-50/80 dark:hover:bg-stone-800/60 active:bg-stone-100 dark:active:bg-stone-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer group"
+                        className={`p-3.5 sm:p-4 hover:bg-stone-50/80 dark:hover:bg-stone-800/60 active:bg-stone-100 dark:active:bg-stone-800 transition-colors flex items-center justify-between gap-3 text-left cursor-pointer group ${
+                          isHighlighted(user.uid) ? `rounded-xl ${HIGHLIGHT_RING_CLASS}` : ''
+                        }`}
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <div className="relative shrink-0">
@@ -1880,9 +2038,14 @@ export const NetworkView: React.FC = () => {
                     return (
                       <motion.div
                         key={user.uid}
+                        data-notify-target-id={user.uid}
                         variants={itemVariants}
                         whileHover={{ y: -3, transition: { duration: 0.2, ease: 'easeOut' } }}
-                        className="bg-white dark:bg-stone-900 rounded-[28px] border border-stone-200/90 dark:border-stone-800 shadow-2xs hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] transition-all duration-200 p-5 flex flex-col justify-between relative group overflow-hidden"
+                        className={`bg-white dark:bg-stone-900 rounded-[28px] border shadow-2xs hover:shadow-[0_8px_30px_rgba(0,0,0,0.07)] transition-all duration-200 p-5 flex flex-col justify-between relative group overflow-hidden ${
+                          isHighlighted(user.uid)
+                            ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                            : 'border-stone-200/90 dark:border-stone-800'
+                        }`}
                       >
                         <div className="h-0.5 w-full bg-emerald-600/60 group-hover:bg-emerald-600 transition-colors absolute top-0 left-0 right-0" />
 
@@ -1996,10 +2159,18 @@ export const NetworkView: React.FC = () => {
               </div>
             ) : (
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {receivedRequests.map(({ request, user }) => (
+                {receivedRequests.map(({ request, user }) => {
+                  const reqHighlighted = isHighlighted(request.id) || isHighlighted(user.uid);
+                  const reqTargetId = isHighlighted(user.uid) && !isHighlighted(request.id) ? user.uid : request.id;
+                  return (
                   <div
                     key={request.id}
-                    className="p-4 rounded-2xl bg-stone-50/80 dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 flex items-center justify-between gap-3 shadow-2xs"
+                    data-notify-target-id={reqTargetId}
+                    className={`p-4 rounded-2xl bg-stone-50/80 dark:bg-stone-800 border flex items-center justify-between gap-3 shadow-2xs ${
+                      reqHighlighted
+                        ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                        : 'border-stone-200/80 dark:border-stone-700'
+                    }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <img
@@ -2039,7 +2210,8 @@ export const NetworkView: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2069,10 +2241,18 @@ export const NetworkView: React.FC = () => {
               </div>
             ) : (
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {sentRequests.map(({ request, user }) => (
+                {sentRequests.map(({ request, user }) => {
+                  const sentHighlighted = isHighlighted(request.id) || isHighlighted(user.uid);
+                  const sentTargetId = isHighlighted(user.uid) && !isHighlighted(request.id) ? user.uid : request.id;
+                  return (
                   <div
                     key={request.id}
-                    className="p-4 rounded-2xl bg-stone-50/80 dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 flex items-center justify-between gap-3 shadow-2xs"
+                    data-notify-target-id={sentTargetId}
+                    className={`p-4 rounded-2xl bg-stone-50/80 dark:bg-stone-800 border flex items-center justify-between gap-3 shadow-2xs ${
+                      sentHighlighted
+                        ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                        : 'border-stone-200/80 dark:border-stone-700'
+                    }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <img
@@ -2102,7 +2282,8 @@ export const NetworkView: React.FC = () => {
                       Cancel
                     </button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

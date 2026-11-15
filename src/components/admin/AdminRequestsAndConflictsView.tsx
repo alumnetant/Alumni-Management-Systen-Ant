@@ -80,7 +80,9 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     setSelectedUserIdForModal,
     verifyEmployer,
     approveOpportunity,
-    rejectOpportunity
+    rejectOpportunity,
+    deepLinkTarget,
+    clearDeepLinkTarget
   } = useAlumni();
 
   // Tab mapping
@@ -146,6 +148,28 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
   useEffect(() => {
     setActiveTab(resolveInitialTab());
   }, [initialSubTab]);
+
+  // Deep-link target routing from notifications
+  useEffect(() => {
+    if (!deepLinkTarget || (deepLinkTarget.targetType !== 'conflict' && deepLinkTarget.targetType !== 'verification')) return;
+    if (deepLinkTarget.subTab === 'conflicts') {
+      setActiveTab('conflicts');
+      setStatusFilter('pending');
+    } else if (deepLinkTarget.subTab === 'employers') {
+      setActiveTab('employers');
+    } else if (deepLinkTarget.subTab === 'jobs') {
+      setActiveTab('jobs');
+    } else {
+      setActiveTab('alumni');
+    }
+    if (deepLinkTarget.targetId) {
+      const targetUser = users.find((u) => u.uid === deepLinkTarget.targetId);
+      if (targetUser) {
+        setSearchQuery(targetUser.name || targetUser.email || '');
+      }
+    }
+    clearDeepLinkTarget();
+  }, [deepLinkTarget, users, clearDeepLinkTarget]);
 
   // Derived datasets
   const registrarRecords = useMemo(() => getRegistrarRecords(), []);

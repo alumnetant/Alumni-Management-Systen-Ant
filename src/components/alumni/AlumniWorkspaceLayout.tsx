@@ -63,8 +63,11 @@ import { registerBackAction, triggerHaptic } from '../../services/mobileAppServi
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { FloatingQuickDock } from '../common/FloatingQuickDock';
-import { AuditLogView } from '../admin/AuditLogView';
 import { PullToRefreshWrapper } from '../common/PullToRefreshWrapper';
+import { PublicProfilePage } from '../profile/PublicProfilePage';
+import { PostPermalinkView } from '../social/PostPermalinkView';
+import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
+import { buildPortalUrlForTab, isSuperAdminRestrictedTarget } from '../../lib/notificationDeepLink';
 
 export type AlumniModuleId =
   | 'dashboard'
@@ -77,7 +80,7 @@ export type AlumniModuleId =
   | 'gallery'
   | 'profile'
   | 'settings'
-  | 'activity';
+  | 'forbidden';
 
 interface AlumniWorkspaceLayoutProps {
   onOpenAuth?: (mode: 'login' | 'register') => void;
@@ -106,16 +109,38 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     unreadNotificationsCount,
     markNotificationAsRead,
     markAllNotificationsAsRead,
+    navigateFromNotification,
     acceptFriendRequest,
     isConnected,
     getConnectionStatus,
-    showToast
+    viewedProfileIdentifier,
+    viewedPostId,
+    closeSubRoute,
+    showToast,
+    reportUnauthorizedSuperAdminAccess
   } = useAlumni();
 
   const { isDark, toggleTheme } = useTheme();
 
+  const isRestrictedRouteAttempt =
+    isSuperAdminRestrictedTarget(activeTab) ||
+    (typeof window !== 'undefined' && isSuperAdminRestrictedTarget(window.location.pathname));
+
+  useEffect(() => {
+    if (!isRestrictedRouteAttempt) return;
+    const attemptedPath =
+      typeof window !== 'undefined' && isSuperAdminRestrictedTarget(window.location.pathname)
+        ? window.location.pathname
+        : buildPortalUrlForTab(activeTab);
+    const mod = activeTab === 'audit' || activeTab === 'database' || activeTab === 'indexes' ? activeTab : 'restricted';
+    reportUnauthorizedSuperAdminAccess(attemptedPath, mod).catch(() => {});
+  }, [isRestrictedRouteAttempt, activeTab, reportUnauthorizedSuperAdminAccess]);
+
   // Active module synced with context activeTab
   const currentModule = useMemo<AlumniModuleId>(() => {
+    if (isRestrictedRouteAttempt) {
+      return 'forbidden';
+    }
     const validModules: AlumniModuleId[] = [
       'dashboard',
       'notifications',
@@ -132,12 +157,13 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       return activeTab as AlumniModuleId;
     }
     return 'dashboard';
-  }, [activeTab]);
+  }, [activeTab, isRestrictedRouteAttempt]);
 
   const { isOnline } = useNetworkStatus();
 
   const handleSelectModule = (mod: AlumniModuleId) => {
     triggerHaptic('light');
+    closeSubRoute();
     setActiveTab(mod as any);
   };
 
@@ -413,10 +439,10 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
 
   // Check if current active module belongs to the secondary/extended set
   const isSecondaryModuleActive = useMemo(() => {
-    return ['opportunities', 'announcements', 'gallery', 'profile', 'settings', 'activity'].includes(currentModule);
+    return ['opportunities', 'announcements', 'gallery', 'profile', 'settings'].includes(currentModule);
   }, [currentModule]);
 
-  // Click-outside listener for profile menu
+  // Click-outside & gallery deep-link listeners
   useEffect(() => {
     const handleDismiss = (e: MouseEvent | TouchEvent) => {
       const target = e.target as HTMLElement | null;
@@ -426,11 +452,18 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     const handleCustomDismiss = () => {
       setShowProfileMenu(false);
     };
+    const handleOpenGallery = () => {
+      setShowNotifications(false);
+      setShowProfileMenu(false);
+      setShowGalleryModal(true);
+    };
     window.addEventListener('click', handleDismiss);
     window.addEventListener('applet:dismiss-hover', handleCustomDismiss);
+    window.addEventListener('applet:open-gallery', handleOpenGallery);
     return () => {
       window.removeEventListener('click', handleDismiss);
       window.removeEventListener('applet:dismiss-hover', handleCustomDismiss);
+      window.removeEventListener('applet:open-gallery', handleOpenGallery);
     };
   }, []);
 
@@ -456,7 +489,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                   setIsSidebarExpanded((prev) => !prev);
                 }
               }}
-              className="p-2 -ml-1 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+              className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center -ml-1 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
               aria-label="Toggle navigation"
               title={isSidebarExpanded ? 'Hide sidebar (⌘B)' : 'Show sidebar (⌘B)'}
             >
@@ -576,22 +609,8 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                         <div
                           key={n.id}
                           onClick={() => {
-                            markNotificationAsRead(n.id);
                             setShowNotifications(false);
-                            if (n.type === 'message') {
-                              handleSelectModule('messages');
-                            } else if (n.type === 'announcement' || n.type === 'announcement_broadcast') {
-                              handleSelectModule('announcements');
-                            } else if (n.type === 'event' || n.type === 'event_broadcast') {
-                              handleSelectModule('events');
-                            } else if (n.type === 'gallery') {
-                              setShowGalleryModal(true);
-                            } else if (n.type === 'job') {
-                              handleSelectModule('opportunities');
-                            } else if (n.type === 'friend_request' || n.type === 'friend_accepted') {
-                              handleSelectModule('network');
-                              window.dispatchEvent(new CustomEvent('applet:open-network-requests'));
-                            }
+                            navigateFromNotification(n);
                           }}
                           className={`p-3.5 transition-colors cursor-pointer ${
                             !n.read ? 'bg-rose-50/40 dark:bg-rose-950/20' : 'hover:bg-stone-50 dark:hover:bg-stone-800/50'
@@ -669,7 +688,12 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
         >
           {/* Minimalist Alumnus Identity */}
           <div className="px-3.5 py-3 border-b border-stone-100 dark:border-stone-800/80 flex items-center justify-between gap-2.5">
-            <div className="flex items-center min-w-0 gap-2.5">
+            <button
+              type="button"
+              onClick={() => handleSelectModule('profile')}
+              className="flex items-center min-w-0 gap-2.5 text-left hover:opacity-85 transition-opacity cursor-pointer"
+              title="Open my profile & timeline"
+            >
               <img
                 src={getUserAvatar(currentUser?.profilePictureUrl)}
                 onError={handleUserAvatarError}
@@ -687,7 +711,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                   <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">Verified</span>
                 </div>
               </div>
-            </div>
+            </button>
 
             <button
               type="button"
@@ -885,19 +909,6 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
 
             <button
               type="button"
-              onClick={() => handleSelectModule('activity')}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
-                currentModule === 'activity'
-                  ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold shadow-2xs'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/70 dark:hover:bg-stone-800/50'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5 text-stone-400 stroke-[1.5]" />
-              <span className="truncate">My Activity Logs</span>
-            </button>
-
-            <button
-              type="button"
               onClick={() => handleSelectModule('settings')}
               className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
                 currentModule === 'settings'
@@ -941,14 +952,14 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setShowMobileNav(false)}
-                className="fixed inset-0 bg-stone-950/50 backdrop-blur-xs z-50 md:hidden"
+                className="fixed inset-0 bg-stone-950/50 backdrop-blur-xs z-50 lg:hidden"
               />
               <motion.div
                 initial={{ x: '-100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-                className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white dark:bg-[#181615] z-50 md:hidden flex flex-col shadow-2xl border-r border-stone-200/90 dark:border-stone-800"
+                className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white dark:bg-[#181615] z-50 lg:hidden flex flex-col shadow-2xl border-r border-stone-200/90 dark:border-stone-800"
               >
                 {/* Header with College Brand */}
                 <div className="p-3.5 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
@@ -1155,66 +1166,83 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
         <main className="flex-1 min-w-0 w-full max-w-full px-3 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
           <PullToRefreshWrapper onRefresh={refreshData} isOnline={isOnline}>
             <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto">
-              <AnimatePresence mode="wait" custom={slideDirection}>
-                <motion.div
-                  key={currentModule}
-                  custom={slideDirection}
-                  variants={directionalVariants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                >
-                  {/* MODULE: Dashboard Overview (Alumni Hub) */}
-                  {currentModule === 'dashboard' && <DashboardView />}
+              {viewedProfileIdentifier ? (
+                <PublicProfilePage identifier={viewedProfileIdentifier} />
+              ) : viewedPostId ? (
+                <PostPermalinkView postId={viewedPostId} />
+              ) : (
+                <AnimatePresence mode="wait" custom={slideDirection}>
+                  <motion.div
+                    key={currentModule}
+                    custom={slideDirection}
+                    variants={directionalVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                  >
+                    {/* MODULE: Dashboard Overview (Alumni Hub) */}
+                    {currentModule === 'dashboard' && <DashboardView />}
 
-                  {/* MODULE: Dedicated Notifications Page */}
-                  {currentModule === 'notifications' && <NotificationsView />}
+                    {/* MODULE: Dedicated Notifications Page */}
+                    {currentModule === 'notifications' && <NotificationsView />}
 
-                  {/* MODULE: Alumni Directory & Network */}
-                  {currentModule === 'network' && (
-                    <VerificationGate routeName="Alumni Directory & Networking">
-                      <NetworkView />
-                    </VerificationGate>
-                  )}
+                    {/* MODULE: Alumni Directory & Network */}
+                    {currentModule === 'network' && (
+                      <VerificationGate routeName="Alumni Directory & Networking">
+                        <NetworkView />
+                      </VerificationGate>
+                    )}
 
-                  {/* MODULE: Direct Peer Messaging */}
-                  {currentModule === 'messages' && (
-                    <VerificationGate routeName="Direct Peer Messaging">
-                      <MessagesView />
-                    </VerificationGate>
-                  )}
+                    {/* MODULE: Direct Peer Messaging */}
+                    {currentModule === 'messages' && (
+                      <VerificationGate routeName="Direct Peer Messaging">
+                        <MessagesView />
+                      </VerificationGate>
+                    )}
 
-                  {/* MODULE: Campus Reunions & Events */}
-                  {currentModule === 'events' && (
-                    <VerificationGate routeName="Campus Reunions & Official Events">
-                      <EventsView />
-                    </VerificationGate>
-                  )}
+                    {/* MODULE: Campus Reunions & Events */}
+                    {currentModule === 'events' && (
+                      <VerificationGate routeName="Campus Reunions & Official Events">
+                        <EventsView />
+                      </VerificationGate>
+                    )}
 
-                  {/* MODULE: Institutional Bulletins */}
-                  {currentModule === 'announcements' && (
-                    <VerificationGate routeName="Institutional Announcements">
-                      <AnnouncementsView />
-                    </VerificationGate>
-                  )}
+                    {/* MODULE: Institutional Bulletins */}
+                    {currentModule === 'announcements' && (
+                      <VerificationGate routeName="Institutional Announcements">
+                        <AnnouncementsView />
+                      </VerificationGate>
+                    )}
 
-                  {/* MODULE: Career Opportunities & Jobs */}
-                  {currentModule === 'opportunities' && (
-                    <VerificationGate routeName="Career Opportunities & Job Board">
-                      <OpportunitiesView />
-                    </VerificationGate>
-                  )}
+                    {/* MODULE: Career Opportunities & Jobs */}
+                    {currentModule === 'opportunities' && (
+                      <VerificationGate routeName="Career Opportunities & Job Board">
+                        <OpportunitiesView />
+                      </VerificationGate>
+                    )}
 
-                  {/* MODULE: Profile & Card */}
-                  {currentModule === 'profile' && <ProfileView />}
+                    {/* MODULE: Profile & Card */}
+                    {currentModule === 'profile' && <ProfileView />}
 
-                  {/* MODULE: Account Settings */}
-                  {currentModule === 'settings' && <SettingsView />}
+                    {/* MODULE: Account Settings */}
+                    {currentModule === 'settings' && <SettingsView />}
 
-                  {/* MODULE: Activity Logs */}
-                  {currentModule === 'activity' && <AuditLogView />}
-                </motion.div>
-              </AnimatePresence>
+                    {/* MODULE: HTTP 403 Forbidden (Superadmin-Only Restricted Routes) */}
+                    {currentModule === 'forbidden' && (
+                      <ForbiddenAccessView
+                        attemptedPath={
+                          typeof window !== 'undefined' && isSuperAdminRestrictedTarget(window.location.pathname)
+                            ? window.location.pathname
+                            : buildPortalUrlForTab(activeTab)
+                        }
+                        attemptedModule={activeTab}
+                        userRole={currentUser?.role}
+                        onReturnToOverview={() => handleSelectModule('dashboard')}
+                      />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+              )}
             </div>
           </PullToRefreshWrapper>
         </main>

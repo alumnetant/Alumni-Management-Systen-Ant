@@ -31,6 +31,7 @@ import {
   SuspensionRecord,
   SuspensionHistoryEntry,
   SuspensionNoticeInfo,
+  DeepLinkTarget,
   normalizeSystemRole
 } from '../types';
 import {
@@ -138,7 +139,8 @@ import {
   sendEventRsvpEmail,
   sendAnnouncementEmail,
   sendSecurityAlertEmail,
-  sendEvent24HourReminderEmail
+  sendEvent24HourReminderEmail,
+  clearDispatchedEmails
 } from '../services/emailNotificationService';
 import {
   isNotificationRelevantToUser,
@@ -172,7 +174,14 @@ import {
 import { validateRejectionReason, isEmployerVisibleInDirectory } from '../lib/employerValidation';
 import { getEmployerAuthStatus, isEmployerApproved } from '../lib/employerAuthStatus';
 import { generateSecureId, generateSecureNumericCode } from '../lib/secureId';
-import { apiFetch } from '../services/apiClient';
+import { apiFetch, apiFetchWithCsrf, getAuthToken } from '../services/apiClient';
+import {
+  resolveNotificationDeepLink,
+  normalizeNotificationPayload,
+  parsePortalUrlPath,
+  buildPortalUrlForTab,
+  isSuperAdminRestrictedTarget
+} from '../lib/notificationDeepLink';
 
 export interface ActiveSessionConflictInfo {
   identifier: string;
@@ -214,6 +223,11 @@ interface AlumniContextType {
   notificationSettings: UserNotificationSettings;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  viewedProfileIdentifier: string | null;
+  viewedPostId: string | null;
+  openProfile: (identifierOrUid: string) => void;
+  openPostPermalink: (postId: string) => void;
+  closeSubRoute: () => void;
   selectedUserIdForModal: string | null;
   setSelectedUserIdForModal: (uid: string | null) => void;
   isEditProfileModalOpen: boolean;
@@ -256,6 +270,7 @@ interface AlumniContextType {
     canAccessEmployerAccreditation: boolean;
     canAccessGovernance: boolean;
     canAccessAuditTrails: boolean;
+    canAccessDatabaseTools: boolean;
     canAccessAutomations: boolean;
     canAccessGrowthAnalytics: boolean;
     canManageBackups: boolean;
@@ -388,12 +403,20 @@ interface AlumniContextType {
   verifyAlumniStatus: (studentIdToVerify: string) => Promise<RegistrarVerificationResult>;
   getConnectionStatus: (otherUid: string) => 'pending' | 'accepted' | 'declined' | null;
 
-  // Notifications
+  // Notifications & Deep-Link Navigation
   userNotifications: AppNotification[];
   unreadNotificationsCount: number;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   deleteNotification: (id: string) => void;
+  deepLinkTarget: DeepLinkTarget | null;
+  setDeepLinkTarget: React.Dispatch<React.SetStateAction<DeepLinkTarget | null>>;
+  clearDeepLinkTarget: () => void;
+  highlightedItemId: string | null;
+  clearHighlightedItem: () => void;
+  navigateFromNotification: (notif: AppNotification) => void;
+  navigateToPortalPath: (targetPath: string, overrideNotif?: AppNotification) => void;
+  reportUnauthorizedSuperAdminAccess: (attemptedPath: string, attemptedModule: string) => Promise<void>;
 
   // Settings
   updateNotificationSettings: (settings: Partial<UserNotificationSettings>) => void;
@@ -404,7 +427,7 @@ interface AlumniContextType {
   addGalleryItem: (item: Omit<GalleryItem, 'id' | 'createdAt'>) => boolean;
   deleteGalleryItem: (id: string) => boolean;
 
-  // Institutional Social Feed (Admin, Registrar, Staff posts on Alumni Dashboard)
+  // Institutional Social Feed (Alumni, Admin, Moderator posts synced with /api/feed & /api/posts)
   feedPosts: InstitutionalFeedPost[];
   addFeedPost: (post: {
     postType: 'milestone' | 'gallery' | 'announcement';
@@ -413,13 +436,42 @@ interface AlumniContextType {
     imageUrl?: string;
     milestoneBadge?: string;
     isPinned?: boolean;
+    pinExpiresAt?: string;
     tags?: string[];
+    visibility?: 'public' | 'alumni' | 'batch' | 'department' | 'group' | 'private';
+    targetBatch?: string;
+    targetDepartment?: string;
+    groupId?: string;
+    groupName?: string;
+    isAnonymous?: boolean;
+    status?: 'published' | 'draft' | 'scheduled' | 'pending_approval';
   }) => boolean;
+  createSocialPost: (post: {
+    postType: 'milestone' | 'gallery' | 'announcement';
+    title: string;
+    content: string;
+    imageUrl?: string;
+    milestoneBadge?: string;
+    isPinned?: boolean;
+    pinExpiresAt?: string;
+    tags?: string[];
+    visibility?: 'public' | 'alumni' | 'batch' | 'department' | 'group' | 'private';
+    targetBatch?: string;
+    targetDepartment?: string;
+    groupId?: string;
+    groupName?: string;
+    isAnonymous?: boolean;
+  }) => Promise<{ success: boolean; post?: InstitutionalFeedPost; error?: string }>;
   toggleLikeFeedPost: (postId: string) => void;
   toggleHeartFeedPost: (postId: string) => void;
   addFeedPostComment: (postId: string, text: string) => void;
+  shareFeedPost: (postId: string, commentary?: string) => Promise<{ success: boolean; sharedPost?: InstitutionalFeedPost; error?: string }>;
   deleteFeedPost: (postId: string) => void;
   updateFeedPost: (postId: string, updates: Partial<InstitutionalFeedPost>) => boolean;
+  pinProfilePost: (postId: string | null) => Promise<boolean>;
+  blockUser: (targetUid: string) => Promise<boolean>;
+  unblockUser: (targetUid: string) => Promise<boolean>;
+  deleteMyAccount: () => Promise<boolean>;
 
   // Alumni Directory Service (direct Firestore service layer)
   fetchAlumni: () => Promise<UserProfile[]>;
@@ -740,32 +792,46 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Load or fallback to initial data
   const [users, setUsers] = useState<UserProfile[]>(() => {
     try {
-      // Account Reset / Upgrade to Fresh Official Role Accounts & Clean DB Testing
-      const ACCOUNTS_VERSION_KEY = 'st_cecilia_accounts_version_v10_clean_system_testing';
+      // Account Reset / Upgrade to Superadmin-Only Clean Baseline
+      const ACCOUNTS_VERSION_KEY = 'st_cecilia_accounts_version_v12_wipe_all_except_superadmin';
       const hasUpgradedAccounts = localStorage.getItem(ACCOUNTS_VERSION_KEY) === 'true';
       if (!hasUpgradedAccounts) {
         try {
-          localStorage.removeItem(STORAGE_KEYS.USERS);
-          localStorage.removeItem('st_cecilia_credentials_vault');
-          localStorage.removeItem(STORAGE_KEYS.USER_ID);
-          localStorage.removeItem('alumni_auth_session_real_v1');
-          localStorage.removeItem('alumni_auth_session_real_v2');
-          localStorage.removeItem(STORAGE_KEYS.EVENTS);
-          localStorage.removeItem(STORAGE_KEYS.ANNOUNCEMENTS);
-          localStorage.removeItem(STORAGE_KEYS.OPPORTUNITIES);
-          localStorage.removeItem(STORAGE_KEYS.FEED_POSTS);
-          localStorage.removeItem(STORAGE_KEYS.RESERVATIONS);
-          localStorage.removeItem(STORAGE_KEYS.GALLERY);
-          localStorage.removeItem('st_cecilia_chapters_v1');
-          localStorage.removeItem(STORAGE_KEYS.MILESTONES);
-          localStorage.removeItem(STORAGE_KEYS.APPLICATIONS);
-          localStorage.removeItem('st_cecilia_registrar_student_records');
-          localStorage.removeItem('st_cecilia_student_records_v1');
+          const currentToken = getStoredSessionToken();
+          const tokenCheck = currentToken ? parseAndValidateSessionToken(currentToken) : null;
+          const isSuperadminSession = tokenCheck?.valid && tokenCheck?.payload?.uid === 'usr_superadmin_cecilia';
+          if (!isSuperadminSession) {
+            clearStoredSession();
+          }
+
+          Object.values(STORAGE_KEYS).forEach((k) => {
+            if (k !== STORAGE_KEYS.VIEW) {
+              localStorage.removeItem(k);
+            }
+          });
+          [
+            CREDENTIALS_VAULT_KEY,
+            'st_cecilia_credentials_vault',
+            'st_cecilia_chapters_v1',
+            'st_cecilia_registrar_student_records',
+            'st_cecilia_registrar_records_v1',
+            'st_cecilia_student_records_v1',
+            'st_cecilia_accredited_registry_records',
+            'st_cecilia_registry_conflicts',
+            'sc_alumni_dispatched_emails',
+            'st_cecilia_admin_module_v1',
+            'st_cecilia_superadmin_security_alerts_v1',
+            'st_cecilia_centenary_time_capsules_v1',
+            'st_cecilia_governance_policies_v1',
+            'alumni_offline_message_queue_v1',
+            'cecilian_event_reminders_v1',
+            'scc_jobs_badge_dismissed_v1'
+          ].forEach((k) => localStorage.removeItem(k));
           localStorage.setItem(ACCOUNTS_VERSION_KEY, 'true');
         } catch {}
       }
 
-      // Seed initial users into vault
+      // Seed initial superadmin into vault
       INITIAL_USERS.forEach((seedUser) => {
         saveCredentialToVault({
           uid: seedUser.uid,
@@ -1004,18 +1070,33 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   });
   const offlineQueueCount = offlineQueue.length;
 
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+  const currentUserRoleRef = useRef<string>('alumni');
+  const currentUserIdRef = useRef<string | null>(null);
+
+  const [notifications, setNotificationsState] = useState<AppNotification[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
       const parsed = saved ? JSON.parse(saved) : [];
-      if (Array.isArray(parsed)) {
-        return parsed.filter((n: AppNotification) => !isSeedId(n.id));
-      }
-      return INITIAL_NOTIFICATIONS;
+      const list = Array.isArray(parsed)
+        ? parsed.filter((n: AppNotification) => !isSeedId(n.id))
+        : INITIAL_NOTIFICATIONS;
+      return list.map((n: AppNotification) => normalizeNotificationPayload(n));
     } catch {
-      return INITIAL_NOTIFICATIONS;
+      return INITIAL_NOTIFICATIONS.map((n: AppNotification) => normalizeNotificationPayload(n));
     }
   });
+
+  const setNotifications = useCallback<React.Dispatch<React.SetStateAction<AppNotification[]>>>(
+    (updater) => {
+      setNotificationsState((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater;
+        return Array.isArray(next)
+          ? next.map((n) => normalizeNotificationPayload(n, currentUserRoleRef.current))
+          : prev;
+      });
+    },
+    []
+  );
 
   useEffect(() => {
     try {
@@ -1252,8 +1333,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
 
-  const [activeTab, setActiveTab] = useState<string>(() => {
+  const [activeTab, setActiveTabState] = useState<string>(() => {
     try {
+      if (typeof window !== 'undefined' && /^\/portal\//i.test(window.location.pathname)) {
+        return parsePortalUrlPath(window.location.pathname).tab;
+      }
       const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_TAB);
       return saved || 'dashboard';
     } catch {
@@ -1261,7 +1345,123 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [deepLinkTarget, setDeepLinkTarget] = useState<DeepLinkTarget | null>(() => {
+    if (typeof window !== 'undefined' && /^\/portal\//i.test(window.location.pathname)) {
+      const parsed = parsePortalUrlPath(window.location.pathname);
+      if (parsed.targetId || parsed.subTab) {
+        return {
+          tab: parsed.tab,
+          targetType: parsed.targetType,
+          targetId: parsed.targetId,
+          subTab: parsed.subTab,
+          targetPath: parsed.targetPath,
+          targetRoute: parsed.targetRoute,
+          timestamp: Date.now()
+        };
+      }
+    }
+    return null;
+  });
+  const clearDeepLinkTarget = useCallback(() => setDeepLinkTarget(null), []);
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined' && /^\/portal\//i.test(window.location.pathname)) {
+      return parsePortalUrlPath(window.location.pathname).targetId || null;
+    }
+    return null;
+  });
+  const highlightTimerRef = useRef<number | null>(null);
+  const clearHighlightedItem = useCallback(() => {
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = null;
+    }
+    setHighlightedItemId(null);
+  }, []);
+  const triggerItemHighlight = useCallback((id?: string | null) => {
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = null;
+    }
+    if (!id) {
+      setHighlightedItemId(null);
+      return;
+    }
+    setHighlightedItemId(id);
+    if (typeof window !== 'undefined') {
+      highlightTimerRef.current = window.setTimeout(() => {
+        setHighlightedItemId((curr) => (curr === id ? null : curr));
+        highlightTimerRef.current = null;
+      }, 3600);
+    }
+  }, []);
   const [selectedUserIdForModal, setSelectedUserIdForModal] = useState<string | null>(null);
+
+  const parseSubRouteFromLocation = useCallback((): { profile: string | null; post: string | null } => {
+    if (typeof window === 'undefined') return { profile: null, post: null };
+    const path = window.location.pathname || '/';
+    const profileMatch = path.match(/^\/profile\/([^/]+)\/?$/i);
+    if (profileMatch?.[1]) {
+      return { profile: decodeURIComponent(profileMatch[1]), post: null };
+    }
+    const postMatch = path.match(/^\/post\/([^/]+)\/?$/i);
+    if (postMatch?.[1]) {
+      return { profile: null, post: decodeURIComponent(postMatch[1]) };
+    }
+    return { profile: null, post: null };
+  }, []);
+
+  const [viewedProfileIdentifier, setViewedProfileIdentifier] = useState<string | null>(() => {
+    return parseSubRouteFromLocation().profile;
+  });
+  const [viewedPostId, setViewedPostId] = useState<string | null>(() => {
+    return parseSubRouteFromLocation().post;
+  });
+
+  const setActiveTab = useCallback((tab: string) => {
+    setActiveTabState(tab);
+    setViewedProfileIdentifier(null);
+    setViewedPostId(null);
+    if (typeof window !== 'undefined') {
+      const hasSession = Boolean(currentUserIdRef.current);
+      if (hasSession) {
+        const nextUrl = buildPortalUrlForTab(tab);
+        if (window.location.pathname !== nextUrl) {
+          window.history.pushState({ portalPath: nextUrl, tab }, '', nextUrl);
+        }
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => {
+      const parsedSub = parseSubRouteFromLocation();
+      setViewedProfileIdentifier(parsedSub.profile);
+      setViewedPostId(parsedSub.post);
+      if (!parsedSub.profile && !parsedSub.post && /^\/portal\//i.test(window.location.pathname)) {
+        const parsedPortal = parsePortalUrlPath(window.location.pathname, currentUserRoleRef.current);
+        setActiveTabState(parsedPortal.tab);
+        if (parsedPortal.targetId || parsedPortal.subTab) {
+          setDeepLinkTarget({
+            tab: parsedPortal.tab,
+            targetType: parsedPortal.targetType,
+            targetId: parsedPortal.targetId,
+            subTab: parsedPortal.subTab,
+            targetPath: parsedPortal.targetPath,
+            targetRoute: parsedPortal.targetRoute,
+            timestamp: Date.now()
+          });
+          triggerItemHighlight(parsedPortal.targetId);
+        } else {
+          setDeepLinkTarget(null);
+          triggerItemHighlight(null);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [parseSubRouteFromLocation, triggerItemHighlight]);
+
   const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState<boolean>(false);
   const openEditProfile = useCallback(() => {
     setIsEditProfileModalOpen(true);
@@ -1560,8 +1760,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               localStorage.setItem(STORAGE_KEYS.APPLICATIONS, JSON.stringify(liveApps));
             } catch {}
           } else {
-            INITIAL_JOB_APPLICATIONS.forEach((app) => saveJobApplicationToFirestore(app).catch(() => {}));
-            setJobApplications(INITIAL_JOB_APPLICATIONS);
+            setJobApplications([]);
           }
         } catch (err) {
           console.warn('Background sync job applications notice:', err);
@@ -1584,13 +1783,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
       })();
 
-      // 7. If current user is logged in, fetch fresh profile doc & notifications
+      // 7. If current user is logged in, fetch fresh profile doc & notifications (including backend moderation notices)
       const userSpecificPromise = (async () => {
         if (!currentUserId) return;
         try {
-          const [freshUser, freshNotifs] = await Promise.all([
+          const hasServerToken = Boolean(getAuthToken());
+          const [freshUser, freshNotifs, modNotifsRes] = await Promise.all([
             getUserFromFirestore(currentUserId).catch(() => null),
-            getNotificationsFromFirestore(currentUserId).catch(() => [])
+            getNotificationsFromFirestore(currentUserId).catch(() => []),
+            hasServerToken
+              ? apiFetch('/api/moderation/notifications')
+                  .then((r) => (r.ok ? r.json() : null))
+                  .catch(() => null)
+              : Promise.resolve(null)
           ]);
           if (freshUser) {
             setUsers((prev) => {
@@ -1601,12 +1806,30 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               return updated;
             });
           }
-          if (freshNotifs && freshNotifs.length > 0) {
-            const cleanNotifs = freshNotifs.filter((n) => !isSeedId(n.id));
-            setNotifications(cleanNotifs);
-            try {
-              localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(cleanNotifs));
-            } catch {}
+          const serverModNotifs: AppNotification[] = Array.isArray(modNotifsRes?.notifications)
+            ? modNotifsRes.notifications
+            : [];
+          const cleanNotifs = (freshNotifs || []).filter((n) => !isSeedId(n.id));
+          if (cleanNotifs.length > 0 || serverModNotifs.length > 0) {
+            setNotifications((prev) => {
+              const map = new Map<string, AppNotification>();
+              for (const n of serverModNotifs) {
+                if (n && n.id) map.set(n.id, n);
+              }
+              for (const n of cleanNotifs) {
+                if (n && n.id && !map.has(n.id)) map.set(n.id, n);
+              }
+              for (const n of prev) {
+                if (n && n.id && !map.has(n.id)) map.set(n.id, n);
+              }
+              const merged = Array.from(map.values()).sort(
+                (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              );
+              try {
+                localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
           }
         } catch (err) {
           console.warn('Background sync user-specific notice:', err);
@@ -2233,9 +2456,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (firestoreApps && firestoreApps.length > 0) {
           setJobApplications(firestoreApps);
         } else {
-          // If Firestore is empty, initialize baseline job applications
-          INITIAL_JOB_APPLICATIONS.forEach((app) => saveJobApplicationToFirestore(app).catch(() => {}));
-          setJobApplications(INITIAL_JOB_APPLICATIONS);
+          setJobApplications([]);
         }
       }
     });
@@ -2336,6 +2557,31 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
     return found || null;
   }, [currentUserId, users]);
+
+  currentUserRoleRef.current = currentUser?.role || 'alumni';
+  currentUserIdRef.current = currentUser?.uid || currentUserId || null;
+
+  useEffect(() => {
+    if (!currentUser || typeof window === 'undefined') return;
+    if (/^\/portal\//i.test(window.location.pathname)) {
+      const parsed = parsePortalUrlPath(window.location.pathname, currentUser.role);
+      setActiveTabState(parsed.tab);
+      if (parsed.targetId || parsed.subTab) {
+        setDeepLinkTarget({
+          tab: parsed.tab,
+          targetType: parsed.targetType,
+          targetId: parsed.targetId,
+          subTab: parsed.subTab,
+          targetPath: parsed.targetPath,
+          targetRoute: parsed.targetRoute,
+          timestamp: Date.now()
+        });
+        if (parsed.targetId) {
+          triggerItemHighlight(parsed.targetId);
+        }
+      }
+    }
+  }, [currentUser?.uid, currentUser?.role, triggerItemHighlight]);
 
   // Ensure recovered session user is back in active users array
   useEffect(() => {
@@ -2545,8 +2791,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       canAccessEmployerAccreditation: ['admin', 'superadmin'].includes(role || ''),
       // Governance & Retention Policies: Super Administrator ONLY
       canAccessGovernance: role === 'superadmin',
-      // Audit Trails: Superadmin (full), Admin (relevant/operational), Moderator (moderation & clearance logs)
-      canAccessAuditTrails: ['superadmin', 'admin', 'moderator'].includes(role || ''),
+      // Audit Trails & Database Indexes/Config: Super Administrator ONLY
+      canAccessAuditTrails: role === 'superadmin',
+      canAccessDatabaseTools: role === 'superadmin',
       // Automations: Super Administrator & Administrator
       canAccessAutomations: ['superadmin', 'admin'].includes(role || ''),
       // Growth Analytics: Super Administrator & Administrator
@@ -2894,13 +3141,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             targetRecordId: trimmed
           });
 
-          // Notify Administrator
+          // Notify Superadministrator only
           const adminNotif: AppNotification = {
             id: `notif_multi_${Date.now()}`,
-            toUid: 'usr_superadmin_cecilia',
+            toUid: 'superadmin',
             title: '⚠️ Suspicious Activity: Multiple Users Detected',
             body: `Account "${trimmed}" was accessed concurrently from multiple devices (${activeDev} vs ${currentDev}). Possible account sharing detected at ${conflictTimestamp}.`,
             type: 'security',
+            targetPath: '/portal/audit',
+            targetRoute: '/portal/audit',
+            metadata: { targetRole: 'superadmin' },
             read: false,
             createdAt: conflictTimestamp
           };
@@ -3107,13 +3357,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             targetRecordId: trimmed
           });
 
-          // In-app Notification for Administrator
+          // In-app Notification for Superadministrator
           const adminNotif: AppNotification = {
             id: `notif_locked_${Date.now()}`,
-            toUid: 'usr_superadmin_cecilia',
+            toUid: 'superadmin',
             title: '⚠️ Security Warning: Account Locked',
             body: `Account "${trimmed}" was locked following 3 consecutive failed login attempts. Reason: Repeated authentication failures at ${attemptTimestamp}.`,
             type: 'security',
+            targetPath: '/portal/audit',
+            targetRoute: '/portal/audit',
+            metadata: { targetRole: 'superadmin' },
             read: false,
             createdAt: attemptTimestamp
           };
@@ -3203,13 +3456,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             targetRecordId: user.email || trimmed
           });
 
-          // In-app Notification for Administrator
+          // In-app Notification for Superadministrator
           const adminNotif: AppNotification = {
             id: `notif_locked_${Date.now()}`,
-            toUid: 'usr_superadmin_cecilia',
+            toUid: 'superadmin',
             title: '⚠️ Security Warning: Account Locked',
             body: `Account "${user.name}" (${user.email || trimmed}) was locked following 3 consecutive failed login attempts. Reason: Repeated authentication failures at ${attemptTimestamp}.`,
             type: 'security',
+            targetPath: '/portal/audit',
+            targetRoute: '/portal/audit',
+            metadata: { targetRole: 'superadmin' },
             read: false,
             createdAt: attemptTimestamp
           };
@@ -3790,9 +4046,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         type: 'general',
         title: 'New Employer Partner Registered',
         body: `${newUser.companyName || newUser.name} has registered and submitted an accreditation request for Admin Verification.`,
+        refId: newUser.uid,
+        targetPath: `/portal/jobs/employers/${encodeURIComponent(newUser.uid)}`,
+        targetRoute: `/portal/jobs/employers/${encodeURIComponent(newUser.uid)}`,
+        metadata: { targetRole: 'admin', targetTab: 'jobs', targetSubTab: 'employers', employerUid: newUser.uid },
         read: false,
-        createdAt: new Date().toISOString(),
-        metadata: { targetRole: 'moderator' }
+        createdAt: new Date().toISOString()
       };
       setNotifications((prev) => [adminNotif, ...prev]);
       saveNotificationToFirestore(adminNotif).catch(() => {});
@@ -3805,9 +4064,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         title: 'New Alumni Verification Appeal / Dispute',
         body: `${newUser.name} (${newUser.email}) submitted a verification request or ID conflict claim for Moderator & Admin review.`,
         refId: newUser.uid,
+        targetPath: `/portal/conflicts/requests/${encodeURIComponent(newUser.uid)}`,
+        targetRoute: `/portal/conflicts/requests/${encodeURIComponent(newUser.uid)}`,
+        metadata: { targetRole: 'moderator', targetTab: 'conflicts', targetSubTab: 'requests', targetId: newUser.uid },
         read: false,
-        createdAt: new Date().toISOString(),
-        metadata: { targetRole: 'moderator' }
+        createdAt: new Date().toISOString()
       };
       setNotifications((prev) => [appealNotif, ...prev]);
       saveNotificationToFirestore(appealNotif).catch(() => {});
@@ -3944,7 +4205,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       authorId: currentUser!.uid,
       authorName: currentUser!.name || "St. Cecilia's College Administration",
       authorRole: (currentUser!.role as any) || 'admin',
-      authorAvatar: currentUser!.profilePictureUrl || '/assets/st-cecilias-college-seal.jpg',
+      authorAvatar: currentUser!.profilePictureUrl || '/assets/cecilians-seal.jpg',
       postType: 'gallery',
       title: `Campus Gallery: ${newItem.title}`,
       content: newItem.description || `New campus photo added to the St. Cecilia's College Official Heritage & Campus Gallery (${newItem.year}).`,
@@ -3986,7 +4247,159 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return true;
   };
 
+  // Hydrate server-side PostModerationEngine store when authenticated with a backend session token
+  const hasSyncedServerSnapshotRef = useRef<string>('');
+  useEffect(() => {
+    if (!currentUserId || !getAuthToken()) return;
+    const signature = `${currentUserId}:${users.length}:${feedPosts.length}`;
+    if (hasSyncedServerSnapshotRef.current === signature) return;
+    hasSyncedServerSnapshotRef.current = signature;
+    apiFetchWithCsrf('/api/posts/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profiles: users.map((u) => ({
+          uid: u.uid,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          username: u.username,
+          batch: u.batch,
+          course: u.course,
+          department: u.department,
+          location: u.location,
+          profilePictureUrl: u.profilePictureUrl,
+          coverPhotoUrl: u.coverPhotoUrl,
+          headline: u.headline,
+          about: u.about,
+          company: u.company,
+          currentPosition: u.currentPosition,
+          phone: u.phone,
+          isVerified: u.isVerified,
+          quickStatus: u.quickStatus,
+          followersCount: u.followersCount,
+          followingCount: u.followingCount,
+          connectionsCount: u.connectionsCount,
+          pinnedPostId: u.pinnedPostId,
+          blockedUsers: u.blockedUsers,
+          groupIds: u.groupIds,
+          show_email: u.show_email ?? u.showEmail,
+          show_phone: u.show_phone ?? u.showPhone,
+          show_current_employer: u.show_current_employer ?? u.showCurrentEmployer,
+          accountStatus: u.accountStatus,
+          status: u.status,
+          isDeactivated: u.isDeactivated,
+          isDeleted: u.isDeleted,
+          isBanned: u.isBanned,
+          createdAt: u.createdAt
+        })),
+        posts: feedPosts
+      })
+    }).catch(() => {});
+  }, [currentUserId, users, feedPosts]);
+
   // Institutional Social Feed methods
+  const createSocialPost = useCallback(async (postData: {
+    postType: 'milestone' | 'gallery' | 'announcement';
+    title: string;
+    content: string;
+    imageUrl?: string;
+    milestoneBadge?: string;
+    isPinned?: boolean;
+    pinExpiresAt?: string;
+    tags?: string[];
+    visibility?: 'public' | 'alumni' | 'batch' | 'department' | 'group' | 'private';
+    targetBatch?: string;
+    targetDepartment?: string;
+    groupId?: string;
+    groupName?: string;
+    isAnonymous?: boolean;
+  }): Promise<{ success: boolean; post?: InstitutionalFeedPost; error?: string }> => {
+    if (!currentUser) {
+      return { success: false, error: 'Please sign in to publish posts.' };
+    }
+    if (currentUser.role === 'employer') {
+      showToast('Employer accounts cannot publish feed posts.', 'error');
+      return { success: false, error: 'Employer accounts cannot publish feed posts.' };
+    }
+
+    const canPin = ['admin', 'superadmin', 'moderator'].includes(currentUser.role);
+    const optimisticPost: InstitutionalFeedPost = {
+      id: generateSecureId('post'),
+      authorId: currentUser.uid,
+      authorName: postData.isAnonymous ? 'Anonymous Alumnus' : (currentUser.name || "St. Cecilia's College Alumnus"),
+      authorRole: (currentUser.role as any) || 'alumni',
+      authorAvatar: postData.isAnonymous ? '' : (currentUser.profilePictureUrl || '/assets/cecilians-seal.jpg'),
+      authorUsername: postData.isAnonymous ? undefined : currentUser.username,
+      postType: postData.postType,
+      title: postData.title,
+      content: postData.content,
+      imageUrl: postData.imageUrl,
+      milestoneBadge: postData.milestoneBadge,
+      likes: [],
+      hearts: [],
+      comments: [],
+      sharesCount: 0,
+      isPinned: Boolean(postData.isPinned && canPin),
+      pinExpiresAt: postData.isPinned && canPin ? postData.pinExpiresAt : undefined,
+      tags: postData.tags || [],
+      visibility: postData.visibility || 'alumni',
+      targetBatch: postData.targetBatch || (postData.visibility === 'batch' ? currentUser.batch : undefined),
+      targetDepartment: postData.targetDepartment || (postData.visibility === 'department' ? (currentUser.department || currentUser.course) : undefined),
+      groupId: postData.groupId,
+      groupName: postData.groupName,
+      isAnonymous: Boolean(postData.isAnonymous),
+      status: 'published',
+      createdAt: new Date().toISOString()
+    };
+
+    if (getAuthToken()) {
+      try {
+        const res = await apiFetchWithCsrf('/api/posts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: optimisticPost.id,
+            postType: postData.postType,
+            title: postData.title,
+            content: postData.content,
+            imageUrl: postData.imageUrl,
+            milestoneBadge: postData.milestoneBadge,
+            isPinned: Boolean(postData.isPinned && canPin),
+            pinExpiresAt: postData.isPinned && canPin ? postData.pinExpiresAt : undefined,
+            tags: postData.tags || [],
+            visibility: postData.visibility || 'alumni',
+            targetBatch: optimisticPost.targetBatch,
+            targetDepartment: optimisticPost.targetDepartment,
+            groupId: postData.groupId,
+            groupName: postData.groupName,
+            isAnonymous: Boolean(postData.isAnonymous)
+          })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          const msg = data?.error || 'Could not publish post.';
+          showToast(msg, 'error');
+          return { success: false, error: msg };
+        }
+        const savedPost: InstitutionalFeedPost = data?.post || optimisticPost;
+        setFeedPosts((prev) => [savedPost, ...prev.filter((p) => p.id !== savedPost.id)]);
+        saveFeedPostToFirestore({ ...savedPost, authorId: currentUser.uid }).catch(() => {});
+        showToast('Post published to feed and profile timeline!', 'success');
+        return { success: true, post: savedPost };
+      } catch {
+        // Fallback to local + Firestore persistence if offline
+      }
+    }
+
+    setFeedPosts((prev) => [optimisticPost, ...prev]);
+    saveFeedPostToFirestore(optimisticPost).catch((err) => {
+      console.warn('Failed to persist feed post in Firestore:', err);
+    });
+    showToast('Feed post published successfully!', 'success');
+    return { success: true, post: optimisticPost };
+  }, [currentUser, showToast]);
+
   const addFeedPost = (postData: {
     postType: 'milestone' | 'gallery' | 'announcement';
     title: string;
@@ -3994,38 +4407,22 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     imageUrl?: string;
     milestoneBadge?: string;
     isPinned?: boolean;
+    pinExpiresAt?: string;
     tags?: string[];
+    visibility?: 'public' | 'alumni' | 'batch' | 'department' | 'group' | 'private';
+    targetBatch?: string;
+    targetDepartment?: string;
+    groupId?: string;
+    groupName?: string;
+    isAnonymous?: boolean;
+    status?: 'published' | 'draft' | 'scheduled' | 'pending_approval';
   }): boolean => {
     if (!currentUser) return false;
     if (currentUser.role === 'employer') {
       showToast('Employer accounts cannot publish feed posts.', 'error');
       return false;
     }
-
-    const newPost: InstitutionalFeedPost = {
-      id: generateSecureId('post'),
-      authorId: currentUser.uid,
-      authorName: currentUser.name || "St. Cecilia's College Alumnus",
-      authorRole: (currentUser.role as any) || 'alumni',
-      authorAvatar: currentUser.profilePictureUrl || '/assets/st-cecilias-college-seal.jpg',
-      postType: postData.postType,
-      title: postData.title,
-      content: postData.content,
-      imageUrl: postData.imageUrl,
-      milestoneBadge: postData.milestoneBadge,
-      likes: [],
-      comments: [],
-      sharesCount: 0,
-      isPinned: Boolean(postData.isPinned && currentUser.role !== 'alumni'),
-      tags: postData.tags || [],
-      createdAt: new Date().toISOString()
-    };
-
-    setFeedPosts((prev) => [newPost, ...prev]);
-    saveFeedPostToFirestore(newPost).catch((err) => {
-      console.warn('Failed to persist feed post in Firestore:', err);
-    });
-    showToast('Feed post published successfully!', 'success');
+    void createSocialPost(postData);
     return true;
   };
 
@@ -4034,6 +4431,20 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('Please sign in to react with a heart.', 'info');
       return;
     }
+    const targetPost = feedPosts.find((p) => p.id === postId);
+    const isMilestoneOrAchievement = Boolean(
+      targetPost && (targetPost.postType === 'milestone' || Boolean(targetPost.milestoneBadge))
+    );
+    if (
+      targetPost &&
+      targetPost.authorId === currentUser.uid &&
+      !targetPost.isAnonymous &&
+      isMilestoneOrAchievement
+    ) {
+      showToast('You cannot congratulate or react to your own milestone post.', 'info');
+      return;
+    }
+    let addedReaction = false;
     setFeedPosts((prev) =>
       prev.map((post) => {
         if (post.id !== postId) return post;
@@ -4043,18 +4454,38 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           ? post.likes
           : [];
         const alreadyHearted = currentHearts.includes(currentUser.uid);
+        addedReaction = !alreadyHearted;
         const newHearts = alreadyHearted
           ? currentHearts.filter((uid) => uid !== currentUser.uid)
           : [...currentHearts, currentUser.uid];
         const updated: InstitutionalFeedPost = {
           ...post,
           hearts: newHearts,
-          likes: newHearts // keep synchronized
+          likes: newHearts
         };
         saveFeedPostToFirestore(updated).catch(() => {});
         return updated;
       })
     );
+    if (getAuthToken()) {
+      apiFetchWithCsrf(`/api/posts/${encodeURIComponent(postId)}/react`, { method: 'POST' }).catch(() => {});
+    }
+    if (addedReaction && targetPost && targetPost.authorId && targetPost.authorId !== currentUser.uid && !targetPost.isAnonymous) {
+      const reactNotif: AppNotification = {
+        id: `notif_react_${postId}_${currentUser.uid}_${Date.now()}`,
+        toUid: targetPost.authorId,
+        fromUid: currentUser.uid,
+        type: 'post_reaction',
+        title: `${currentUser.name} appreciated your post`,
+        body: `"${(targetPost.title || targetPost.content || 'Community Post').slice(0, 80)}"`,
+        refId: postId,
+        metadata: { postId, actorUid: currentUser.uid },
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      setNotifications((prev) => [reactNotif, ...prev]);
+      saveNotificationToFirestore(reactNotif).catch(() => {});
+    }
   };
 
   const toggleLikeFeedPost = (postId: string) => {
@@ -4078,6 +4509,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       createdAt: new Date().toISOString()
     };
 
+    const targetPost = feedPosts.find((p) => p.id === postId);
     setFeedPosts((prev) =>
       prev.map((post) => {
         if (post.id !== postId) return post;
@@ -4089,14 +4521,103 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return updated;
       })
     );
+    if (getAuthToken()) {
+      apiFetchWithCsrf(`/api/posts/${encodeURIComponent(postId)}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim() })
+      }).catch(() => {});
+    }
+    if (targetPost && targetPost.authorId && targetPost.authorId !== currentUser.uid && !targetPost.isAnonymous) {
+      const commentNotif: AppNotification = {
+        id: `notif_comm_${postId}_${newComment.id}`,
+        toUid: targetPost.authorId,
+        fromUid: currentUser.uid,
+        type: 'post_comment',
+        title: `${currentUser.name} commented on your post`,
+        body: text.trim().slice(0, 120),
+        refId: postId,
+        metadata: { postId, commentId: newComment.id, actorUid: currentUser.uid },
+        read: false,
+        createdAt: new Date().toISOString()
+      };
+      setNotifications((prev) => [commentNotif, ...prev]);
+      saveNotificationToFirestore(commentNotif).catch(() => {});
+    }
     showToast('Comment posted!', 'success');
   };
+
+  const shareFeedPost = useCallback(async (
+    postId: string,
+    commentary?: string
+  ): Promise<{ success: boolean; sharedPost?: InstitutionalFeedPost; error?: string }> => {
+    if (!currentUser) {
+      return { success: false, error: 'Please sign in to repost.' };
+    }
+    if (getAuthToken()) {
+      try {
+        const res = await apiFetchWithCsrf(`/api/posts/${encodeURIComponent(postId)}/share`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ commentary: commentary?.trim() || undefined })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          const msg = data?.error || 'Could not share post.';
+          showToast(msg, 'error');
+          return { success: false, error: msg };
+        }
+        const sharedPost: InstitutionalFeedPost | undefined = data?.sharedPost;
+        if (sharedPost) {
+          setFeedPosts((prev) => [
+            sharedPost,
+            ...prev.map((p) => (p.id === postId ? { ...p, sharesCount: (p.sharesCount || 0) + 1 } : p))
+          ]);
+          saveFeedPostToFirestore(sharedPost).catch(() => {});
+        }
+        showToast('Shared to your timeline and the main feed!', 'success');
+        return { success: true, sharedPost };
+      } catch {
+        // Fallback below
+      }
+    }
+    const orig = feedPosts.find((p) => p.id === postId);
+    if (!orig) return { success: false, error: 'Original post not found.' };
+    const sharedPost: InstitutionalFeedPost = {
+      ...orig,
+      id: generateSecureId('post'),
+      authorId: currentUser.uid,
+      authorName: currentUser.name,
+      authorRole: currentUser.role,
+      authorAvatar: currentUser.profilePictureUrl || '',
+      authorUsername: currentUser.username,
+      content: commentary?.trim() ? `${commentary.trim()}\n\n${orig.content}` : orig.content,
+      sharedFromPostId: orig.id,
+      sharedFromAuthorId: orig.isAnonymous ? undefined : orig.authorId,
+      sharedFromAuthorName: orig.isAnonymous ? 'Anonymous Alumnus' : orig.authorName,
+      sharedLabel: 'Shared',
+      isAnonymous: false,
+      isPinned: false,
+      likes: [],
+      hearts: [],
+      comments: [],
+      sharesCount: 0,
+      createdAt: new Date().toISOString()
+    };
+    setFeedPosts((prev) => [
+      sharedPost,
+      ...prev.map((p) => (p.id === postId ? { ...p, sharesCount: (p.sharesCount || 0) + 1 } : p))
+    ]);
+    saveFeedPostToFirestore(sharedPost).catch(() => {});
+    showToast('Shared to your timeline!', 'success');
+    return { success: true, sharedPost };
+  }, [currentUser, feedPosts, showToast]);
 
   const deleteFeedPost = (postId: string) => {
     if (!currentUser) return;
     const post = feedPosts.find((p) => p.id === postId);
-    if (!post) return;
-    if (currentUser.role !== 'admin' && post.authorId !== currentUser.uid) {
+    const isStaff = ['admin', 'superadmin', 'moderator'].includes(currentUser.role);
+    if (post && !isStaff && post.authorId !== currentUser.uid) {
       showToast('You do not have permission to delete this post.', 'error');
       return;
     }
@@ -4104,22 +4625,37 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     deleteFeedPostFromFirestore(postId).catch((err) => {
       console.warn('Failed to delete feed post from Firestore:', err);
     });
-    showToast('Post removed from feed.', 'info');
+    if (getAuthToken()) {
+      apiFetchWithCsrf(`/api/posts/${encodeURIComponent(postId)}`, { method: 'DELETE' }).catch(() => {});
+    }
+    showToast('Post removed from feed and timeline.', 'info');
   };
 
   const updateFeedPost = (postId: string, updates: Partial<InstitutionalFeedPost>) => {
     if (!currentUser) return false;
     const post = feedPosts.find((p) => p.id === postId);
-    if (!post) return false;
-    if (currentUser.role !== 'admin' && post.authorId !== currentUser.uid) {
+    const isStaff = ['admin', 'superadmin', 'moderator'].includes(currentUser.role);
+    if (post && !isStaff && post.authorId !== currentUser.uid) {
       showToast('You do not have permission to edit this post.', 'error');
       return false;
     }
-    const updatedPost = { ...post, ...updates };
-    setFeedPosts((prev) => prev.map((p) => (p.id === postId ? updatedPost : p)));
-    saveFeedPostToFirestore(updatedPost).catch((err) => {
-      console.warn('Failed to update feed post in Firestore:', err);
-    });
+    const { createdAt: _ignoreCreatedAt, ...safeUpdates } = updates;
+    const updatedPost: InstitutionalFeedPost | undefined = post
+      ? { ...post, ...safeUpdates, isEdited: true, updatedAt: new Date().toISOString() }
+      : undefined;
+    if (updatedPost) {
+      setFeedPosts((prev) => prev.map((p) => (p.id === postId ? updatedPost : p)));
+      saveFeedPostToFirestore(updatedPost).catch((err) => {
+        console.warn('Failed to update feed post in Firestore:', err);
+      });
+    }
+    if (getAuthToken()) {
+      apiFetchWithCsrf(`/api/posts/${encodeURIComponent(postId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(safeUpdates)
+      }).catch(() => {});
+    }
     showToast('Post updated successfully.', 'success');
     return true;
   };
@@ -4157,6 +4693,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     signOutUser().catch(() => {});
     clearStoredSession();
+    currentUserIdRef.current = null;
+    currentUserRoleRef.current = 'alumni';
     setCurrentUserId(null);
     setActiveSessionConflict(null);
     try {
@@ -4171,8 +4709,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       } else {
         sessionStorage.removeItem('alumni_server_auth_token');
       }
+      if (typeof window !== 'undefined' && /^\/(portal|profile|post)\//i.test(window.location.pathname)) {
+        window.history.replaceState({}, '', '/');
+      }
     } catch {}
-    setActiveTab('dashboard');
+    setActiveTabState('dashboard');
+    setViewedProfileIdentifier(null);
+    setViewedPostId(null);
     showToast(shouldRevokeBiometrics ? 'Logged out and biometric credentials revoked.' : 'Logged out successfully.');
   }, [showToast]);
 
@@ -4378,6 +4921,48 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return { success: true, message: 'Password updated securely!' };
   };
 
+  // Profile & URL sub-route navigation helpers
+  const openProfile = useCallback((identifierOrUid: string) => {
+    if (!identifierOrUid || identifierOrUid === 'anonymous' || identifierOrUid === 'former_alumni') return;
+    const matched = users.find((u) => u.uid === identifierOrUid || u.username === identifierOrUid);
+    const canonicalSlug = matched?.username || identifierOrUid;
+    setSelectedUserIdForModal(null);
+    setViewedPostId(null);
+    setViewedProfileIdentifier(canonicalSlug);
+    if (typeof window !== 'undefined') {
+      const targetUrl = `/profile/${encodeURIComponent(canonicalSlug)}`;
+      if (window.location.pathname !== targetUrl) {
+        window.history.pushState({ profile: canonicalSlug }, '', targetUrl);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [users]);
+
+  const openPostPermalink = useCallback((postId: string) => {
+    if (!postId) return;
+    setSelectedUserIdForModal(null);
+    setViewedProfileIdentifier(null);
+    setViewedPostId(postId);
+    if (typeof window !== 'undefined') {
+      const targetUrl = `/post/${encodeURIComponent(postId)}`;
+      if (window.location.pathname !== targetUrl) {
+        window.history.pushState({ post: postId }, '', targetUrl);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
+
+  const closeSubRoute = useCallback(() => {
+    setViewedProfileIdentifier(null);
+    setViewedPostId(null);
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/profile/') || window.location.pathname.startsWith('/post/')) {
+        const nextPortal = buildPortalUrlForTab(activeTab || 'dashboard');
+        window.history.pushState({ portalPath: nextPortal }, '', nextPortal);
+      }
+    }
+  }, [activeTab]);
+
   // Profile operations
   const updateProfile = (data: Partial<UserProfile>) => {
     if (!currentUserId) {
@@ -4389,6 +4974,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const updated = prev.map((u) => (u.uid === currentUserId ? { ...u, ...data } : u));
       return updated;
     });
+    if (getAuthToken()) {
+      apiFetchWithCsrf('/api/profiles/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }).catch(() => {});
+    }
     alumniService
       .updateAlumni(currentUserId, data, currentFullUser ? { ...currentFullUser, ...data } : undefined)
       .then(() => {
@@ -4399,6 +4991,92 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         showToast('Profile changes saved successfully.', 'success');
       });
   };
+
+  const pinProfilePost = useCallback(async (postId: string | null): Promise<boolean> => {
+    if (!currentUserId) return false;
+    setUsers((prev) =>
+      prev.map((u) => (u.uid === currentUserId ? { ...u, pinnedPostId: postId || undefined } : u))
+    );
+    if (getAuthToken()) {
+      try {
+        const res = postId
+          ? await apiFetchWithCsrf('/api/profiles/me/pin', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ postId })
+            })
+          : await apiFetchWithCsrf('/api/profiles/me/pin', { method: 'DELETE' });
+        if (!res.ok) {
+          const d = await res.json().catch(() => null);
+          showToast(d?.error || 'Could not update pinned post.', 'error');
+          return false;
+        }
+      } catch {
+        // Offline fallback kept
+      }
+    }
+    showToast(postId ? 'Post pinned to the top of your profile!' : 'Post unpinned from profile.', 'success');
+    return true;
+  }, [currentUserId, showToast]);
+
+  const blockUser = useCallback(async (targetUid: string): Promise<boolean> => {
+    if (!currentUserId || !targetUid || targetUid === currentUserId) return false;
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.uid === currentUserId
+          ? { ...u, blockedUsers: Array.from(new Set([...(u.blockedUsers || []), targetUid])) }
+          : u
+      )
+    );
+    if (getAuthToken()) {
+      await apiFetchWithCsrf(`/api/profiles/${encodeURIComponent(targetUid)}/block`, { method: 'POST' }).catch(() => {});
+    }
+    showToast('User blocked. Their posts and profile are now hidden.', 'info');
+    return true;
+  }, [currentUserId, showToast]);
+
+  const unblockUser = useCallback(async (targetUid: string): Promise<boolean> => {
+    if (!currentUserId || !targetUid) return false;
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.uid === currentUserId
+          ? { ...u, blockedUsers: (u.blockedUsers || []).filter((id) => id !== targetUid) }
+          : u
+      )
+    );
+    if (getAuthToken()) {
+      await apiFetchWithCsrf(`/api/profiles/${encodeURIComponent(targetUid)}/block`, { method: 'DELETE' }).catch(() => {});
+    }
+    showToast('User unblocked.', 'success');
+    return true;
+  }, [currentUserId, showToast]);
+
+  const deleteMyAccount = useCallback(async (): Promise<boolean> => {
+    if (!currentUserId) return false;
+    if (getAuthToken()) {
+      const res = await apiFetchWithCsrf('/api/profiles/me', { method: 'DELETE' }).catch(() => null);
+      if (res && !res.ok) {
+        showToast('Failed to delete account on server.', 'error');
+        return false;
+      }
+    }
+    setFeedPosts((prev) =>
+      prev.map((p) =>
+        p.authorId === currentUserId
+          ? { ...p, authorName: 'Former alumni', authorAvatar: '', authorUsername: undefined, authorDeleted: true }
+          : p
+      )
+    );
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.uid === currentUserId
+          ? { ...u, name: 'Former alumni', isDeleted: true, accountStatus: 'DELETED' }
+          : u
+      )
+    );
+    showToast('Account deleted and past posts anonymized as Former alumni.', 'info');
+    return true;
+  }, [currentUserId, showToast]);
 
   const addExperience = (exp: Omit<Experience, 'id'>) => {
     if (!currentUserId) return;
@@ -5309,7 +5987,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       data: {
         eventId: newEvt.id,
         category: 'event',
-        url: '/?tab=events'
+        targetPath: `/portal/events/${encodeURIComponent(newEvt.id)}`,
+        targetRoute: `/portal/events/${encodeURIComponent(newEvt.id)}`,
+        url: `/portal/events/${encodeURIComponent(newEvt.id)}`
       }
     }).catch(() => {});
 
@@ -5350,6 +6030,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           type: 'event',
           title: 'Event Cancellation Notice',
           body: `Notice: "${target.title}" originally scheduled on ${new Date(target.startDate).toLocaleDateString()} has been cancelled by the administration.`,
+          refId: target.id,
+          metadata: { eventId: target.id },
           read: false,
           createdAt: new Date().toISOString()
         };
@@ -5520,6 +6202,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         type: 'event',
         title: 'Event Registration Confirmed!',
         body: `You are confirmed as ${newStatus === 'going' ? 'attending' : 'interested in'} "${targetEvent.title}". We have scheduled automated reminders: 1 day prior and on event day.`,
+        refId: targetEvent.id,
         read: false,
         createdAt: new Date().toISOString(),
         metadata: { eventId: targetEvent.id, rsvpStatus: newStatus }
@@ -5532,6 +6215,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         type: 'event',
         title: `Event Reminder (1 Day Before): ${targetEvent.title}`,
         body: `Tomorrow is the day! "${targetEvent.title}" takes place tomorrow (${eventDateFormatted} ${eventTimeFormatted ? 'at ' + eventTimeFormatted : ''}) at ${targetEvent.location}. Ensure you have your St. Cecilia's College Digital ID ready for campus entry!`,
+        refId: targetEvent.id,
         read: false,
         createdAt: new Date(Date.now() + 1000).toISOString(),
         metadata: {
@@ -5549,6 +6233,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         type: 'event',
         title: `Event Today: ${targetEvent.title}`,
         body: `Today is the event! "${targetEvent.title}" takes place today at ${targetEvent.location}. Check in at the entrance using your official SCC Digital Pass.`,
+        refId: targetEvent.id,
         read: false,
         createdAt: new Date(Date.now() + 2000).toISOString(),
         metadata: {
@@ -6597,6 +7282,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       type: 'announcement',
       title: `${newAnn.urgent ? '🚨 URGENT: ' : newAnn.important ? '⭐ NOTICE: ' : ''}${newAnn.title}`,
       body: newAnn.content.slice(0, 110) + '...',
+      refId: newAnn.id,
+      targetPath: `/portal/announcements/${encodeURIComponent(newAnn.id)}`,
+      targetRoute: `/portal/announcements/${encodeURIComponent(newAnn.id)}`,
       read: false,
       createdAt: new Date().toISOString(),
       metadata: { announcementId: newAnn.id }
@@ -6613,7 +7301,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         announcementId: newAnn.id,
         category: 'announcement',
         urgent: !!newAnn.urgent,
-        url: '/?tab=announcements'
+        targetPath: `/portal/announcements/${encodeURIComponent(newAnn.id)}`,
+        targetRoute: `/portal/announcements/${encodeURIComponent(newAnn.id)}`,
+        url: `/portal/announcements/${encodeURIComponent(newAnn.id)}`
       }
     }).catch(() => {});
 
@@ -6770,11 +7460,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const adminNotif: AppNotification = {
         id: `notif_job_pend_${newOpp.id}`,
         toUid: 'admin',
-        type: 'general',
-        title: '🔔 New Job Posting Awaiting Approval',
+        type: 'job',
+        title: 'New Job Posting Awaiting Approval',
         body: `${newOpp.company} submitted "${newOpp.title}" for review. Click to verify & approve.`,
         refId: newOpp.id,
-        metadata: { targetRole: 'admin', jobId: newOpp.id },
+        metadata: { targetRole: 'admin', targetTab: 'jobs', targetSubTab: 'moderation', jobId: newOpp.id },
         read: false,
         createdAt: new Date().toISOString()
       };
@@ -7396,10 +8086,142 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+    if (id.startsWith('notif_mod_') && getAuthToken()) {
+      apiFetchWithCsrf(`/api/moderation/notifications/${encodeURIComponent(id)}/read`, {
+        method: 'POST'
+      }).catch(() => {});
+    }
     markNotificationReadInFirestore(id).catch((err) => {
       console.warn('Failed to mark notification read in Firestore:', err);
     });
   };
+
+  const unauthorizedAttemptDedupeRef = useRef<Map<string, number>>(new Map());
+
+  const reportUnauthorizedSuperAdminAccess = useCallback(
+    async (attemptedPath: string, attemptedModule: string) => {
+      if (!currentUser || normalizeSystemRole(currentUser.role) === 'superadmin') return;
+      const cleanPath = attemptedPath || buildPortalUrlForTab(attemptedModule || 'audit');
+      const dedupeKey = `${currentUser.uid}:${cleanPath}`;
+      const now = Date.now();
+      const lastLogged = unauthorizedAttemptDedupeRef.current.get(dedupeKey) || 0;
+      if (now - lastLogged < 10000) return;
+      unauthorizedAttemptDedupeRef.current.set(dedupeKey, now);
+
+      let loggedViaServer = false;
+      if (getAuthToken()) {
+        try {
+          const res = await apiFetchWithCsrf('/api/security/unauthorized-access', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              attemptedPath: cleanPath,
+              attemptedModule,
+              attemptedSection: attemptedModule
+            })
+          });
+          if (res.status === 403 || res.ok) {
+            loggedViaServer = true;
+          }
+        } catch {}
+      }
+
+      if (!loggedViaServer) {
+        addAuditLog({
+          action: 'UNAUTHORIZED_SUPERADMIN_ACCESS',
+          actorId: currentUser.uid,
+          actorName: currentUser.name,
+          actorRole: currentUser.role || 'alumni',
+          category: 'security',
+          details: `HTTP 403 Forbidden: Unauthorized access attempt by ${currentUser.name} (${currentUser.role}) to restricted superadmin route ${cleanPath} [${attemptedModule}].`,
+          severity: 'alert',
+          targetRecordId: cleanPath,
+          isSuspicious: true,
+          requiresAlertIcon: true
+        });
+      }
+
+      const secNotif: AppNotification = normalizeNotificationPayload({
+        id: `notif_unauth_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        toUid: 'superadmin',
+        fromUid: currentUser.uid,
+        type: 'security',
+        title: 'Security Alert: Unauthorized Restricted Route Attempt',
+        body: `${currentUser.name} (${currentUser.role}) attempted to access ${cleanPath}. Access blocked (403 Forbidden).`,
+        refId: cleanPath,
+        targetPath: '/portal/audit',
+        targetRoute: '/portal/audit',
+        metadata: { targetRole: 'superadmin', attemptedPath: cleanPath, attemptedModule },
+        read: false,
+        createdAt: new Date().toISOString()
+      }, 'superadmin');
+      setNotifications((prev) => [secNotif, ...prev]);
+    },
+    [currentUser, addAuditLog, setNotifications]
+  );
+
+  const navigateToPortalPath = useCallback(
+    (rawPath: string, overrideNotif?: AppNotification) => {
+      const normalizedRaw = rawPath.startsWith('/portal/')
+        ? rawPath
+        : buildPortalUrlForTab(rawPath.replace(/^\/+/, '') || 'dashboard');
+      const role = currentUser?.role || 'alumni';
+      const parsed = parsePortalUrlPath(normalizedRaw, role);
+      const resolved = overrideNotif
+        ? resolveNotificationDeepLink(overrideNotif, role)
+        : {
+            tab: parsed.tab,
+            subTab: parsed.subTab,
+            targetType: parsed.targetType,
+            targetId: parsed.targetId,
+            targetPath: parsed.targetPath,
+            targetRoute: parsed.targetRoute,
+            notificationId: undefined,
+            fromUid: undefined,
+            timestamp: Date.now()
+          };
+
+      const finalPath = resolved.targetPath || parsed.targetPath;
+
+      setSelectedUserIdForModal(null);
+      setViewedProfileIdentifier(null);
+      setViewedPostId(null);
+
+      if (
+        (parsed.requiresSuperAdmin || isSuperAdminRestrictedTarget(finalPath)) &&
+        normalizeSystemRole(role) !== 'superadmin'
+      ) {
+        reportUnauthorizedSuperAdminAccess(finalPath, parsed.requestedSection || parsed.tab).catch(() => {});
+      }
+
+      setDeepLinkTarget(resolved);
+      setActiveTabState(resolved.tab);
+      triggerItemHighlight(resolved.targetId || null);
+
+      if (typeof window !== 'undefined') {
+        if (window.location.pathname !== finalPath) {
+          window.history.pushState({ portalPath: finalPath, tab: resolved.tab }, '', finalPath);
+        }
+      }
+
+      if (resolved.targetType === 'message' && resolved.targetId) {
+        setActiveChatId(resolved.targetId);
+      }
+    },
+    [currentUser?.role, reportUnauthorizedSuperAdminAccess, triggerItemHighlight]
+  );
+
+  const navigateFromNotification = useCallback(
+    (notif: AppNotification) => {
+      if (!notif.read) {
+        markNotificationAsRead(notif.id);
+      }
+      const normalized = normalizeNotificationPayload(notif, currentUser?.role);
+      const target = resolveNotificationDeepLink(normalized, currentUser?.role);
+      navigateToPortalPath(target.targetPath || target.targetRoute, normalized);
+    },
+    [currentUser?.role, navigateToPortalPath]
+  );
 
   const markAllNotificationsAsRead = () => {
     if (!currentUserId) return;
@@ -7702,12 +8524,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         authorId: newM.authorId || currentUser?.uid || 'usr_admin_cecilia',
         authorName: newM.authorName,
         authorRole: (newM.authorRole as any) || 'admin',
-        authorAvatar: currentUser?.profilePictureUrl || '/assets/st-cecilias-college-seal.jpg',
+        authorAvatar: currentUser?.profilePictureUrl || '/assets/cecilians-seal.jpg',
         postType: 'milestone',
         milestoneBadge: newM.company || newM.category,
         title: newM.title,
         content: newM.description || `${newM.authorName} achieved an outstanding milestone in ${newM.category}!`,
-        imageUrl: (newM.images && newM.images[0]) || '/assets/st-cecilias-college-seal.jpg',
+        imageUrl: (newM.images && newM.images[0]) || '/assets/cecilians-seal.jpg',
         likes: [],
         comments: [],
         sharesCount: 0,
@@ -7721,13 +8543,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     // Broadcast notification to all users
+    const feedPostTargetId =
+      newM.authorRole !== 'employer' && newM.authorRole !== 'alumni' ? `post_ms_${newM.id}` : newM.id;
     const notif: AppNotification = {
       id: `notif_m_${Date.now()}`,
       toUid: 'all',
-      type: 'announcement',
+      type: 'milestone',
       title: `New Milestone Spotlight: ${newM.title}`,
       body: `${newM.authorName} published a spotlight in ${newM.category}: "${newM.title}". Check it out on the dashboard!`,
-      refId: newM.id,
+      refId: feedPostTargetId,
+      targetPath: `/portal/feed/${encodeURIComponent(feedPostTargetId)}`,
+      targetRoute: `/portal/feed/${encodeURIComponent(feedPostTargetId)}`,
+      metadata: { milestoneId: newM.id, postId: feedPostTargetId },
       read: false,
       createdAt: new Date().toISOString()
     };
@@ -7740,8 +8567,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       category: 'milestone',
       data: {
         milestoneId: newM.id,
+        postId: feedPostTargetId,
         category: 'milestone',
-        url: '/?tab=dashboard'
+        targetPath: `/portal/feed/${encodeURIComponent(feedPostTargetId)}`,
+        targetRoute: `/portal/feed/${encodeURIComponent(feedPostTargetId)}`,
+        url: `/portal/feed/${encodeURIComponent(feedPostTargetId)}`
       }
     }).catch(() => {});
 
@@ -7750,6 +8580,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const toggleLikeMilestone = (milestoneId: string) => {
     if (!currentUser) return;
+    const targetMilestone = milestones.find((m) => m.id === milestoneId);
+    const ownerUid = targetMilestone?.alumnusId || targetMilestone?.uid;
+    if (ownerUid && ownerUid === currentUser.uid) {
+      showToast('You cannot congratulate yourself on your own milestone.', 'info');
+      return;
+    }
     setMilestones((prev) =>
       prev.map((m) => {
         if (m.id === milestoneId) {
@@ -7802,11 +8638,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     // Notify administrators
     const adminNotif: AppNotification = {
       id: `notif_renew_req_${Date.now()}`,
-      toUid: 'all',
+      toUid: 'admin',
       type: 'general',
       title: 'Employer Accreditation Renewal Requested',
       body: `Employer "${currentUser.companyName || currentUser.name}" submitted a renewal request: "${notes.slice(0, 80)}..."`,
       refId: currentUser.uid,
+      targetPath: `/portal/jobs/employers/${encodeURIComponent(currentUser.uid)}`,
+      targetRoute: `/portal/jobs/employers/${encodeURIComponent(currentUser.uid)}`,
+      metadata: { targetRole: 'admin', targetTab: 'jobs', targetSubTab: 'employers', employerUid: currentUser.uid },
       read: false,
       createdAt: new Date().toISOString()
     };
@@ -8036,13 +8875,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             targetUserRole: user.role
           });
 
-          // In-app Notification for Admin
+          // In-app Notification for Superadmin
           const adminNotif: AppNotification = {
             id: `notif_auto_restored_${user.uid}_${Date.now()}`,
-            toUid: 'all',
+            toUid: 'superadmin',
             title: 'Account Suspension Expired & Auto-Restored',
             body: `Account for ${user.name} (${user.role}) reached its scheduled suspension expiration and was automatically restored to ACTIVE.`,
             type: 'security',
+            refId: user.uid,
+            targetPath: '/portal/audit',
+            targetRoute: '/portal/audit',
+            metadata: { targetRole: 'superadmin' },
             read: false,
             createdAt: new Date().toISOString()
           };
@@ -8173,6 +9016,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [currentUser, updateProfile, addAuditLog, showToast]);
 
   const triggerDatabaseBackup = useCallback((type: 'automated' | 'manual' = 'manual') => {
+    if (normalizeSystemRole(currentUser?.role) !== 'superadmin') {
+      showToast('Database snapshots and backups are restricted strictly to Super Administrators.', 'error');
+      return;
+    }
     const newSnapshot: DatabaseBackupSnapshot = {
       id: `snap_${Date.now()}`,
       timestamp: new Date().toISOString(),
@@ -8335,13 +9182,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         requiresAlertIcon: true
       });
 
-      // 4. In-App Notification for Admin Awareness
+      // 4. In-App Notification for Superadmin Security Awareness
       const adminNotif: AppNotification = {
         id: `notif_susp_${uid}_${Date.now()}`,
-        toUid: 'all',
+        toUid: 'superadmin',
         title: isLock ? '⚠️ Account Locked by Administrator' : '⚠️ Account Suspended by Administrator',
         body: `${isLock ? 'Lockout' : 'Suspension'} applied to ${target?.name || uid} (${target?.role || 'member'}). Reason: "${cleanReason}".`,
         type: 'security',
+        refId: uid,
+        targetPath: '/portal/audit',
+        targetRoute: '/portal/audit',
+        metadata: { targetRole: 'superadmin' },
         read: false,
         createdAt: new Date().toISOString()
       };
@@ -8688,8 +9539,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const notif: AppNotification = {
       id: `notif_emerg_${Date.now()}`,
       type: 'announcement',
-      title: `🚨 EMERGENCY ADVISORY: ${title}`,
+      title: `EMERGENCY ADVISORY: ${title}`,
       body: content.slice(0, 140) + '...',
+      refId: newAnn.id,
+      targetPath: `/portal/announcements/${encodeURIComponent(newAnn.id)}`,
+      targetRoute: `/portal/announcements/${encodeURIComponent(newAnn.id)}`,
+      metadata: { announcementId: newAnn.id },
       read: false,
       createdAt: new Date().toISOString()
     };
@@ -8786,32 +9641,98 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const purgeDatabaseSampleData = useCallback(async (): Promise<{ success: boolean; message: string }> => {
     setIsFirestoreSyncing(true);
-    showToast('Purging sample data from local storage and Cloud Firestore...', 'info');
+    showToast('Purging all database records (keeping Superadmin account only)...', 'info');
     try {
-      // 1. Purge cloud collections
+      // 1. Reset server-side credentials & moderation stores (superadmin-only)
+      if (getAuthToken()) {
+        await apiFetch('/api/admin/database/reset-superadmin-only', { method: 'POST' }).catch(() => null);
+      }
+
+      // 2. Purge all remote Cloud Firestore collections except the primary superadmin
       const cloudRes = await purgeAllFirestoreSampleData();
 
-      // 2. Clear in-memory & local storage state
+      // 3. Retain only primary superadmin in state and credentials vault
+      const retainedSuperadmin =
+        users.find((u) => u.uid === 'usr_superadmin_cecilia') ||
+        INITIAL_USERS[0];
+      const nextUsers = retainedSuperadmin ? [retainedSuperadmin] : [];
+      setUsers(nextUsers);
+
       setEvents([]);
       setAnnouncements([]);
       setOpportunities([]);
+      setJobApplications([]);
       setReservations([]);
       setFeedPosts([]);
       setGalleryItems([]);
       setMilestones([]);
+      setFriendRequests([]);
+      setChats([]);
+      setMessages({});
+      setNotifications([]);
+      setAuditLogs([]);
+      setAutomationJobs([]);
+      setCareerSurveys([]);
+      setBackups([]);
+      setConnectionsMap({});
+      setFollowingMap({});
+      setOfflineQueue([]);
 
       try {
-        localStorage.removeItem(STORAGE_KEYS.EVENTS);
-        localStorage.removeItem(STORAGE_KEYS.ANNOUNCEMENTS);
-        localStorage.removeItem(STORAGE_KEYS.OPPORTUNITIES);
-        localStorage.removeItem(STORAGE_KEYS.RESERVATIONS);
-        localStorage.removeItem(STORAGE_KEYS.FEED_POSTS);
-        localStorage.removeItem(STORAGE_KEYS.GALLERY);
-        localStorage.removeItem(STORAGE_KEYS.MILESTONES);
-        localStorage.removeItem('st_cecilia_registrar_student_records');
+        [
+          STORAGE_KEYS.USERS,
+          STORAGE_KEYS.REQUESTS,
+          STORAGE_KEYS.CHATS,
+          STORAGE_KEYS.MESSAGES,
+          STORAGE_KEYS.NOTIFICATIONS,
+          STORAGE_KEYS.EVENTS,
+          STORAGE_KEYS.ANNOUNCEMENTS,
+          STORAGE_KEYS.OPPORTUNITIES,
+          STORAGE_KEYS.APPLICATIONS,
+          STORAGE_KEYS.MILESTONES,
+          STORAGE_KEYS.FOLLOWING,
+          STORAGE_KEYS.CONNECTIONS,
+          STORAGE_KEYS.GALLERY,
+          STORAGE_KEYS.FEED_POSTS,
+          STORAGE_KEYS.AUDIT_LOGS,
+          STORAGE_KEYS.AUTOMATION_JOBS,
+          STORAGE_KEYS.CAREER_SURVEYS,
+          STORAGE_KEYS.BACKUPS,
+          STORAGE_KEYS.RESERVATIONS,
+          CREDENTIALS_VAULT_KEY,
+          'st_cecilia_credentials_vault',
+          'st_cecilia_registrar_student_records',
+          'st_cecilia_registrar_records_v1',
+          'st_cecilia_student_records_v1',
+          'st_cecilia_accredited_registry_records',
+          'st_cecilia_registry_conflicts',
+          'st_cecilia_chapters_v1',
+          'st_cecilia_superadmin_security_alerts_v1',
+          'st_cecilia_centenary_time_capsules_v1',
+          'st_cecilia_governance_policies_v1',
+          'alumni_offline_message_queue_v1',
+          'cecilian_event_reminders_v1',
+          'scc_jobs_badge_dismissed_v1'
+        ].forEach((k) => localStorage.removeItem(k));
+        clearDispatchedEmails();
+
+        if (retainedSuperadmin) {
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
+          saveCredentialToVault({
+            uid: retainedSuperadmin.uid,
+            name: retainedSuperadmin.name,
+            email: retainedSuperadmin.email,
+            studentId: retainedSuperadmin.studentId,
+            alumniId: retainedSuperadmin.alumniId,
+            employeeId: retainedSuperadmin.employeeId,
+            password: retainedSuperadmin.password || 'Password123!',
+            role: retainedSuperadmin.role,
+            isVerified: true
+          });
+        }
       } catch {}
 
-      const msg = `Purge completed: ${cloudRes.deletedCount} remote cloud documents purged. All collections are now clean for live testing.`;
+      const msg = `Database reset complete: ${cloudRes.deletedCount} cloud records purged. Only the Superadmin account remains.`;
       showToast(msg, 'success');
       return { success: true, message: msg };
     } catch (err: any) {
@@ -8821,7 +9742,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } finally {
       setIsFirestoreSyncing(false);
     }
-  }, [showToast]);
+  }, [users, setNotifications, showToast]);
 
   const testDatabaseWrite = useCallback(async (): Promise<{ success: boolean; latencyMs: number; message: string }> => {
     setIsFirestoreSyncing(true);
@@ -8845,6 +9766,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [showToast]);
 
+  const isSuperAdmin = normalizeSystemRole(currentUser?.role) === 'superadmin';
+
   return (
     <AlumniContext.Provider
       value={{
@@ -8861,6 +9784,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         notificationSettings,
         activeTab,
         setActiveTab,
+        deepLinkTarget,
+        setDeepLinkTarget,
+        clearDeepLinkTarget,
+        highlightedItemId,
+        clearHighlightedItem,
+        navigateFromNotification,
+        navigateToPortalPath,
+        reportUnauthorizedSuperAdminAccess,
         selectedUserIdForModal,
         setSelectedUserIdForModal,
         isEditProfileModalOpen,
@@ -8987,11 +9918,22 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         deleteGalleryItem,
         feedPosts,
         addFeedPost,
+        createSocialPost,
         toggleLikeFeedPost,
         toggleHeartFeedPost,
         addFeedPostComment,
+        shareFeedPost,
         deleteFeedPost,
         updateFeedPost,
+        pinProfilePost,
+        blockUser,
+        unblockUser,
+        deleteMyAccount,
+        viewedProfileIdentifier,
+        viewedPostId,
+        openProfile,
+        openPostPermalink,
+        closeSubRoute,
         createUserByAdmin,
         fetchAlumni,
         createAlumni,
@@ -9008,10 +9950,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         requestEmployerRenewal,
         renewEmployerAccount,
         checkAndEnforceEmployerExpirations,
-        auditLogs,
+        auditLogs: isSuperAdmin ? auditLogs : [],
         automationJobs,
         careerSurveys,
-        backups,
+        backups: isSuperAdmin ? backups : [],
         addAuditLog,
         submitCareerSurvey,
         runAutomationJob,

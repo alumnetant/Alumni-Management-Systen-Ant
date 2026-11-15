@@ -1259,9 +1259,7 @@ export function subscribeToGalleryItems(
     (snapshot) => {
       const items: any[] = [];
       snapshot.forEach((d) => items.push(d.data()));
-      if (items.length > 0) {
-        onUpdate(items);
-      }
+      onUpdate(items);
     },
     (err) => console.warn('Gallery Firestore subscription notice:', err)
   );
@@ -1415,18 +1413,81 @@ export async function syncAllCollectionsToFirestore(payload: {
 }
 
 /**
- * Purges all sample documents from cloud Firestore database for clean testing
+ * Purges all documents across Cloud Firestore collections except the primary superadmin account
  */
 export async function purgeAllFirestoreSampleData(): Promise<{ success: boolean; deletedCount: number }> {
   let deletedCount = 0;
+  const PRIMARY_SUPERADMIN_UID = 'usr_superadmin_cecilia';
+
+  // 1. Delete all non-superadmin users from /users and /auth_credentials
+  for (const colName of [FIRESTORE_COLLECTIONS.USERS, 'auth_credentials']) {
+    try {
+      const colRef = collection(db, colName);
+      const snap = await getDocs(colRef);
+      for (const docSnap of snap.docs) {
+        const data = docSnap.data() as any;
+        const isPrimarySuperadmin =
+          docSnap.id === PRIMARY_SUPERADMIN_UID ||
+          (String(data?.role || '').toLowerCase().trim() === 'superadmin' &&
+            String(data?.email || '').toLowerCase().trim() === 'superadmin@stcecilia.edu.ph');
+        if (isPrimarySuperadmin) continue;
+        try {
+          await deleteDoc(docSnap.ref);
+          deletedCount++;
+        } catch (docErr) {
+          console.warn(`Notice deleting doc ${colName}/${docSnap.id}:`, docErr);
+        }
+      }
+    } catch (err) {
+      console.warn(`Notice purging Firestore collection ${colName}:`, err);
+    }
+  }
+
+  // 2. Delete nested conversation messages and conversation docs
+  for (const chatCol of [FIRESTORE_COLLECTIONS.CONVERSATIONS, FIRESTORE_COLLECTIONS.CHATS]) {
+    try {
+      const snap = await getDocs(collection(db, chatCol));
+      for (const chatDoc of snap.docs) {
+        try {
+          const msgSnap = await getDocs(collection(db, chatCol, chatDoc.id, 'messages'));
+          for (const msgDoc of msgSnap.docs) {
+            try {
+              await deleteDoc(msgDoc.ref);
+              deletedCount++;
+            } catch {}
+          }
+        } catch {}
+        try {
+          await deleteDoc(chatDoc.ref);
+          deletedCount++;
+        } catch {}
+      }
+    } catch (err) {
+      console.warn(`Notice purging Firestore collection ${chatCol}:`, err);
+    }
+  }
+
+  // 3. Purge all operational collections
   const collectionsToPurge = [
     FIRESTORE_COLLECTIONS.EVENTS,
     FIRESTORE_COLLECTIONS.ANNOUNCEMENTS,
     FIRESTORE_COLLECTIONS.OPPORTUNITIES,
+    FIRESTORE_COLLECTIONS.APPLICATIONS,
     FIRESTORE_COLLECTIONS.EVENT_RESERVATIONS,
     FIRESTORE_COLLECTIONS.FEED_POSTS,
     FIRESTORE_COLLECTIONS.REGISTRY_RECORDS,
-    FIRESTORE_COLLECTIONS.FRIEND_REQUESTS
+    FIRESTORE_COLLECTIONS.CONFLICT_RECORDS,
+    FIRESTORE_COLLECTIONS.FRIEND_REQUESTS,
+    FIRESTORE_COLLECTIONS.CONNECTIONS,
+    FIRESTORE_COLLECTIONS.NOTIFICATIONS,
+    FIRESTORE_COLLECTIONS.POST_REPORTS,
+    'gallery',
+    'milestones',
+    'audit_logs',
+    'activity_logs',
+    'user_blocks',
+    'profile_slugs',
+    'system_health'
   ];
 
   for (const colName of collectionsToPurge) {
@@ -1434,8 +1495,12 @@ export async function purgeAllFirestoreSampleData(): Promise<{ success: boolean;
       const colRef = collection(db, colName);
       const snap = await getDocs(colRef);
       for (const docSnap of snap.docs) {
-        await deleteDoc(docSnap.ref);
-        deletedCount++;
+        try {
+          await deleteDoc(docSnap.ref);
+          deletedCount++;
+        } catch (docErr) {
+          console.warn(`Notice deleting doc ${colName}/${docSnap.id}:`, docErr);
+        }
       }
     } catch (err) {
       console.warn(`Notice purging Firestore collection ${colName}:`, err);

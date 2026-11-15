@@ -28,6 +28,7 @@ import { ShareModal, ShareItem } from '../common/ShareModal';
 import { AnnouncementCard } from './AnnouncementCard';
 import { compressImage } from '../../lib/utils';
 import { PaginationControl } from '../common/PaginationControl';
+import { useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
 const ARCHIVED_STORAGE_KEY = 'sc_alumni_archived_announcements_v1';
 
@@ -38,7 +39,10 @@ export const AnnouncementsView: React.FC = () => {
     createAnnouncement,
     deleteAnnouncement,
     togglePinAnnouncement,
-    permissions
+    permissions,
+    deepLinkTarget,
+    clearDeepLinkTarget,
+    showToast
   } = useAlumni();
 
   const [tabFilter, setTabFilter] = useState<'active' | 'important' | 'pinned' | 'archived'>('active');
@@ -50,6 +54,7 @@ export const AnnouncementsView: React.FC = () => {
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [shareItem, setShareItem] = useState<ShareItem | null>(null);
+  const missingToastRef = useRef<string | null>(null);
 
   // Archived Announcements set persisted locally
   const [archivedIds, setArchivedIds] = useState<string[]>(() => {
@@ -162,6 +167,69 @@ export const AnnouncementsView: React.FC = () => {
         return sortOrder === 'oldest' ? timeA - timeB : timeB - timeA;
       });
   }, [announcements, tabFilter, categoryFilter, sortOrder, searchQuery, archivedIds]);
+
+  const paginatedAnnouncementIds = useMemo(
+    () =>
+      filteredAnnouncements
+        .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+        .map((a) => a.id),
+    [filteredAnnouncements, currentPage]
+  );
+
+  const { highlightedItemId, isHighlighted } = useDeepLinkHighlight(paginatedAnnouncementIds, [
+    tabFilter,
+    categoryFilter,
+    sortOrder,
+    currentPage
+  ]);
+
+  useEffect(() => {
+    const isAnnDeepLink = deepLinkTarget?.targetType === 'announcement';
+    const targetId = isAnnDeepLink ? deepLinkTarget.targetId : highlightedItemId;
+    if (!targetId) return;
+
+    if (isAnnDeepLink) {
+      clearDeepLinkTarget();
+    }
+
+    const target = announcements.find((a) => a.id === targetId);
+    if (!target) {
+      if (announcements.length > 0 && missingToastRef.current !== targetId) {
+        missingToastRef.current = targetId;
+        showToast?.('This announcement is no longer available.', 'info');
+      }
+      return;
+    }
+
+    const targetIsArchived = archivedIds.includes(target.id);
+    setTabFilter(targetIsArchived ? 'archived' : 'active');
+    setCategoryFilter('all');
+    setSearchQuery('');
+
+    const sortedList = announcements
+      .filter((a) => (targetIsArchived ? archivedIds.includes(a.id) : !archivedIds.includes(a.id)))
+      .sort((a, b) => {
+        const aUrgent = a.urgent ? 1 : 0;
+        const bUrgent = b.urgent ? 1 : 0;
+        if (aUrgent !== bUrgent) return bUrgent - aUrgent;
+        const aPin = a.isPinned ? 1 : 0;
+        const bPin = b.isPinned ? 1 : 0;
+        if (aPin !== bPin) return bPin - aPin;
+        if (sortOrder === 'important_first') {
+          const aImp = a.isImportant || a.important ? 1 : 0;
+          const bImp = b.isImportant || b.important ? 1 : 0;
+          if (aImp !== bImp) return bImp - aImp;
+        }
+        const timeA = new Date(a.publishedAt || a.createdAt || 0).getTime();
+        const timeB = new Date(b.publishedAt || b.createdAt || 0).getTime();
+        return sortOrder === 'oldest' ? timeA - timeB : timeB - timeA;
+      });
+
+    const targetIdx = sortedList.findIndex((a) => a.id === target.id);
+    if (targetIdx >= 0) {
+      setCurrentPage(Math.floor(targetIdx / PAGE_SIZE) + 1);
+    }
+  }, [deepLinkTarget, highlightedItemId, announcements, archivedIds, sortOrder, clearDeepLinkTarget, showToast]);
 
   const activeCount = announcements.filter((a) => !archivedIds.includes(a.id)).length;
   const archivedCount = announcements.filter((a) => archivedIds.includes(a.id)).length;
@@ -433,11 +501,12 @@ export const AnnouncementsView: React.FC = () => {
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {filteredAnnouncements.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((ann, idx) => (
+            {filteredAnnouncements.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((ann) => (
               <AnnouncementCard
                 key={ann.id}
                 announcement={ann}
                 isArchived={archivedIds.includes(ann.id)}
+                isHighlighted={isHighlighted(ann.id)}
                 canManage={permissions.canDeleteAnnouncements}
                 onSelect={(selected) => setSelectedAnnouncement(selected)}
                 onDelete={(id) => deleteAnnouncement(id)}

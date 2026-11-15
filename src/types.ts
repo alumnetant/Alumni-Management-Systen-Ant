@@ -329,12 +329,49 @@ export type NotificationType =
   | 'security'
   | 'gallery'
   | 'job'
+  | 'feed_post'
+  | 'post_comment'
+  | 'post_reaction'
+  | 'post_share'
+  | 'milestone'
   | 'moderation_warning'
   | 'moderation_deletion'
   | 'moderation_report_resolved'
   | 'moderation_high_priority'
   | 'moderation_appeal'
   | 'moderation_abuse_alert';
+
+export interface DeepLinkTarget {
+  tab: string;
+  targetType:
+    | 'message'
+    | 'event'
+    | 'announcement'
+    | 'job'
+    | 'employer'
+    | 'conflict'
+    | 'verification'
+    | 'network_request'
+    | 'network_profile'
+    | 'feed_post'
+    | 'moderation_queue'
+    | 'moderation_appeal'
+    | 'profile_moderation'
+    | 'gallery'
+    | 'milestone'
+    | 'security'
+    | 'audit'
+    | 'database'
+    | 'indexes'
+    | 'dashboard';
+  targetId?: string;
+  subTab?: string;
+  targetPath: string;
+  targetRoute: string;
+  fromUid?: string;
+  notificationId?: string;
+  timestamp: number;
+}
 
 export interface AppNotification {
   id: string;
@@ -343,7 +380,9 @@ export interface AppNotification {
   type: NotificationType;
   title: string;
   body: string;
-  refId?: string; // e.g. eventId, friendRequestId, announcementId, chatId
+  refId?: string; // e.g. eventId, friendRequestId, announcementId, chatId, postId, jobId, reportId
+  targetPath?: string; // Canonical deep-link path (e.g. /portal/events/123)
+  targetRoute?: string; // Canonical route alias synced with targetPath
   actionStatus?: 'pending' | 'accepted' | 'declined';
   metadata?: Record<string, any>;
   read: boolean;
@@ -1113,11 +1152,12 @@ export interface ModerationAuditRecord {
     | 'APPEAL_SUBMITTED'
     | 'APPEAL_UPHELD'
     | 'APPEAL_REVERSED'
-    | 'MODERATION_CONFIG_UPDATED';
+    | 'MODERATION_CONFIG_UPDATED'
+    | 'UNAUTHORIZED_SUPERADMIN_ACCESS';
   actorId: string;
   actorName: string;
   actorRole: string;
-  targetType: ReportTargetType | 'user' | 'config';
+  targetType: ReportTargetType | 'user' | 'config' | 'security';
   postId?: string;
   caseId?: string;
   reportIds: string[];

@@ -47,8 +47,12 @@ export function isNotificationRelevantToUser(
 
   // 1. Direct User Targeting
   if (notif.toUid && notif.toUid !== 'all') {
-    // Admin & Moderator queue alias: notifications targeted to "admin" or "administrators"
-    if (notif.toUid === 'admin' || notif.toUid === 'administrators') {
+    // Superadmin-exclusive alerts (e.g., unauthorized access attempts)
+    if (notif.toUid === 'superadmin') {
+      return role === 'superadmin';
+    }
+    // Admin & Moderator queue alias: notifications targeted to "admin", "administrators", or "moderators"
+    if (notif.toUid === 'admin' || notif.toUid === 'administrators' || notif.toUid === 'moderators') {
       return isUserAdmin || isUserModerator || (permissions?.canManageJobModeration ?? false);
     }
     // Directly addressed to another specific user UID
@@ -62,6 +66,7 @@ export function isNotificationRelevantToUser(
   // 2. Explicit Role Targeting in metadata
   if (notif.metadata?.targetRole) {
     const target = notif.metadata.targetRole;
+    if (target === 'superadmin') return role === 'superadmin';
     if (target === 'alumni' && !isUserAlumni) return false;
     if (target === 'employer' && !isUserEmployer) return false;
     if ((target === 'registrar' || target === 'staff' || target === 'moderator') && !isUserModerator && !isUserAdmin) return false;

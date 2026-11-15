@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlumniProvider, useAlumni, STORAGE_KEYS } from './context/AlumniContext';
 import { isAdministrativeOrStaffRole } from './types';
+import { buildPortalUrlForTab } from './lib/notificationDeepLink';
 import { AuthPage } from './components/auth/AuthPage';
 import { LandingPage } from './components/landing/LandingPage';
 import { ToastContainer } from './components/common/ToastContainer';
@@ -76,6 +77,9 @@ function AppContent() {
     setSelectedUserIdForModal,
     isEditProfileModalOpen,
     closeEditProfile,
+    openProfile,
+    openPostPermalink,
+    navigateToPortalPath,
     showToast
   } = useAlumni();
 
@@ -98,6 +102,16 @@ function AppContent() {
           return 'auth';
         }
         return 'portal';
+      }
+      // Profile, post, and portal deep-link routes require authentication first
+      if (typeof window !== 'undefined') {
+        const pathname = window.location.pathname || '';
+        if (/^\/(profile|post|portal)\/[^/]+/i.test(pathname)) {
+          try {
+            sessionStorage.setItem('post_login_redirect', pathname + window.location.search);
+          } catch {}
+          return 'auth';
+        }
       }
       // Requirement 3: On mobile phones and tablets, skip the public landing page
       if (isMobileOrTabletDevice()) {
@@ -374,9 +388,13 @@ function AppContent() {
 
   // Initialize Push Notification routing for Events, Messages & Announcements
   React.useEffect(() => {
-    const cleanup = initPushNotificationListeners((targetTab) => {
+    const cleanup = initPushNotificationListeners((targetTabOrPath, contextId) => {
       setCurrentView('portal');
-      setActiveTab(targetTab);
+      if (targetTabOrPath && targetTabOrPath.startsWith('/portal/')) {
+        navigateToPortalPath(targetTabOrPath);
+      } else {
+        navigateToPortalPath(buildPortalUrlForTab(targetTabOrPath || 'dashboard', undefined, contextId));
+      }
     }, currentUser?.uid);
 
     // Real-time live push stream for immediate foreground popups
@@ -391,7 +409,7 @@ function AppContent() {
       cleanup();
       cleanupLiveStream();
     };
-  }, [setActiveTab, currentUser?.uid]);
+  }, [navigateToPortalPath, currentUser?.uid]);
 
   // Initialize scheduled event reminder supervisor loop & handle reminder triggers
   React.useEffect(() => {
@@ -405,9 +423,10 @@ function AppContent() {
       );
     };
 
-    const handleNavigateEvent = () => {
+    const handleNavigateEvent = (e: any) => {
+      const eventId = e?.detail?.eventId;
       setCurrentView('portal');
-      setActiveTab('events');
+      navigateToPortalPath(buildPortalUrlForTab('events', undefined, eventId));
     };
 
     window.addEventListener('applet:event-reminder-fired', handleReminderFired);
@@ -417,7 +436,7 @@ function AppContent() {
       window.removeEventListener('applet:event-reminder-fired', handleReminderFired);
       window.removeEventListener('applet:navigate-event', handleNavigateEvent);
     };
-  }, [setActiveTab, showToast]);
+  }, [navigateToPortalPath, showToast]);
 
   // Global Network connectivity listener (Powered by @capacitor/network)
   React.useEffect(() => {
@@ -465,14 +484,39 @@ function AppContent() {
       }
       if (currentView === 'auth') {
         setCurrentView('portal');
-        setActiveTab('dashboard');
+        let redirected = false;
+        try {
+          const pendingRedirect = sessionStorage.getItem('post_login_redirect');
+          if (pendingRedirect) {
+            sessionStorage.removeItem('post_login_redirect');
+            const profMatch = /^\/profile\/([^/?#]+)/i.exec(pendingRedirect);
+            const postMatch = /^\/post\/([^/?#]+)/i.exec(pendingRedirect);
+            if (profMatch) {
+              openProfile(decodeURIComponent(profMatch[1]));
+              redirected = true;
+            } else if (postMatch) {
+              openPostPermalink(decodeURIComponent(postMatch[1]));
+              redirected = true;
+            } else if (/^\/portal\//i.test(pendingRedirect)) {
+              navigateToPortalPath(pendingRedirect);
+              redirected = true;
+            }
+          }
+        } catch {}
+        if (!redirected) {
+          if (typeof window !== 'undefined' && /^\/portal\//i.test(window.location.pathname)) {
+            navigateToPortalPath(window.location.pathname);
+          } else {
+            setActiveTab('dashboard');
+          }
+        }
       }
     } else if (authReady) {
       if (!currentUser && currentView === 'portal') {
         setCurrentView(isMobileOrTabletDevice() ? 'auth' : 'landing');
       }
     }
-  }, [currentUser, currentView, logout, authReady, setActiveTab]);
+  }, [currentUser, currentView, logout, authReady, setActiveTab, openProfile, openPostPermalink, navigateToPortalPath]);
 
   // Requirement 3: Mobile and Tablet: No Landing Page
   // Dynamically ensure mobile and tablet devices skip the public landing page
@@ -512,12 +556,36 @@ function AppContent() {
 
   const handleLoginSuccess = (_role?: string) => {
     setCurrentView('portal');
+    let redirected = false;
     try {
       localStorage.setItem(STORAGE_KEYS.VIEW, 'portal');
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, 'dashboard');
+      const pendingRedirect = sessionStorage.getItem('post_login_redirect');
+      if (pendingRedirect) {
+        sessionStorage.removeItem('post_login_redirect');
+        const profMatch = /^\/profile\/([^/?#]+)/i.exec(pendingRedirect);
+        const postMatch = /^\/post\/([^/?#]+)/i.exec(pendingRedirect);
+        if (profMatch) {
+          openProfile(decodeURIComponent(profMatch[1]));
+          redirected = true;
+        } else if (postMatch) {
+          openPostPermalink(decodeURIComponent(postMatch[1]));
+          redirected = true;
+        } else if (/^\/portal\//i.test(pendingRedirect)) {
+          navigateToPortalPath(pendingRedirect);
+          redirected = true;
+        }
+      }
+      if (!redirected) {
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, 'dashboard');
+      }
     } catch {}
-    // User requested: Always direct to home (dashboard) on login
-    setActiveTab('dashboard');
+    if (!redirected) {
+      if (typeof window !== 'undefined' && /^\/portal\//i.test(window.location.pathname)) {
+        navigateToPortalPath(window.location.pathname);
+      } else {
+        setActiveTab('dashboard');
+      }
+    }
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -575,9 +643,13 @@ function AppContent() {
   return (
     <>
       <CollegiatePushBanner
-        onNavigateTab={(tab) => {
+        onNavigateTab={(tabOrPath, contextId) => {
           setCurrentView('portal');
-          setActiveTab(tab);
+          if (tabOrPath && tabOrPath.startsWith('/portal/')) {
+            navigateToPortalPath(tabOrPath);
+          } else {
+            navigateToPortalPath(buildPortalUrlForTab(tabOrPath || 'dashboard', undefined, contextId));
+          }
         }}
       />
       <AnimatePresence mode="wait">

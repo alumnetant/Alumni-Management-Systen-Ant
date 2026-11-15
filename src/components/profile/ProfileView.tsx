@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   MapPin,
   Phone,
@@ -9,37 +9,35 @@ import {
   Camera,
   Share2,
   CheckCircle2,
-  Users,
   Building,
   Calendar,
   Sparkles,
   ExternalLink,
   ShieldCheck,
   CreditCard,
-  FileDown,
   Upload,
   RefreshCw,
-  Award,
   BookOpen,
-  Hash,
   ShieldAlert,
-  ChevronRight,
   Clock,
-  Pencil,
-  Trash2,
   Megaphone,
-  Heart,
-  MoreHorizontal
+  MoreHorizontal,
+  Send,
+  Image as ImageIcon,
+  EyeOff,
+  Loader2,
+  FileDown,
+  Scale,
+  X
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { InstitutionalFeedPost } from '../../types';
+
+type PostVisibility = NonNullable<InstitutionalFeedPost['visibility']>;
 import { DigitalAlumniCard } from './DigitalAlumniCard';
-import { PlatformOnly } from '../common/PlatformOnly';
 import { ContactMask } from '../common/ContactMask';
-import { ConfirmationModal } from '../common/ConfirmationModal';
 import { RegistrarSelfVerificationModal } from './RegistrarSelfVerificationModal';
 import { ImageViewerModal } from '../common/ImageViewerModal';
-import { exportProfileToPdfResume } from '../../services/pdfResumeService';
 import { PdfResumePreviewModal } from './PdfResumePreviewModal';
 import { compressImage } from '../../lib/utils';
 import {
@@ -48,6 +46,18 @@ import {
   handleUserAvatarError,
   handleCoverPhotoError
 } from '../../lib/defaultImages';
+import {
+  canUserViewPost,
+  comparePostsCreatedDesc,
+  hydratePostWithLiveAuthor,
+  paginatePostsWithCursor,
+  slugifyUsername
+} from '../../lib/postVisibility';
+import { apiFetch } from '../../services/apiClient';
+import { formatFullLocalDateTime, formatRelativeTime } from '../../lib/dateUtils';
+import { PostCard } from '../social/PostCard';
+import { AppealPostModal } from '../social/AppealPostModal';
+import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
 export const ProfileView: React.FC = () => {
   const {
@@ -56,29 +66,64 @@ export const ProfileView: React.FC = () => {
     updateUserProfile,
     showToast,
     openEditProfile,
+    openProfile,
     feedPosts,
-    deleteFeedPost,
-    updateFeedPost
+    createSocialPost,
+    deepLinkTarget,
+    clearDeepLinkTarget,
+    highlightedItemId
   } = useAlumni();
   const [showRegistrarModal, setShowRegistrarModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isDraggingCover, setIsDraggingCover] = useState(false);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [showResumePreview, setShowResumePreview] = useState(false);
   const [showMoreActionsMenu, setShowMoreActionsMenu] = useState(false);
   const [profileViewTab, setProfileViewTab] = useState<'overview' | 'posts'>('overview');
   const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
 
-  // My Feed Posts author controls
-  const [postToEdit, setPostToEdit] = useState<InstitutionalFeedPost | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editContent, setEditContent] = useState('');
-  const [postToDelete, setPostToDelete] = useState<{ id: string; title: string } | null>(null);
+  // Timeline composer, pagination & private warnings state
+  const [composerTitle, setComposerTitle] = useState('');
+  const [composerContent, setComposerContent] = useState('');
+  const [composerCategory, setComposerCategory] = useState<'milestone' | 'gallery' | 'announcement'>('milestone');
+  const [composerVisibility, setComposerVisibility] = useState<PostVisibility>('alumni');
+  const [composerBatch, setComposerBatch] = useState('');
+  const [composerDepartment, setComposerDepartment] = useState('');
+  const [composerImageUrl, setComposerImageUrl] = useState('');
+  const [isComposerAnonymous, setIsComposerAnonymous] = useState(false);
+  const [isPublishingPost, setIsPublishingPost] = useState(false);
+  const [visibleLimit, setVisibleLimit] = useState(10);
+  const [myWarnings, setMyWarnings] = useState<
+    Array<{ id: string; postId: string; reason: string; message: string; createdAt: string; actionType?: 'warning' | 'deletion' }>
+  >([]);
+  const [appealTarget, setAppealTarget] = useState<{
+    postId: string;
+    warningId?: string;
+    actionType: 'warning' | 'deletion';
+    reason?: string;
+  } | null>(null);
 
-  const avatarFileInputRef = React.useRef<HTMLInputElement>(null);
-  const coverFileInputRef = React.useRef<HTMLInputElement>(null);
+  const avatarFileInputRef = useRef<HTMLInputElement>(null);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+  const composerTitleRef = useRef<HTMLInputElement>(null);
+  const composerImageInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    let cancelled = false;
+    apiFetch('/api/moderation/my-warnings')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.warnings)) {
+          setMyWarnings(data.warnings);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.uid]);
 
   // Automatically open the Edit Profile modal when triggered by external directives
   React.useEffect(() => {
@@ -99,6 +144,94 @@ export const ProfileView: React.FC = () => {
       window.removeEventListener('applet:open-edit-profile', handleOpenEdit);
     };
   }, [openEditProfile]);
+
+  const { isHighlighted } = useDeepLinkHighlight(undefined, [
+    profileViewTab,
+    visibleLimit,
+    myWarnings.length,
+    feedPosts.length
+  ]);
+
+  useEffect(() => {
+    if (!deepLinkTarget) return;
+    if (deepLinkTarget.targetType === 'verification') {
+      setProfileViewTab('overview');
+      clearDeepLinkTarget();
+    } else if (deepLinkTarget.targetType === 'profile_moderation') {
+      setProfileViewTab('posts');
+      clearDeepLinkTarget();
+    }
+  }, [deepLinkTarget, clearDeepLinkTarget]);
+
+  useEffect(() => {
+    if (!highlightedItemId || deepLinkTarget) return;
+    if (highlightedItemId === 'verification-status') {
+      setProfileViewTab('overview');
+      return;
+    }
+    const matchesWarning = myWarnings.some(
+      (w) => w.id === highlightedItemId || w.postId === highlightedItemId
+    );
+    const matchesOwnPost = (feedPosts || []).some(
+      (p) => p.id === highlightedItemId && currentUser && p.authorId === currentUser.uid
+    );
+    if (matchesWarning || matchesOwnPost) {
+      setProfileViewTab('posts');
+    }
+  }, [highlightedItemId, deepLinkTarget, myWarnings, feedPosts, currentUser]);
+
+  const viewerContext = useMemo(
+    () =>
+      currentUser
+        ? {
+            uid: currentUser.uid,
+            role: currentUser.role,
+            batch: currentUser.batch,
+            course: currentUser.course,
+            department: currentUser.department,
+            groupIds: currentUser.groupIds,
+            blockedUsers: currentUser.blockedUsers
+          }
+        : null,
+    [currentUser]
+  );
+
+  // Apply the single shared visibility rule on profile surface (automatically excludes anonymous, drafts, deleted)
+  const myTimelineOrdered = useMemo(() => {
+    if (!currentUser || !viewerContext) return [];
+    const visible = (feedPosts || [])
+      .filter((post) =>
+        canUserViewPost(post, {
+          surface: 'profile',
+          viewer: viewerContext,
+          targetProfileUid: currentUser.uid,
+          authorAccount: currentUser
+        })
+      )
+      .map((post) => hydratePostWithLiveAuthor(post, currentUser, viewerContext))
+      .sort(comparePostsCreatedDesc);
+
+    if (currentUser.pinnedPostId) {
+      const pinnedIdx = visible.findIndex((p) => p.id === currentUser.pinnedPostId);
+      if (pinnedIdx >= 0) {
+        const pinned = { ...visible[pinnedIdx], isPinned: true };
+        return [pinned, ...visible.slice(0, pinnedIdx), ...visible.slice(pinnedIdx + 1)];
+      }
+    }
+    return visible;
+  }, [feedPosts, viewerContext, currentUser]);
+
+  const myPostsPage = useMemo(() => {
+    return paginatePostsWithCursor(myTimelineOrdered, null, visibleLimit);
+  }, [myTimelineOrdered, visibleLimit]);
+
+  useEffect(() => {
+    if (!highlightedItemId || profileViewTab !== 'posts') return;
+    const idx = myTimelineOrdered.findIndex((p) => p.id === highlightedItemId);
+    if (idx >= visibleLimit) {
+      setVisibleLimit(idx + 2);
+    }
+  }, [highlightedItemId, profileViewTab, myTimelineOrdered, visibleLimit]);
 
   if (!currentUser) return null;
 
@@ -169,7 +302,9 @@ export const ProfileView: React.FC = () => {
   };
 
   const handleShareProfile = () => {
-    navigator.clipboard?.writeText(window.location.href);
+    const slug = currentUser.username || slugifyUsername(currentUser.name) || currentUser.uid;
+    const url = `${window.location.origin}/profile/${encodeURIComponent(slug)}`;
+    navigator.clipboard?.writeText(url);
     setCopiedLink(true);
     showToast('Profile link copied to clipboard!', 'success');
     setTimeout(() => setCopiedLink(false), 2000);
@@ -178,42 +313,52 @@ export const ProfileView: React.FC = () => {
   const isVerifiedUser = !!(currentUser.isVerified || (currentUser as any).verified || currentUser.verificationStatus === 'verified');
   const roleDisplay = (currentUser.role || 'alumni').toUpperCase();
 
-  const myPosts = (feedPosts || []).filter(
-    (post) =>
-      post.authorId === currentUser.uid ||
-      post.authorId === (currentUser as any).id ||
-      post.authorName === currentUser.name
-  );
-
-  const handleStartEditPost = (post: InstitutionalFeedPost) => {
-    setPostToEdit(post);
-    setEditTitle(post.title || '');
-    setEditContent(post.content || '');
-  };
-
-  const handleSaveEditPost = async () => {
-    if (!postToEdit) return;
-    if (!editContent.trim()) {
-      showToast('Post content cannot be empty.', 'error');
+  const handleComposerImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('Please select a JPEG, PNG, or WebP image.', 'error');
       return;
     }
-    if (updateFeedPost) {
-      await updateFeedPost(postToEdit.id, {
-        title: editTitle.trim(),
-        content: editContent.trim(),
-        isEdited: true
-      });
-      showToast('Post updated successfully!', 'success');
-      setPostToEdit(null);
+    try {
+      const compressed = await compressImage(file, 1080, 720, 0.85);
+      setComposerImageUrl(compressed);
+      showToast('Photo attached to post.', 'success');
+    } catch {
+      showToast('Could not process image.', 'error');
     }
+    e.target.value = '';
   };
 
-  const handleConfirmDeletePost = async () => {
-    if (!postToDelete) return;
-    if (deleteFeedPost) {
-      await deleteFeedPost(postToDelete.id);
-      showToast('Post removed from feed.', 'success');
-      setPostToDelete(null);
+  const handlePublishPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!composerContent.trim()) {
+      showToast('Please write your post message before publishing.', 'error');
+      return;
+    }
+    setIsPublishingPost(true);
+    try {
+      const result = await createSocialPost({
+        title: composerTitle.trim() || 'Community Update',
+        content: composerContent.trim(),
+        postType: composerCategory,
+        visibility: composerVisibility,
+        targetBatch: composerVisibility === 'batch' ? composerBatch.trim() || currentUser.batch : undefined,
+        targetDepartment: composerVisibility === 'department' ? composerDepartment.trim() || currentUser.course : undefined,
+        imageUrl: composerImageUrl || undefined,
+        isAnonymous: isComposerAnonymous
+      });
+      const created = result?.success ? result.post : undefined;
+      if (created) {
+        setComposerTitle('');
+        setComposerContent('');
+        setComposerImageUrl('');
+        setIsComposerAnonymous(false);
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Could not publish post.', 'error');
+    } finally {
+      setIsPublishingPost(false);
     }
   };
 
@@ -436,12 +581,24 @@ export const ProfileView: React.FC = () => {
                         type="button"
                         onClick={() => {
                           setShowMoreActionsMenu(false);
+                          openProfile(currentUser.username || slugifyUsername(currentUser.name) || currentUser.uid);
+                        }}
+                        className="w-full px-4 py-2.5 text-left text-xs sm:text-sm font-medium text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <ExternalLink className="w-4 h-4 text-stone-500 dark:text-stone-400" />
+                        <span>View Public Profile URL</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMoreActionsMenu(false);
                           handleShareProfile();
                         }}
                         className="w-full px-4 py-2.5 text-left text-xs sm:text-sm font-medium text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
                         <Share2 className="w-4 h-4 text-stone-500 dark:text-stone-400" />
-                        <span>{copiedLink ? 'Link Copied!' : 'Share Public Profile'}</span>
+                        <span>{copiedLink ? 'Link Copied!' : 'Copy Public Profile URL'}</span>
                       </button>
                     </div>
                   </>
@@ -526,13 +683,16 @@ export const ProfileView: React.FC = () => {
 
             {/* Alumni Verification Status Guidance Callout */}
             {!isVerifiedUser && currentUser.role === 'alumni' && (
-              <div className={`mt-5 p-4 sm:p-5 border rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 shadow-2xs transition-colors ${
-                currentUser.verificationStatus === 'pending_review'
-                  ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-200/90 dark:border-blue-900/60'
-                  : currentUser.verificationStatus === 'rejected'
-                  ? 'bg-red-50/80 dark:bg-red-950/30 border-red-200/90 dark:border-red-900/60'
-                  : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200/90 dark:border-amber-900/60'
-              }`}>
+              <div
+                data-notify-target-id="verification-status"
+                className={`mt-5 p-4 sm:p-5 border rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 shadow-2xs transition-colors ${
+                  currentUser.verificationStatus === 'pending_review'
+                    ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-200/90 dark:border-blue-900/60'
+                    : currentUser.verificationStatus === 'rejected'
+                    ? 'bg-red-50/80 dark:bg-red-950/30 border-red-200/90 dark:border-red-900/60'
+                    : 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-200/90 dark:border-amber-900/60'
+                } ${isHighlighted('verification-status') ? HIGHLIGHT_RING_CLASS : ''}`}
+              >
                 <div className="flex items-start gap-3">
                   <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${
                     currentUser.verificationStatus === 'pending_review'
@@ -632,13 +792,13 @@ export const ProfileView: React.FC = () => {
               }`}
             >
               <Megaphone className="w-4 h-4" />
-              <span>My Shared Posts</span>
-              <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-bold ${
+              <span>Posts &amp; Timeline</span>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-bold tabular-nums ${
                 profileViewTab === 'posts'
                   ? 'bg-red-100 text-[#8B181B] dark:bg-red-950/60 dark:text-red-300'
                   : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400'
               }`}>
-                {myPosts.length}
+                {myTimelineOrdered.length}
               </span>
             </button>
           </div>
@@ -843,83 +1003,49 @@ export const ProfileView: React.FC = () => {
                 </div>
               </div>
 
-              {/* My Published Posts & Updates Section (Profile Feed Sync) */}
+              {/* Recent Timeline Preview in Overview */}
               <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
                     <Megaphone className="w-5 h-5 text-[#8B181B] dark:text-red-400" />
-                    <span>My Feed Posts & Updates ({myPosts.length})</span>
+                    <span>Personal Timeline ({myTimelineOrdered.length})</span>
                   </h2>
+                  <button
+                    type="button"
+                    onClick={() => setProfileViewTab('posts')}
+                    className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer"
+                  >
+                    Open Full Timeline
+                  </button>
                 </div>
 
                 <div className="space-y-3">
-                  {myPosts.length === 0 ? (
-                    <div className="p-6 bg-white dark:bg-stone-900/60 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 text-center text-xs text-stone-500 dark:text-stone-400">
-                      <Megaphone className="w-6 h-6 mx-auto mb-2 text-stone-400 dark:text-stone-500 opacity-60" />
-                      You haven't published any posts to the Campus Feed yet.
+                  {myTimelineOrdered.length === 0 ? (
+                    <div className="p-6 bg-white dark:bg-stone-900/60 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 text-center space-y-2.5 text-xs text-stone-500 dark:text-stone-400">
+                      <Megaphone className="w-6 h-6 mx-auto text-stone-400 dark:text-stone-500 opacity-60" />
+                      <p className="font-semibold text-stone-700 dark:text-stone-300">No posts yet</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileViewTab('posts');
+                          setTimeout(() => composerTitleRef.current?.focus(), 60);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#8B181B] text-white rounded-xl text-xs font-bold cursor-pointer"
+                      >
+                        <span>Share your first post</span>
+                      </button>
                     </div>
                   ) : (
-                    myPosts.map((post) => (
-                        <div
-                          key={post.id}
-                          className="p-4 bg-white dark:bg-stone-900/70 rounded-xl border border-stone-200/70 dark:border-stone-700/60 shadow-2xs transition-colors"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
-                                  {post.postType}
-                                </span>
-                                <span className="text-xs text-stone-400">
-                                  {new Date(post.createdAt).toLocaleDateString([], {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                  })}
-                                </span>
-                              </div>
-                              <h3 className="text-sm font-bold text-stone-900 dark:text-white mt-1.5">{post.title}</h3>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPostToEdit(post);
-                                  setEditTitle(post.title);
-                                  setEditContent(post.content);
-                                }}
-                                className="p-1.5 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
-                                title="Edit post"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setPostToDelete({ id: post.id, title: post.title })}
-                                className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
-                                title="Delete post"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                          <p className="text-xs text-stone-600 dark:text-stone-300 mt-2 leading-relaxed whitespace-pre-line">
-                            {post.content}
-                          </p>
-                          {post.imageUrl && (
-                            <div className="mt-2.5 rounded-lg overflow-hidden max-h-40 border border-stone-100 dark:border-stone-800">
-                              <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover" />
-                            </div>
-                          )}
-                          <div className="mt-3 pt-2 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between text-xs text-stone-400">
-                            <span className="flex items-center gap-1">
-                              <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" />
-                              <span>{(post.hearts || []).length || post.likes || 0} Hearts</span>
-                            </span>
-                            <span>{post.comments.length} Comments</span>
-                          </div>
-                        </div>
-                      ))
+                    myTimelineOrdered.slice(0, 3).map((post) => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        showPinControl={true}
+                        isPinnedOnProfile={currentUser.pinnedPostId === post.id}
+                        highlighted={isHighlighted(post.id)}
+                        onImageClick={(url, title) => setViewerImage({ url, title })}
+                      />
+                    ))
                   )}
                 </div>
               </div>
@@ -928,116 +1054,222 @@ export const ProfileView: React.FC = () => {
           </div>
             </>
           ) : (
-            /* Dedicated Collegiate Feed View for Alumni Profile */
-            <div className="mt-6 space-y-4 max-w-3xl">
-              <div className="flex items-center justify-between pb-2">
-                <div>
-                  <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-white">
-                    Publications & Community Updates
-                  </h2>
-                  <p className="text-xs text-stone-500 dark:text-stone-400">
-                    All updates, stories, and career milestones you have published to the campus feed.
-                  </p>
+            /* Personal Profile Timeline with Inline Composer & Warnings */
+            <div className="mt-6 space-y-5 max-w-3xl">
+              {myWarnings.length > 0 && (
+                <div className="bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-2xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider">
+                    <ShieldAlert className="w-4 h-4" />
+                    <span>Private Moderation Notices ({myWarnings.length})</span>
+                  </div>
+                  <div className="space-y-2">
+                    {myWarnings.map((w) => {
+                      const warnHighlighted = isHighlighted(w.id) || isHighlighted(w.postId);
+                      const warnNotifyId = isHighlighted(w.postId) && !isHighlighted(w.id) ? w.postId : w.id;
+                      return (
+                      <div
+                        key={w.id}
+                        data-notify-target-id={warnNotifyId}
+                        className={`bg-white dark:bg-stone-900 border rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                          warnHighlighted
+                            ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                            : 'border-amber-200/80 dark:border-amber-900/50'
+                        }`}
+                      >
+                        <div className="text-xs space-y-0.5">
+                          <div className="font-bold text-stone-900 dark:text-stone-100">{w.reason}</div>
+                          <p className="text-stone-600 dark:text-stone-300">{w.message}</p>
+                          <div className="text-[11px] text-stone-400" title={formatFullLocalDateTime(w.createdAt)}>
+                            Issued {formatRelativeTime(w.createdAt)}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAppealTarget({
+                              postId: w.postId,
+                              warningId: w.id,
+                              actionType: w.actionType || 'warning',
+                              reason: w.reason
+                            })
+                          }
+                          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 dark:bg-stone-800 text-white text-xs font-semibold shrink-0 cursor-pointer min-h-[44px]"
+                        >
+                          <Scale className="w-3.5 h-3.5" />
+                          <span>Appeal</span>
+                        </button>
+                      </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {myPosts.length === 0 ? (
-                <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-dashed border-stone-300 dark:border-stone-700 p-10 text-center">
-                  <Megaphone className="w-10 h-10 text-stone-400 mx-auto mb-3" />
-                  <h3 className="text-sm font-bold text-stone-800 dark:text-stone-200">No posts shared yet</h3>
-                  <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-md mx-auto">
-                    You haven’t posted to the community feed yet. Share updates, industry tips, or project achievements with your fellow Cecilians.
+              {/* Own Profile Composer */}
+              <form
+                onSubmit={handlePublishPost}
+                className="bg-stone-50/70 dark:bg-stone-800/40 rounded-2xl border border-stone-200/90 dark:border-stone-700/60 p-5 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-stone-700 dark:text-stone-300">
+                    Create Post
+                  </span>
+                  <span className="text-[11px] text-stone-400 dark:text-stone-500">
+                    Appears on main feed and your timeline immediately
+                  </span>
+                </div>
+
+                <input
+                  ref={composerTitleRef}
+                  type="text"
+                  value={composerTitle}
+                  onChange={(e) => setComposerTitle(e.target.value)}
+                  placeholder="Headline or milestone title (optional)"
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-semibold text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-[#8B181B]"
+                />
+
+                <textarea
+                  rows={3}
+                  value={composerContent}
+                  onChange={(e) => setComposerContent(e.target.value)}
+                  placeholder="Share an update, achievement, or mentorship offer with fellow Cecilians..."
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-sm text-stone-800 dark:text-stone-200 focus:outline-none focus:ring-1 focus:ring-[#8B181B] leading-relaxed"
+                />
+
+                {composerImageUrl && (
+                  <div className="relative rounded-xl overflow-hidden max-h-56 border border-stone-200 dark:border-stone-700">
+                    <img src={composerImageUrl} alt="Upload preview" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setComposerImageUrl('')}
+                      className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white cursor-pointer"
+                      aria-label="Remove image"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <select
+                    value={composerCategory}
+                    onChange={(e) => setComposerCategory(e.target.value as 'milestone' | 'gallery' | 'announcement')}
+                    className="px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 min-h-[44px]"
+                  >
+                    <option value="milestone">Milestone / Update</option>
+                    <option value="gallery">Campus Gallery</option>
+                    <option value="announcement">Announcement</option>
+                  </select>
+
+                  <select
+                    value={composerVisibility}
+                    onChange={(e) => setComposerVisibility(e.target.value as PostVisibility)}
+                    className="px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 min-h-[44px]"
+                  >
+                    <option value="alumni">Alumni Only</option>
+                    <option value="public">Public</option>
+                    <option value="batch">Batch Only</option>
+                    <option value="department">Department Only</option>
+                    <option value="private">Private (Only Me)</option>
+                  </select>
+
+                  {composerVisibility === 'batch' && (
+                    <input
+                      type="text"
+                      value={composerBatch}
+                      onChange={(e) => setComposerBatch(e.target.value)}
+                      placeholder={currentUser.batch || 'Batch year'}
+                      className="px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs text-stone-800 dark:text-stone-200 w-32 min-h-[44px]"
+                    />
+                  )}
+
+                  {composerVisibility === 'department' && (
+                    <input
+                      type="text"
+                      value={composerDepartment}
+                      onChange={(e) => setComposerDepartment(e.target.value)}
+                      placeholder={currentUser.course || 'Department'}
+                      className="px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs text-stone-800 dark:text-stone-200 w-40 min-h-[44px]"
+                    />
+                  )}
+
+                  <input
+                    ref={composerImageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleComposerImageSelect}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => composerImageInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 cursor-pointer min-h-[44px]"
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                    <span>Photo</span>
+                  </button>
+
+                  <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs text-stone-600 dark:text-stone-300 cursor-pointer min-h-[44px]">
+                    <input
+                      type="checkbox"
+                      checked={isComposerAnonymous}
+                      onChange={(e) => setIsComposerAnonymous(e.target.checked)}
+                      className="accent-[#8B181B]"
+                    />
+                    <EyeOff className="w-3.5 h-3.5" />
+                    <span>Anonymous</span>
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={isPublishingPost || !composerContent.trim()}
+                    className="ml-auto inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#8B181B] hover:bg-[#721316] disabled:opacity-50 text-white rounded-xl text-xs font-bold cursor-pointer min-h-[44px]"
+                  >
+                    {isPublishingPost ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    <span>Publish</span>
+                  </button>
+                </div>
+              </form>
+
+              {myTimelineOrdered.length === 0 ? (
+                <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-dashed border-stone-300 dark:border-stone-700 p-10 text-center space-y-3">
+                  <Megaphone className="w-10 h-10 text-stone-400 mx-auto" />
+                  <h3 className="text-sm font-bold text-stone-800 dark:text-stone-200">No posts yet</h3>
+                  <p className="text-xs text-stone-500 dark:text-stone-400 max-w-md mx-auto">
+                    Published posts appear on the main feed and on your personal timeline automatically.
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => composerTitleRef.current?.focus()}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold cursor-pointer min-h-[44px]"
+                  >
+                    <span>Share your first post</span>
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {myPosts.map((post) => (
-                    <article
+                  {myPostsPage.items.map((post) => (
+                    <PostCard
                       key={post.id}
-                      className="bg-stone-50/70 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.02)]"
-                    >
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={getUserAvatar(post.authorAvatar || currentUser.profilePictureUrl)}
-                            alt={post.authorName}
-                            className="w-10 h-10 rounded-xl object-cover border border-stone-200 dark:border-stone-700"
-                          />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-stone-900 dark:text-white">
-                                {post.authorName}
-                              </span>
-                              {post.isEdited && (
-                                <span className="text-[10px] text-stone-400 font-medium">(edited)</span>
-                              )}
-                            </div>
-                            <span className="text-xs text-stone-400 dark:text-stone-500 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {new Date(post.createdAt).toLocaleDateString(undefined, {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleStartEditPost(post)}
-                            className="p-1.5 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
-                            title="Edit post"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setPostToDelete({ id: post.id, title: post.title })}
-                            className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
-                            title="Delete post"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {post.title && (
-                        <h3 className="text-base font-bold text-stone-900 dark:text-white mb-2">
-                          {post.title}
-                        </h3>
-                      )}
-
-                      <p className="text-sm text-stone-700 dark:text-stone-300 leading-relaxed whitespace-pre-line">
-                        {post.content}
-                      </p>
-
-                      {post.imageUrl && (
-                        <div className="mt-3.5 rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 max-h-80">
-                          <img
-                            src={post.imageUrl}
-                            alt={post.title}
-                            className="w-full h-full object-cover cursor-pointer hover:scale-[1.01] transition-transform"
-                            onClick={() =>
-                              setViewerImage({
-                                url: post.imageUrl!,
-                                title: post.title || 'Attached Post Image'
-                              })
-                            }
-                          />
-                        </div>
-                      )}
-
-                      <div className="mt-4 pt-3 border-t border-stone-200/60 dark:border-stone-700/60 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 font-medium">
-                        <span className="flex items-center gap-1.5">
-                          <Heart className="w-4 h-4 text-red-500 fill-red-500" />
-                          <span>{(post.hearts || []).length || post.likes || 0} Likes</span>
-                        </span>
-                        <span>{post.comments.length} Comments</span>
-                      </div>
-                    </article>
+                      post={post}
+                      showPinControl={true}
+                      isPinnedOnProfile={currentUser.pinnedPostId === post.id}
+                      highlighted={isHighlighted(post.id)}
+                      onImageClick={(url, title) => setViewerImage({ url, title })}
+                    />
                   ))}
+
+                  {myPostsPage.hasMore && (
+                    <div className="flex justify-center pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setVisibleLimit((prev) => prev + 10)}
+                        className="px-5 py-2.5 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs font-bold text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 cursor-pointer min-h-[44px]"
+                      >
+                        Load more
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1069,101 +1301,16 @@ export const ProfileView: React.FC = () => {
         />
       )}
 
-      {/* Edit Feed Post Modal */}
-      {postToEdit && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl border border-stone-200 dark:border-stone-800 w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
-              <div className="flex items-center gap-2">
-                <Pencil className="w-4 h-4 text-[#8B181B] dark:text-red-400" />
-                <h3 className="text-base font-bold text-stone-900 dark:text-white">Edit Post</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPostToEdit(null)}
-                className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer p-1 rounded-lg"
-              >
-                &times;
-              </button>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!editTitle.trim() || !editContent.trim()) {
-                  showToast('Title and content cannot be empty.', 'warning');
-                  return;
-                }
-                updateFeedPost(postToEdit.id, {
-                  title: editTitle.trim(),
-                  content: editContent.trim()
-                });
-                setPostToEdit(null);
-              }}
-              className="mt-4 space-y-4"
-            >
-              <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
-                  Post Title
-                </label>
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-semibold text-stone-900 dark:text-white focus:outline-none focus:border-[#8B181B]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
-                  Post Content
-                </label>
-                <textarea
-                  rows={4}
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#8B181B] leading-relaxed resize-y"
-                  required
-                />
-              </div>
-
-              <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setPostToEdit(null)}
-                  className="px-4 py-2 text-xs font-bold text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-bold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl transition-colors shadow-2xs cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {appealTarget && (
+        <AppealPostModal
+          isOpen={true}
+          postId={appealTarget.postId}
+          warningId={appealTarget.warningId}
+          actionType={appealTarget.actionType}
+          reasonSummary={appealTarget.reason}
+          onClose={() => setAppealTarget(null)}
+        />
       )}
-
-      {/* Delete Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={Boolean(postToDelete)}
-        onClose={() => setPostToDelete(null)}
-        onConfirm={() => {
-          if (postToDelete) {
-            deleteFeedPost(postToDelete.id);
-          }
-          setPostToDelete(null);
-        }}
-        title="Delete Feed Post"
-        message={`Are you sure you want to permanently delete "${postToDelete?.title}"? This cannot be undone.`}
-        confirmLabel="Delete Post"
-        cancelLabel="Cancel"
-        variant="danger"
-      />
     </div>
   );
 };

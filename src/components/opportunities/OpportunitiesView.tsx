@@ -41,6 +41,7 @@ import {
   isSkillMatch,
   JobMatchResult
 } from '../../services/jobMatchingService';
+import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
 export const OpportunitiesView: React.FC = () => {
   const {
@@ -50,7 +51,11 @@ export const OpportunitiesView: React.FC = () => {
     setSelectedUserIdForModal,
     permissions,
     jobApplications,
-    withdrawJobApplication
+    withdrawJobApplication,
+    deepLinkTarget,
+    clearDeepLinkTarget,
+    highlightedItemId,
+    showToast
   } = useAlumni();
 
   const [applicationToWithdraw, setApplicationToWithdraw] = useState<{ id: string; jobTitle: string; companyName: string } | null>(null);
@@ -127,6 +132,36 @@ export const OpportunitiesView: React.FC = () => {
     } catch {}
     window.dispatchEvent(new CustomEvent('applet:jobs-viewed'));
   }, []);
+
+  const missingTargetNotifiedRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!deepLinkTarget || deepLinkTarget.targetType !== 'job') return;
+    if (deepLinkTarget.subTab === 'my_applications') {
+      setActiveSubTab('my_applications');
+    } else if (deepLinkTarget.subTab === 'admin_moderation' && permissions.canManageJobModeration) {
+      setActiveSubTab('admin_moderation');
+    } else {
+      const targetJob = deepLinkTarget.targetId
+        ? opportunities.find((o) => o.id === deepLinkTarget.targetId)
+        : undefined;
+      const targetApp = deepLinkTarget.targetId
+        ? jobApplications.find((a) => a.id === deepLinkTarget.targetId || a.jobId === deepLinkTarget.targetId)
+        : undefined;
+      if (!targetJob && targetApp) {
+        setActiveSubTab('my_applications');
+      } else {
+        setActiveSubTab('explore');
+        setSearchQuery('');
+        setSelectedType('all');
+        setSelectedCourseFilter('all');
+        setMatchOnly(false);
+        setFilterByMySkills(false);
+        setSelectedSkillTag('all');
+      }
+    }
+    clearDeepLinkTarget();
+  }, [deepLinkTarget, opportunities, jobApplications, permissions.canManageJobModeration, clearDeepLinkTarget]);
 
   // Post Job Form State
   const [title, setTitle] = useState('');
@@ -251,6 +286,98 @@ export const OpportunitiesView: React.FC = () => {
     selectedSkillTag,
     userVerifiedSkills,
     currentUser
+  ]);
+
+  useEffect(() => {
+    if (!highlightedItemId || deepLinkTarget) return;
+
+    if (activeSubTab === 'my_applications') {
+      const appIdx = myApplications.findIndex(
+        (a) => a.id === highlightedItemId || a.jobId === highlightedItemId
+      );
+      if (appIdx >= 0) {
+        const targetPage = Math.floor(appIdx / PAGE_SIZE) + 1;
+        if (currentPageApps !== targetPage) {
+          setCurrentPageApps(targetPage);
+        }
+        return;
+      }
+      if ((opportunities.length > 0 || jobApplications.length > 0) && missingTargetNotifiedRef.current !== highlightedItemId) {
+        missingTargetNotifiedRef.current = highlightedItemId;
+        showToast('This job application record is no longer available.', 'info');
+      }
+      return;
+    }
+
+    if (activeSubTab === 'explore') {
+      const oppIdx = publishedOpportunities.findIndex((o) => o.id === highlightedItemId);
+      if (oppIdx >= 0) {
+        const targetPage = Math.floor(oppIdx / PAGE_SIZE) + 1;
+        if (currentPage !== targetPage) {
+          setCurrentPage(targetPage);
+        }
+        return;
+      }
+      if (opportunities.some((o) => o.id === highlightedItemId)) {
+        if (
+          searchQuery ||
+          selectedType !== 'all' ||
+          selectedCourseFilter !== 'all' ||
+          matchOnly ||
+          filterByMySkills ||
+          selectedSkillTag !== 'all'
+        ) {
+          setSearchQuery('');
+          setSelectedType('all');
+          setSelectedCourseFilter('all');
+          setMatchOnly(false);
+          setFilterByMySkills(false);
+          setSelectedSkillTag('all');
+        }
+        return;
+      }
+      const appMatch = myApplications.find((a) => a.id === highlightedItemId || a.jobId === highlightedItemId);
+      if (appMatch) {
+        setActiveSubTab('my_applications');
+        return;
+      }
+      if (opportunities.length > 0 && missingTargetNotifiedRef.current !== highlightedItemId) {
+        missingTargetNotifiedRef.current = highlightedItemId;
+        showToast('This job posting may have been closed or removed.', 'info');
+      }
+    }
+  }, [
+    highlightedItemId,
+    deepLinkTarget,
+    activeSubTab,
+    myApplications,
+    publishedOpportunities,
+    opportunities,
+    jobApplications.length,
+    currentPage,
+    currentPageApps,
+    searchQuery,
+    selectedType,
+    selectedCourseFilter,
+    matchOnly,
+    filterByMySkills,
+    selectedSkillTag,
+    showToast
+  ]);
+
+  const renderedTargetIds = useMemo(() => {
+    if (activeSubTab === 'my_applications') {
+      return paginatedMyApps.flatMap((a) => [a.id, a.jobId]);
+    }
+    return publishedOpportunities
+      .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+      .map((o) => o.id);
+  }, [activeSubTab, paginatedMyApps, publishedOpportunities, currentPage]);
+
+  const { isHighlighted } = useDeepLinkHighlight(renderedTargetIds, [
+    activeSubTab,
+    currentPage,
+    currentPageApps
   ]);
 
   const handleOpenPostModal = () => {
@@ -672,11 +799,16 @@ export const OpportunitiesView: React.FC = () => {
               return (
                 <motion.div
                   key={opp.id}
+                  data-notify-target-id={opp.id}
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: Math.min(idx * 0.04, 0.3) }}
                   whileHover={{ y: -4, transition: { duration: 0.2, ease: "easeOut" } }}
-                  className="relative overflow-hidden bg-white rounded-2xl border border-stone-200/90 p-5 sm:p-6 flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all group"
+                  className={`relative overflow-hidden bg-white rounded-2xl border p-5 sm:p-6 flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all group ${
+                    isHighlighted(opp.id)
+                      ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                      : 'border-stone-200/90'
+                  }`}
                 >
                   {/* Subtle Top Accent on hover */}
                   <div className="h-1 w-full absolute top-0 left-0 bg-transparent group-hover:bg-[#8B181B] transition-colors" />
@@ -990,10 +1122,18 @@ export const OpportunitiesView: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {paginatedMyApps.map((app) => (
+              {paginatedMyApps.map((app) => {
+                const appHighlighted = isHighlighted(app.id) || isHighlighted(app.jobId);
+                const appTargetId = isHighlighted(app.jobId) && !isHighlighted(app.id) ? app.jobId : app.id;
+                return (
                 <div
                   key={app.id}
-                  className="bg-white border border-stone-200/90 rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                  data-notify-target-id={appTargetId}
+                  className={`bg-white border rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                    appHighlighted
+                      ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                      : 'border-stone-200/90'
+                  }`}
                 >
                   <div className="space-y-1 flex-1">
                     <div className="flex items-center gap-2">
@@ -1040,7 +1180,8 @@ export const OpportunitiesView: React.FC = () => {
                     )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
 
               {/* Applications Pagination */}
               {myApplications.length > 0 && (

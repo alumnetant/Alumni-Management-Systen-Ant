@@ -12,7 +12,9 @@ import {
   RefreshCw,
   Image as ImageIcon,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  Shield,
+  AlertTriangle
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { Experience, Education } from '../../types';
@@ -28,6 +30,9 @@ import {
   handleCoverPhotoError
 } from '../../lib/defaultImages';
 import { triggerHaptic } from '../../services/hapticsService';
+import { slugifyUsername } from '../../lib/postVisibility';
+import { apiFetchWithCsrf } from '../../services/apiClient';
+import { ConfirmationModal } from '../common/ConfirmationModal';
 
 const INDUSTRIES = [
   'Information Technology & Software',
@@ -50,9 +55,23 @@ interface EditProfileModalProps {
 }
 
 const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { currentUser, updateProfile, updateUserProfile, showToast } = useAlumni();
+  const { currentUser, updateProfile, updateUserProfile, deleteMyAccount, logout, showToast } = useAlumni();
 
   const [name, setName] = useState(currentUser?.name || '');
+  const [username, setUsername] = useState(
+    currentUser?.username || slugifyUsername(currentUser?.name || '')
+  );
+  const [showEmail, setShowEmail] = useState<boolean>(
+    currentUser?.show_email ?? currentUser?.showEmail ?? false
+  );
+  const [showPhone, setShowPhone] = useState<boolean>(
+    currentUser?.show_phone ?? currentUser?.showPhone ?? false
+  );
+  const [showCurrentEmployer, setShowCurrentEmployer] = useState<boolean>(
+    currentUser?.show_current_employer ?? currentUser?.showCurrentEmployer ?? true
+  );
+  const [showDeleteAccountConfirm, setShowDeleteAccountConfirm] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [headline, setHeadline] = useState(currentUser?.headline || '');
   const [about, setAbout] = useState(currentUser?.about || '');
   const [location, setLocation] = useState(currentUser?.location || '');
@@ -281,27 +300,73 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
       return;
     }
 
+    const sanitizedUsername = slugifyUsername(username || name);
+
+    const payload = {
+      name: name.trim(),
+      username: sanitizedUsername,
+      headline: headline.trim(),
+      about: about.trim(),
+      location: location.trim(),
+      phone: phoneValidation.formatted,
+      profilePictureUrl,
+      coverPhotoUrl,
+      employmentStatus,
+      currentPosition: currentPosition.trim(),
+      company: company.trim(),
+      industry,
+      experience,
+      education,
+      show_email: showEmail,
+      show_phone: showPhone,
+      show_current_employer: showCurrentEmployer,
+      showEmail,
+      showPhone,
+      showCurrentEmployer
+    };
+
     const updater = updateProfile || updateUserProfile;
     if (typeof updater === 'function') {
-      updater({
-        name: name.trim(),
-        headline: headline.trim(),
-        about: about.trim(),
-        location: location.trim(),
-        phone: phoneValidation.formatted,
-        profilePictureUrl,
-        coverPhotoUrl,
-        employmentStatus,
-        currentPosition: currentPosition.trim(),
-        company: company.trim(),
-        industry,
-        experience,
-        education
-      });
+      updater(payload);
     }
+
+    apiFetchWithCsrf('/api/profiles/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: payload.name,
+        username: sanitizedUsername,
+        headline: payload.headline,
+        about: payload.about,
+        location: payload.location,
+        company: payload.company,
+        currentPosition: payload.currentPosition,
+        profilePictureUrl: payload.profilePictureUrl,
+        coverPhotoUrl: payload.coverPhotoUrl,
+        phone: payload.phone,
+        show_email: showEmail,
+        show_phone: showPhone,
+        show_current_employer: showCurrentEmployer
+      })
+    }).catch(() => {});
+
     triggerHaptic('success');
     showToast('Alumni profile updated successfully!', 'success');
     onClose();
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    try {
+      await deleteMyAccount();
+      setShowDeleteAccountConfirm(false);
+      onClose();
+      logout();
+    } catch {
+      showToast('Could not complete account deletion.', 'error');
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
   return (
@@ -609,6 +674,24 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
                   className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs text-stone-900 dark:text-stone-100 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-stone-100 dark:disabled:bg-stone-900"
                 />
               </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block">
+                  Profile URL Handle
+                </label>
+                <span className="text-[10px] text-stone-400 font-mono">
+                  /profile/{slugifyUsername(username || name)}
+                </span>
+              </div>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
+                placeholder="juan.delacruz"
+                className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-lg text-xs font-mono text-stone-900 dark:text-stone-100"
+              />
             </div>
 
             <div>
@@ -938,6 +1021,66 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
             ))}
           </div>
 
+          {/* Profile Privacy Settings */}
+          <div className="space-y-3 pt-4 border-t border-stone-200 dark:border-stone-800">
+            <h3 className="font-bold text-stone-900 dark:text-white uppercase tracking-wider text-xs flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
+              <span>Profile Field Visibility</span>
+            </h3>
+            <p className="text-[11px] text-stone-500 dark:text-stone-400">
+              Control which contact and employment details other logged-in alumni can see on your profile.
+            </p>
+            <div className="space-y-2 bg-stone-50 dark:bg-stone-800/50 p-3.5 rounded-xl border border-stone-200 dark:border-stone-700">
+              <label className="flex items-center justify-between gap-3 cursor-pointer text-xs text-stone-700 dark:text-stone-200">
+                <span>Show email address on profile</span>
+                <input
+                  type="checkbox"
+                  checked={showEmail}
+                  onChange={(e) => setShowEmail(e.target.checked)}
+                  className="accent-[#8B181B] w-4 h-4"
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3 cursor-pointer text-xs text-stone-700 dark:text-stone-200">
+                <span>Show phone number on profile</span>
+                <input
+                  type="checkbox"
+                  checked={showPhone}
+                  onChange={(e) => setShowPhone(e.target.checked)}
+                  className="accent-[#8B181B] w-4 h-4"
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3 cursor-pointer text-xs text-stone-700 dark:text-stone-200">
+                <span>Show current employer &amp; job title</span>
+                <input
+                  type="checkbox"
+                  checked={showCurrentEmployer}
+                  onChange={(e) => setShowCurrentEmployer(e.target.checked)}
+                  className="accent-[#8B181B] w-4 h-4"
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Account Deletion */}
+          <div className="pt-4 border-t border-stone-200 dark:border-stone-800">
+            <div className="p-3.5 rounded-xl bg-red-50/70 dark:bg-red-950/20 border border-red-200/80 dark:border-red-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-xs font-bold text-red-900 dark:text-red-300">Delete Account</h4>
+                <p className="text-[11px] text-red-700 dark:text-red-400 mt-0.5">
+                  Closes your profile and anonymizes your past published posts as &quot;Former alumni&quot;.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={isDeletingAccount}
+                onClick={() => setShowDeleteAccountConfirm(true)}
+                className="px-3.5 py-2 bg-red-700 hover:bg-red-800 text-white rounded-xl text-xs font-bold shrink-0 cursor-pointer"
+              >
+                Delete Account
+              </button>
+            </div>
+          </div>
+
           {/* Footer Save Button */}
           <div className="pt-4 border-t border-stone-200 dark:border-stone-800 flex items-center justify-end gap-2.5">
             <button
@@ -956,6 +1099,17 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
           </div>
         </form>
       </div>
+
+      <ConfirmationModal
+        isOpen={showDeleteAccountConfirm}
+        onClose={() => setShowDeleteAccountConfirm(false)}
+        onConfirm={handleConfirmDeleteAccount}
+        title="Delete Account & Anonymize Posts"
+        message="Your account will be closed and your past non-anonymous posts will display as 'Former alumni'. This action cannot be undone."
+        confirmLabel={isDeletingAccount ? 'Deleting...' : 'Confirm Account Deletion'}
+        cancelLabel="Keep Account"
+        variant="danger"
+      />
     </div>
   );
 };

@@ -274,15 +274,9 @@ export const CollegiateGreetingBanner: React.FC<CollegiateGreetingBannerProps> =
             <div className="flex items-center gap-3 lg:flex-row-reverse text-left lg:text-right">
               <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white p-0.5 ring-1 ring-stone-200 shadow-2xs shrink-0">
                 <img
-                  src="/assets/st-cecilias-college-seal.jpg"
+                  src="/assets/cecilians-seal.jpg"
                   alt="St. Cecilia's College Official Seal"
-                  className="w-full h-full object-contain rounded-full"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    if (target.src !== window.location.origin + '/assets/cecilians-seal.jpg') {
-                      target.src = '/assets/cecilians-seal.jpg';
-                    }
-                  }}
+                  className="w-full h-full object-cover rounded-full"
                 />
               </div>
 

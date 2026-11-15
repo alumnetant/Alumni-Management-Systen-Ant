@@ -1,37 +1,49 @@
-import React, { useState } from 'react';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  X,
-  MapPin,
-  Mail,
-  Phone,
+  Ban,
   Briefcase,
-  GraduationCap,
-  MessageSquare,
-  UserCheck,
-  UserPlus,
-  Building,
-  Calendar,
-  CheckCircle2,
-  Sparkles,
-  FileDown,
-  Clock,
   Check,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  FileDown,
+  GraduationCap,
+  Mail,
+  MapPin,
   Megaphone,
-  Heart
+  MessageSquare,
+  Phone,
+  UserPlus,
+  X
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
-import { exportProfileToPdfResume } from '../../services/pdfResumeService';
 import { PdfResumePreviewModal } from './PdfResumePreviewModal';
 import { ImageViewerModal } from '../common/ImageViewerModal';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import {
-  getUserAvatar,
   getCoverPhoto,
-  handleUserAvatarError,
-  handleCoverPhotoError
+  getUserAvatar,
+  handleCoverPhotoError,
+  handleUserAvatarError
 } from '../../lib/defaultImages';
 import { isEmployerVisibleInDirectory } from '../../lib/employerValidation';
+import {
+  areUsersBlocked,
+  canUserViewPost,
+  comparePostsCreatedDesc,
+  hydratePostWithLiveAuthor,
+  isAccountDeleted,
+  isAccountUnavailable,
+  isStaffOrModeratorRole,
+  slugifyUsername
+} from '../../lib/postVisibility';
+import { PostCard } from '../social/PostCard';
 
 export const PublicProfileModal: React.FC = () => {
   const {
@@ -48,44 +60,88 @@ export const PublicProfileModal: React.FC = () => {
     cancelFriendRequest,
     getOrCreateChat,
     setActiveTab,
-    showToast,
-    feedPosts
+    feedPosts,
+    openProfile,
+    blockUser,
+    unblockUser
   } = useAlumni();
 
   const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
   const [showCancelRequestConfirm, setShowCancelRequestConfirm] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [showResumePreview, setShowResumePreview] = useState(false);
 
-  if (!selectedUserIdForModal) return null;
+  const targetUser = useMemo(
+    () => (selectedUserIdForModal ? users.find((u) => u.uid === selectedUserIdForModal) : undefined),
+    [users, selectedUserIdForModal]
+  );
 
-  const targetUser = users.find((u) => u.uid === selectedUserIdForModal);
-  if (!targetUser) return null;
+  const viewerContext = useMemo(
+    () =>
+      currentUser
+        ? {
+            uid: currentUser.uid,
+            role: currentUser.role,
+            batch: currentUser.batch,
+            course: currentUser.course,
+            department: currentUser.department,
+            groupIds: currentUser.groupIds,
+            blockedUsers: currentUser.blockedUsers
+          }
+        : null,
+    [currentUser]
+  );
 
-  // Administrator and superadmin accounts are strictly confidential and hidden from alumni/public view
-  const isPrivilegedViewer = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+  const targetUserPosts = useMemo(() => {
+    if (!targetUser || !viewerContext) return [];
+    return (feedPosts || [])
+      .filter((p) =>
+        canUserViewPost(p, {
+          surface: 'profile',
+          viewer: viewerContext,
+          targetProfileUid: targetUser.uid,
+          authorAccount: targetUser
+        })
+      )
+      .map((p) => hydratePostWithLiveAuthor(p, targetUser, viewerContext))
+      .sort(comparePostsCreatedDesc);
+  }, [feedPosts, targetUser, viewerContext]);
+
+  if (!selectedUserIdForModal || !currentUser || !targetUser) return null;
+
+  const isPrivilegedViewer = isStaffOrModeratorRole(currentUser.role);
   if ((targetUser.role === 'admin' || targetUser.role === 'superadmin') && !isPrivilegedViewer) {
     return null;
   }
 
-  // Task 2: pending and rejected employers must never appear in direct links accessible to alumni
-  const isAlumniViewer = !currentUser || currentUser.role === 'alumni';
+  const isAlumniViewer = currentUser.role === 'alumni';
   if (targetUser.role === 'employer' && isAlumniViewer && !isEmployerVisibleInDirectory(targetUser)) {
     return null;
   }
 
-  const isSelf = currentUser?.uid === targetUser.uid;
+  const isSelf = currentUser.uid === targetUser.uid;
+  const isBlockedByViewer = Boolean(currentUser.blockedUsers?.includes(targetUser.uid));
+  const blocked = !isSelf && areUsersBlocked(currentUser.uid, targetUser.uid, currentUser, targetUser);
+  const unavailable = !isSelf && (blocked || isAccountUnavailable(targetUser));
+
+  const showEmail = isSelf || isPrivilegedViewer || Boolean(targetUser.show_email ?? targetUser.showEmail);
+  const showPhone = isSelf || isPrivilegedViewer || Boolean(targetUser.show_phone ?? targetUser.showPhone);
+  const showEmployer =
+    isSelf || isPrivilegedViewer || (targetUser.show_current_employer ?? targetUser.showCurrentEmployer ?? true);
+
   const connected = isConnected(targetUser.uid);
   const reqState = hasPendingRequestWith(targetUser.uid);
 
-  // Find active pending request if any
   const pendingReq = friendRequests.find(
     (r) =>
       r.status === 'pending' &&
-      ((r.fromUid === currentUser?.uid && r.toUid === targetUser.uid) ||
-        (r.fromUid === targetUser.uid && r.toUid === currentUser?.uid))
+      ((r.fromUid === currentUser.uid && r.toUid === targetUser.uid) ||
+        (r.fromUid === targetUser.uid && r.toUid === currentUser.uid))
   );
 
   if (typeof document === 'undefined') return null;
+
+  const profileSlug = targetUser.username || slugifyUsername(targetUser.name || targetUser.uid) || targetUser.uid;
 
   const modalElement = (
     <>
@@ -96,335 +152,303 @@ export const PublicProfileModal: React.FC = () => {
         }}
       >
         <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl border border-stone-200 dark:border-stone-800 w-full max-w-2xl max-h-[90dvh] overflow-hidden flex flex-col animate-in zoom-in-95 transition-colors">
-          
-          {/* Scrollable Container */}
-          <div className="flex-1 overflow-y-auto">
-            {/* Cover Photo Header */}
-            <div className="relative h-44 sm:h-52 bg-stone-800 shrink-0">
-              <img
-                src={getCoverPhoto(targetUser.coverPhotoUrl)}
-                alt="Cover"
-                onError={handleCoverPhotoError}
-                onClick={() =>
-                  setViewerImage({
-                    url: getCoverPhoto(targetUser.coverPhotoUrl),
-                    title: `${targetUser.name} — Cover Photo`
-                  })
-                }
-                className="w-full h-full object-cover opacity-90 dark:opacity-80 cursor-pointer hover:opacity-100 transition-opacity"
-                title="Click to view full cover photo"
-              />
-              <button
-                onClick={() => setSelectedUserIdForModal(null)}
-                className="absolute top-4 right-4 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full transition-colors cursor-pointer z-20 border border-white/10"
-                aria-label="Close profile"
-              >
-                <X className="w-5 h-5" />
-              </button>
+          {unavailable && !isPrivilegedViewer ? (
+            <div className="p-8 text-center space-y-4">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserIdForModal(null)}
+                  className="p-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <Ban className="w-10 h-10 text-stone-400 mx-auto" />
+              <h2 className="text-lg font-bold text-stone-900 dark:text-white">
+                {isAccountDeleted(targetUser) ? 'Former alumni' : 'This account is unavailable'}
+              </h2>
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                This profile and its posts are currently unavailable.
+              </p>
+              {isBlockedByViewer && (
+                <button
+                  type="button"
+                  onClick={() => unblockUser(targetUser.uid)}
+                  className="px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold cursor-pointer min-h-[44px]"
+                >
+                  Unblock Account
+                </button>
+              )}
             </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto">
+              {/* Cover Photo Header */}
+              <div className="relative h-44 sm:h-52 bg-stone-800 shrink-0">
+                <img
+                  src={getCoverPhoto(targetUser.coverPhotoUrl)}
+                  alt="Cover"
+                  onError={handleCoverPhotoError}
+                  onClick={() =>
+                    setViewerImage({
+                      url: getCoverPhoto(targetUser.coverPhotoUrl),
+                      title: `${targetUser.name} — Cover Photo`
+                    })
+                  }
+                  className="w-full h-full object-cover opacity-90 dark:opacity-80 cursor-pointer hover:opacity-100 transition-opacity"
+                  title="Click to view full cover photo"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSelectedUserIdForModal(null)}
+                  className="absolute top-4 right-4 p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-full transition-colors cursor-pointer z-20 border border-white/10"
+                  aria-label="Close profile"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
 
-            {/* Profile Card Body */}
-            <div className="px-4 sm:px-6 pb-6">
-              {/* Avatar and Action Buttons Row */}
-              <div className="relative flex flex-col sm:flex-row sm:items-end justify-between gap-3.5 -mt-12 sm:-mt-14 mb-5">
-                <div className="relative self-start shrink-0 z-10">
-                  <img
-                    src={getUserAvatar(targetUser.profilePictureUrl)}
-                    alt={targetUser.name}
-                    onError={handleUserAvatarError}
-                    onClick={() =>
-                      setViewerImage({
-                        url: getUserAvatar(targetUser.profilePictureUrl),
-                        title: `${targetUser.name} — Profile Picture`
-                      })
-                    }
-                    className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-4 border-white dark:border-stone-900 shadow-lg bg-stone-100 dark:bg-stone-800 ring-1 ring-stone-900/10 dark:ring-stone-700/50 aspect-square cursor-pointer hover:scale-[1.03] transition-transform"
-                    title="Click to view enlarged profile photo"
-                  />
-                  <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-stone-900 shadow-xs"></span>
-                </div>
+              {/* Profile Card Body */}
+              <div className="px-4 sm:px-6 pb-6">
+                <div className="relative flex flex-col sm:flex-row sm:items-end justify-between gap-3.5 -mt-12 sm:-mt-14 mb-5">
+                  <div className="relative self-start shrink-0 z-10">
+                    <img
+                      src={getUserAvatar(targetUser.profilePictureUrl)}
+                      alt={targetUser.name}
+                      onError={handleUserAvatarError}
+                      onClick={() =>
+                        setViewerImage({
+                          url: getUserAvatar(targetUser.profilePictureUrl),
+                          title: `${targetUser.name} — Profile Picture`
+                        })
+                      }
+                      className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-4 border-white dark:border-stone-900 shadow-lg bg-stone-100 dark:bg-stone-800 ring-1 ring-stone-900/10 dark:ring-stone-700/50 aspect-square cursor-pointer"
+                    />
+                  </div>
 
-                {/* Action buttons */}
-                <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto pt-1 sm:pt-0">
-                  {isSelf && (
+                  {/* Action buttons */}
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto pt-1 sm:pt-0">
                     <button
                       type="button"
-                      onClick={() => setShowResumePreview(true)}
-                      className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs cursor-pointer transition-colors min-h-[42px]"
-                      title="Review and download official PDF resume"
+                      onClick={() => {
+                        setSelectedUserIdForModal(null);
+                        openProfile(profileSlug);
+                      }}
+                      className="justify-center flex items-center gap-1.5 px-3.5 py-2.5 bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer transition-colors min-h-[44px]"
                     >
-                      <FileDown className="w-4 h-4 text-amber-300 shrink-0" />
-                      <span className="whitespace-nowrap">Export PDF Resume</span>
+                      <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      <span>View Full Profile &amp; Timeline</span>
                     </button>
-                  )}
 
-                  {!isSelf && (
-                    <>
-                      {connected ? (
-                        <div className="flex items-center gap-2">
-                          <div className="justify-center flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/90 dark:border-emerald-800/60 rounded-xl text-xs sm:text-sm font-semibold min-h-[42px]">
-                            <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                            <span>Connected</span>
+                    {isSelf && (
+                      <button
+                        type="button"
+                        onClick={() => setShowResumePreview(true)}
+                        className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-100 rounded-xl text-xs font-semibold cursor-pointer min-h-[44px]"
+                      >
+                        <FileDown className="w-4 h-4 shrink-0" />
+                        <span>PDF Resume</span>
+                      </button>
+                    )}
+
+                    {!isSelf && (
+                      <>
+                        {connected ? (
+                          <div className="flex items-center gap-2">
+                            <div className="justify-center flex items-center gap-1.5 px-3 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200/90 dark:border-emerald-800/60 rounded-xl text-xs font-semibold min-h-[44px]">
+                              <Check className="w-4 h-4 shrink-0" />
+                              <span>Connected</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedUserIdForModal(null);
+                                getOrCreateChat(targetUser.uid);
+                                setActiveTab('messages');
+                              }}
+                              className="justify-center flex items-center gap-1.5 px-3.5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer min-h-[44px]"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                              <span>Message</span>
+                            </button>
                           </div>
+                        ) : reqState === 'sent' ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedUserIdForModal(null);
-                              getOrCreateChat(targetUser.uid);
-                              setActiveTab('messages');
-                            }}
-                            className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs cursor-pointer min-h-[42px] transition-all hover:shadow-md"
-                            title="Send direct message"
+                            onClick={() => setShowCancelRequestConfirm(true)}
+                            className="justify-center flex items-center gap-1.5 px-3.5 py-2.5 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 border border-amber-200/90 dark:border-amber-800/60 rounded-xl text-xs font-semibold cursor-pointer min-h-[44px]"
                           >
-                            <MessageSquare className="w-4 h-4" />
-                            <span>Message</span>
+                            <Clock className="w-4 h-4 shrink-0" />
+                            <span>Request Sent</span>
                           </button>
-                        </div>
-                      ) : reqState === 'sent' ? (
+                        ) : reqState === 'received' ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => pendingReq && acceptFriendRequest(pendingReq.id)}
+                              className="justify-center flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold cursor-pointer min-h-[44px]"
+                            >
+                              <Check className="w-4 h-4" />
+                              <span>Accept</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => pendingReq && declineFriendRequest(pendingReq.id)}
+                              className="justify-center flex items-center gap-1 px-3 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-xl text-xs font-semibold cursor-pointer min-h-[44px]"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => sendFriendRequest(targetUser.uid)}
+                            className="justify-center flex items-center gap-1.5 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer min-h-[44px]"
+                          >
+                            <UserPlus className="w-4 h-4 shrink-0" />
+                            <span>Connect</span>
+                          </button>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() => setShowCancelRequestConfirm(true)}
-                          className="justify-center flex items-center gap-2 px-3.5 py-2.5 bg-amber-50 hover:bg-red-50 dark:bg-amber-950/40 dark:hover:bg-red-950/40 text-amber-900 hover:text-red-700 dark:text-amber-300 dark:hover:text-red-300 border border-amber-200/90 dark:border-amber-800/60 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer min-h-[42px]"
-                          title="Click to cancel pending connection request"
+                          onClick={() => setShowBlockConfirm(true)}
+                          className="justify-center flex items-center gap-1 px-3 py-2.5 bg-stone-100 dark:bg-stone-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-stone-600 dark:text-stone-300 hover:text-red-700 rounded-xl text-xs font-semibold cursor-pointer min-h-[44px]"
+                          title="Block user"
                         >
-                          <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                          <span>Request Sent (Cancel)</span>
+                          <Ban className="w-3.5 h-3.5" />
                         </button>
-                      ) : reqState === 'received' ? (
-                        <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (pendingReq) acceptFriendRequest(pendingReq.id);
-                            }}
-                            className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-semibold cursor-pointer shadow-xs min-h-[42px]"
-                          >
-                            <Check className="w-4 h-4" />
-                            <span>Accept</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (pendingReq) declineFriendRequest(pendingReq.id);
-                            }}
-                            className="justify-center flex items-center gap-1 px-3 py-2.5 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer min-h-[42px]"
-                            title="Decline request"
-                          >
-                            <X className="w-4 h-4" />
-                            <span className="hidden xs:inline">Decline</span>
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => sendFriendRequest(targetUser.uid)}
-                          className="justify-center flex items-center gap-2 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs sm:text-sm font-semibold shadow-xs hover:shadow-md cursor-pointer transition-all active:scale-98 min-h-[42px]"
-                        >
-                          <UserPlus className="w-4 h-4 shrink-0" />
-                          <span>Connect</span>
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* User Details */}
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="editorial-title text-xl sm:text-2xl font-normal">
-                    {targetUser.name}
-                  </h2>
-                  {targetUser.role === 'alumni' && targetUser.isVerified && (
-                    <span className="px-2 py-0.5 text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 rounded-full inline-flex items-center gap-1 shadow-2xs">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                      <span>Verified Alum</span>
-                    </span>
-                  )}
-                  <span className="uppercase text-[11px] px-2 py-0.5 rounded-full font-semibold bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
-                    {targetUser.role}
-                  </span>
-                </div>
-
-                <p className="text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 mt-1 leading-relaxed">
-                  {targetUser.headline || 'St. Cecilia’s College Alumnus'}
-                </p>
-
-                <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-500 dark:text-stone-400">
-                  <span className="flex items-center gap-1 text-[#8B181B] dark:text-red-400 font-semibold">
-                    <GraduationCap className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
-                    Batch of {targetUser.batch || '—'} • {targetUser.course || 'Degree Program'}
-                  </span>
-                  {targetUser.location && (
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
-                      {targetUser.location}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Metrics Row */}
-              <div className="mt-4 p-3 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200/80 dark:border-stone-700/60 grid grid-cols-3 text-center">
-                <div>
-                  <span className="text-base font-bold text-stone-900 dark:text-white block font-mono">
-                    {targetUser.connectionsCount || 0}
-                  </span>
-                  <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">Connections</span>
-                </div>
-                <div>
-                  <span className="text-base font-bold text-stone-900 dark:text-white block font-mono">
-                    {targetUser.batch || '2024'}
-                  </span>
-                  <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">Graduation Batch</span>
-                </div>
-                <div>
-                  <span className="text-base font-bold text-[#8B181B] dark:text-red-400 block font-mono">
-                    {targetUser.isVerified ? 'Verified' : 'Member'}
-                  </span>
-                  <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">Portal Status</span>
-                </div>
-              </div>
-
-              {/* About Section */}
-              <div className="mt-5">
-                <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-1.5">
-                  About
-                </h3>
-                <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 leading-relaxed whitespace-pre-line bg-stone-50/60 dark:bg-stone-800/40 p-3.5 rounded-xl border border-stone-200/60 dark:border-stone-700/50">
-                  {targetUser.about || 'No bio written yet.'}
-                </p>
-              </div>
-
-              {/* Experience Timeline */}
-              {(targetUser.experience || []).length > 0 && (
-                <div className="mt-6">
-                  <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-3 flex items-center gap-1.5">
-                    <Briefcase className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
-                    <span>Professional Experience</span>
-                  </h3>
-
-                  <div className="space-y-3">
-                    {(targetUser.experience || []).map((exp) => (
-                      <div key={exp.id} className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200/70 dark:border-stone-700/60 text-xs">
-                        <div className="flex items-start justify-between">
-                          <h4 className="font-bold text-stone-900 dark:text-white text-sm">{exp.title}</h4>
-                          <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">{exp.startDate}</span>
-                        </div>
-                        <div className="text-[#8B181B] dark:text-red-400 font-semibold mt-0.5">
-                          {exp.company} • <span className="text-stone-600 dark:text-stone-400 font-normal">{exp.location}</span>
-                        </div>
-                        {exp.description && (
-                          <p className="text-stone-600 dark:text-stone-300 mt-1.5 leading-relaxed">{exp.description}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Education Timeline */}
-              {(targetUser.education || []).length > 0 && (
-                <div className="mt-6">
-                  <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-3 flex items-center gap-1.5">
-                    <GraduationCap className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
-                    <span>Education & Academics</span>
-                  </h3>
-
-                  <div className="space-y-3">
-                    {(targetUser.education || []).map((edu) => (
-                      <div key={edu.id} className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200/70 dark:border-stone-700/60 text-xs">
-                        <div className="flex items-start justify-between">
-                          <h4 className="font-bold text-stone-900 dark:text-white text-sm">{edu.degree}</h4>
-                          <span className="text-[10px] text-stone-400 dark:text-stone-500 font-medium">
-                            {edu.startYear} - {edu.endYear}
-                          </span>
-                        </div>
-                        <div className="text-stone-700 dark:text-stone-300 font-medium mt-0.5">
-                          {edu.institution} • <span className="text-stone-500 dark:text-stone-400">{edu.fieldOfStudy}</span>
-                        </div>
-                        {edu.honors && (
-                          <div className="text-[11px] text-[#8B181B] dark:text-red-400 font-semibold mt-1">
-                            Honors: {edu.honors}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Activity & Community Timeline Posts */}
-              {(() => {
-                const targetUserPosts = (feedPosts || []).filter(
-                  (p) => p.authorId === targetUser.uid || p.authorName === targetUser.name
-                );
-                return (
-                  <div className="mt-6">
-                    <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-3 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Megaphone className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
-                        <span>Timeline & Community Posts</span>
-                      </div>
-                      <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 font-semibold">
-                        {targetUserPosts.length} updates
-                      </span>
-                    </h3>
-
-                    {targetUserPosts.length === 0 ? (
-                      <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-200 dark:border-stone-700 text-center text-xs text-stone-400">
-                        No community updates published yet.
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {targetUserPosts.map((post) => (
-                          <div
-                            key={post.id}
-                            className="p-3.5 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200/70 dark:border-stone-700/60 text-xs space-y-2"
-                          >
-                            <div className="flex items-center justify-between text-[11px] text-stone-400">
-                              <span className="font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white dark:bg-stone-700 text-stone-700 dark:text-stone-300 border border-stone-200/60 dark:border-stone-600">
-                                {post.postType}
-                              </span>
-                              <span>
-                                {new Date(post.createdAt).toLocaleDateString([], {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric'
-                                })}
-                              </span>
-                            </div>
-
-                            <h4 className="font-bold text-stone-900 dark:text-white text-sm">{post.title}</h4>
-                            <p className="text-stone-600 dark:text-stone-300 leading-relaxed whitespace-pre-line">
-                              {post.content}
-                            </p>
-
-                            {post.imageUrl && (
-                              <div className="rounded-lg overflow-hidden max-h-48 border border-stone-200 dark:border-stone-700">
-                                <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover" />
-                              </div>
-                            )}
-
-                            <div className="pt-2 border-t border-stone-200/60 dark:border-stone-700/60 flex items-center justify-between text-stone-400 text-[11px]">
-                              <span className="flex items-center gap-1">
-                                <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" />
-                                <span>{(post.hearts || []).length || post.likes || 0} hearts</span>
-                              </span>
-                              <span>{post.comments?.length || 0} comments</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                      </>
                     )}
                   </div>
-                );
-              })()}
+                </div>
+
+                {/* User Details */}
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-white tracking-tight">
+                      {targetUser.name}
+                    </h2>
+                    {targetUser.role === 'alumni' && targetUser.isVerified && (
+                      <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Verified Alum</span>
+                      </span>
+                    )}
+                    <span className="uppercase text-[11px] font-bold tracking-wider text-stone-500 dark:text-stone-400">
+                      {targetUser.role}
+                    </span>
+                  </div>
+
+                  <p className="text-xs sm:text-sm font-medium text-stone-600 dark:text-stone-300 mt-1 leading-relaxed">
+                    {targetUser.headline || 'St. Cecilia’s College Alumnus'}
+                  </p>
+
+                  <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-stone-500 dark:text-stone-400">
+                    <span className="flex items-center gap-1 text-[#8B181B] dark:text-red-400 font-semibold">
+                      <GraduationCap className="w-3.5 h-3.5" />
+                      Batch of {targetUser.batch || '—'} • {targetUser.course || 'Degree Program'}
+                    </span>
+                    {targetUser.location && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-stone-400" />
+                        {targetUser.location}
+                      </span>
+                    )}
+                    {showEmployer && (targetUser.currentPosition || targetUser.company) && (
+                      <span className="flex items-center gap-1">
+                        <Briefcase className="w-3.5 h-3.5 text-stone-400" />
+                        {[targetUser.currentPosition, targetUser.company].filter(Boolean).join(' at ')}
+                      </span>
+                    )}
+                    {showEmail && targetUser.email && (
+                      <span className="flex items-center gap-1">
+                        <Mail className="w-3.5 h-3.5 text-stone-400" />
+                        {targetUser.email}
+                      </span>
+                    )}
+                    {showPhone && targetUser.phone && (
+                      <span className="flex items-center gap-1 font-mono tabular-nums">
+                        <Phone className="w-3.5 h-3.5 text-stone-400" />
+                        {targetUser.phone}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Metrics Row */}
+                <div className="mt-4 p-3 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200/80 dark:border-stone-700/60 grid grid-cols-3 text-center">
+                  <div>
+                    <span className="text-base font-bold text-stone-900 dark:text-white block font-mono tabular-nums">
+                      {targetUser.connectionsCount || 0}
+                    </span>
+                    <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">Connections</span>
+                  </div>
+                  <div>
+                    <span className="text-base font-bold text-stone-900 dark:text-white block font-mono tabular-nums">
+                      {targetUser.batch || '2024'}
+                    </span>
+                    <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">Graduation Batch</span>
+                  </div>
+                  <div>
+                    <span className="text-base font-bold text-[#8B181B] dark:text-red-400 block font-mono tabular-nums">
+                      {targetUserPosts.length}
+                    </span>
+                    <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">Timeline Posts</span>
+                  </div>
+                </div>
+
+                {/* About Section */}
+                <div className="mt-5">
+                  <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase mb-1.5">
+                    About
+                  </h3>
+                  <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 leading-relaxed whitespace-pre-line bg-stone-50/60 dark:bg-stone-800/40 p-3.5 rounded-xl border border-stone-200/60 dark:border-stone-700/50">
+                    {targetUser.about || 'No bio written yet.'}
+                  </p>
+                </div>
+
+                {/* Personal Timeline Posts (Filtered via shared canUserViewPost) */}
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase flex items-center gap-1.5">
+                      <Megaphone className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
+                      <span>Timeline Posts ({targetUserPosts.length})</span>
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUserIdForModal(null);
+                        openProfile(profileSlug);
+                      }}
+                      className="text-xs font-semibold text-[#8B181B] dark:text-red-400 hover:underline cursor-pointer"
+                    >
+                      Open Timeline Page
+                    </button>
+                  </div>
+
+                  {targetUserPosts.length === 0 ? (
+                    <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-200 dark:border-stone-700 text-center text-xs text-stone-400">
+                      No posts yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {targetUserPosts.slice(0, 5).map((post) => (
+                        <PostCard
+                          key={post.id}
+                          post={post}
+                          onImageClick={(url, title) => setViewerImage({ url, title })}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Enlarged Image Viewer Modal for Profile Picture and Cover Photo */}
       <ImageViewerModal
         isOpen={Boolean(viewerImage)}
         imageUrl={viewerImage?.url || ''}
@@ -432,24 +456,35 @@ export const PublicProfileModal: React.FC = () => {
         onClose={() => setViewerImage(null)}
       />
 
-      {/* Cancel Connection Request Confirmation Dialog */}
       <ConfirmationModal
         isOpen={showCancelRequestConfirm}
         onClose={() => setShowCancelRequestConfirm(false)}
         onConfirm={() => {
-          if (pendingReq) {
-            cancelFriendRequest(pendingReq.id);
-          }
+          if (pendingReq) cancelFriendRequest(pendingReq.id);
           setShowCancelRequestConfirm(false);
         }}
         title="Withdraw Connection Request"
-        message={`Are you sure you want to withdraw your pending connection request to ${targetUser.name}? You can send another request at any time.`}
+        message={`Are you sure you want to withdraw your pending connection request to ${targetUser.name}?`}
         confirmLabel="Withdraw Request"
         cancelLabel="Keep Request"
         variant="warning"
       />
 
-      {/* Official PDF Resume Preview & Verification Modal */}
+      <ConfirmationModal
+        isOpen={showBlockConfirm}
+        onClose={() => setShowBlockConfirm(false)}
+        onConfirm={() => {
+          setShowBlockConfirm(false);
+          setSelectedUserIdForModal(null);
+          blockUser(targetUser.uid);
+        }}
+        title={`Block ${targetUser.name}`}
+        message={`Blocking ${targetUser.name} hides their posts, comments, and profile from you and prevents them from viewing yours.`}
+        confirmLabel="Block User"
+        cancelLabel="Cancel"
+        variant="danger"
+      />
+
       <PdfResumePreviewModal
         isOpen={showResumePreview}
         onClose={() => setShowResumePreview(false)}

@@ -17,9 +17,10 @@ import {
   initializeFCMForUser,
   removeFCMDeviceToken
 } from '../services/fcmTokenService';
+import { buildPortalUrlForTab } from '../lib/notificationDeepLink';
 
 export function useFCMNotifications() {
-  const { currentUser, setActiveTab } = useAlumni();
+  const { currentUser, navigateToPortalPath } = useAlumni();
   const initializedUserUidRef = useRef<string | null>(null);
 
   // 1. Seamless FCM Device Token Initialization upon login
@@ -47,6 +48,16 @@ export function useFCMNotifications() {
 
   // 2. Dual-Platform Foreground & Background Action Listeners
   useEffect(() => {
+    const computeTargetPath = (data?: Record<string, any>) => {
+      if (!data) return '/portal/dashboard';
+      if (typeof data.targetPath === 'string' && data.targetPath.startsWith('/portal/')) return data.targetPath;
+      if (typeof data.targetRoute === 'string' && data.targetRoute.startsWith('/portal/')) return data.targetRoute;
+      if (typeof data.url === 'string' && data.url.startsWith('/portal/')) return data.url;
+      const route = data.route || data.category || 'dashboard';
+      const id = data.eventId || data.announcementId || data.postId || data.chatId || data.jobId || data.targetId || data.refId;
+      return buildPortalUrlForTab(route, data.subTab, id);
+    };
+
     // A. Native Android Capacitor Environment
     if (isNativePlatform()) {
       let isSubscribed = true;
@@ -57,6 +68,7 @@ export function useFCMNotifications() {
         (notification: PushNotificationSchema) => {
           if (!isSubscribed) return;
           console.info('[FCM Android Foreground] Notification received:', notification);
+          const resolvedPath = computeTargetPath(notification.data);
 
           window.dispatchEvent(
             new CustomEvent('applet:fcm-push-received', {
@@ -64,8 +76,10 @@ export function useFCMNotifications() {
                 title: notification.title || "St. Cecilia's College",
                 body: notification.body || 'You have a new update.',
                 route: notification.data?.route || 'dashboard',
+                targetPath: resolvedPath,
+                targetRoute: resolvedPath,
                 tag: notification.data?.tag || 'Alumnet Notice',
-                data: notification.data || {}
+                data: { ...(notification.data || {}), targetPath: resolvedPath, targetRoute: resolvedPath }
               }
             })
           );
@@ -77,12 +91,8 @@ export function useFCMNotifications() {
         'pushNotificationActionPerformed',
         (action: ActionPerformed) => {
           console.info('[FCM Android Tray Tap] Action performed:', action);
-          const route = action.notification.data?.route;
-          if (route) {
-            if (['announcements', 'events', 'opportunities', 'network', 'profile'].includes(route)) {
-              setActiveTab(route as any);
-            }
-          }
+          const resolvedPath = computeTargetPath(action.notification.data);
+          navigateToPortalPath(resolvedPath);
         }
       );
 
@@ -108,6 +118,7 @@ export function useFCMNotifications() {
           const title = payload.notification?.title || payload.data?.title || "St. Cecilia's College";
           const body = payload.notification?.body || payload.data?.body || 'New announcement available.';
           const route = payload.data?.route || 'announcements';
+          const resolvedPath = computeTargetPath(payload.data);
           const tag = payload.data?.tag || 'Presidential Bulletin';
 
           window.dispatchEvent(
@@ -116,8 +127,10 @@ export function useFCMNotifications() {
                 title,
                 body,
                 route,
+                targetPath: resolvedPath,
+                targetRoute: resolvedPath,
                 tag,
-                data: payload.data || {}
+                data: { ...(payload.data || {}), targetPath: resolvedPath, targetRoute: resolvedPath }
               }
             })
           );
@@ -130,7 +143,7 @@ export function useFCMNotifications() {
     return () => {
       if (unsubscribeWeb) unsubscribeWeb();
     };
-  }, [setActiveTab]);
+  }, [navigateToPortalPath]);
 
   return {
     initializeDeviceToken: () => currentUser && initializeFCMForUser(currentUser),

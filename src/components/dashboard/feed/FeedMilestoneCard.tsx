@@ -9,6 +9,7 @@ import { FeedItem, FeedReactionType } from '../../../types/feed';
 import { FeedCardHeader } from './FeedCardHeader';
 import { FeedCardActions } from './FeedCardActions';
 import { FeedCommentsDrawer } from './FeedCommentsDrawer';
+import { useAlumni } from '../../../context/AlumniContext';
 
 interface FeedMilestoneCardProps {
   item: FeedItem;
@@ -27,13 +28,22 @@ export const FeedMilestoneCard: React.FC<FeedMilestoneCardProps> = ({
   onAddComment,
   onShare
 }) => {
+  const { currentUser, showToast } = useAlumni();
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const shouldTruncate = item.body.length > 140;
 
+  const isOwnMilestone = Boolean(currentUser?.uid && item.author.uid === currentUser.uid);
+
   const handleCongratulate = () => {
-    onReact('celebrate');
-    onAddComment(`Warm congratulations on this remarkable milestone! Proud Cecilian! 👏🎉`);
+    if (isOwnMilestone) {
+      showToast('You cannot congratulate yourself on your own milestone.', 'info');
+      return;
+    }
+    if (item.reactions.userReaction !== 'love') {
+      onReact('love');
+    }
+    onAddComment('Warm congratulations on this remarkable milestone! Proud Cecilian!');
     setIsCommentsOpen(true);
   };
 
@@ -53,14 +63,20 @@ export const FeedMilestoneCard: React.FC<FeedMilestoneCardProps> = ({
           <span>{item.categoryTag}</span>
         </div>
 
-        <button
-          type="button"
-          onClick={handleCongratulate}
-          className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800 rounded-full text-xs font-bold transition-all cursor-pointer shadow-2xs"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-          <span>Congratulate</span>
-        </button>
+        {!isOwnMilestone ? (
+          <button
+            type="button"
+            onClick={handleCongratulate}
+            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800 rounded-full text-xs font-bold transition-all cursor-pointer shadow-2xs"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+            <span>Congratulate</span>
+          </button>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border border-stone-200/80 dark:border-stone-700 rounded-full text-[11px] font-semibold select-none">
+            <span>Your Milestone</span>
+          </span>
+        )}
       </div>
 
       {/* Main Milestone Body */}

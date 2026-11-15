@@ -31,9 +31,11 @@ import { FeedOpportunityCard } from './feed/FeedOpportunityCard';
 import { FeedPostComposer } from './feed/FeedPostComposer';
 import { FeedSkeletonLoader } from './feed/FeedSkeletonLoader';
 import { FeedEmptyState } from './feed/FeedEmptyState';
+import { InstitutionalSocialFeed } from './InstitutionalSocialFeed';
 
 export const DashboardView: React.FC = () => {
-  const { currentUser } = useAlumni();
+  const { currentUser, deepLinkTarget } = useAlumni();
+  const [feedSection, setFeedSection] = useState<'community' | 'highlights'>('community');
   const {
     activeTab,
     setActiveTab,
@@ -48,7 +50,8 @@ export const DashboardView: React.FC = () => {
     addComment,
     toggleBookmark,
     isBookmarked,
-    shareFeedItem
+    shareFeedItem,
+    rsvpEvent
   } = useAlumniFeed();
 
   // Modals
@@ -89,6 +92,12 @@ export const DashboardView: React.FC = () => {
     window.addEventListener('applet:reset-dashboard', handleReset);
     return () => window.removeEventListener('applet:reset-dashboard', handleReset);
   }, []);
+
+  useEffect(() => {
+    if (deepLinkTarget?.targetType === 'feed_post') {
+      setFeedSection('community');
+    }
+  }, [deepLinkTarget]);
 
   // Time-of-day greeting
   const salutation = useMemo(() => {
@@ -174,22 +183,48 @@ export const DashboardView: React.FC = () => {
       </section>
 
       {/* =========================================================================
-          2. FEED FILTERS MULTI-TAB SWITCHER & LIVE SEARCH
+          2. STREAM SWITCHER: COMMUNITY SOCIAL FEED vs CAMPUS HIGHLIGHTS (FYP)
           ========================================================================= */}
-      <FeedFilters
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        totalCount={totalCount}
-      />
+      <div className="flex items-center gap-1 p-1 bg-stone-100 dark:bg-stone-800/80 rounded-xl w-fit border border-stone-200/70 dark:border-stone-700/60">
+        <button
+          type="button"
+          onClick={() => setFeedSection('community')}
+          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap min-h-[38px] ${
+            feedSection === 'community'
+              ? 'bg-white dark:bg-stone-900 text-[#8B181B] dark:text-red-400 shadow-2xs'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+          }`}
+        >
+          Community Feed
+        </button>
+        <button
+          type="button"
+          onClick={() => setFeedSection('highlights')}
+          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap min-h-[38px] ${
+            feedSection === 'highlights'
+              ? 'bg-white dark:bg-stone-900 text-[#8B181B] dark:text-red-400 shadow-2xs'
+              : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
+          }`}
+        >
+          Campus Highlights
+        </button>
+      </div>
 
-      {/* =========================================================================
-          3. MAIN CENTERED TIMELINE STREAM
-          ========================================================================= */}
-      <main className="space-y-5">
-        {/* Quick Post / Story Composer */}
-        <FeedPostComposer />
+      {feedSection === 'community' ? (
+        <InstitutionalSocialFeed />
+      ) : (
+        <>
+          <FeedFilters
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            totalCount={totalCount}
+          />
+
+          <main className="space-y-5">
+            {/* Quick Post / Story Composer */}
+            <FeedPostComposer />
 
         {/* Feed Content Cards */}
         {visibleFeed.length === 0 ? (
@@ -203,66 +238,101 @@ export const DashboardView: React.FC = () => {
           />
         ) : (
           <div className="space-y-5">
-            {visibleFeed.map((item) => {
-              if (item.type === 'announcement') {
-                return (
-                  <FeedAnnouncementCard
-                    key={item.id}
-                    item={item}
-                    isBookmarked={isBookmarked(item.id)}
-                    onToggleBookmark={() => toggleBookmark(item.id)}
-                    onReact={(r) => toggleReaction(item.id, r)}
-                    onAddComment={(txt) => addComment(item.id, txt)}
-                    onShare={() => shareFeedItem(item)}
-                    onOpenDetailModal={(a) => setSelectedAnnouncement(a)}
-                  />
-                );
-              }
+            <AnimatePresence mode="popLayout">
+              {visibleFeed.map((item) => {
+                if (item.type === 'announcement') {
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                      transition={{ duration: 0.22 }}
+                    >
+                      <FeedAnnouncementCard
+                        item={item}
+                        isBookmarked={isBookmarked(item.id)}
+                        onToggleBookmark={() => toggleBookmark(item.id)}
+                        onReact={(r) => toggleReaction(item.id, r)}
+                        onAddComment={(txt) => addComment(item.id, txt)}
+                        onShare={() => shareFeedItem(item)}
+                        onOpenDetailModal={(a) => setSelectedAnnouncement(a)}
+                      />
+                    </motion.div>
+                  );
+                }
 
-              if (item.type === 'event') {
-                return (
-                  <FeedEventCard
-                    key={item.id}
-                    item={item}
-                    isBookmarked={isBookmarked(item.id)}
-                    onToggleBookmark={() => toggleBookmark(item.id)}
-                    onReact={(r) => toggleReaction(item.id, r)}
-                    onAddComment={(txt) => addComment(item.id, txt)}
-                    onShare={() => shareFeedItem(item)}
-                  />
-                );
-              }
+                if (item.type === 'event') {
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                      transition={{ duration: 0.22 }}
+                    >
+                      <FeedEventCard
+                        item={item}
+                        isBookmarked={isBookmarked(item.id)}
+                        onToggleBookmark={() => toggleBookmark(item.id)}
+                        onReact={(r) => toggleReaction(item.id, r)}
+                        onAddComment={(txt) => addComment(item.id, txt)}
+                        onShare={() => shareFeedItem(item)}
+                        onRsvp={rsvpEvent}
+                      />
+                    </motion.div>
+                  );
+                }
 
-              if (item.type === 'milestone') {
-                return (
-                  <FeedMilestoneCard
-                    key={item.id}
-                    item={item}
-                    isBookmarked={isBookmarked(item.id)}
-                    onToggleBookmark={() => toggleBookmark(item.id)}
-                    onReact={(r) => toggleReaction(item.id, r)}
-                    onAddComment={(txt) => addComment(item.id, txt)}
-                    onShare={() => shareFeedItem(item)}
-                  />
-                );
-              }
+                if (item.type === 'milestone') {
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                      transition={{ duration: 0.22 }}
+                    >
+                      <FeedMilestoneCard
+                        item={item}
+                        isBookmarked={isBookmarked(item.id)}
+                        onToggleBookmark={() => toggleBookmark(item.id)}
+                        onReact={(r) => toggleReaction(item.id, r)}
+                        onAddComment={(txt) => addComment(item.id, txt)}
+                        onShare={() => shareFeedItem(item)}
+                      />
+                    </motion.div>
+                  );
+                }
 
-              if (item.type === 'opportunity') {
-                return (
-                  <FeedOpportunityCard
-                    key={item.id}
-                    item={item}
-                    isBookmarked={isBookmarked(item.id)}
-                    onToggleBookmark={() => toggleBookmark(item.id)}
-                    onReact={(r) => toggleReaction(item.id, r)}
-                    onAddComment={(txt) => addComment(item.id, txt)}
-                    onShare={() => shareFeedItem(item)}
-                  />
-                );
-              }
+                if (item.type === 'opportunity') {
+                  return (
+                    <motion.div
+                      key={item.id}
+                      layout
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -12, scale: 0.98 }}
+                      transition={{ duration: 0.22 }}
+                    >
+                      <FeedOpportunityCard
+                        item={item}
+                        isBookmarked={isBookmarked(item.id)}
+                        onToggleBookmark={() => toggleBookmark(item.id)}
+                        onReact={(r) => toggleReaction(item.id, r)}
+                        onAddComment={(txt) => addComment(item.id, txt)}
+                        onShare={() => shareFeedItem(item)}
+                      />
+                    </motion.div>
+                  );
+                }
 
-              return null;
-            })}
+                return null;
+              })}
+            </AnimatePresence>
           </div>
         )}
 
@@ -288,7 +358,9 @@ export const DashboardView: React.FC = () => {
             </p>
           </div>
         )}
-      </main>
+          </main>
+        </>
+      )}
 
       {/* =========================================================================
           4. MODAL: ANNOUNCEMENT DETAIL READER

@@ -1,57 +1,51 @@
-import React, { useState, useMemo, useEffect } from 'react';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Sparkles,
   Award,
+  Camera,
+  EyeOff,
+  Globe,
   Image as ImageIcon,
   Megaphone,
-  ThumbsUp,
-  Heart,
-  MessageSquare,
-  Share2,
   Pin,
+  RefreshCw,
+  Search,
   Send,
-  Trash2,
-  CheckCircle2,
-  Globe,
+  Sparkles,
   Upload,
-  Camera,
+  Users,
   X,
-  Plus,
-  Maximize2,
-  ExternalLink,
-  ShieldCheck,
-  Bookmark,
-  Pencil
+  AlertTriangle,
+  ArrowUp,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
-import { InstitutionalFeedPost, FeedComment } from '../../types';
+import { FeedPageResponse, InstitutionalFeedPost } from '../../types';
+import { apiFetch, getAuthToken } from '../../services/apiClient';
 import { validateUploadedFile } from '../../lib/security';
-import { ConfirmationModal } from '../common/ConfirmationModal';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
-import { InteractiveHeartReaction, DoubleTapHeartOverlay } from '../common/InteractiveHeartReaction';
 import { Skeleton } from '../common/BentoSkeleton';
+import { ImageViewerModal } from '../common/ImageViewerModal';
+import { PostCard } from '../social/PostCard';
+import { useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
+import {
+  canUserViewPost,
+  comparePostsCreatedDesc,
+  hydratePostWithLiveAuthor,
+  isPinActive,
+  paginatePostsWithCursor
+} from '../../lib/postVisibility';
 
 const PRESET_CAMPUS_PHOTOS = [
-  {
-    name: "St. Cecilia's Academic Tower",
-    url: '/assets/landing-building-2.jpg',
-    desc: 'High-rise facade with red entrance canopy'
-  },
-  {
-    name: 'Main Campus Entrance & Grounds',
-    url: '/assets/landing-building-1.jpg',
-    desc: 'Collegiate front entrance & campus grounds'
-  },
-  {
-    name: 'Aerial Campus Complex',
-    url: '/assets/landing-building-3.jpg',
-    desc: 'Bird’s-eye panorama of campus facilities'
-  },
-  {
-    name: "St. Cecilia's College Seal",
-    url: '/assets/st-cecilias-college-seal.jpg',
-    desc: 'Official Institutional Circular Seal'
-  }
+  { name: "Academic Tower", url: '/assets/landing-building-2.jpg' },
+  { name: 'Campus Entrance', url: '/assets/landing-building-1.jpg' },
+  { name: 'Aerial Campus', url: '/assets/landing-building-3.jpg' },
+  { name: 'College Seal', url: '/assets/cecilians-seal.jpg' }
 ];
 
 interface InstitutionalSocialFeedProps {
@@ -59,1001 +53,709 @@ interface InstitutionalSocialFeedProps {
   isLoading?: boolean;
 }
 
-export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = ({ alumniOnly, isLoading: propIsLoading }) => {
+export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = ({
+  alumniOnly,
+  isLoading: propIsLoading
+}) => {
   const {
     currentUser,
     users,
     feedPosts,
-    addFeedPost,
-    toggleHeartFeedPost,
-    toggleLikeFeedPost,
-    addFeedPostComment,
-    deleteFeedPost,
-    updateFeedPost,
+    createSocialPost,
     showToast,
-    isLoadingData
+    isLoadingData,
+    deepLinkTarget,
+    clearDeepLinkTarget,
+    clearHighlightedItem
   } = useAlumni();
 
-  const isLoading = propIsLoading ?? isLoadingData;
-
   const [activeFilter, setActiveFilter] = useState<'all' | 'milestone' | 'gallery' | 'announcement'>('all');
-  const [showComposerModal, setShowComposerModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [pinnedPosts, setPinnedPosts] = useState<InstitutionalFeedPost[]>([]);
+  const [streamPosts, setStreamPosts] = useState<InstitutionalFeedPost[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [sortMode, setSortMode] = useState<'chronological' | 'relevance'>('chronological');
+  const [latestPostAt, setLatestPostAt] = useState<string | null>(null);
+  const [newPostsAvailableCount, setNewPostsAvailableCount] = useState(0);
+
+  const [isFetchingFirst, setIsFetchingFirst] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
+  const missingPostNotifiedRef = useRef<string | null>(null);
+
+  // Inline Composer States
+  const [composerExpanded, setComposerExpanded] = useState(false);
   const [composerType, setComposerType] = useState<'milestone' | 'gallery' | 'announcement'>('milestone');
-  
-  // Composer Form States
   const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
   const [postImageUrl, setPostImageUrl] = useState('');
   const [postMilestoneBadge, setPostMilestoneBadge] = useState('');
-  const [isPinned, setIsPinned] = useState(false);
   const [postTags, setPostTags] = useState('');
+  const [visibility, setVisibility] = useState<'alumni' | 'public' | 'batch' | 'department' | 'private'>('alumni');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const [pinExpiresAt, setPinExpiresAt] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Edit Post State
-  const [postToEdit, setPostToEdit] = useState<InstitutionalFeedPost | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editContent, setEditContent] = useState('');
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const seenIdsRef = useRef<Set<string>>(new Set());
 
-  // Active hovered post for side-hover comments panel (None open by default)
-  const [activeHoverPostId, setActiveHoverPostId] = useState<string | null>(null);
-  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const isAdminOrSuperAdmin =
+    currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+  const canPublishPost = Boolean(
+    currentUser &&
+      currentUser.role !== 'employer' &&
+      (currentUser.role !== 'alumni' || currentUser.isVerified)
+  );
 
-  // Image Lightbox
-  const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null);
+  // Build local fallback page using the shared single visibility evaluator
+  const buildLocalFeedPage = useCallback(
+    (cursorStr?: string | null): FeedPageResponse => {
+      const viewerCtx = currentUser
+        ? {
+            uid: currentUser.uid,
+            role: currentUser.role,
+            batch: currentUser.batch,
+            course: currentUser.course,
+            department: currentUser.department,
+            groupIds: currentUser.groupIds,
+            blockedUsers: currentUser.blockedUsers
+          }
+        : null;
 
-  // Destructive confirmation state (Requirement 5)
-  const [postToDelete, setPostToDelete] = useState<{ id: string; title: string } | null>(null);
+      const usersMap = new Map(users.map((u) => [u.uid, u]));
+      const filtered = (feedPosts || [])
+        .filter((p) => {
+          if (alumniOnly && p.authorRole !== 'alumni') return false;
+          if (activeFilter !== 'all' && p.postType !== activeFilter) return false;
+          if (searchQuery.trim()) {
+            const q = searchQuery.trim().toLowerCase();
+            const hay = `${p.title} ${p.content} ${p.authorName} ${(p.tags || []).join(' ')}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+          }
+          const authorAcc = usersMap.get(p.authorId);
+          return canUserViewPost(p, {
+            surface: 'feed',
+            viewer: viewerCtx,
+            authorAccount: authorAcc
+          });
+        })
+        .map((p) => hydratePostWithLiveAuthor(p, usersMap.get(p.authorId), viewerCtx));
 
-  // Reset feed filters and modals when Home/Dashboard is clicked
+      const activePinned = filtered
+        .filter(
+          (p) =>
+            (p.authorRole === 'admin' || p.authorRole === 'superadmin') &&
+            isPinActive(p)
+        )
+        .sort(comparePostsCreatedDesc)
+        .slice(0, 3);
+
+      const pinnedSet = new Set(activePinned.map((p) => p.id));
+      const nonPinned = filtered
+        .filter((p) => !pinnedSet.has(p.id))
+        .sort(comparePostsCreatedDesc);
+
+      const page = paginatePostsWithCursor(nonPinned, cursorStr, 10);
+      return {
+        posts: page.items,
+        pinnedPosts: cursorStr ? [] : activePinned,
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+        totalCount: nonPinned.length,
+        sortMode: 'chronological',
+        latestPostAt: filtered.length > 0 ? [...filtered].sort(comparePostsCreatedDesc)[0].createdAt : null
+      };
+    },
+    [feedPosts, users, currentUser, alumniOnly, activeFilter, searchQuery]
+  );
+
+  // Fetch page 1 or next cursor page
+  const loadFeedPage = useCallback(
+    async (cursorStr: string | null = null, append = false) => {
+      if (append) {
+        setIsFetchingMore(true);
+      } else {
+        setIsFetchingFirst(true);
+        setLoadError(null);
+        seenIdsRef.current = new Set();
+      }
+
+      const token = getAuthToken();
+      if (token && !alumniOnly) {
+        try {
+          const params = new URLSearchParams();
+          params.set('limit', '10');
+          if (activeFilter !== 'all') params.set('postType', activeFilter);
+          if (searchQuery.trim()) params.set('search', searchQuery.trim());
+          if (cursorStr) params.set('cursor', cursorStr);
+          if (append && seenIdsRef.current.size > 0) {
+            params.set('seenIds', Array.from(seenIdsRef.current).join(','));
+          }
+
+          const res = await apiFetch(`/api/feed?${params.toString()}`);
+          if (!res.ok) {
+            throw new Error('Failed to load feed');
+          }
+          const data: FeedPageResponse = await res.json();
+
+          if (!append) {
+            const pinned = data.pinnedPosts || [];
+            const regular = (data.posts || []).filter(
+              (p) => !pinned.some((pin) => pin.id === p.id)
+            );
+            pinned.forEach((p) => seenIdsRef.current.add(p.id));
+            regular.forEach((p) => seenIdsRef.current.add(p.id));
+
+            setPinnedPosts(pinned);
+            setStreamPosts(regular);
+            setSortMode(data.sortMode || 'chronological');
+            setLatestPostAt(data.latestPostAt || regular[0]?.createdAt || null);
+            setNewPostsAvailableCount(0);
+          } else {
+            const incoming = (data.posts || []).filter((p) => !seenIdsRef.current.has(p.id));
+            incoming.forEach((p) => seenIdsRef.current.add(p.id));
+            setStreamPosts((prev) => [...prev, ...incoming]);
+          }
+
+          setNextCursor(data.nextCursor || null);
+          setHasMore(Boolean(data.hasMore));
+          setIsFetchingFirst(false);
+          setIsFetchingMore(false);
+          return;
+        } catch {
+          if (feedPosts.length === 0) {
+            setLoadError('Failed to load, retry');
+            setIsFetchingFirst(false);
+            setIsFetchingMore(false);
+            return;
+          }
+        }
+      }
+
+      // Offline / local fallback using shared visibility rule
+      const localPage = buildLocalFeedPage(cursorStr);
+      if (!append) {
+        const pinned = localPage.pinnedPosts || [];
+        const regular = localPage.posts || [];
+        pinned.forEach((p) => seenIdsRef.current.add(p.id));
+        regular.forEach((p) => seenIdsRef.current.add(p.id));
+        setPinnedPosts(pinned);
+        setStreamPosts(regular);
+        setSortMode(localPage.sortMode);
+        setLatestPostAt(localPage.latestPostAt || null);
+        setNewPostsAvailableCount(0);
+      } else {
+        const incoming = (localPage.posts || []).filter((p) => !seenIdsRef.current.has(p.id));
+        incoming.forEach((p) => seenIdsRef.current.add(p.id));
+        setStreamPosts((prev) => [...prev, ...incoming]);
+      }
+      setNextCursor(localPage.nextCursor);
+      setHasMore(localPage.hasMore);
+      setIsFetchingFirst(false);
+      setIsFetchingMore(false);
+    },
+    [activeFilter, searchQuery, alumniOnly, buildLocalFeedPage, feedPosts.length]
+  );
+
+  // Initial load & filter reload
+  useEffect(() => {
+    void loadFeedPage(null, false);
+  }, [activeFilter, searchQuery, currentUser?.uid, currentUser?.blockedUsers?.length]);
+
+  // Synchronize optimistic context mutations (reactions, comments, edits, deletes) into stream
+  useEffect(() => {
+    if (!feedPosts || feedPosts.length === 0) return;
+    const contextMap = new Map(feedPosts.map((p) => [p.id, p]));
+    const usersMap = new Map(users.map((u) => [u.uid, u]));
+    const viewerCtx = currentUser
+      ? {
+          uid: currentUser.uid,
+          role: currentUser.role,
+          batch: currentUser.batch,
+          course: currentUser.course,
+          department: currentUser.department,
+          groupIds: currentUser.groupIds,
+          blockedUsers: currentUser.blockedUsers
+        }
+      : null;
+
+    setStreamPosts((prev) =>
+      prev
+        .filter((item) => {
+          const ctxItem = contextMap.get(item.id);
+          if (!ctxItem) return true;
+          return canUserViewPost(ctxItem, {
+            surface: 'feed',
+            viewer: viewerCtx,
+            authorAccount: usersMap.get(ctxItem.authorId)
+          });
+        })
+        .map((item) => {
+          const ctxItem = contextMap.get(item.id);
+          if (!ctxItem) return item;
+          return hydratePostWithLiveAuthor(
+            {
+              ...item,
+              ...ctxItem,
+              viewerHasReported: item.viewerHasReported || ctxItem.viewerHasReported
+            },
+            usersMap.get(ctxItem.authorId),
+            viewerCtx
+          );
+        })
+    );
+
+    setPinnedPosts((prev) =>
+      prev
+        .filter((item) => {
+          const ctxItem = contextMap.get(item.id);
+          if (!ctxItem) return true;
+          return (
+            isPinActive(ctxItem) &&
+            canUserViewPost(ctxItem, {
+              surface: 'feed',
+              viewer: viewerCtx,
+              authorAccount: usersMap.get(ctxItem.authorId)
+            })
+          );
+        })
+        .map((item) => {
+          const ctxItem = contextMap.get(item.id);
+          return ctxItem ? { ...item, ...ctxItem } : item;
+        })
+    );
+  }, [feedPosts, users, currentUser]);
+
+  // Poll for new posts arriving while scrolling (banner instead of pushing scroll down)
+  useEffect(() => {
+    if (!latestPostAt || !getAuthToken()) return;
+    const timer = setInterval(async () => {
+      try {
+        const params = new URLSearchParams({ since: latestPostAt });
+        if (activeFilter !== 'all') params.set('postType', activeFilter);
+        const res = await apiFetch(`/api/feed/new-count?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data?.newCount === 'number' && data.newCount > 0) {
+            setNewPostsAvailableCount(data.newCount);
+          }
+        }
+      } catch {
+        // Silent background check
+      }
+    }, 20000);
+    return () => clearInterval(timer);
+  }, [latestPostAt, activeFilter]);
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isFetchingMore && !isFetchingFirst) {
+          void loadFeedPage(nextCursor, true);
+        }
+      },
+      { rootMargin: '250px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, isFetchingMore, isFetchingFirst, nextCursor, loadFeedPage]);
+
+  // Reset dashboard listener
   useEffect(() => {
     const handleReset = () => {
       setActiveFilter('all');
-      setShowComposerModal(false);
-      setActiveHoverPostId(null);
-      setLightboxImage(null);
-      setPostToDelete(null);
+      setSearchQuery('');
+      clearHighlightedItem();
+      setViewerImage(null);
     };
     window.addEventListener('applet:reset-dashboard', handleReset);
     return () => window.removeEventListener('applet:reset-dashboard', handleReset);
-  }, []);
+  }, [clearHighlightedItem]);
 
-  // Check if current user is permitted to post
-  // Admins, staff, moderators, and verified alumni can publish posts
-  const canPublishPost = useMemo(() => {
-    if (!currentUser) return false;
-    return currentUser.role !== 'employer' && (currentUser.role !== 'alumni' || currentUser.isVerified);
-  }, [currentUser]);
+  const combinedVisibleIds = useMemo(() => {
+    const pinnedSet = new Set(pinnedPosts.map((p) => p.id));
+    return {
+      pinned: pinnedPosts,
+      regular: streamPosts.filter((p) => !pinnedSet.has(p.id))
+    };
+  }, [pinnedPosts, streamPosts]);
 
-  // Filtered Posts: Do not display posts in the dashboard of admins, except from the alumni
-  const displayedPosts = useMemo(() => {
-    let posts = [...feedPosts];
-    if (alumniOnly) {
-      posts = posts.filter((p) => p.authorRole === 'alumni');
-    }
-    if (activeFilter !== 'all') {
-      posts = posts.filter((p) => p.postType === activeFilter);
-    }
-    // Sort pinned posts first, then newest
-    return posts.sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-  }, [feedPosts, activeFilter, alumniOnly, currentUser]);
+  const renderedPostIds = useMemo(
+    () => [
+      ...combinedVisibleIds.pinned.map((p) => p.id),
+      ...combinedVisibleIds.regular.map((p) => p.id)
+    ],
+    [combinedVisibleIds]
+  );
 
-  const activeHoverPost = useMemo(() => {
-    if (!activeHoverPostId) return null;
-    return displayedPosts.find((p) => p.id === activeHoverPostId) || null;
-  }, [activeHoverPostId, displayedPosts]);
+  const { highlightedItemId, isHighlighted } = useDeepLinkHighlight(renderedPostIds, [
+    isFetchingFirst,
+    activeFilter
+  ]);
 
-  // If user is an admin and there are no posts from alumni, do not display the section
-  if (currentUser && currentUser.role !== 'alumni' && displayedPosts.length === 0) {
-    return null;
-  }
+  // Deep-link focus for feed post notifications (supports both deepLinkTarget and direct URL reload)
+  useEffect(() => {
+    const isFeedDeepLink = deepLinkTarget?.targetType === 'feed_post';
+    const targetId = isFeedDeepLink ? deepLinkTarget.targetId : highlightedItemId;
+    if (!targetId) return;
 
-  const handleOpenComposer = (type: 'milestone' | 'gallery' | 'announcement') => {
-    setComposerType(type);
-    if (type === 'milestone') {
-      setPostTitle('Historic Institutional Milestone Achieved');
-      setPostMilestoneBadge('Excellence Award');
-      setPostImageUrl('/assets/st-cecilias-college-seal.jpg');
-    } else if (type === 'gallery') {
-      setPostTitle('Campus Landmark & Gallery Update');
-      setPostImageUrl('/assets/landing-building-1.jpg');
-      setPostMilestoneBadge('');
-    } else {
-      setPostTitle('Official Institutional Announcement');
-      setPostMilestoneBadge('');
-    }
-    setShowComposerModal(true);
-  };
-
-  const handleSubmitPost = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!postTitle.trim() || !postContent.trim()) {
-      showToast('Please provide both a title and description for the post.', 'warning');
-      return;
+    if (isFeedDeepLink) {
+      setActiveFilter('all');
+      setSearchQuery('');
+      clearDeepLinkTarget();
     }
 
-    const tagsArray = postTags
-      ? postTags
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean)
-      : [composerType === 'milestone' ? 'Milestone' : composerType === 'gallery' ? 'Campus Gallery' : 'Official Update'];
+    if (isFetchingFirst) return;
 
-    const success = addFeedPost({
-      postType: composerType,
-      title: postTitle.trim(),
-      content: postContent.trim(),
-      imageUrl: postImageUrl.trim() || undefined,
-      milestoneBadge: composerType === 'milestone' ? (postMilestoneBadge.trim() || 'Milestone') : undefined,
-      isPinned,
-      tags: tagsArray
-    });
+    const alreadyRendered = renderedPostIds.includes(targetId);
+    if (alreadyRendered) return;
 
-    if (success) {
-      setPostTitle('');
-      setPostContent('');
-      setPostImageUrl('');
-      setPostMilestoneBadge('');
-      setIsPinned(false);
-      setPostTags('');
-      setShowComposerModal(false);
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Try finding in context feedPosts first using shared visibility policy
+    const fromContext = (feedPosts || []).find((p) => p.id === targetId);
+    if (fromContext) {
+      const usersMap = new Map(users.map((u) => [u.uid, u]));
+      const viewerCtx = currentUser
+        ? {
+            uid: currentUser.uid,
+            role: currentUser.role,
+            batch: currentUser.batch,
+            course: currentUser.course,
+            department: currentUser.department,
+            groupIds: currentUser.groupIds,
+            blockedUsers: currentUser.blockedUsers
+          }
+        : null;
+      if (
+        canUserViewPost(fromContext, {
+          surface: 'feed',
+          viewer: viewerCtx,
+          authorAccount: usersMap.get(fromContext.authorId)
+        })
+      ) {
+        const hydrated = hydratePostWithLiveAuthor(
+          fromContext,
+          usersMap.get(fromContext.authorId),
+          viewerCtx
+        );
+        seenIdsRef.current.add(hydrated.id);
+        setStreamPosts((prev) =>
+          prev.some((item) => item.id === hydrated.id) ? prev : [hydrated, ...prev]
+        );
+        return;
       }
     }
-  };
+
+    const token = getAuthToken();
+    if (token) {
+      let cancelled = false;
+      (async () => {
+        try {
+          const res = await apiFetch(`/api/posts/${encodeURIComponent(targetId)}`);
+          if (!res.ok) throw new Error('Post unavailable');
+          const data = await res.json();
+          const fetched: InstitutionalFeedPost | undefined = data?.post || (data?.id ? data : undefined);
+          if (!cancelled && fetched) {
+            seenIdsRef.current.add(fetched.id);
+            setStreamPosts((prev) =>
+              prev.some((item) => item.id === fetched.id) ? prev : [fetched, ...prev]
+            );
+          }
+        } catch {
+          if (!cancelled && missingPostNotifiedRef.current !== targetId) {
+            missingPostNotifiedRef.current = targetId;
+            showToast('This post is no longer available or restricted.', 'info');
+          }
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (missingPostNotifiedRef.current !== targetId) {
+      missingPostNotifiedRef.current = targetId;
+      showToast('This post is no longer available or restricted.', 'info');
+    }
+  }, [
+    deepLinkTarget,
+    highlightedItemId,
+    isFetchingFirst,
+    renderedPostIds,
+    feedPosts,
+    users,
+    currentUser,
+    clearDeepLinkTarget,
+    showToast
+  ]);
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const validation = await validateUploadedFile(file, 'images');
     if (!validation.valid) {
       showToast(validation.error || 'Invalid photo format.', 'error');
       return;
     }
-
     const reader = new FileReader();
     reader.onload = (event) => {
       setPostImageUrl(event.target?.result as string);
-      showToast('Photo uploaded and ready to attach.', 'success');
+      showToast('Photo attached to your post.', 'success');
     };
     reader.readAsDataURL(file);
   };
 
-  const toggleCommentsSide = (postId: string) => {
-    setActiveHoverPostId((prev) => (prev === postId ? null : postId));
-  };
+  const handleSubmitPost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!postContent.trim()) {
+      showToast('Please write something to share with the community.', 'warning');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const tagsArray = postTags
+        ? postTags
+            .split(',')
+            .map((t) => t.trim().replace(/^#/, ''))
+            .filter(Boolean)
+        : [
+            composerType === 'milestone'
+              ? 'Milestone'
+              : composerType === 'gallery'
+              ? 'CampusGallery'
+              : 'Update'
+          ];
 
-  const handleSendComment = (postId: string) => {
-    const text = commentInputs[postId]?.trim();
-    if (!text) return;
-    addFeedPostComment(postId, text);
-    setCommentInputs((prev) => ({ ...prev, [postId]: '' }));
-  };
+      const result = await createSocialPost({
+        postType: composerType,
+        title: postTitle.trim() || (composerType === 'announcement' ? 'Community Announcement' : ''),
+        content: postContent.trim(),
+        imageUrl: postImageUrl.trim() || undefined,
+        milestoneBadge:
+          composerType === 'milestone' ? postMilestoneBadge.trim() || 'Milestone' : undefined,
+        visibility,
+        targetBatch: visibility === 'batch' ? currentUser?.batch : undefined,
+        targetDepartment: visibility === 'department' ? (currentUser?.department || currentUser?.course) : undefined,
+        isAnonymous,
+        isPinned: isAdminOrSuperAdmin ? isPinned : false,
+        pinExpiresAt: isAdminOrSuperAdmin && isPinned && pinExpiresAt ? new Date(pinExpiresAt).toISOString() : undefined,
+        tags: tagsArray
+      });
 
-  const handleShare = (post: InstitutionalFeedPost) => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(`${window.location.origin}/#feed-${post.id}`);
-      showToast('Post link copied to clipboard!', 'info');
-    } else {
-      showToast('Shared with alumni network!', 'info');
+      const created = result?.success ? result.post : undefined;
+      if (created) {
+        seenIdsRef.current.add(created.id);
+        if (created.isPinned && isPinActive(created)) {
+          setPinnedPosts((prev) => [created, ...prev.filter((p) => p.id !== created.id)].slice(0, 3));
+        } else {
+          setStreamPosts((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
+        }
+        setLatestPostAt(created.createdAt);
+        setPostTitle('');
+        setPostContent('');
+        setPostImageUrl('');
+        setPostMilestoneBadge('');
+        setPostTags('');
+        setVisibility('alumni');
+        setIsAnonymous(false);
+        setIsPinned(false);
+        setPinExpiresAt('');
+        setComposerExpanded(false);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // Reusable collegiate comments thread component
-  const renderCommentThread = (post: InstitutionalFeedPost, isDrawer = false) => {
-    const comments = post.comments || [];
-    const inputVal = commentInputs[post.id] || '';
-
-    return (
-      <div className="flex flex-col h-full bg-white relative">
-        {/* Header */}
-        <div className="p-3.5 sm:p-4 border-b border-stone-200 bg-stone-50/90 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-full bg-red-100 text-[#8B181B] flex items-center justify-center shrink-0">
-              <MessageSquare className="w-4 h-4 stroke-[1.75]" />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h4 className="text-xs sm:text-sm font-bold text-stone-900 truncate">
-                  Comments
-                </h4>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#8B181B] text-white">
-                  {comments.length}
-                </span>
-              </div>
-              <p className="text-[11px] text-stone-500 truncate">
-                On {post.authorName}'s post
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setActiveHoverPostId(null)}
-            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 rounded-lg transition-colors cursor-pointer"
-            title="Close comments"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Scrollable Comments List */}
-        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3">
-          {comments.length > 0 ? (
-            comments.map((comment) => (
-              <div key={comment.id} className="flex items-start gap-2.5">
-                <img
-                  src={getUserAvatar(comment.authorAvatar)}
-                  alt={comment.authorName}
-                  onError={handleUserAvatarError}
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border border-stone-200 shrink-0 mt-0.5"
-                />
-                <div className="flex-1 bg-stone-50/90 p-2.5 sm:p-3 rounded-2xl border border-stone-200/80 shadow-2xs text-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold text-stone-900">{comment.authorName}</span>
-                    <span className="text-[10px] text-stone-400">
-                      {new Date(comment.createdAt).toLocaleDateString([], {
-                        month: 'short',
-                        day: 'numeric'
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-stone-700 mt-1 leading-relaxed break-words">{comment.text}</p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="h-full min-h-[160px] flex flex-col items-center justify-center text-center p-6 text-stone-400">
-              <div className="w-12 h-12 rounded-2xl bg-stone-100 flex items-center justify-center mb-2.5 text-stone-400">
-                <MessageSquare className="w-6 h-6 stroke-[1.5]" />
-              </div>
-              <p className="text-xs font-semibold text-stone-700">No comments yet</p>
-              <p className="text-[11px] text-stone-400 mt-1 max-w-[220px]">
-                Be the first Cecilian to share your thoughts or congratulations!
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Sticky Comment Composer */}
-        <div className="p-3 sm:p-3.5 border-t border-stone-200 bg-white shrink-0">
-          <div className="flex items-center gap-2">
-            <img
-              src={getUserAvatar(currentUser?.profilePictureUrl)}
-              alt={currentUser?.name || 'User'}
-              onError={handleUserAvatarError}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border border-stone-200 shrink-0"
-            />
-            <div className="flex-1 flex items-center gap-1.5 bg-stone-50 rounded-xl border border-stone-200 px-3 py-1.5 shadow-2xs focus-within:bg-white focus-within:ring-2 focus-within:ring-[#8B181B]/20 focus-within:border-[#8B181B]">
-              <input
-                type="text"
-                value={inputVal}
-                onChange={(e) =>
-                  setCommentInputs((prev) => ({ ...prev, [post.id]: e.target.value }))
-                }
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleSendComment(post.id);
-                  }
-                }}
-                placeholder={
-                  currentUser
-                    ? `Write a comment as ${currentUser.name}...`
-                    : 'Sign in to leave a comment...'
-                }
-                disabled={!currentUser}
-                className="flex-1 text-xs bg-transparent focus:outline-none text-stone-800 disabled:bg-transparent"
-              />
-              <button
-                type="button"
-                onClick={() => handleSendComment(post.id)}
-                disabled={!currentUser || !inputVal.trim()}
-                className="p-1.5 text-[#8B181B] hover:bg-red-50 rounded-lg disabled:text-stone-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors cursor-pointer"
-                title="Post Comment"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  if (isLoading) {
-    return (
-      <div id="institutional-feed-container" className="w-full max-w-full overflow-x-hidden space-y-4 sm:space-y-5">
-        {/* Header Skeleton */}
-        <div className="w-full bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-4 sm:p-5 shadow-2xs space-y-3">
-          <div className="flex items-center gap-3">
-            <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
-            <div className="space-y-1.5 flex-1 min-w-0">
-              <Skeleton className="h-4 w-48 rounded" />
-              <Skeleton className="h-3 w-72 rounded" />
-            </div>
-            <Skeleton className="h-8 w-24 rounded-xl shrink-0" />
-          </div>
-          <div className="flex gap-1.5 pt-2 border-t border-stone-100 dark:border-stone-800 overflow-x-auto">
-            <Skeleton className="h-7 w-20 rounded-lg" />
-            <Skeleton className="h-7 w-20 rounded-lg" />
-            <Skeleton className="h-7 w-20 rounded-lg" />
-          </div>
-        </div>
-
-        {/* 3 Post Card Skeletons */}
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="w-full bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-4 sm:p-5 shadow-2xs space-y-3"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Skeleton className="w-10 h-10 rounded-full shrink-0" />
-                <div className="space-y-1">
-                  <Skeleton className="h-3.5 w-32 rounded" />
-                  <Skeleton className="h-2.5 w-40 rounded" />
-                </div>
-              </div>
-              <Skeleton className="h-5 w-16 rounded-full" />
-            </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-3/4 rounded" />
-              <Skeleton className="h-3 w-full rounded" />
-            </div>
-            {i !== 3 && <Skeleton className="w-full h-52 rounded-xl" />}
-            <div className="flex justify-between pt-2 border-t border-stone-100 dark:border-stone-800">
-              <div className="flex gap-4">
-                <Skeleton className="h-6 w-16 rounded-lg" />
-                <Skeleton className="h-6 w-16 rounded-lg" />
-              </div>
-              <Skeleton className="h-6 w-12 rounded-lg" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const showSkeleton = (propIsLoading ?? isLoadingData) || (isFetchingFirst && streamPosts.length === 0 && pinnedPosts.length === 0);
 
   return (
-    <div id="institutional-feed-container" className="w-full max-w-full overflow-x-hidden space-y-4 sm:space-y-5">
-      {/* Feed Header Banner & Filter Navigation */}
-      <div className="w-full max-w-full overflow-x-hidden bg-white rounded-2xl border border-stone-200 p-4 sm:p-5 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-100">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#8B181B] to-amber-600 p-0.5 shadow-sm shrink-0 flex items-center justify-center">
-              <img
-                src="/assets/st-cecilias-college-seal.jpg"
-                alt="St. Cecilia's College Seal"
-                className="w-full h-full rounded-[10px] object-cover bg-white"
-              />
+    <div id="institutional-feed-container" className="w-full max-w-full space-y-5">
+      {/* Header, Filters & Search */}
+      <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight">
+                Alumni & Campus Feed
+              </h2>
+              <span className="text-[11px] font-medium text-stone-400 dark:text-stone-500">
+                {sortMode === 'relevance' ? 'Relevance' : 'Newest First'}
+              </span>
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-sm sm:text-base md:text-lg font-extrabold text-stone-900 tracking-tight break-words">
-                  Campus Feed & Milestones
-                </h2>
-                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 shrink-0">
-                  <Sparkles className="w-3 h-3 text-amber-600" />
-                  Official Posts
-                </span>
-              </div>
-              <p className="text-[11px] sm:text-xs text-stone-500 break-words leading-relaxed">
-                Live updates, campus gallery photos, and achievements from College Administration & Staff
-              </p>
-            </div>
-          </div>
-
-          {/* Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 max-w-full">
-            <button
-              type="button"
-              onClick={() => setActiveFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                activeFilter === 'all'
-                  ? 'bg-[#991B1B] text-white shadow-2xs'
-                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
-              }`}
-            >
-              All Posts ({feedPosts.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter('milestone')}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                activeFilter === 'milestone'
-                  ? 'bg-amber-600 text-white shadow-2xs'
-                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
-              }`}
-            >
-              <Award className="w-3.5 h-3.5" />
-              <span>Milestones</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter('gallery')}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                activeFilter === 'gallery'
-                  ? 'bg-emerald-700 text-white shadow-2xs'
-                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
-              }`}
-            >
-              <Camera className="w-3.5 h-3.5" />
-              <span>Campus Gallery</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveFilter('announcement')}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                activeFilter === 'announcement'
-                  ? 'bg-blue-700 text-white shadow-2xs'
-                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
-              }`}
-            >
-              <Megaphone className="w-3.5 h-3.5" />
-              <span>Bulletins</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Facebook-style "Create Post" Box (Visible only for Admin, Registrar, Staff, Faculty) */}
-        {canPublishPost ? (
-          <div className="mt-4 pt-1">
-            <div className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl border border-stone-200">
-              <img
-                src={getUserAvatar(currentUser?.profilePictureUrl)}
-                alt={currentUser?.name || 'Staff'}
-                onError={handleUserAvatarError}
-                className="w-10 h-10 rounded-full object-cover border border-stone-200 shrink-0"
-              />
-              <button
-                type="button"
-                onClick={() => handleOpenComposer('milestone')}
-                className="flex-1 text-left px-4 py-2.5 rounded-full bg-white hover:bg-stone-100 border border-stone-200 text-xs sm:text-sm text-stone-500 transition-colors shadow-2xs cursor-pointer truncate"
-              >
-                Post a campus milestone, gallery photo, or institutional bulletin...
-              </button>
-            </div>
-
-            {/* Quick Action Buttons */}
-            <div className="mt-2.5 grid grid-cols-3 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleOpenComposer('gallery')}
-                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg hover:bg-emerald-50 text-emerald-800 font-semibold transition-colors border border-transparent hover:border-emerald-200 cursor-pointer"
-              >
-                <Camera className="w-4 h-4 text-emerald-600" />
-                <span className="truncate">Campus Gallery</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOpenComposer('milestone')}
-                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg hover:bg-amber-50 text-amber-900 font-semibold transition-colors border border-transparent hover:border-amber-200 cursor-pointer"
-              >
-                <Award className="w-4 h-4 text-amber-600" />
-                <span className="truncate">Post Milestone</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOpenComposer('announcement')}
-                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg hover:bg-blue-50 text-blue-800 font-semibold transition-colors border border-transparent hover:border-blue-200 cursor-pointer"
-              >
-                <Megaphone className="w-4 h-4 text-blue-600" />
-                <span className="truncate">Official Bulletin</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="mt-3 flex items-center justify-between gap-2 px-3 py-2 bg-stone-50/80 rounded-xl text-xs text-stone-600">
-            <span className="flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Official institutional announcements and campus photo updates verified by College Administration.</span>
-            </span>
-            <span className="text-[11px] font-bold text-[#991B1B] shrink-0">
-              Verified Feed
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Social Feed List */}
-      <div className="space-y-4 sm:space-y-5">
-        {displayedPosts.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-stone-200 p-10 text-center text-stone-500">
-            <Sparkles className="w-8 h-8 text-stone-300 mx-auto mb-2" />
-            <p className="text-sm font-bold text-stone-700">No feed posts in this category</p>
-            <p className="text-xs text-stone-400 mt-1">Check back later for official campus milestones.</p>
-          </div>
-        ) : (
-          displayedPosts.map((post) => {
-            const isLikedByMe = currentUser ? (post.likes || []).includes(currentUser.uid) : false;
-            const isHeartedByMe = currentUser ? ((post.hearts || post.likes || []).includes(currentUser.uid)) : false;
-            const heartsCount = (post.hearts || post.likes || []).length;
-            const reactorUids = post.hearts || post.likes || [];
-            const isHoveredPost = activeHoverPostId === post.id;
-            const isAuthorOrAdmin = currentUser && (currentUser.role === 'admin' || post.authorId === currentUser.uid);
-
-            return (
-              <article
-                key={post.id}
-                id={`feed-${post.id}`}
-                className={`w-full max-w-full overflow-x-hidden bg-white rounded-2xl border transition-all duration-300 relative ${
-                  isHoveredPost
-                    ? 'ring-2 ring-[#8B181B]/40 shadow-[0_16px_40px_rgba(139,24,27,0.14),0_6px_20px_rgba(0,0,0,0.06)] scale-[1.01] -translate-y-1 border-[#8B181B]/50 z-30'
-                    : 'border-stone-200/90 shadow-2xs hover:shadow-xs'
-                }`}
-              >
-                {/* Pinned Post Indicator */}
-                {post.isPinned && (
-                  <div className="bg-gradient-to-r from-amber-500/10 via-red-500/5 to-transparent px-4 py-1.5 border-b border-amber-200/50 flex items-center justify-between text-[10px] sm:text-[11px] text-amber-900 font-bold">
-                    <span className="flex items-center gap-1.5 truncate">
-                      <Pin className="w-3.5 h-3.5 text-amber-700 rotate-45 shrink-0" />
-                      <span className="truncate">Pinned by St. Cecilia's College Administration</span>
-                    </span>
-                    <span className="text-[10px] text-amber-700/80 font-normal shrink-0">Featured Priority</span>
-                  </div>
-                )}
-
-                {/* Post Header */}
-                <div className="p-4 sm:p-5 pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="relative shrink-0">
-                        <img
-                          src={getUserAvatar(post.authorAvatar)}
-                          alt={post.authorName}
-                          onError={handleUserAvatarError}
-                          className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-cover border-2 border-amber-200 shadow-2xs"
-                        />
-                        <span className="absolute -bottom-1 -right-1 bg-blue-600 text-white p-0.5 rounded-full ring-2 ring-white" title="Verified College Entity">
-                          <ShieldCheck className="w-3 h-3" />
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className="font-bold text-stone-900 text-xs sm:text-sm md:text-base leading-snug break-words">
-                            {post.authorName}
-                          </h3>
-                          <span
-                            className={`px-2 py-0.2 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wide rounded-full border shrink-0 ${
-                              post.authorRole === 'admin'
-                                ? 'bg-red-50 text-[#8B181B] border-red-200'
-                                : post.authorRole === 'moderator'
-                                ? 'bg-amber-50 text-amber-900 border-amber-200'
-                                : 'bg-blue-50 text-blue-900 border-blue-200'
-                            }`}
-                          >
-                            {post.authorRole}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] sm:text-xs text-stone-400 mt-0.5 flex-wrap">
-                          <span>
-                            {new Date(post.createdAt).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1 text-[10px] sm:text-[11px] text-stone-500">
-                            <Globe className="w-3 h-3 shrink-0" />
-                            <span>Public to all Alumni</span>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Post Category Badge & Delete */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-bold shrink-0 ${
-                          post.postType === 'milestone'
-                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                            : post.postType === 'gallery'
-                            ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                            : 'bg-blue-100 text-blue-900 border border-blue-300'
-                        }`}
-                      >
-                        {post.postType === 'milestone' && <Award className="w-3.5 h-3.5 text-amber-700" />}
-                        {post.postType === 'gallery' && <Camera className="w-3.5 h-3.5 text-emerald-700" />}
-                        {post.postType === 'announcement' && <Megaphone className="w-3.5 h-3.5 text-blue-700" />}
-                        <span className="capitalize">
-                          {post.postType === 'milestone'
-                            ? 'Milestone'
-                            : post.postType === 'gallery'
-                            ? 'Campus Gallery'
-                            : 'Bulletin'}
-                        </span>
-                      </span>
-
-                      {isAuthorOrAdmin && (
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPostToEdit(post);
-                              setEditTitle(post.title);
-                              setEditContent(post.content);
-                            }}
-                            className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 dark:hover:text-stone-200 dark:hover:bg-stone-800 rounded-lg transition-colors cursor-pointer"
-                            title="Edit Post"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setPostToDelete({ id: post.id, title: post.title })}
-                            className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors cursor-pointer"
-                            title="Delete Post"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Post Title & Text Content */}
-                  <div className="mt-3.5">
-                    <h4 className="font-extrabold text-sm sm:text-base md:text-lg text-stone-900 tracking-tight leading-snug break-words">
-                      {post.title}
-                    </h4>
-                    <p className="mt-2 text-xs sm:text-sm text-stone-700 leading-relaxed whitespace-pre-line break-words">
-                      {post.content}
-                    </p>
-                  </div>
-
-                  {/* Milestone Highlight Banner if milestone */}
-                  {post.postType === 'milestone' && post.milestoneBadge && (
-                    <div className="mt-3.5 p-3 rounded-xl bg-gradient-to-r from-amber-500/15 via-red-500/10 to-amber-500/15 border border-amber-300/80 flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-amber-500 text-white shadow-xs shrink-0">
-                        <Award className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-900 block">
-                          Official Institutional Honor
-                        </span>
-                        <p className="text-xs sm:text-sm font-bold text-stone-900 truncate">
-                          {post.milestoneBadge}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tags */}
-                  {post.tags && post.tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {post.tags.map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="text-[11px] font-semibold text-stone-600 bg-stone-100 hover:bg-stone-200 px-2 py-0.5 rounded-md transition-colors"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Campus Gallery Image (Full Width Media Attachment with Double-Tap Heart Interaction) */}
-                {post.imageUrl && (
-                  <DoubleTapHeartOverlay onTrigger={() => toggleHeartFeedPost(post.id)}>
-                    <div className="relative group overflow-hidden bg-stone-900 max-h-[460px] flex items-center justify-center border-y border-stone-200">
-                      <img
-                        src={post.imageUrl}
-                        alt={post.title}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover max-h-[460px] transition-transform duration-300 group-hover:scale-[1.01] cursor-pointer"
-                        onClick={() => setLightboxImage({ url: post.imageUrl!, title: post.title })}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setLightboxImage({ url: post.imageUrl!, title: post.title })}
-                        className="absolute bottom-3 right-3 p-2 rounded-lg bg-black/60 hover:bg-black/80 text-white text-xs backdrop-blur-xs flex items-center gap-1 transition-opacity opacity-0 group-hover:opacity-100 cursor-pointer"
-                        title="View Full Resolution"
-                      >
-                        <Maximize2 className="w-4 h-4" />
-                        <span>Expand Photo</span>
-                      </button>
-                    </div>
-                  </DoubleTapHeartOverlay>
-                )}
-
-                {/* Engagement / Reaction Counts */}
-                <div className="px-4 sm:px-5 py-2.5 flex items-center justify-between text-xs text-stone-500 border-b border-stone-100">
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex items-center -space-x-1">
-                      <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-[10px] shadow-2xs">
-                        <Heart className="w-3 h-3 fill-current" />
-                      </span>
-                      <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] shadow-2xs">
-                        👍
-                      </span>
-                      <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] shadow-2xs">
-                        🎉
-                      </span>
-                    </div>
-                    <span className="font-semibold text-stone-700 ml-1">
-                      {heartsCount} {heartsCount === 1 ? 'heart reaction' : 'heart reactions'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleCommentsSide(post.id)}
-                      className="hover:underline cursor-pointer flex items-center gap-1.5 text-stone-600 hover:text-[#8B181B] transition-colors"
-                      title="View comments"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 text-stone-400" />
-                      <span>{(post.comments || []).length} {(post.comments || []).length === 1 ? 'comment' : 'comments'}</span>
-                    </button>
-                    <span>•</span>
-                    <span>{post.sharesCount} shares</span>
-                  </div>
-                </div>
-
-                {/* Social Action Buttons with Interactive Heart Reaction */}
-                <div className="px-2 sm:px-4 py-1.5 grid grid-cols-3 gap-1 text-xs font-semibold text-stone-600">
-                  <InteractiveHeartReaction
-                    isHearted={isHeartedByMe}
-                    heartsCount={heartsCount}
-                    onToggle={() => toggleHeartFeedPost(post.id)}
-                    reactorUids={reactorUids}
-                    allUsers={users}
-                    variant="button"
-                    label={isHeartedByMe ? 'Hearted' : 'Heart'}
-                    className="w-full"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => toggleCommentsSide(post.id)}
-                    className={`flex items-center justify-center gap-1.5 py-2 rounded-lg transition-all duration-200 cursor-pointer ${
-                      isHoveredPost
-                        ? 'bg-red-50 text-[#8B181B] font-bold ring-1 ring-red-200 shadow-2xs'
-                        : 'hover:bg-stone-100 text-stone-600'
-                    }`}
-                    title="Toggle comment side panel"
-                  >
-                    <MessageSquare className={`w-4 h-4 ${isHoveredPost ? 'text-[#8B181B]' : ''}`} />
-                    <span>Comment</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleShare(post)}
-                    className="flex items-center justify-center gap-1.5 py-2 rounded-lg hover:bg-stone-100 text-stone-600 transition-colors cursor-pointer"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    <span>Share</span>
-                  </button>
-                </div>
-              </article>
-            );
-          })
-        )}
-      </div>
-
-      {/* Side Slide-Over Drawer for Comments */}
-      {activeHoverPost && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex justify-end animate-in fade-in duration-200"
-          onClick={() => setActiveHoverPostId(null)}
-        >
-          <div
-            className="w-full sm:w-[440px] h-full bg-white shadow-2xl flex flex-col border-l border-stone-200 animate-in slide-in-from-right duration-300"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {renderCommentThread(activeHoverPost, true)}
-          </div>
-        </div>
-      )}
-
-      {/* Lightbox Modal for Photo Gallery */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in"
-          onClick={() => setLightboxImage(null)}
-        >
-          <div className="relative max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setLightboxImage(null)}
-              className="absolute -top-10 right-0 text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <img
-              src={lightboxImage.url}
-              alt={lightboxImage.title}
-              className="w-full max-h-[85vh] object-contain rounded-xl shadow-2xl bg-black"
-            />
-            <p className="text-white text-center text-sm font-semibold mt-3">
-              {lightboxImage.title}
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
+              Community milestones, campus gallery photos, and official announcements
             </p>
           </div>
+
+          {/* Search box */}
+          <div className="relative w-full sm:w-64">
+            <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search posts or authors..."
+              className="w-full pl-8 pr-3 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] min-h-[38px]"
+            />
+          </div>
         </div>
-      )}
 
-      {/* Composer Modal for Admin, Registrar, Staff */}
-      {showComposerModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 animate-in fade-in"
-          onClick={() => setShowComposerModal(false)}
-        >
-          <div
-            className="bg-white rounded-3xl border border-stone-200 max-w-xl w-full p-5 sm:p-6 shadow-2xl animate-in zoom-in-95 max-h-[92vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-red-100 text-[#8B181B]">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-stone-900 text-base sm:text-lg">
-                    Publish Institutional Feed Post
-                  </h3>
-                  <p className="text-xs text-stone-500">
-                    Visible immediately to all alumni in their dashboard feed
-                  </p>
-                </div>
-              </div>
+        {/* Segmented Category Filter */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+          {[
+            { id: 'all', label: 'All Posts', icon: Sparkles },
+            { id: 'milestone', label: 'Milestones', icon: Award },
+            { id: 'gallery', label: 'Campus Gallery', icon: Camera },
+            { id: 'announcement', label: 'Announcements', icon: Megaphone }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const active = activeFilter === tab.id;
+            return (
               <button
+                key={tab.id}
                 type="button"
-                onClick={() => setShowComposerModal(false)}
-                className="p-1.5 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg"
+                onClick={() => setActiveFilter(tab.id as any)}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer min-h-[38px] ${
+                  active
+                    ? 'bg-[#8B181B] text-white shadow-2xs'
+                    : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700'
+                }`}
               >
-                <X className="w-5 h-5" />
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
               </button>
-            </div>
+            );
+          })}
+        </div>
 
-            <form onSubmit={handleSubmitPost} className="mt-4 space-y-4">
-              {/* Type Switcher */}
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1.5">
-                  Post Category
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setComposerType('milestone');
-                      if (!postMilestoneBadge) setPostMilestoneBadge('Excellence Award');
-                    }}
-                    className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                      composerType === 'milestone'
-                        ? 'bg-amber-50 text-amber-900 border-amber-400 shadow-2xs'
-                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
-                    }`}
-                  >
-                    <Award className="w-4 h-4 text-amber-600" />
-                    <span>Milestone</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setComposerType('gallery');
-                      if (!postImageUrl) setPostImageUrl('/assets/landing-building-1.jpg');
-                    }}
-                    className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                      composerType === 'gallery'
-                        ? 'bg-emerald-50 text-emerald-900 border-emerald-400 shadow-2xs'
-                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
-                    }`}
-                  >
-                    <Camera className="w-4 h-4 text-emerald-600" />
-                    <span>Campus Gallery</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setComposerType('announcement')}
-                    className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                      composerType === 'announcement'
-                        ? 'bg-blue-50 text-blue-900 border-blue-400 shadow-2xs'
-                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
-                    }`}
-                  >
-                    <Megaphone className="w-4 h-4 text-blue-600" />
-                    <span>Bulletin</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Title */}
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Post Headline / Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={postTitle}
-                  onChange={(e) => setPostTitle(e.target.value)}
-                  placeholder="e.g. Unveiling of the New High-Rise Academic Tower"
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
+        {/* Inline Post Composer */}
+        {canPublishPost ? (
+          <form onSubmit={handleSubmitPost} className="pt-3 border-t border-stone-100 dark:border-stone-800 space-y-3">
+            <div className="flex items-start gap-3">
+              <img
+                src={getUserAvatar(currentUser?.profilePictureUrl)}
+                alt={currentUser?.name || 'Member'}
+                onError={handleUserAvatarError}
+                className="w-10 h-10 rounded-2xl object-cover border border-stone-200 dark:border-stone-700 shrink-0"
+              />
+              <div className="flex-1 space-y-2">
+                {composerExpanded && (
+                  <input
+                    type="text"
+                    value={postTitle}
+                    onChange={(e) => setPostTitle(e.target.value)}
+                    placeholder="Headline or short title (optional)"
+                    className="w-full px-3.5 py-2 text-xs font-semibold bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white focus:outline-none focus:border-[#8B181B]"
+                  />
+                )}
+                <textarea
+                  rows={composerExpanded ? 3 : 2}
+                  value={postContent}
+                  onFocus={() => setComposerExpanded(true)}
+                  onChange={(e) => setPostContent(e.target.value)}
+                  placeholder={`Share an update, milestone, or campus photo, ${currentUser?.name?.split(' ')[0] || 'Cecilian'}...`}
+                  className="w-full px-3.5 py-2.5 text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] resize-none leading-relaxed"
                 />
               </div>
+            </div>
 
-              {/* Milestone Badge if milestone */}
-              {composerType === 'milestone' && (
-                <div>
-                  <label className="block text-xs font-bold text-amber-900 mb-1">
-                    Milestone Achievement Badge
-                  </label>
+            {composerExpanded && (
+              <div className="pl-0 sm:pl-13 space-y-3">
+                {/* Category & Visibility Row */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <select
+                    value={composerType}
+                    onChange={(e) => setComposerType(e.target.value as any)}
+                    className="px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 font-semibold min-h-[38px]"
+                    aria-label="Post Category"
+                  >
+                    <option value="milestone">Milestone / Story</option>
+                    <option value="gallery">Campus Photo</option>
+                    <option value="announcement">Announcement</option>
+                  </select>
+
+                  <select
+                    value={visibility}
+                    onChange={(e) => setVisibility(e.target.value as any)}
+                    className="px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 font-semibold min-h-[38px]"
+                    aria-label="Post Visibility"
+                  >
+                    <option value="alumni">All Verified Alumni</option>
+                    <option value="public">Public</option>
+                    {currentUser?.batch && (
+                      <option value="batch">Batch {currentUser.batch} Only</option>
+                    )}
+                    {(currentUser?.department || currentUser?.course) && (
+                      <option value="department">
+                        {currentUser.department || currentUser.course} Only
+                      </option>
+                    )}
+                    <option value="private">Only Me (Private)</option>
+                  </select>
+
+                  {currentUser?.role === 'alumni' && (
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 cursor-pointer min-h-[38px]">
+                      <input
+                        type="checkbox"
+                        checked={isAnonymous}
+                        onChange={(e) => setIsAnonymous(e.target.checked)}
+                        className="rounded text-[#8B181B] focus:ring-[#8B181B]"
+                      />
+                      <EyeOff className="w-3.5 h-3.5 text-stone-500" />
+                      <span>Post Anonymously</span>
+                    </label>
+                  )}
+
+                  {isAdminOrSuperAdmin && (
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300 cursor-pointer min-h-[38px]">
+                      <input
+                        type="checkbox"
+                        checked={isPinned}
+                        onChange={(e) => setIsPinned(e.target.checked)}
+                        className="rounded text-[#8B181B] focus:ring-[#8B181B]"
+                      />
+                      <Pin className="w-3.5 h-3.5" />
+                      <span>Pin Announcement</span>
+                    </label>
+                  )}
+                </div>
+
+                {isAdminOrSuperAdmin && isPinned && (
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <label className="text-stone-600 dark:text-stone-400 font-medium">
+                      Pin expires on (optional):
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={pinExpiresAt}
+                      onChange={(e) => setPinExpiresAt(e.target.value)}
+                      className="px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200"
+                    />
+                  </div>
+                )}
+
+                {composerType === 'milestone' && (
                   <input
                     type="text"
                     value={postMilestoneBadge}
                     onChange={(e) => setPostMilestoneBadge(e.target.value)}
-                    placeholder="e.g. 100% Passing Rate or Regional Topnotcher"
-                    className="w-full px-3.5 py-2 rounded-xl border border-amber-300 bg-amber-50/50 text-sm focus:ring-2 focus:ring-amber-500/20"
+                    placeholder="Milestone badge (e.g. Board Topnotcher, Promotion, Research Award)"
+                    className="w-full px-3.5 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white"
                   />
-                </div>
-              )}
+                )}
 
-              {/* Content / Story */}
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Story & Description *
-                </label>
-                <textarea
-                  rows={4}
-                  required
-                  value={postContent}
-                  onChange={(e) => setPostContent(e.target.value)}
-                  placeholder="Write the full announcement or celebration story for our alumni community..."
-                  className="w-full px-3.5 py-2 rounded-xl border border-stone-300 text-sm focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B]"
-                />
-              </div>
-
-              {/* Media Attachment */}
-              <div className="border border-stone-200 rounded-2xl p-3.5 bg-stone-50/60">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-                    <ImageIcon className="w-4 h-4 text-stone-500" />
-                    <span>Campus Photo / Media Attachment</span>
-                  </label>
-                  {postImageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setPostImageUrl('')}
-                      className="text-[11px] text-red-600 hover:underline"
-                    >
-                      Remove Photo
-                    </button>
-                  )}
-                </div>
-
-                {/* Preset Selector */}
-                <p className="text-[11px] text-stone-500 mb-1.5">Choose from official campus landmarks:</p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2.5">
-                  {PRESET_CAMPUS_PHOTOS.map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setPostImageUrl(preset.url)}
-                      className={`text-left p-1.5 rounded-lg border text-[11px] transition-all cursor-pointer ${
-                        postImageUrl === preset.url
-                          ? 'border-blue-600 bg-blue-50 font-bold text-blue-900'
-                          : 'border-stone-200 bg-white hover:bg-stone-100 text-stone-700'
-                      }`}
-                    >
-                      <img src={preset.url} alt={preset.name} className="w-full h-12 rounded object-cover mb-1" />
-                      <span className="truncate block">{preset.name}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Or Custom Upload */}
-                <div className="flex items-center gap-2">
-                  <label className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border border-dashed border-stone-300 bg-white hover:bg-stone-100 text-xs font-semibold text-stone-600 cursor-pointer transition-colors">
+                {/* Media Attachment Row */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 cursor-pointer min-h-[38px]">
                     <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Custom Photo</span>
+                    <span>Upload Photo</span>
                     <input
                       type="file"
                       accept="image/png, image/jpeg, image/webp"
@@ -1061,173 +763,232 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
                       className="hidden"
                     />
                   </label>
-                  <input
-                    type="text"
-                    value={postImageUrl}
-                    onChange={(e) => setPostImageUrl(e.target.value)}
-                    placeholder="Or enter image URL..."
-                    className="flex-1 px-3 py-1.5 rounded-xl border border-stone-300 text-xs bg-white"
-                  />
+
+                  {PRESET_CAMPUS_PHOTOS.map((preset) => (
+                    <button
+                      key={preset.url}
+                      type="button"
+                      onClick={() => setPostImageUrl(preset.url)}
+                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-medium border cursor-pointer transition-colors min-h-[34px] ${
+                        postImageUrl === preset.url
+                          ? 'bg-red-50 border-[#8B181B] text-[#8B181B] dark:bg-red-950/40 dark:text-red-300'
+                          : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50'
+                      }`}
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+
+                  {postImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPostImageUrl('')}
+                      className="text-xs text-red-600 hover:underline cursor-pointer ml-auto"
+                    >
+                      Remove image
+                    </button>
+                  )}
                 </div>
 
                 {postImageUrl && (
-                  <div className="mt-2.5 relative rounded-xl overflow-hidden border border-stone-200 h-28 bg-stone-900">
-                    <img src={postImageUrl} alt="Preview" className="w-full h-full object-cover" />
+                  <div className="rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 max-h-44 bg-stone-950">
+                    <img src={postImageUrl} alt="Attachment preview" className="w-full h-full object-cover" />
                   </div>
                 )}
-              </div>
 
-              {/* Pinned Post Toggle */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-amber-50/70 border border-amber-200/80">
-                <div className="flex items-center gap-2">
-                  <Pin className="w-4 h-4 text-amber-700 rotate-45" />
-                  <div>
-                    <span className="text-xs font-bold text-stone-900 block">
-                      Pin to Top of Alumni Dashboard
-                    </span>
-                    <span className="text-[11px] text-stone-500">
-                      Keep this post featured prominently as the top announcement
-                    </span>
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={isPinned}
-                  onChange={(e) => setIsPinned(e.target.checked)}
-                  className="w-4 h-4 text-[#8B181B] rounded focus:ring-[#8B181B]"
-                />
-              </div>
-
-              {/* Tags */}
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  Tags (comma separated)
-                </label>
                 <input
                   type="text"
                   value={postTags}
                   onChange={(e) => setPostTags(e.target.value)}
-                  placeholder="e.g. Campus Expansion, Milestone, IT Department"
-                  className="w-full px-3 py-1.5 rounded-xl border border-stone-300 text-xs"
+                  placeholder="Tags (comma-separated, e.g. BSIT, Career, Homecoming)"
+                  className="w-full px-3.5 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white"
                 />
               </div>
+            )}
 
-              {/* Sticky Action Footer */}
-              <div className="sticky bottom-0 bg-white/95 backdrop-blur-md pt-3 pb-1 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 px-5 sm:px-6 border-t border-stone-200 flex items-center justify-end gap-2 shadow-xs z-10">
-                <button
-                  type="button"
-                  onClick={() => setShowComposerModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#991B1B] hover:bg-[#7f1616] shadow-sm transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Publish to Alumni Feed</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Post Modal for Authors & Admins */}
-      {postToEdit && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl border border-stone-200 dark:border-stone-800 w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
-              <div className="flex items-center gap-2">
-                <Pencil className="w-4 h-4 text-[#8B181B] dark:text-red-400" />
-                <h3 className="text-base font-bold text-stone-900 dark:text-white">Edit Feed Post</h3>
-              </div>
+            <div className="flex items-center justify-between pt-1">
               <button
                 type="button"
-                onClick={() => setPostToEdit(null)}
-                className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer p-1 rounded-lg"
+                onClick={() => setComposerExpanded((prev) => !prev)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 cursor-pointer min-h-[38px]"
               >
-                <X className="w-5 h-5" />
+                {composerExpanded ? (
+                  <>
+                    <ChevronUp className="w-3.5 h-3.5" />
+                    <span>Fewer options</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                    <span>Add photo, visibility &amp; options</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting || !postContent.trim()}
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#8B181B] hover:bg-[#721316] disabled:opacity-50 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer min-h-[40px]"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>{isSubmitting ? 'Posting...' : 'Publish Post'}</span>
               </button>
             </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!editTitle.trim() || !editContent.trim()) {
-                  showToast('Title and content cannot be empty.', 'warning');
-                  return;
-                }
-                updateFeedPost(postToEdit.id, {
-                  title: editTitle.trim(),
-                  content: editContent.trim()
-                });
-                setPostToEdit(null);
-              }}
-              className="mt-4 space-y-4"
-            >
-              <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
-                  Post Title
-                </label>
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-semibold text-stone-900 dark:text-white focus:outline-none focus:border-[#8B181B]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider mb-1">
-                  Post Content
-                </label>
-                <textarea
-                  rows={4}
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-sm text-stone-800 dark:text-stone-200 focus:outline-none focus:border-[#8B181B] leading-relaxed resize-y"
-                  required
-                />
-              </div>
-
-              <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setPostToEdit(null)}
-                  className="px-4 py-2 text-xs font-bold text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-xs font-bold text-white bg-[#8B181B] hover:bg-[#721316] rounded-xl transition-colors shadow-2xs cursor-pointer"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
+          </form>
+        ) : (
+          <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">
+            <span className="inline-flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-stone-400" />
+              <span>Verified alumni and campus staff can publish posts directly to this feed.</span>
+            </span>
           </div>
+        )}
+      </div>
+
+      {/* New Posts Available Banner (does not push user's scroll position automatically) */}
+      {newPostsAvailableCount > 0 && (
+        <div className="sticky top-20 z-20 flex justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              setNewPostsAvailableCount(0);
+              void loadFeedPage(null, false);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold shadow-lg transition-transform active:scale-95 cursor-pointer min-h-[40px]"
+          >
+            <ArrowUp className="w-3.5 h-3.5" />
+            <span>New posts available ({newPostsAvailableCount})</span>
+          </button>
         </div>
       )}
 
-      {/* Confirmation Dialog for Destructive Post Deletion (Requirement 5) */}
-      <ConfirmationModal
-        isOpen={Boolean(postToDelete)}
-        onClose={() => setPostToDelete(null)}
-        onConfirm={() => {
-          if (postToDelete) {
-            deleteFeedPost(postToDelete.id);
-          }
-          setPostToDelete(null);
-        }}
-        title="Delete Feed Post"
-        message={`Are you sure you want to permanently delete "${postToDelete?.title}" from the Alumni Feed? This action cannot be undone.`}
-        confirmLabel="Delete Post"
-        cancelLabel="Cancel"
-        variant="danger"
+      {/* Feed States: Loading / Error / Empty / Posts */}
+      {showSkeleton ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-5 space-y-3"
+            >
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-11 h-11 rounded-2xl shrink-0" />
+                <div className="space-y-1.5 flex-1">
+                  <Skeleton className="h-3.5 w-36 rounded" />
+                  <Skeleton className="h-2.5 w-48 rounded" />
+                </div>
+              </div>
+              <Skeleton className="h-4 w-3/4 rounded" />
+              <Skeleton className="h-3 w-full rounded" />
+              {i === 1 && <Skeleton className="w-full h-48 rounded-xl" />}
+            </div>
+          ))}
+        </div>
+      ) : loadError ? (
+        <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-8 text-center space-y-3">
+          <AlertTriangle className="w-8 h-8 mx-auto text-amber-600" />
+          <p className="text-sm font-bold text-stone-900 dark:text-white">Failed to load, retry</p>
+          <p className="text-xs text-stone-500 dark:text-stone-400">
+            Could not fetch the latest feed updates right now.
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadFeedPage(null, false)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold cursor-pointer min-h-[40px]"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Retry</span>
+          </button>
+        </div>
+      ) : combinedVisibleIds.pinned.length === 0 && combinedVisibleIds.regular.length === 0 ? (
+        <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-10 text-center space-y-2">
+          <Globe className="w-8 h-8 text-stone-300 dark:text-stone-600 mx-auto" />
+          <p className="text-sm font-bold text-stone-800 dark:text-stone-200">
+            Nothing to show yet, be the first to post
+          </p>
+          <p className="text-xs text-stone-400 dark:text-stone-500">
+            Share a career update, milestone, or campus photo above to start the timeline.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Pinned Admin Announcements (up to 3) */}
+          {combinedVisibleIds.pinned.map((post) => (
+            <PostCard
+              key={`pinned-${post.id}`}
+              post={post}
+              highlighted={isHighlighted(post.id)}
+              onImageClick={(url, title) => setViewerImage({ url, title })}
+              onPostDeleted={(pid) =>
+                setPinnedPosts((prev) => prev.filter((item) => item.id !== pid))
+              }
+              onPostShared={(shared) => {
+                seenIdsRef.current.add(shared.id);
+                setStreamPosts((prev) => [shared, ...prev]);
+              }}
+              onPostReported={(pid) =>
+                setPinnedPosts((prev) =>
+                  prev.map((item) => (item.id === pid ? { ...item, viewerHasReported: true } : item))
+                )
+              }
+            />
+          ))}
+
+          {/* Regular Feed Stream */}
+          {combinedVisibleIds.regular.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              highlighted={isHighlighted(post.id)}
+              onImageClick={(url, title) => setViewerImage({ url, title })}
+              onPostDeleted={(pid) =>
+                setStreamPosts((prev) => prev.filter((item) => item.id !== pid))
+              }
+              onPostShared={(shared) => {
+                seenIdsRef.current.add(shared.id);
+                setStreamPosts((prev) => [shared, ...prev]);
+              }}
+              onPostReported={(pid) =>
+                setStreamPosts((prev) =>
+                  prev.map((item) => (item.id === pid ? { ...item, viewerHasReported: true } : item))
+                )
+              }
+            />
+          ))}
+
+          {/* Load More & Infinite Scroll Sentinel */}
+          {isFetchingMore && (
+            <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-5 space-y-3">
+              <div className="flex items-center gap-3">
+                <Skeleton className="w-10 h-10 rounded-xl" />
+                <Skeleton className="h-3.5 w-40 rounded" />
+              </div>
+              <Skeleton className="h-3 w-full rounded" />
+            </div>
+          )}
+
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                disabled={isFetchingMore}
+                onClick={() => void loadFeedPage(nextCursor, true)}
+                className="px-5 py-2.5 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs font-bold text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer min-h-[42px]"
+              >
+                {isFetchingMore ? 'Loading...' : 'Load more'}
+              </button>
+            </div>
+          )}
+
+          <div ref={sentinelRef} className="h-4 w-full pointer-events-none" />
+        </div>
+      )}
+
+      <ImageViewerModal
+        isOpen={Boolean(viewerImage)}
+        imageUrl={viewerImage?.url || ''}
+        title={viewerImage?.title || 'Post Image'}
+        onClose={() => setViewerImage(null)}
       />
     </div>
   );

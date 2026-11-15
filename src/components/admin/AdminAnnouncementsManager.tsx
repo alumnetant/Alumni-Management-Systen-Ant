@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   Megaphone,
   Search,
@@ -57,7 +57,9 @@ export const AdminAnnouncementsManager: React.FC = () => {
     permissions,
     currentUser,
     showToast,
-    addAuditLog
+    addAuditLog,
+    deepLinkTarget,
+    clearDeepLinkTarget
   } = useAlumni();
 
   // State
@@ -70,6 +72,20 @@ export const AdminAnnouncementsManager: React.FC = () => {
   const [showAuthoringStudio, setShowAuthoringStudio] = useState(false);
   const [inspectingDispatch, setInspectingDispatch] = useState<Announcement | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!deepLinkTarget || deepLinkTarget.targetType !== 'announcement') return;
+    if (deepLinkTarget.targetId) {
+      const target = announcements.find((a) => a.id === deepLinkTarget.targetId);
+      if (target) {
+        setSelectedChannel('all');
+        setPriorityFilter('all');
+        setSearchQuery('');
+        setInspectingDispatch(target);
+      }
+    }
+    clearDeepLinkTarget();
+  }, [deepLinkTarget, announcements, clearDeepLinkTarget]);
 
   // Authoring Form State
   const [headline, setHeadline] = useState('');

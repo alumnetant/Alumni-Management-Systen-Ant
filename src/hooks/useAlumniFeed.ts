@@ -19,13 +19,36 @@ import {
 import { shareEventViaCapacitor } from '../services/nativeShareService';
 import { triggerHaptic } from '../services/hapticsService';
 
-const SOCIAL_STORAGE_KEY = 'scc_feed_social_interactions_v3';
+const SOCIAL_STORAGE_KEY_PREFIX = 'scc_feed_social_interactions_v4';
 const BATCH_SIZE = 10;
 
 interface LocalSocialMap {
   opportunityReactions: Record<string, { userReaction?: FeedReactionType; counts: Record<FeedReactionType, number> }>;
   customComments: Record<string, FeedComment[]>;
   bookmarks: string[];
+  interactedEventIds: string[];
+}
+
+function getStorageKey(uid?: string) {
+  return `${SOCIAL_STORAGE_KEY_PREFIX}_${uid || 'guest'}`;
+}
+
+function readLocalSocial(uid?: string): LocalSocialMap {
+  try {
+    const stored = localStorage.getItem(getStorageKey(uid));
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return {
+        opportunityReactions: parsed.opportunityReactions || {},
+        customComments: parsed.customComments || {},
+        bookmarks: Array.isArray(parsed.bookmarks) ? parsed.bookmarks : [],
+        interactedEventIds: Array.isArray(parsed.interactedEventIds) ? parsed.interactedEventIds : []
+      };
+    }
+  } catch (e) {
+    console.warn('Failed to parse feed social interactions:', e);
+  }
+  return { opportunityReactions: {}, customComments: {}, bookmarks: [], interactedEventIds: [] };
 }
 
 export function useAlumniFeed() {
@@ -49,24 +72,20 @@ export function useAlumniFeed() {
   const [visibleCount, setVisibleCount] = useState<number>(BATCH_SIZE);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
-  // Local storage for bookmark tracking and opportunities social state
-  const [localSocial, setLocalSocial] = useState<LocalSocialMap>(() => {
-    try {
-      const stored = localStorage.getItem(SOCIAL_STORAGE_KEY);
-      if (stored) return JSON.parse(stored);
-    } catch (e) {
-      console.warn('Failed to parse feed social interactions:', e);
-    }
-    return { opportunityReactions: {}, customComments: {}, bookmarks: [] };
-  });
+  // Local storage for bookmark tracking, interacted event rotation, and opportunities social state
+  const [localSocial, setLocalSocial] = useState<LocalSocialMap>(() => readLocalSocial(currentUser?.uid));
+
+  useEffect(() => {
+    setLocalSocial(readLocalSocial(currentUser?.uid));
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(SOCIAL_STORAGE_KEY, JSON.stringify(localSocial));
+      localStorage.setItem(getStorageKey(currentUser?.uid), JSON.stringify(localSocial));
     } catch (e) {
       console.warn('Failed to save feed social interactions:', e);
     }
-  }, [localSocial]);
+  }, [localSocial, currentUser?.uid]);
 
   // Reset pagination batch when tab or search changes
   useEffect(() => {
@@ -161,10 +180,10 @@ export function useAlumniFeed() {
         badgeLabel: e.isImportant ? 'OFFICIAL GATHERING' : undefined,
         reactions: {
           count: eventLikes.length,
-          userReaction: hasLiked ? 'like' : undefined,
+          userReaction: hasLiked ? 'love' : undefined,
           reactionCounts: {
             like: eventLikes.length,
-            love: 0,
+            love: eventLikes.length,
             celebrate: 0,
             insightful: 0
           }
@@ -215,10 +234,10 @@ export function useAlumniFeed() {
         badgeLabel: m.awardLevel ? `${m.awardLevel} Honor` : 'Achievement',
         reactions: {
           count: milestoneLikes.length,
-          userReaction: hasLiked ? 'celebrate' : undefined,
+          userReaction: hasLiked ? 'love' : undefined,
           reactionCounts: {
             like: 0,
-            love: 0,
+            love: milestoneLikes.length,
             celebrate: milestoneLikes.length,
             insightful: 0
           }
@@ -254,7 +273,7 @@ export function useAlumniFeed() {
           uid: o.postedBy || o.postedByUid || 'corp_partner',
           name: o.company || 'Corporate Partner Company',
           role: 'Accredited Employer',
-          avatarUrl: '/assets/scc-crest.png',
+          avatarUrl: '/assets/cecilians-seal.jpg',
           isVerified: true
         },
         categoryTag: o.type ? `Career · ${o.type.toUpperCase()}` : 'Opportunity',
@@ -341,7 +360,16 @@ export function useAlumniFeed() {
 
   // Filter and Sort by Selected Stream Tab and Search Query
   const filteredFeed = useMemo(() => {
-    let result = scoredFeedItems;
+    const interactedSet = new Set(localSocial.interactedEventIds || []);
+    let result = scoredFeedItems.filter((item) => {
+      if (item.type === 'event') {
+        const rawEventId = item.id.replace('event_', '');
+        if (interactedSet.has(rawEventId) || interactedSet.has(item.id)) {
+          return false;
+        }
+      }
+      return true;
+    });
 
     // Search query matching
     if (searchQuery.trim()) {
@@ -371,7 +399,7 @@ export function useAlumniFeed() {
     }
 
     return result;
-  }, [scoredFeedItems, activeTab, searchQuery]);
+  }, [scoredFeedItems, activeTab, searchQuery, localSocial.interactedEventIds]);
 
   // Infinite Scroll Paginated Slice
   const visibleFeed = useMemo(() => {
@@ -389,14 +417,35 @@ export function useAlumniFeed() {
     }, 400);
   }, [isLoadingMore, hasMore]);
 
+  const markEventInteracted = useCallback((rawEventId: string) => {
+    if (!rawEventId) return;
+    setLocalSocial((prev) => {
+      const existing = prev.interactedEventIds || [];
+      if (existing.includes(rawEventId)) return prev;
+      return {
+        ...prev,
+        interactedEventIds: [...existing, rawEventId]
+      };
+    });
+  }, []);
+
+  const rsvpFeedEvent = useCallback(
+    (eventId: string, status: 'going' | 'interested' | 'not_going') => {
+      rsvpEvent(eventId, status);
+      markEventInteracted(eventId);
+    },
+    [rsvpEvent, markEventInteracted]
+  );
+
   // Social Interaction: DIRECT BI-DIRECTIONAL REAL-TIME REACTION SYNC
   const toggleReaction = useCallback((itemId: string, reaction: FeedReactionType) => {
     triggerHaptic('light');
 
-    // 1. Events -> directly invoke toggleLikeEvent(eventId)
+    // 1. Events -> directly invoke toggleLikeEvent(eventId) and rotate out of feed
     if (itemId.startsWith('event_')) {
       const rawEventId = itemId.replace('event_', '');
       toggleLikeEvent(rawEventId);
+      markEventInteracted(rawEventId);
       return;
     }
 
@@ -407,9 +456,15 @@ export function useAlumniFeed() {
       return;
     }
 
-    // 3. Milestones -> directly invoke toggleLikeMilestone(milestoneId)
+    // 3. Milestones -> prevent self-congratulation, otherwise invoke toggleLikeMilestone
     if (itemId.startsWith('milestone_')) {
       const rawMilestoneId = itemId.replace('milestone_', '');
+      const targetMilestone = (milestones || []).find((m) => m.id === rawMilestoneId);
+      const ownerUid = targetMilestone?.alumnusId || targetMilestone?.uid;
+      if (currentUser?.uid && ownerUid && ownerUid === currentUser.uid) {
+        showToast('You cannot congratulate yourself on your own milestone.', 'info');
+        return;
+      }
       toggleLikeMilestone(rawMilestoneId);
       return;
     }
@@ -435,17 +490,18 @@ export function useAlumniFeed() {
         };
       });
     }
-  }, [toggleLikeEvent, toggleHeartAnnouncement, toggleLikeMilestone]);
+  }, [toggleLikeEvent, toggleHeartAnnouncement, toggleLikeMilestone, markEventInteracted, milestones, currentUser?.uid, showToast]);
 
   // Social Interaction: DIRECT REAL-TIME COMMENT SYNC
   const addComment = useCallback((itemId: string, text: string) => {
     if (!text.trim() || !currentUser) return;
     triggerHaptic('medium');
 
-    // 1. Events -> directly invoke addCommentToEvent(eventId, text)
+    // 1. Events -> directly invoke addCommentToEvent(eventId, text) and rotate out of feed
     if (itemId.startsWith('event_')) {
       const rawEventId = itemId.replace('event_', '');
       addCommentToEvent(rawEventId, text.trim());
+      markEventInteracted(rawEventId);
       showToast('Comment posted to event.', 'success');
       return;
     }
@@ -470,7 +526,7 @@ export function useAlumniFeed() {
     }));
 
     showToast('Your comment was posted to the timeline.', 'success');
-  }, [currentUser, addCommentToEvent, showToast]);
+  }, [currentUser, addCommentToEvent, markEventInteracted, showToast]);
 
   // Social Interaction: Bookmark/Save
   const toggleBookmark = useCallback((itemId: string) => {
@@ -481,8 +537,16 @@ export function useAlumniFeed() {
         ? prev.bookmarks.filter((id) => id !== itemId)
         : [...prev.bookmarks, itemId];
 
+      let nextInteracted = prev.interactedEventIds || [];
+      if (itemId.startsWith('event_')) {
+        const rawEventId = itemId.replace('event_', '');
+        if (!nextInteracted.includes(rawEventId)) {
+          nextInteracted = [...nextInteracted, rawEventId];
+        }
+      }
+
       showToast(exists ? 'Removed from saved items' : 'Saved to your bookmarks', 'info');
-      return { ...prev, bookmarks: newBookmarks };
+      return { ...prev, bookmarks: newBookmarks, interactedEventIds: nextInteracted };
     });
   }, [showToast]);
 
@@ -497,6 +561,7 @@ export function useAlumniFeed() {
 
     if (item.type === 'event' && item.rawItem) {
       await shareEventViaCapacitor(item.rawItem);
+      markEventInteracted(item.id.replace('event_', ''));
       return;
     }
 
@@ -510,7 +575,7 @@ export function useAlumniFeed() {
       navigator.clipboard.writeText(`${item.title}\n\n${item.body.slice(0, 160)}...\n\nRead more on St. Cecilia's College Alumnet`);
       showToast('Timeline link copied to clipboard!', 'success');
     }
-  }, [showToast]);
+  }, [showToast, markEventInteracted]);
 
   return {
     activeTab,
@@ -527,6 +592,7 @@ export function useAlumniFeed() {
     toggleBookmark,
     isBookmarked: (id: string) => localSocial.bookmarks.includes(id),
     shareFeedItem,
-    rsvpEvent
+    rsvpEvent: rsvpFeedEvent,
+    markEventInteracted
   };
 }

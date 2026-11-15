@@ -33,6 +33,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
 import { AuditLogEntry } from '../../types';
+import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
+import { apiFetch, getAuthToken } from '../../services/apiClient';
 
 export type ActivityClassification =
   | 'NORMAL'
@@ -76,6 +78,20 @@ export interface AlertInfo {
 export function getLogAlertInfo(log: AuditLogEntry): AlertInfo {
   const actionUpper = (log.action || '').toUpperCase();
   const detailsUpper = (log.details || '').toUpperCase();
+
+  if (
+    actionUpper === 'UNAUTHORIZED_SUPERADMIN_ACCESS' ||
+    actionUpper.includes('UNAUTHORIZED_SUPERADMIN')
+  ) {
+    return {
+      isAlert: true,
+      isSuspicious: true,
+      showWarningIcon: true,
+      classification: 'SUSPICIOUS',
+      alertType: 'security_alert',
+      badgeLabel: 'Unauthorized Superadmin Probe'
+    };
+  }
 
   // 1. ACCOUNT_SUSPENDED (SUSPENDED status, ⚠️ Yes)
   if (
@@ -299,12 +315,56 @@ export function getLogAlertInfo(log: AuditLogEntry): AlertInfo {
 }
 
 export const AuditLogView: React.FC = () => {
-  const { auditLogs, currentUser, showToast } = useAlumni();
+  const { auditLogs, currentUser, showToast, setActiveTab } = useAlumni();
 
-  // Role permissions: Admins and superadmins have cross-role oversight.
-  // Other roles view activity logs relevant to their assigned role.
+  // Strict RBAC enforcement: Only Superadmin can view system activity and audit logs
   const currentUserRole = (currentUser?.role || 'alumni').toLowerCase().trim();
-  const isAdmin = currentUserRole === 'admin' || currentUserRole === 'superadmin';
+  const isSuperAdmin = currentUserRole === 'superadmin';
+  const isAdmin = isSuperAdmin;
+  const [serverLogs, setServerLogs] = useState<AuditLogEntry[]>([]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || !getAuthToken()) return;
+    let active = true;
+    apiFetch('/api/admin/audit-logs')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!active || !data?.logs) return;
+        const mapped: AuditLogEntry[] = (data.logs as any[]).map((item) => ({
+          id: String(item.id || `srv_${Date.now()}`),
+          action: String(item.action || 'SERVER_AUDIT_EVENT'),
+          actorId: String(item.details?.actorUid || item.actor || 'system'),
+          actorName: String(item.actor || 'System'),
+          actorRole: String(item.actorRole || 'system'),
+          category: 'security',
+          targetRecordId: item.details?.attemptedPath ? String(item.details.attemptedPath) : undefined,
+          details:
+            typeof item.details === 'string'
+              ? item.details
+              : item.details?.attemptedPath
+              ? `Blocked unauthorized access to ${item.details.attemptedPath} (${item.details.reason || 'SUPERADMIN_REQUIRED'}) from IP ${item.ip || 'internal'}`
+              : JSON.stringify(item.details || {}),
+          severity: String(item.action || '').includes('UNAUTHORIZED') ? 'alert' : 'info',
+          timestamp: String(item.timestamp || new Date().toISOString())
+        }));
+        setServerLogs(mapped);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [isSuperAdmin]);
+
+  const combinedAuditLogs = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: AuditLogEntry[] = [];
+    for (const item of [...serverLogs, ...auditLogs]) {
+      if (!item?.id || seen.has(item.id)) continue;
+      seen.add(item.id);
+      merged.push(item);
+    }
+    return merged;
+  }, [serverLogs, auditLogs]);
 
   // Interactive Filter Drawer / Panel Toggle
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
@@ -348,7 +408,7 @@ export const AuditLogView: React.FC = () => {
     let suspiciousCount = 0;
     let loginCount = 0;
 
-    for (const log of auditLogs) {
+    for (const log of combinedAuditLogs) {
       const info = getLogAlertInfo(log);
       if (info.showWarningIcon) totalWarnings++;
       if (info.isSuspicious) suspiciousCount++;
@@ -356,7 +416,7 @@ export const AuditLogView: React.FC = () => {
     }
 
     return { totalWarnings, suspiciousCount, loginCount };
-  }, [auditLogs]);
+  }, [combinedAuditLogs]);
 
   // Calculate active filter count for badge indicator on filter button
   const activeFilterCount = useMemo(() => {
@@ -383,7 +443,7 @@ export const AuditLogView: React.FC = () => {
   // Filtered Logs
   const filteredLogs = useMemo(() => {
     const now = Date.now();
-    return auditLogs
+    return combinedAuditLogs
       .filter((log) => {
         // 1. Role Scoping & Role Filtering
         if (!isAdmin) {
@@ -492,7 +552,7 @@ export const AuditLogView: React.FC = () => {
         `"${l.category || ''}"`,
         `"${(l.action || '').replace(/"/g, '""')}"`,
         `"${alertInfo.classification}"`,
-        `"${alertInfo.showWarningIcon ? '⚠️ YES' : 'NO'}"`,
+        `"${alertInfo.showWarningIcon ? 'WARNING' : 'NORMAL'}"`,
         `"${(l.actorName || '').replace(/"/g, '""')}"`,
         `"${l.actorRole || ''}"`,
         `"${l.targetRecordId || ''}"`,
@@ -528,6 +588,17 @@ export const AuditLogView: React.FC = () => {
       showToast('Failed to copy payload.', 'error');
     }
   };
+
+  if (!isSuperAdmin) {
+    return (
+      <ForbiddenAccessView
+        attemptedPath="/portal/audit"
+        attemptedModule="System Audit Logs"
+        userRole={currentUserRole}
+        onReturnToOverview={() => setActiveTab('dashboard')}
+      />
+    );
+  }
 
   return (
     <div className="w-full space-y-6 antialiased">
@@ -567,21 +638,6 @@ export const AuditLogView: React.FC = () => {
           </div>
         </div>
       </div>
-
-      {/* Non-Admin Scoped Notice */}
-      {!isAdmin && (
-        <div className="bg-stone-50 dark:bg-stone-800/60 rounded-2xl border border-stone-200/80 dark:border-stone-700 p-3.5 flex items-center justify-between gap-3 text-xs text-stone-700 dark:text-stone-300">
-          <div className="flex items-center gap-2.5">
-            <Shield className="w-4 h-4 text-[#8B181B] dark:text-rose-400 shrink-0" />
-            <span>
-              <strong>Role Scoped View:</strong> Showing audit logs pertinent to your assigned role ({currentUserRole}). Institutional administrative records remain restricted.
-            </span>
-          </div>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 font-semibold text-stone-600 dark:text-stone-400">
-            ROLE: {currentUserRole.toUpperCase()}
-          </span>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* CONTROLS RIBBON (SEARCH, FILTER BUTTON, FORMAT SELECTOR)                  */}
@@ -643,10 +699,10 @@ export const AuditLogView: React.FC = () => {
                   ? 'bg-amber-600 text-white border-amber-700 shadow-xs'
                   : 'bg-stone-50 dark:bg-stone-900 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-200 border-stone-200/80 dark:border-stone-700'
               }`}
-              title="Filter activities with ⚠️ warnings"
+              title="Filter activities with security or account warnings"
             >
               <AlertTriangle className={`w-3.5 h-3.5 ${alertFilter === 'warnings_only' ? 'text-white' : 'text-amber-600'}`} />
-              <span>Warnings (⚠️)</span>
+              <span>Warnings</span>
             </button>
 
             {/* View Format Selector (Data Grid vs Timeline) */}
@@ -739,29 +795,21 @@ export const AuditLogView: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300 flex items-center justify-between">
                       <span>User Role View</span>
-                      {isAdmin && (
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">
-                          Admin Wide Access
-                        </span>
-                      )}
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-normal">
+                        Superadmin Wide Access
+                      </span>
                     </label>
-                    {isAdmin ? (
-                      <select
-                        value={roleFilter}
-                        onChange={(e) => setRoleFilter(e.target.value)}
-                        className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-700 rounded-xl text-xs font-semibold text-stone-800 dark:text-stone-200 cursor-pointer focus:outline-hidden focus:border-[#8B181B]"
-                      >
-                        <option value="all">All Roles (Admin Wide)</option>
-                        <option value="admin">Administrator (Admin / Superadmin)</option>
-                        <option value="moderator">Institutional Moderator</option>
-                        <option value="employer">Employer Partner</option>
-                        <option value="alumni">Alumni</option>
-                      </select>
-                    ) : (
-                      <div className="px-3 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 font-semibold text-stone-700 dark:text-stone-300">
-                        {currentUserRole.toUpperCase()} (Locked to your role)
-                      </div>
-                    )}
+                    <select
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value)}
+                      className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-700 rounded-xl text-xs font-semibold text-stone-800 dark:text-stone-200 cursor-pointer focus:outline-hidden focus:border-[#8B181B]"
+                    >
+                      <option value="all">All Roles (Superadmin Wide)</option>
+                      <option value="admin">Administrator (Admin / Superadmin)</option>
+                      <option value="moderator">Institutional Moderator</option>
+                      <option value="employer">Employer Partner</option>
+                      <option value="alumni">Alumni</option>
+                    </select>
                   </div>
 
                   {/* Filter 2: Alert & Suspicious Filter */}
@@ -775,9 +823,9 @@ export const AuditLogView: React.FC = () => {
                       className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-700 rounded-xl text-xs font-semibold text-stone-800 dark:text-stone-200 cursor-pointer focus:outline-hidden focus:border-[#8B181B]"
                     >
                       <option value="all">All Activities (Normal + Warnings)</option>
-                      <option value="warnings_only">⚠️ All Warnings (Failed, Suspicious, Locked)</option>
-                      <option value="suspicious_only">⚠️ Suspicious Activities Only</option>
-                      <option value="security_warnings">⚠️ Security Warnings (Account Locked)</option>
+                      <option value="warnings_only">All Warnings (Failed, Suspicious, Locked)</option>
+                      <option value="suspicious_only">Suspicious Activities Only</option>
+                      <option value="security_warnings">Security Warnings (Account Locked)</option>
                       <option value="logins_only">Normal User Logins (USER_LOGIN)</option>
                     </select>
                   </div>
@@ -867,11 +915,11 @@ export const AuditLogView: React.FC = () => {
               <span className="bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300 px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3 text-amber-600" />
                 {alertFilter === 'warnings_only'
-                  ? 'All Warnings (⚠️)'
+                  ? 'All Warnings'
                   : alertFilter === 'suspicious_only'
-                  ? 'Suspicious Only (⚠️)'
+                  ? 'Suspicious Only'
                   : alertFilter === 'security_warnings'
-                  ? 'Security Warnings (⚠️)'
+                  ? 'Security Warnings'
                   : 'Logins Only (Normal)'}
               </span>
             )}

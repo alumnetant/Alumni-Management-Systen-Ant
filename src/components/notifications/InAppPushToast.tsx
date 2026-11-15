@@ -11,18 +11,21 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, X, ArrowRight, ShieldCheck, Calendar, Megaphone, CheckCircle2 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { triggerHaptic } from '../../services/hapticsService';
+import { buildPortalUrlForTab } from '../../lib/notificationDeepLink';
 
 export interface PushNotificationPayload {
   title: string;
   body: string;
   icon?: string;
   route?: string;
+  targetPath?: string;
+  targetRoute?: string;
   tag?: string;
   data?: Record<string, any>;
 }
 
 export const InAppPushToast: React.FC = () => {
-  const { setActiveTab } = useAlumni();
+  const { navigateToPortalPath } = useAlumni();
   const [notification, setNotification] = useState<PushNotificationPayload | null>(null);
 
   useEffect(() => {
@@ -50,20 +53,47 @@ export const InAppPushToast: React.FC = () => {
 
   const handleNavigate = () => {
     triggerHaptic('light');
-    const targetRoute = notification.route || notification.data?.route;
+    const data = notification.data || {};
+    const explicitPath =
+      notification.targetPath ||
+      notification.targetRoute ||
+      data.targetPath ||
+      data.targetRoute ||
+      (typeof data.url === 'string' && data.url.startsWith('/portal/') ? data.url : undefined);
 
-    if (targetRoute) {
-      if (targetRoute === 'announcements' || targetRoute === 'events' || targetRoute === 'opportunities' || targetRoute === 'network' || targetRoute === 'profile') {
-        setActiveTab(targetRoute as any);
-      } else if (targetRoute.includes('announcement')) {
-        setActiveTab('announcements');
-      } else if (targetRoute.includes('event')) {
-        setActiveTab('events');
-      } else if (targetRoute.includes('employer') || targetRoute.includes('accreditation')) {
-        setActiveTab('profile');
-      }
+    if (explicitPath) {
+      navigateToPortalPath(explicitPath);
+      setNotification(null);
+      return;
+    }
+
+    const rawRoute = (notification.route || data.route || '').toLowerCase();
+    const targetId =
+      data.eventId ||
+      data.announcementId ||
+      data.postId ||
+      data.chatId ||
+      data.jobId ||
+      data.milestoneId ||
+      data.targetId ||
+      data.refId;
+
+    if (rawRoute.includes('announcement') || data.announcementId) {
+      navigateToPortalPath(buildPortalUrlForTab('announcements', undefined, data.announcementId || targetId));
+    } else if (rawRoute.includes('event') || data.eventId) {
+      navigateToPortalPath(buildPortalUrlForTab('events', undefined, data.eventId || targetId));
+    } else if (rawRoute.includes('message') || data.chatId) {
+      navigateToPortalPath(buildPortalUrlForTab('messages', undefined, data.chatId || targetId));
+    } else if (rawRoute.includes('job') || rawRoute.includes('opportunit') || data.jobId) {
+      navigateToPortalPath(buildPortalUrlForTab('opportunities', undefined, data.jobId || targetId));
+    } else if (rawRoute.includes('network')) {
+      navigateToPortalPath(buildPortalUrlForTab('network', undefined, targetId));
+    } else if (rawRoute.includes('employer') || rawRoute.includes('accreditation') || rawRoute.includes('profile')) {
+      navigateToPortalPath(buildPortalUrlForTab('profile', undefined, targetId));
+    } else if (data.postId || data.milestoneId) {
+      navigateToPortalPath(buildPortalUrlForTab('dashboard', undefined, data.postId || data.milestoneId));
     } else {
-      setActiveTab('dashboard');
+      navigateToPortalPath('/portal/dashboard');
     }
 
     setNotification(null);
@@ -91,7 +121,7 @@ export const InAppPushToast: React.FC = () => {
           className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl p-4 shadow-xl hover:shadow-2xl transition-all cursor-pointer flex items-start gap-3.5 group relative overflow-hidden"
         >
           {/* Accent top stripe */}
-          <div className="h-1 bg-gradient-to-r from-[#8B181B] to-amber-600 absolute top-0 left-0 right-0" />
+          <div className="h-1 bg-[#8B181B] absolute top-0 left-0 right-0" />
 
           {/* Icon Badge */}
           <div className="w-10 h-10 rounded-xl bg-stone-100 dark:bg-stone-800 flex items-center justify-center shrink-0 mt-0.5">

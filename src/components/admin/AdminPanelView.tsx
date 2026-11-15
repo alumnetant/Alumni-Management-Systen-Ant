@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -44,8 +44,8 @@ import { getRegistrationConflicts } from '../../services/studentVerificationServ
 import { compressImage } from '../../lib/utils';
 import { AdminCommandBar } from './AdminCommandBar';
 import { AdminQuickActionBar } from './AdminQuickActionBar';
-import { AdminDatabaseSeederModal } from './AdminDatabaseSeederModal';
 import { exportAlumniRosterCsv } from '../../services/adminExportService';
+import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
 
 export type AdminTab =
   | 'overview'
@@ -84,10 +84,18 @@ export const AdminPanelView: React.FC = () => {
     syncAllDataToCloud,
     isFirestoreSyncing,
     moderatorQuota,
-    showToast
+    showToast,
+    reportUnauthorizedSuperAdminAccess
   } = useAlumni();
 
+  const isSuperAdmin = (currentUser?.role || '').toLowerCase().trim() === 'superadmin';
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+
+  useEffect(() => {
+    if (!isSuperAdmin && activeTab === 'audit') {
+      reportUnauthorizedSuperAdminAccess('/portal/audit', 'audit').catch(() => {});
+    }
+  }, [isSuperAdmin, activeTab, reportUnauthorizedSuperAdminAccess]);
 
   // Compute pending counts for badges
   const pendingConflictsCount = useMemo(() => {
@@ -116,7 +124,6 @@ export const AdminPanelView: React.FC = () => {
     pendingUsersCount + pendingEmployersCount + pendingJobsCount + pendingConflictsCount;
 
   // Modals
-  const [showDatabaseSeederModal, setShowDatabaseSeederModal] = useState(false);
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -228,7 +235,7 @@ export const AdminPanelView: React.FC = () => {
         icon: FileText,
         badge: null,
         badgeColor: '',
-        visible: currentUser?.role === 'admin' || currentUser?.role === 'superadmin'
+        visible: isSuperAdmin
       },
       {
         id: 'announcements' as AdminTab,
@@ -280,6 +287,7 @@ export const AdminPanelView: React.FC = () => {
     pendingJobsCount,
     pendingEmployersCount,
     currentUser?.role,
+    isSuperAdmin,
     announcements.length,
     events.length,
     milestones.length,
@@ -368,7 +376,7 @@ export const AdminPanelView: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-xs text-stone-500 mt-0.5">
-                    Logged in as <span className="font-semibold text-stone-700">{currentUser?.name}</span> • All administrative operations logged to audit trail.
+                    Logged in as <span className="font-semibold text-stone-700">{currentUser?.name}</span> • {isSuperAdmin ? 'All administrative operations logged to audit trail.' : 'Institutional management session active.'}
                   </p>
                 </div>
               </div>
@@ -376,16 +384,18 @@ export const AdminPanelView: React.FC = () => {
 
             {/* Quick Global Header Actions */}
             <div className="flex items-center gap-2 shrink-0 self-start lg:self-center">
-              <button
-                type="button"
-                onClick={() => syncAllDataToCloud()}
-                disabled={isFirestoreSyncing}
-                title="Synchronize database with Firestore cloud"
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
-              >
-                <Loader2 className={`w-3.5 h-3.5 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
-                <span>{isFirestoreSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
-              </button>
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => syncAllDataToCloud()}
+                  disabled={isFirestoreSyncing}
+                  title="Synchronize database with Firestore cloud"
+                  className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                >
+                  <Loader2 className={`w-3.5 h-3.5 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isFirestoreSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -420,7 +430,6 @@ export const AdminPanelView: React.FC = () => {
           onOpenCreateEvent={() => setActiveTab('events')}
           onOpenCreateAnnouncement={() => setActiveTab('announcements')}
           onOpenGalleryUpload={() => setShowGalleryUploadModal(true)}
-          onOpenDatabaseSeeder={() => setShowDatabaseSeederModal(true)}
           onExportCsv={handleExportCsv}
           pendingUsersCount={pendingUsersCount}
           pendingEmployersCount={pendingEmployersCount}
@@ -608,7 +617,6 @@ export const AdminPanelView: React.FC = () => {
               onOpenCreateEvent={() => setActiveTab('events')}
               onOpenCreateAnnouncement={() => setActiveTab('announcements')}
               onOpenGalleryUpload={() => setShowGalleryUploadModal(true)}
-              onOpenDatabaseSeeder={() => setShowDatabaseSeederModal(true)}
             />
           )}
 
@@ -678,20 +686,17 @@ export const AdminPanelView: React.FC = () => {
             )
           )}
 
-          {/* TAB: AUDIT & SYSTEM LOGS */}
+          {/* TAB: AUDIT & SYSTEM LOGS (Superadmin Only) */}
           {activeTab === 'audit' &&
-            (permissions.canAccessAuditTrails ? (
+            (isSuperAdmin && permissions.canAccessAuditTrails ? (
               <AuditLogView />
             ) : (
-              <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center max-w-lg mx-auto shadow-2xs space-y-3 my-8">
-                <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
-                  <ShieldAlert className="w-6 h-6 text-amber-600" />
-                </div>
-                <h3 className="text-base font-bold text-stone-900 font-sans">Access Restricted</h3>
-                <p className="text-xs text-stone-600 leading-relaxed">
-                  Audit logs and compliance trails are viewable by Administrators only.
-                </p>
-              </div>
+              <ForbiddenAccessView
+                attemptedPath="/portal/audit"
+                attemptedModule="System Audit Logs"
+                userRole={currentUser?.role}
+                onReturnToOverview={() => setActiveTab('overview')}
+              />
             ))}
 
           {/* TAB: MILESTONES (BENTO GRID REDESIGN) */}
@@ -1444,12 +1449,6 @@ export const AdminPanelView: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Database Sample Seeder Modal */}
-      <AdminDatabaseSeederModal
-        isOpen={showDatabaseSeederModal}
-        onClose={() => setShowDatabaseSeederModal(false)}
-      />
     </div>
   );
 };

@@ -44,6 +44,7 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
   onExportCsv
 }) => {
   const {
+    currentUser,
     users,
     opportunities,
     events,
@@ -54,6 +55,8 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
     isFirestoreSyncing,
     showToast
   } = useAlumni();
+
+  const isSuperAdmin = (currentUser?.role || '').toLowerCase().trim() === 'superadmin';
 
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -163,21 +166,25 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
           onExportCsv();
         }
       },
-      {
-        id: 'act-cloud-sync',
-        title: 'Synchronize Data to Cloud Firestore',
-        subtitle: 'Push local modifications and cached records directly to database',
-        category: 'Quick Actions',
-        icon: RefreshCw,
-        iconBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-        keywords: 'sync cloud firestore database save backup push force',
-        run: () => {
-          setIsOpen(false);
-          syncAllDataToCloud();
-        }
-      }
+      ...(isSuperAdmin
+        ? [
+            {
+              id: 'act-cloud-sync',
+              title: 'Synchronize Data to Cloud Firestore',
+              subtitle: 'Push local modifications and cached records directly to database',
+              category: 'Quick Actions',
+              icon: RefreshCw,
+              iconBg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+              keywords: 'sync cloud firestore database save backup push force',
+              run: () => {
+                setIsOpen(false);
+                syncAllDataToCloud();
+              }
+            }
+          ]
+        : [])
     ];
-  }, [onOpenCreateUser, onOpenCreateAnnouncement, onOpenCreateEvent, onOpenGalleryUpload, onExportCsv, syncAllDataToCloud]);
+  }, [isSuperAdmin, onOpenCreateUser, onOpenCreateAnnouncement, onOpenCreateEvent, onOpenGalleryUpload, onExportCsv, syncAllDataToCloud]);
 
   // System Modules Definitions
   const systemModules = useMemo(() => {
@@ -246,14 +253,27 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
         keywords: 'employers jobs career placements opportunities partners corporate'
       },
       {
-        id: 'mod-audit',
-        title: 'Security & System Audit Logs',
-        subtitle: 'Traceable institutional activity trails and compliance history',
+        id: 'mod-moderation',
+        title: 'Post & Content Moderation Desk',
+        subtitle: 'Review reported posts, appeals, sanctions, and feed ranking policy',
         category: 'Admin Modules',
-        icon: FileText,
-        tab: 'audit',
-        keywords: 'audit security logs trail compliance history activity'
+        icon: ShieldAlert,
+        tab: 'moderation',
+        keywords: 'moderation reports abuse appeals feed ranking policy warnings'
       },
+      ...(isSuperAdmin
+        ? [
+            {
+              id: 'mod-audit',
+              title: 'Security & System Audit Logs',
+              subtitle: 'Traceable institutional activity trails and compliance history',
+              category: 'Admin Modules',
+              icon: FileText,
+              tab: 'audit',
+              keywords: 'audit security logs trail compliance history activity'
+            }
+          ]
+        : []),
       {
         id: 'mod-milestones',
         title: 'Alumni Milestones & Hall of Fame',
@@ -272,17 +292,30 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
         tab: 'gallery',
         keywords: 'gallery campus photos imagery pictures heritage'
       },
-      {
-        id: 'mod-database',
-        title: 'Manage Database & Index Configuration',
-        subtitle: 'Firestore collections, composite indexes, real-time sync & rules',
-        category: 'Admin Modules',
-        icon: Database,
-        tab: 'database',
-        keywords: 'database indexes firestore composite collections sync query backup health'
-      }
+      ...(isSuperAdmin
+        ? [
+            {
+              id: 'mod-database',
+              title: 'Manage Database & Collections',
+              subtitle: 'Firestore collections, database config, real-time sync & rules',
+              category: 'Admin Modules',
+              icon: Database,
+              tab: 'database',
+              keywords: 'database firestore collections sync query backup health config'
+            },
+            {
+              id: 'mod-indexes',
+              title: 'Index Administration & Query Health',
+              subtitle: 'Firestore composite indexes, query latency & schema verification',
+              category: 'Admin Modules',
+              icon: ShieldCheck,
+              tab: 'indexes',
+              keywords: 'indexes composite index administration firestore query latency'
+            }
+          ]
+        : [])
     ];
-  }, []);
+  }, [isSuperAdmin]);
 
   // Filtered members matching search query
   const matchingMembers = useMemo(() => {
@@ -465,10 +498,10 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <img
-                              src={member.profilePictureUrl || '/assets/st-cecilias-college-seal.jpg'}
+                              src={member.profilePictureUrl || '/assets/cecilians-seal.jpg'}
                               alt={member.name}
                               onError={(e) => {
-                                e.currentTarget.src = '/assets/st-cecilias-college-seal.jpg';
+                                e.currentTarget.src = '/assets/cecilians-seal.jpg';
                               }}
                               className="w-9 h-9 rounded-full object-cover shrink-0 ring-1 ring-stone-200"
                             />

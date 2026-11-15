@@ -20,129 +20,6 @@ export interface DispatchedEmail {
 
 const EMAIL_STORAGE_KEY = 'sc_alumni_dispatched_emails';
 
-function createInitialDispatchedEmails(): DispatchedEmail[] {
-  const now = new Date();
-  const timeMinusMins = (mins: number) => new Date(now.getTime() - mins * 60 * 1000).toISOString();
-
-  const welcomeHtml = wrapInInstitutionalEmailTemplate({
-    title: 'Welcome to St. Cecilia’s College Alumni Network',
-    recipientName: 'Valued Cecilian Alumnus',
-    badgeText: 'Official Welcome Notice',
-    badgeColor: '#8B181B',
-    contentHtml: `
-      <p>Congratulations and welcome to the official digital alumni network of <strong>St. Cecilia’s College - Cebu, Inc.</strong></p>
-      <div class="card">
-        <h3 style="margin: 0 0 6px 0; font-size: 15px; color: #1c1917;">Your Cecilian Alumni Membership is Active</h3>
-        <p style="margin: 0 0 10px 0; font-size: 13px; color: #57534e;">
-          Connect with over 12,000 graduates across computing, education, business, and maritime programs worldwide.
-        </p>
-        <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #44403c; line-height: 1.6;">
-          <li>Explore exclusive career vacancies from verified employer partners</li>
-          <li>RSVP for campus reunions, seminars, and networking sessions</li>
-          <li>Direct message fellow batchmates and academic mentors</li>
-        </ul>
-      </div>
-      <p style="font-size: 13px; color: #57534e;">
-        Keep your profile up-to-date to unlock personalized degree-relevant career alerts and registrar services.
-      </p>
-    `,
-    actionText: 'Complete Your Alumni Profile',
-    actionUrl: '#profile'
-  });
-
-  const jobHtml = wrapInInstitutionalEmailTemplate({
-    title: 'New Career Opportunity Alert',
-    recipientName: 'Valued Cecilian Graduate',
-    badgeText: 'Job Opportunity Alert',
-    badgeColor: '#1d4ed8',
-    contentHtml: `
-      <p>A new career opening matching St. Cecilia's College graduates has just been published by an accredited employer partner:</p>
-      <div class="card">
-        <h3 style="margin: 0 0 6px 0; font-size: 16px; color: #1c1917;">Software Engineer (Full-Stack TypeScript & React)</h3>
-        <p style="margin: 0 0 10px 0; font-size: 13px; color: #78716c; font-weight: 500;">
-          Accenture Technology Solutions • Cebu IT Park, Cebu City • Full-Time
-        </p>
-        <div style="display:inline-block; font-size:12px; font-weight:700; color:#15803d; background:#dcfce7; padding:2px 8px; border-radius:6px; margin-bottom:10px;">
-          ₱45,000 - ₱70,000 / month
-        </div>
-        <p style="margin: 0; font-size: 13px; color: #44403c; line-height: 1.5;">
-          Seeking enthusiastic BSIT / BSCS graduates with foundational skills in web development, database modeling, and modern JavaScript. Comprehensive onboarding and health benefits provided.
-        </p>
-      </div>
-      <p style="font-size: 13px; color: #57534e;">
-        As a verified graduate of St. Cecilia's College, your application receives prioritized employer attention.
-      </p>
-    `,
-    actionText: 'View Job Details & Apply',
-    actionUrl: '#opportunities'
-  });
-
-  const rsvpHtml = wrapInInstitutionalEmailTemplate({
-    title: 'RSVP Confirmation',
-    recipientName: 'Valued Cecilian Alumnus',
-    badgeText: 'RSVP Confirmed',
-    badgeColor: '#059669',
-    contentHtml: `
-      <p>We are delighted to confirm your registration for the upcoming Cecilian campus event:</p>
-      <div class="card" style="border-left: 4px solid #10b981;">
-        <h3 style="margin: 0 0 6px 0; font-size: 16px; color: #1c1917;">Grand Alumni Homecoming 2026: Rekindling Cecilian Excellence</h3>
-        <p style="margin: 0 0 4px 0; font-size: 13px; color: #78716c;">
-          📅 <strong>Date & Time:</strong> Saturday, December 12, 2026 at 4:00 PM
-        </p>
-        <p style="margin: 0 0 4px 0; font-size: 13px; color: #78716c;">
-          📍 <strong>Location:</strong> Main Gymnasium, St. Cecilia's College Campus, Minglanilla, Cebu
-        </p>
-        <p style="margin: 0; font-size: 13px; color: #047857; font-weight: 600;">
-          Status: Confirmed Attending
-        </p>
-      </div>
-      <p style="font-size: 13px; color: #57534e;">
-        You have also been connected to the official attendee discussion group chat in the Messaging center.
-      </p>
-    `,
-    actionText: 'View Event Itinerary',
-    actionUrl: '#events'
-  });
-
-  return [
-    {
-      id: `email_seed_welcome`,
-      toEmail: 'alumni@stcecilia.edu',
-      toName: 'Valued Cecilian Alumnus',
-      subject: 'Welcome to St. Cecilia’s College Alumni Network',
-      category: 'system',
-      previewText: 'Your Cecilian Alumni Membership is active. Connect with graduates and discover opportunities.',
-      htmlContent: welcomeHtml,
-      sentAt: timeMinusMins(120),
-      status: 'delivered'
-    },
-    {
-      id: `email_seed_job`,
-      toEmail: 'alumni@stcecilia.edu',
-      toName: 'Valued Cecilian Graduate',
-      subject: '💼 New Career Opportunity: Software Engineer at Accenture Technology Solutions',
-      category: 'job',
-      previewText: 'Accenture Technology Solutions is hiring for Software Engineer in Cebu IT Park.',
-      htmlContent: jobHtml,
-      sentAt: timeMinusMins(65),
-      status: 'delivered',
-      metadata: { company: 'Accenture Technology Solutions' }
-    },
-    {
-      id: `email_seed_rsvp`,
-      toEmail: 'alumni@stcecilia.edu',
-      toName: 'Valued Cecilian Alumnus',
-      subject: 'RSVP Confirmed: Grand Alumni Homecoming 2026 (Attending)',
-      category: 'event',
-      previewText: 'You are confirmed for "Grand Alumni Homecoming 2026" on Saturday, Dec 12, 2026.',
-      htmlContent: rsvpHtml,
-      sentAt: timeMinusMins(15),
-      status: 'delivered',
-      metadata: { eventId: 'event_homecoming_2026' }
-    }
-  ];
-}
-
 /**
  * Retrieve all logged dispatched emails from storage
  */
@@ -151,16 +28,13 @@ export function getDispatchedEmails(): DispatchedEmail[] {
     const raw = localStorage.getItem(EMAIL_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
-    // Seed initial dispatched emails if storage empty
-    const initial = createInitialDispatchedEmails();
-    localStorage.setItem(EMAIL_STORAGE_KEY, JSON.stringify(initial));
-    return initial;
+    return [];
   } catch {
-    return createInitialDispatchedEmails();
+    return [];
   }
 }
 

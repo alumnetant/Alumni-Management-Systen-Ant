@@ -43,6 +43,14 @@ service cloud.firestore {
       );
     }
 
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.role == 'superadmin') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin')
+      );
+    }
+
     // Default deny catch-all
     match /{document=**} {
       allow read, write: if false;
@@ -80,14 +88,16 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Immutable append-only audit & activity logs
+    // Immutable append-only audit & activity logs (Strictly Superadmin read-only)
     match /activity_logs/{logId} {
-      allow read, create: if true;
+      allow read: if isSuperAdmin();
+      allow create: if isSignedIn();
       allow update, delete: if false;
     }
 
     match /audit_logs/{logId} {
-      allow read, create: if true;
+      allow read: if isSuperAdmin();
+      allow create: if isSignedIn();
       allow update, delete: if false;
     }
 
@@ -190,10 +200,10 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 13. SYSTEM HEALTH & DIAGNOSTICS
+    // 13. SYSTEM HEALTH & DIAGNOSTICS (Superadmin Only)
     // =========================================================================
     match /system_health/{docId} {
-      allow read, write: if true;
+      allow read, write: if isSuperAdmin();
     }
 
     // =========================================================================
@@ -235,9 +245,9 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Permanent immutable moderation audit log (moderators & admins cannot edit or delete)
+    // Permanent immutable moderation audit log (Superadmin read-only; no updates/deletes)
     match /moderation_audit_logs/{logId} {
-      allow read: if isModeratorOrAdmin();
+      allow read: if isSuperAdmin();
       allow create: if isValidId(logId) && isModeratorOrAdmin();
       allow update, delete: if false;
     }

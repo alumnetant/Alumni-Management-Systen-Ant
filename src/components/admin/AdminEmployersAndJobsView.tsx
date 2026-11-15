@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   Briefcase,
   Building2,
@@ -44,6 +44,7 @@ import {
 import { useAlumni } from '../../context/AlumniContext';
 import { Opportunity, UserProfile } from '../../types';
 import { ConfirmationModal } from '../common/ConfirmationModal';
+import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
 interface AdminEmployersAndJobsViewProps {
   initialSubTab?: 'jobs' | 'employers';
@@ -68,7 +69,10 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
     addAuditLog,
     createOpportunity,
     setSelectedUserIdForModal,
-    permissions
+    permissions,
+    deepLinkTarget,
+    clearDeepLinkTarget,
+    highlightedItemId
   } = useAlumni();
 
   // Primary active focus: 'all' | 'jobs' | 'employers' | 'moderation'
@@ -93,6 +97,29 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
   const [employerToAccredit, setEmployerToAccredit] = useState<{ uid: string; name: string } | null>(null);
   const [employerToDecline, setEmployerToDecline] = useState<{ uid: string; name: string } | null>(null);
   const [jobToApprove, setJobToApprove] = useState<{ id: string; title: string; company: string } | null>(null);
+
+  const missingTargetNotifiedRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!deepLinkTarget || (deepLinkTarget.targetType !== 'job' && deepLinkTarget.targetType !== 'employer')) return;
+    if (deepLinkTarget.subTab === 'employers' || deepLinkTarget.targetType === 'employer') {
+      if (permissions.canAccessEmployerAccreditation) {
+        setActiveViewMode('employers');
+      }
+      if (deepLinkTarget.targetId) {
+        setSearchQuery('');
+      }
+    } else {
+      setActiveViewMode('jobs');
+      if (deepLinkTarget.targetId) {
+        setSearchQuery('');
+        setSelectedIndustry('all');
+        setSelectedJobType('all');
+        setSelectedArrangement('all');
+      }
+    }
+    clearDeepLinkTarget();
+  }, [deepLinkTarget, permissions.canAccessEmployerAccreditation, clearDeepLinkTarget]);
 
   // New Job Form State
   const [newTitle, setNewTitle] = useState('');
@@ -238,6 +265,69 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
     }
     return list;
   }, [allEmployers, searchQuery]);
+
+  useEffect(() => {
+    if (!highlightedItemId || deepLinkTarget) return;
+    const employerMatch = allEmployers.find((u) => u.uid === highlightedItemId);
+    const jobMatch = opportunities.find((o) => o.id === highlightedItemId);
+
+    if (employerMatch) {
+      if (permissions.canAccessEmployerAccreditation && activeViewMode !== 'employers') {
+        setActiveViewMode('employers');
+      }
+      if (searchQuery.trim()) setSearchQuery('');
+      return;
+    }
+
+    if (jobMatch) {
+      if (activeViewMode === 'employers' || activeViewMode === 'moderation') {
+        setActiveViewMode('jobs');
+      }
+      if (
+        searchQuery.trim() ||
+        selectedIndustry !== 'all' ||
+        selectedJobType !== 'all' ||
+        selectedArrangement !== 'all'
+      ) {
+        setSearchQuery('');
+        setSelectedIndustry('all');
+        setSelectedJobType('all');
+        setSelectedArrangement('all');
+      }
+      return;
+    }
+
+    if ((users.length > 0 || opportunities.length > 0) && missingTargetNotifiedRef.current !== highlightedItemId) {
+      missingTargetNotifiedRef.current = highlightedItemId;
+      showToast('This opportunity or corporate partner record is no longer available.', 'info');
+    }
+  }, [
+    highlightedItemId,
+    deepLinkTarget,
+    allEmployers,
+    opportunities,
+    users.length,
+    permissions.canAccessEmployerAccreditation,
+    activeViewMode,
+    searchQuery,
+    selectedIndustry,
+    selectedJobType,
+    selectedArrangement,
+    showToast
+  ]);
+
+  const renderedTargetIds = useMemo(
+    () => [
+      ...filteredEmployers.map((e) => e.uid),
+      ...filteredOpportunities.map((j) => j.id)
+    ],
+    [filteredEmployers, filteredOpportunities]
+  );
+
+  const { isHighlighted } = useDeepLinkHighlight(renderedTargetIds, [
+    activeViewMode,
+    displayLayout
+  ]);
 
   // Actions
   const handleApproveJob = useCallback(
@@ -643,7 +733,12 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                     return (
                       <div
                         key={emp.uid}
-                        className="bg-white border border-stone-200/80 hover:border-stone-300 rounded-2xl p-4 shadow-2xs transition-all space-y-3"
+                        data-notify-target-id={emp.uid}
+                        className={`bg-white border rounded-2xl p-4 shadow-2xs transition-all space-y-3 ${
+                          isHighlighted(emp.uid)
+                            ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                            : 'border-stone-200/80 hover:border-stone-300'
+                        }`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="space-y-1">
@@ -751,7 +846,15 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                       filteredOpportunities.map((job) => {
                         const isPending = job.approvalStatus === 'pending_approval';
                         return (
-                          <tr key={job.id} className="hover:bg-stone-50/60 transition-colors">
+                          <tr
+                            key={job.id}
+                            data-notify-target-id={job.id}
+                            className={`transition-colors ${
+                              isHighlighted(job.id)
+                                ? 'bg-red-50/70 ring-2 ring-inset ring-[#8B181B]'
+                                : 'hover:bg-stone-50/60'
+                            }`}
+                          >
                             <td className="py-3 px-4">
                               <div className="font-semibold text-stone-900">{job.title}</div>
                               <div className="text-[11px] text-stone-400">{job.location}</div>
@@ -819,8 +922,11 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                   return (
                     <div
                       key={job.id}
+                      data-notify-target-id={job.id}
                       className={`bg-white border rounded-2xl p-5 shadow-2xs transition-all space-y-3 ${
-                        isPending
+                        isHighlighted(job.id)
+                          ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                          : isPending
                           ? 'border-amber-200 bg-amber-50/20'
                           : 'border-stone-200/80 hover:border-stone-300'
                       }`}

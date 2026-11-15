@@ -20,11 +20,11 @@ export const FeedCardHeader: React.FC<FeedCardHeaderProps> = ({
   isBookmarked,
   onToggleBookmark
 }) => {
-  const { setSelectedUserIdForModal } = useAlumni();
+  const { openProfile } = useAlumni();
 
   const handleAuthorClick = () => {
     if (item.author.uid && item.author.uid.startsWith('usr_')) {
-      setSelectedUserIdForModal(item.author.uid);
+      openProfile(item.author.uid);
     }
   };
 

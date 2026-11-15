@@ -50,61 +50,7 @@ export interface CentenaryDiagnosticResult {
 
 const CAPSULE_STORAGE_KEY = 'st_cecilia_centenary_time_capsules_v1';
 
-// Seed default institutional time capsules spanning generations
-const DEFAULT_TIME_CAPSULES: CentenaryTimeCapsule[] = [
-  {
-    id: 'capsule_founding_1968',
-    title: 'Charter of Cecilian Excellence & Alma Mater Dedication',
-    authorName: 'Founding Board of Trustees',
-    authorRole: 'Founders',
-    sealedDate: '1968-09-08',
-    unsealYear: 2018, // 50th Golden Jubilee (already unsealed for history)
-    category: 'campus_history',
-    message:
-      'To the sons and daughters of St. Cecilia: May this institution stand as a beacon of academic excellence, Christian fortitude, and compassionate service to Cebu and the world. Whatever era you walk these halls, let truth and music guide your steps.',
-    tags: ['Founding', 'Charter', 'Historical'],
-    isSealed: false
-  },
-  {
-    id: 'capsule_golden_2018',
-    title: '50th Golden Jubilee Message to Future Alumni',
-    authorName: 'College President & Alumni Council',
-    authorRole: 'Executive',
-    sealedDate: '2018-11-22',
-    unsealYear: 2043, // 75th Diamond Jubilee
-    category: 'presidential_address',
-    message:
-      'Reflecting upon five decades of Cecilian graduates who transformed industries, schools, healthcare, and public service. As our campus enters the digital century, we charge the Class of 2043 to preserve our founding warmth and unyielding integrity.',
-    tags: ['50th Jubilee', 'Presidential', 'Legacy'],
-    isSealed: true
-  },
-  {
-    id: 'capsule_centennial_2068',
-    title: 'Centennial Seal: Letter to the Class of 2068',
-    authorName: 'Global Alumni Association Central Directorate',
-    authorRole: 'Alumni President',
-    sealedDate: '2024-06-15',
-    unsealYear: 2068, // 100th Centennial Anniversary
-    category: 'alumni_heritage',
-    message:
-      'Dear Cecilians of 2068: When you read this on our centennial anniversary, 100 years of graduates will have walked St. Cecilia’s pathways. We built this digital platform to ensure that no Cecilian is ever forgotten, no milestone lost, and no friendship severed across time.',
-    tags: ['Centennial', 'Class of 2068', '100 Years'],
-    isSealed: true
-  },
-  {
-    id: 'capsule_bicentennial_2124',
-    title: 'Century-and-a-Half Horizon: Digital Heritage Ark',
-    authorName: 'Office of the Registrar & Digital Archivist',
-    authorRole: 'Registrar',
-    sealedDate: '2024-09-01',
-    unsealYear: 2124, // 100 Years from system modern launch
-    category: 'commencement_pledge',
-    message:
-      'An archival digital seed planted in 2024. For the Cecilians living a century from our time: may our registry records, honors, and alumni bonds remind you that the Cecilian spirit is immortal.',
-    tags: ['2124', 'Century Horizon', 'Archival Ark'],
-    isSealed: true
-  }
-];
+const DEFAULT_TIME_CAPSULES: CentenaryTimeCapsule[] = [];
 
 /**
  * 1. DYNAMIC CENTENARY BATCH RANGE GENERATOR

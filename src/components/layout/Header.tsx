@@ -47,6 +47,7 @@ import { CampusGalleryModal } from '../gallery/CampusGalleryModal';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { UserSatisfactionModal } from '../survey/UserSatisfactionModal';
+import { resolveNotificationDeepLink } from '../../lib/notificationDeepLink';
 
 export const Header: React.FC<{
   onOpenSearch?: () => void;
@@ -60,6 +61,7 @@ export const Header: React.FC<{
     unreadNotificationsCount,
     markNotificationAsRead,
     markAllNotificationsAsRead,
+    navigateFromNotification,
     acceptFriendRequest,
     declineFriendRequest,
     isConnected,
@@ -203,23 +205,8 @@ export const Header: React.FC<{
   };
 
   const handleNotificationClick = (n: any) => {
-    markNotificationAsRead(n.id);
     setShowNotifications(false);
-    if (n.type === 'message') {
-      setActiveTab('messages');
-      if (n.refId) setActiveChatId(n.refId);
-    } else if (n.type === 'announcement' || n.type === 'announcement_broadcast') {
-      setActiveTab('announcements');
-    } else if (n.type === 'event' || n.type === 'event_broadcast') {
-      setActiveTab('events');
-    } else if (n.type === 'gallery') {
-      window.dispatchEvent(new CustomEvent('applet:open-gallery'));
-    } else if (n.type === 'job') {
-      setActiveTab('opportunities');
-    } else if (n.type === 'friend_request' || n.type === 'friend_accepted') {
-      setActiveTab('network');
-      window.dispatchEvent(new CustomEvent('applet:open-network-requests'));
-    }
+    navigateFromNotification(n);
   };
 
   const handleLogoClick = () => {
@@ -437,7 +424,10 @@ export const Header: React.FC<{
                         No notifications yet
                       </div>
                     ) : (
-                      userNotifications.map((n) => (
+                      userNotifications.map((n) => {
+                        const target = resolveNotificationDeepLink(n, currentUser?.role);
+                        const routePath = n.targetPath || n.targetRoute || target.targetPath;
+                        return (
                         <div
                           key={n.id}
                           onClick={() => handleNotificationClick(n)}
@@ -447,7 +437,7 @@ export const Header: React.FC<{
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="text-xs font-semibold text-stone-900 dark:text-stone-100">{n.title}</div>
-                            <span className="text-[10px] text-stone-400 dark:text-stone-500 shrink-0">
+                            <span className="text-[10px] text-stone-400 dark:text-stone-500 shrink-0 tabular-nums">
                               {new Date(n.createdAt).toLocaleDateString([], {
                                 month: 'short',
                                 day: 'numeric'
@@ -455,6 +445,14 @@ export const Header: React.FC<{
                             </span>
                           </div>
                           <p className="text-xs text-stone-600 dark:text-stone-300 mt-1 leading-relaxed">{n.body}</p>
+                          <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px]">
+                            <span className="font-mono text-stone-400 dark:text-stone-500 truncate">
+                              {routePath}
+                            </span>
+                            <span className="font-semibold text-[#8B181B] dark:text-rose-400 shrink-0">
+                              Open →
+                            </span>
+                          </div>
 
                           {/* Inline Accept/Decline for Friend Requests */}
                           {n.type === 'friend_request' && (
@@ -499,8 +497,21 @@ export const Header: React.FC<{
                             </div>
                           )}
                         </div>
-                      ))
+                        );
+                      })
                     )}
+                  </div>
+                  <div className="px-4 py-2.5 border-t border-stone-100 dark:border-stone-800 bg-stone-50 dark:bg-stone-850 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowNotifications(false);
+                        setActiveTab('notifications');
+                      }}
+                      className="text-xs font-semibold text-[#8B181B] dark:text-rose-400 hover:underline cursor-pointer"
+                    >
+                      View all notifications
+                    </button>
                   </div>
                 </div>
               )}
@@ -680,7 +691,7 @@ export const Header: React.FC<{
             </button>
 
             {/* Menu Logo Button beside Messaging and Notifications */}
-            <div className="relative hidden lg:block" data-header-dropdown="true">
+            <div className="relative hidden md:block" data-header-dropdown="true">
               <button
                 onClick={() => {
                   setShowNavMenu(!showNavMenu);

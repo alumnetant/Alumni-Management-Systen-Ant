@@ -159,3 +159,55 @@ export const apiClient = {
     }),
   delete: (url: string, init?: RequestInit) => apiFetch(url, { ...init, method: 'DELETE' })
 };
+
+let cachedCsrfToken: string | null = null;
+let cachedCsrfForToken: string | null = null;
+
+export function clearCsrfTokenCache(): void {
+  cachedCsrfToken = null;
+  cachedCsrfForToken = null;
+}
+
+export async function getCsrfToken(forceRefresh = false): Promise<string | null> {
+  const authToken = getAuthToken();
+  if (!authToken) return null;
+  if (!forceRefresh && cachedCsrfToken && cachedCsrfForToken === authToken) {
+    return cachedCsrfToken;
+  }
+  try {
+    const res = await apiFetch('/api/security/csrf-token', { method: 'GET' });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    if (data?.csrfToken) {
+      cachedCsrfToken = data.csrfToken;
+      cachedCsrfForToken = authToken;
+      return cachedCsrfToken;
+    }
+  } catch {}
+  return null;
+}
+
+export async function apiFetchWithCsrf(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs: number = 4000
+): Promise<Response> {
+  const csrf = await getCsrfToken();
+  const headers = new Headers(init?.headers || {});
+  if (csrf) {
+    headers.set('x-csrf-token', csrf);
+  }
+  let res = await apiFetch(input, { ...init, headers }, timeoutMs);
+  if (res.status === 403) {
+    const cloned = res.clone();
+    const errBody = await cloned.json().catch(() => null);
+    if (errBody?.code === 'CSRF_INVALID') {
+      const freshCsrf = await getCsrfToken(true);
+      if (freshCsrf) {
+        headers.set('x-csrf-token', freshCsrf);
+        res = await apiFetch(input, { ...init, headers }, timeoutMs);
+      }
+    }
+  }
+  return res;
+}

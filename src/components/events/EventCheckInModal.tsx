@@ -73,10 +73,31 @@ export const EventCheckInModal: React.FC<EventCheckInModalProps> = ({
     }
   }, []);
 
+  const attendees: EventAttendee[] = event?.attendees || [];
+
+  // Filter attendees by search term and status
+  const filteredAttendees = useMemo(() => {
+    return attendees.filter((att) => {
+      const isCheckedIn = att.checkInStatus === 'checked_in';
+      if (statusFilter === 'checked_in' && !isCheckedIn) return false;
+      if (statusFilter === 'pending' && isCheckedIn) return false;
+
+      if (!searchQuery.trim()) return true;
+
+      const q = searchQuery.toLowerCase().trim();
+      const nameMatch = att.name.toLowerCase().includes(q);
+      const emailMatch = att.email ? att.email.toLowerCase().includes(q) : false;
+      const studentIdMatch = att.studentId ? att.studentId.toLowerCase().includes(q) : false;
+      const courseMatch = att.course ? att.course.toLowerCase().includes(q) : false;
+      const batchMatch = att.batch ? String(att.batch).toLowerCase().includes(q) : false;
+
+      return nameMatch || emailMatch || studentIdMatch || courseMatch || batchMatch;
+    });
+  }, [attendees, searchQuery, statusFilter]);
+
   // If modal is closed or no event, return null
   if (!isOpen || !event) return null;
 
-  const attendees: EventAttendee[] = event.attendees || [];
   const totalAttendees = attendees.length;
   const checkedInCount = attendees.filter((a) => a.checkInStatus === 'checked_in').length;
   const pendingCount = Math.max(0, totalAttendees - checkedInCount);
@@ -136,26 +157,6 @@ export const EventCheckInModal: React.FC<EventCheckInModalProps> = ({
     e.preventDefault();
     processCheckInCode(barcodeInput);
   };
-
-  // Filter attendees by search term and status
-  const filteredAttendees = useMemo(() => {
-    return attendees.filter((att) => {
-      const isCheckedIn = att.checkInStatus === 'checked_in';
-      if (statusFilter === 'checked_in' && !isCheckedIn) return false;
-      if (statusFilter === 'pending' && isCheckedIn) return false;
-
-      if (!searchQuery.trim()) return true;
-
-      const q = searchQuery.toLowerCase().trim();
-      const nameMatch = att.name.toLowerCase().includes(q);
-      const emailMatch = att.email ? att.email.toLowerCase().includes(q) : false;
-      const studentIdMatch = att.studentId ? att.studentId.toLowerCase().includes(q) : false;
-      const courseMatch = att.course ? att.course.toLowerCase().includes(q) : false;
-      const batchMatch = att.batch ? String(att.batch).toLowerCase().includes(q) : false;
-
-      return nameMatch || emailMatch || studentIdMatch || courseMatch || batchMatch;
-    });
-  }, [attendees, searchQuery, statusFilter]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-stone-950/70 backdrop-blur-xs font-sans">

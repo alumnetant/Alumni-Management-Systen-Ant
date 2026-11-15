@@ -76,7 +76,11 @@ export const AlumniCredentialVerificationView: React.FC<AlumniCredentialVerifica
             <img
               src={sealImgSrc}
               alt="St. Cecilia's College Seal"
-              onError={() => setSealImgSrc('/assets/st-cecilias-college-seal.jpg')}
+              onError={() => {
+                if (sealImgSrc !== '/assets/cecilians-seal.jpg') {
+                  setSealImgSrc('/assets/cecilians-seal.jpg');
+                }
+              }}
               className="w-10 h-10 rounded-full border-2 border-amber-400 shadow-md object-cover bg-white"
             />
             <div>

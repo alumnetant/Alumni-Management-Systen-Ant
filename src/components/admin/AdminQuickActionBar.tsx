@@ -13,8 +13,7 @@ import {
   RefreshCw,
   CheckCircle,
   ArrowRight,
-  ExternalLink,
-  Database
+  ExternalLink
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 
@@ -24,7 +23,6 @@ interface AdminQuickActionBarProps {
   onOpenCreateEvent: () => void;
   onOpenCreateAnnouncement: () => void;
   onOpenGalleryUpload: () => void;
-  onOpenDatabaseSeeder?: () => void;
   onExportCsv: () => void;
   pendingUsersCount: number;
   pendingEmployersCount: number;
@@ -38,7 +36,6 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
   onOpenCreateEvent,
   onOpenCreateAnnouncement,
   onOpenGalleryUpload,
-  onOpenDatabaseSeeder,
   onExportCsv,
   pendingUsersCount,
   pendingEmployersCount,
@@ -46,12 +43,15 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
   pendingConflictsCount
 }) => {
   const {
+    currentUser,
     users,
     setUserVerified,
     syncAllDataToCloud,
     isFirestoreSyncing,
     showToast
   } = useAlumni();
+
+  const isSuperAdmin = (currentUser?.role || '').toLowerCase().trim() === 'superadmin';
 
   const totalPending =
     pendingUsersCount + pendingEmployersCount + pendingJobsCount + pendingConflictsCount;
@@ -202,22 +202,7 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95"
           >
             <Calendar className="w-3.5 h-3.5 text-stone-600" />
-            <span>New Gathering</span>
           </button>
-
-
-          {/* Quick Action: Database Sample Seeder */}
-          {onOpenDatabaseSeeder && (
-            <button
-              type="button"
-              onClick={onOpenDatabaseSeeder}
-              title="Populate 50 sample records per core feature into live Firestore"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-amber-400 rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95 border border-stone-850 shadow-2xs"
-            >
-              <Database className="w-3.5 h-3.5 text-amber-400" />
-              <span>Sample Data (Firestore)</span>
-            </button>
-          )}
         </div>
 
         {/* Right side utilities: Export CSV & Cloud Sync */}
@@ -233,16 +218,18 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
             <span className="sm:hidden">Export</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => syncAllDataToCloud()}
-            disabled={isFirestoreSyncing}
-            title="Push local modifications to Firebase Firestore"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
-            <span>{isFirestoreSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
-          </button>
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={() => syncAllDataToCloud()}
+              disabled={isFirestoreSyncing}
+              title="Push local modifications to Firebase Firestore"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
+              <span>{isFirestoreSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

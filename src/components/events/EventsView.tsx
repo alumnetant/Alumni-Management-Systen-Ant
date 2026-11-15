@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Calendar,
@@ -55,6 +55,7 @@ import { getEventLifecycleStatus } from '../../services/eventReservationService'
 import { shareEventViaCapacitor } from '../../services/nativeShareService';
 import { EventCheckInModal } from './EventCheckInModal';
 import { PaginationControl } from '../common/PaginationControl';
+import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
 export const EventsView: React.FC = () => {
   const {
@@ -75,6 +76,8 @@ export const EventsView: React.FC = () => {
     getOrCreateChat,
     setActiveTab,
     setActiveChatId,
+    deepLinkTarget,
+    clearDeepLinkTarget,
     sendFriendRequest,
     isConnected,
     showToast
@@ -86,6 +89,9 @@ export const EventsView: React.FC = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
   const [selectedEventForDetail, setSelectedEventForDetail] = useState<AlumniEvent | null>(null);
   const [checkInModalEvent, setCheckInModalEvent] = useState<AlumniEvent | null>(null);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 10;
+  const missingToastRef = React.useRef<string | null>(null);
 
   const handleShareEventWithCapacitor = async (evt: AlumniEvent) => {
     const result = await shareEventViaCapacitor(evt);
@@ -99,8 +105,6 @@ export const EventsView: React.FC = () => {
   const [modalTab, setModalTab] = useState<'details' | 'attendees'>('details');
   const [attendeeSearchQuery, setAttendeeSearchQuery] = useState('');
   const [attendeeStatusFilter, setAttendeeStatusFilter] = useState<'all' | 'going' | 'interested'>('all');
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const PAGE_SIZE = 10;
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState('');
@@ -187,6 +191,68 @@ export const EventsView: React.FC = () => {
       return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
     });
   }, [events, filterType, categoryFilter, searchQuery, now]);
+
+  const paginatedEventIds = useMemo(
+    () =>
+      filteredEvents
+        .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+        .map((e) => e.id),
+    [filteredEvents, currentPage]
+  );
+
+  const { highlightedItemId, isHighlighted } = useDeepLinkHighlight(paginatedEventIds, [
+    filterType,
+    categoryFilter,
+    viewMode,
+    currentPage
+  ]);
+
+  useEffect(() => {
+    const isEventDeepLink = deepLinkTarget?.targetType === 'event';
+    const targetId = isEventDeepLink ? deepLinkTarget.targetId : highlightedItemId;
+    if (!targetId) return;
+
+    if (isEventDeepLink) {
+      clearDeepLinkTarget();
+    }
+
+    const targetEvent = events.find((e) => e.id === targetId);
+    if (!targetEvent) {
+      if (events.length > 0 && missingToastRef.current !== targetId) {
+        missingToastRef.current = targetId;
+        showToast?.('This gathering may have been removed or is no longer available.', 'info');
+      }
+      return;
+    }
+
+    const eventEnd = targetEvent.endDate
+      ? new Date(targetEvent.endDate).getTime()
+      : new Date(targetEvent.startDate).getTime() + 3600000 * 4;
+    const nextFilter: 'past' | 'all' = eventEnd < Date.now() ? 'past' : 'all';
+
+    setFilterType(nextFilter);
+    setCategoryFilter('all');
+    setSearchQuery('');
+
+    const nowMs = Date.now();
+    const targetList = events
+      .filter((e) => {
+        const eStart = new Date(e.startDate).getTime();
+        const eEnd = e.endDate ? new Date(e.endDate).getTime() : eStart + 3600000 * 4;
+        const isPast = eEnd < nowMs;
+        return nextFilter === 'past' ? isPast : !isPast;
+      })
+      .sort((a, b) =>
+        nextFilter === 'past'
+          ? new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+          : new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+      );
+
+    const targetIdx = targetList.findIndex((e) => e.id === targetEvent.id);
+    if (targetIdx >= 0) {
+      setCurrentPage(Math.floor(targetIdx / PAGE_SIZE) + 1);
+    }
+  }, [deepLinkTarget, highlightedItemId, events, clearDeepLinkTarget, showToast]);
 
   // Dynamically resolve active modal event from events list for live sync
   const activeEvent = useMemo(() => {
@@ -558,12 +624,17 @@ export const EventsView: React.FC = () => {
             return (
               <motion.div
                 key={evt.id}
+                data-notify-target-id={evt.id}
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25, delay: Math.min(idx * 0.04, 0.3) }}
                 whileHover={{ y: -2, transition: { duration: 0.15 } }}
                 onClick={() => setSelectedEventForDetail(evt)}
-                className="bg-white rounded-2xl border border-stone-200/90 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer group"
+                className={`bg-white rounded-2xl border p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer group ${
+                  isHighlighted(evt.id)
+                    ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                    : 'border-stone-200/90'
+                }`}
               >
                 <div className="flex items-start gap-4 min-w-0">
                   {/* Architectural Date Stamp */}
@@ -644,11 +715,16 @@ export const EventsView: React.FC = () => {
             return (
               <motion.div
                 key={evt.id}
+                data-notify-target-id={evt.id}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35, delay: Math.min(idx * 0.05, 0.4), ease: [0.22, 1, 0.36, 1] }}
                 whileHover={{ y: -4, transition: { duration: 0.2, ease: "easeOut" } }}
-                className="bg-white rounded-2xl border border-stone-200/90 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-shadow flex flex-col justify-between group"
+                className={`bg-white rounded-2xl border overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md transition-shadow flex flex-col justify-between group ${
+                  isHighlighted(evt.id)
+                    ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                    : 'border-stone-200/90'
+                }`}
               >
                 <div>
                   {/* Hero Image */}

@@ -63,7 +63,6 @@ interface AdminDashboardOverviewProps {
   onOpenCreateEvent: () => void;
   onOpenCreateAnnouncement: () => void;
   onOpenGalleryUpload: () => void;
-  onOpenDatabaseSeeder?: () => void;
 }
 
 export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
@@ -71,8 +70,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
   onOpenCreateUser,
   onOpenCreateEvent,
   onOpenCreateAnnouncement,
-  onOpenGalleryUpload,
-  onOpenDatabaseSeeder
+  onOpenGalleryUpload
 }) => {
   const {
     currentUser,
@@ -98,13 +96,24 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
     reservations
   } = useAlumni();
 
-  const [activeFilterPill, setActiveFilterPill] = useState<'all' | 'activity' | 'verification' | 'careers' | 'announcements' | 'events'>('activity');
+  const isSuperAdmin = (currentUser?.role || '').toLowerCase().trim() === 'superadmin';
+
+  const [activeFilterPill, setActiveFilterPill] = useState<'all' | 'activity' | 'verification' | 'careers' | 'announcements' | 'events'>(
+    isSuperAdmin ? 'activity' : 'all'
+  );
   const [selectedChartTool, setSelectedChartTool] = useState<'bars' | 'trend' | 'history'>('bars');
   const [selectedCohortIndex, setSelectedCohortIndex] = useState<number | null>(null);
   const [showMoreToolMenu, setShowMoreToolMenu] = useState(false);
   const [bentoTile1Mode, setBentoTile1Mode] = useState<'colleges' | 'employment'>('colleges');
   const [isLikedSpotlight, setIsLikedSpotlight] = useState<boolean>(false);
   const [hoveredActivityDayIndex, setHoveredActivityDayIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isSuperAdmin) {
+      if (activeFilterPill === 'activity') setActiveFilterPill('all');
+      if (selectedChartTool === 'history') setSelectedChartTool('bars');
+    }
+  }, [isSuperAdmin, activeFilterPill, selectedChartTool]);
 
   // Live Activity Graph Calculations (7-Day Telemetry Stream)
   const activityGraphData = useMemo(() => {
@@ -182,14 +191,10 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
       setShowMoreToolMenu(false);
     };
     window.addEventListener('click', handleDismiss);
-    window.addEventListener('applet:dismiss-hover', () => {
-      setShowMoreToolMenu(false);
-    });
+    window.addEventListener('applet:dismiss-hover', handleDismiss);
     return () => {
       window.removeEventListener('click', handleDismiss);
-      window.removeEventListener('applet:dismiss-hover', () => {
-        setShowMoreToolMenu(false);
-      });
+      window.removeEventListener('applet:dismiss-hover', handleDismiss);
     };
   }, []);
 
@@ -455,7 +460,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
       };
     }
 
-    if (activeFilterPill === 'activity') {
+    if (isSuperAdmin && activeFilterPill === 'activity') {
       const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Today'];
       const bars = days.map((day, dIdx) => {
         const dayLogs = (auditLogs || []).filter((_, idx) => idx % 7 === dIdx);
@@ -734,7 +739,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                   {/* Tool 1: Dynamic Segmented Bar Chart OR Live Animated Spline Curve (Activity Mode) */}
                   {selectedChartTool === 'bars' && (
                     <>
-                      {activeFilterPill === 'activity' ? (
+                      {isSuperAdmin && activeFilterPill === 'activity' ? (
                         <div className="w-full max-w-sm sm:max-w-md flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
                           {/* Live Telemetry Header */}
                           <div className="w-full flex items-center justify-between pb-1.5 px-1 text-[11px]">
@@ -956,8 +961,8 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                     </>
                   )}
 
-                  {/* Tool 2: Recent Real System Activity Stream (History mode) */}
-                  {selectedChartTool === 'history' && (
+                  {/* Tool 2: Recent Real System Activity Stream (Superadmin Only) */}
+                  {isSuperAdmin && selectedChartTool === 'history' && (
                     <div className="w-full max-w-sm bg-white/80 backdrop-blur-xs rounded-2xl p-3 border border-white/60 shadow-2xs space-y-2">
                       <div className="flex items-center justify-between text-[11px] font-bold text-stone-800 pb-1 border-b border-stone-100">
                         <span className="flex items-center gap-1.5">
@@ -1041,21 +1046,23 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                       <BarChart3 className="w-3.5 h-3.5 stroke-[1.75]" />
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedChartTool('history');
-                        setShowMoreToolMenu(false);
-                      }}
-                      title="Activity Audit Log"
-                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                        selectedChartTool === 'history'
-                          ? 'bg-stone-900 text-white shadow-2xs'
-                          : 'bg-white/80 text-stone-600 hover:bg-white'
-                      }`}
-                    >
-                      <Clock className="w-3.5 h-3.5 stroke-[1.75]" />
-                    </button>
+                    {isSuperAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedChartTool('history');
+                          setShowMoreToolMenu(false);
+                        }}
+                        title="Activity Audit Log"
+                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                          selectedChartTool === 'history'
+                            ? 'bg-stone-900 text-white shadow-2xs'
+                            : 'bg-white/80 text-stone-600 hover:bg-white'
+                        }`}
+                      >
+                        <Clock className="w-3.5 h-3.5 stroke-[1.75]" />
+                      </button>
+                    )}
 
                     <button
                       type="button"
@@ -1092,21 +1099,25 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                       {/* Popover Menu for MoreHorizontal (Anchored below button) */}
                       {showMoreToolMenu && (
                         <div className="absolute right-0 bottom-full mb-2 sm:bottom-auto sm:top-full sm:mt-2 w-56 bg-white dark:bg-stone-850 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onNavigateTab('database');
-                              setShowMoreToolMenu(false);
-                            }}
-                            className="w-full text-left px-3.5 py-2 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2.5 cursor-pointer font-medium"
-                          >
-                            <Database className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
-                            <div>
-                              <span className="block font-semibold">Manage Database & Indexes</span>
-                              <span className="text-[10px] text-stone-400 block">Indexes, backups & Firestore status</span>
-                            </div>
-                          </button>
-                          <div className="my-1 border-t border-stone-100 dark:border-stone-750" />
+                          {isSuperAdmin && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onNavigateTab('database');
+                                  setShowMoreToolMenu(false);
+                                }}
+                                className="w-full text-left px-3.5 py-2 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2.5 cursor-pointer font-medium"
+                              >
+                                <Database className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
+                                <div>
+                                  <span className="block font-semibold">Manage Database & Indexes</span>
+                                  <span className="text-[10px] text-stone-400 block">Indexes, backups & Firestore status</span>
+                                </div>
+                              </button>
+                              <div className="my-1 border-t border-stone-100 dark:border-stone-750" />
+                            </>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
@@ -1131,18 +1142,20 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                             <FileText className="w-3.5 h-3.5 text-emerald-600" />
                             <span>Export Excel (.xlsx)</span>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              syncAllDataToCloud();
-                              showToast('Authoritative sync initiated with Firestore', 'info');
-                              setShowMoreToolMenu(false);
-                            }}
-                            className="w-full text-left px-3.5 py-1.5 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer font-medium"
-                          >
-                            <RefreshCw className="w-3.5 h-3.5 text-stone-400" />
-                            <span>Sync Firestore</span>
-                          </button>
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                syncAllDataToCloud();
+                                showToast('Authoritative sync initiated with Firestore', 'info');
+                                setShowMoreToolMenu(false);
+                              }}
+                              className="w-full text-left px-3.5 py-1.5 text-xs text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 flex items-center gap-2 cursor-pointer font-medium"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5 text-stone-400" />
+                              <span>Sync Firestore</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
@@ -1395,7 +1408,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                   </span>
                 </div>
                 <p className="text-[11px] text-stone-400 font-medium">
-                  Live verification & audit backlog
+                  Live verification &amp; review queue
                 </p>
               </div>
 
@@ -1404,7 +1417,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                 <div className="flex items-center justify-between text-[11px] font-bold text-stone-700 dark:text-stone-200">
                   <span className="flex items-center gap-1.5">
                     <span className={`w-2 h-2 rounded-full ${totalPendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-600'}`} />
-                    Audit Queues
+                    Review Queues
                   </span>
                   <span className="font-mono text-[10px] text-stone-500 font-bold">
                     {verifiedRate}% verified
@@ -1583,35 +1596,6 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
             </button>
           </div>
 
-          {/* 1b. DATABASE SAMPLE SEEDER BENTO TILE */}
-          {onOpenDatabaseSeeder && (
-            <div className="bg-stone-900 text-stone-100 rounded-[32px] p-6 shadow-md border border-stone-800 space-y-3 relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-amber-400">
-                  <Database className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase tracking-wider">Cloud Firestore</span>
-                </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 font-semibold">
-                  50 / Feature
-                </span>
-              </div>
-              <div>
-                <h4 className="text-base font-bold text-white tracking-tight">Database Sample Seeder</h4>
-                <p className="text-xs text-stone-400 mt-1 leading-relaxed">
-                  Populate 250 verified authentic records directly into Cloud Firestore across Events, Announcements, Jobs, Feed, and Gallery.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={onOpenDatabaseSeeder}
-                className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 active:scale-95 text-stone-950 font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Launch Database Seeder</span>
-              </button>
-            </div>
-          )}
-
           {/* 2. RECENT REGISTRATIONS (Row of overlapping circular avatars) */}
           <div className="bg-white dark:bg-stone-900 rounded-[32px] p-5 border border-stone-200/90 dark:border-stone-800 shadow-2xs flex items-center justify-between">
             <div className="flex items-center -space-x-2 overflow-hidden">
@@ -1768,22 +1752,44 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
               ))}
             </div>
 
-            <h5 className="text-sm font-bold tracking-tight">
-              Database Synchronization
-            </h5>
-            <p className="text-xs text-stone-400 mt-0.5 leading-relaxed">
-              Synchronize live student registry and database with Firestore cloud
-            </p>
+            {isSuperAdmin ? (
+              <>
+                <h5 className="text-sm font-bold tracking-tight">
+                  Database Synchronization
+                </h5>
+                <p className="text-xs text-stone-400 mt-0.5 leading-relaxed">
+                  Synchronize live student registry and database with Firestore cloud
+                </p>
 
-            <button
-              type="button"
-              onClick={() => syncAllDataToCloud()}
-              disabled={isFirestoreSyncing}
-              className="mt-4 w-full py-2.5 bg-stone-800 hover:bg-stone-700 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
-              <span>{isFirestoreSyncing ? 'Syncing to Cloud...' : 'Synchronize Database'}</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => syncAllDataToCloud()}
+                  disabled={isFirestoreSyncing}
+                  className="mt-4 w-full py-2.5 bg-stone-800 hover:bg-stone-700 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
+                  <span>{isFirestoreSyncing ? 'Syncing to Cloud...' : 'Synchronize Database'}</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <h5 className="text-sm font-bold tracking-tight">
+                  Registrar Verification Progress
+                </h5>
+                <p className="text-xs text-stone-400 mt-0.5 leading-relaxed">
+                  Review identity match progress and pending graduate verifications
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab('registry')}
+                  className="mt-4 w-full py-2.5 bg-stone-800 hover:bg-stone-700 text-white rounded-2xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>Open Registrar Matcher</span>
+                </button>
+              </>
+            )}
           </div>
 
         </div>

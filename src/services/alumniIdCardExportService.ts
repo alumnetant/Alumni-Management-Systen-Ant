@@ -82,9 +82,9 @@ export async function exportAlumniCardToPng(user: UserProfile, formattedId: stri
   ctx.lineWidth = 1.5;
   ctx.strokeRect(28, 28, width - 56, height - 56);
 
-  // 5. College Seal
+  // 5. College Seal (Landing Page Official Seal)
   try {
-    const seal = await loadImage('/assets/cecilians-seal.jpg').catch(() => loadImage('/assets/st-cecilias-college-seal.jpg'));
+    const seal = await loadImage('/assets/cecilians-seal.jpg');
     ctx.save();
     ctx.beginPath();
     ctx.arc(80, 85, 42, 0, Math.PI * 2);
@@ -299,39 +299,55 @@ export async function exportAlumniCardToPdf(user: UserProfile, formattedId: stri
   doc.setLineWidth(1.2);
   doc.rect(20, 20, 170, 257);
 
+  // Official College Seal (Landing Page Seal)
+  try {
+    const seal = await loadImage('/assets/cecilians-seal.jpg');
+    const sealCanvas = document.createElement('canvas');
+    sealCanvas.width = 160;
+    sealCanvas.height = 160;
+    const sCtx = sealCanvas.getContext('2d');
+    if (sCtx) {
+      sCtx.beginPath();
+      sCtx.arc(80, 80, 76, 0, Math.PI * 2);
+      sCtx.clip();
+      sCtx.drawImage(seal, 4, 4, 152, 152);
+      doc.addImage(sealCanvas.toDataURL('image/png'), 'PNG', 95, 23, 20, 20);
+    }
+  } catch {}
+
   // College Header
   doc.setTextColor(254, 243, 199);
   doc.setFont('times', 'bold');
   doc.setFontSize(22);
-  doc.text("ST. CECILIA'S COLLEGE - CEBU, INC.", 105, 38, { align: 'center' });
+  doc.text("ST. CECILIA'S COLLEGE - CEBU, INC.", 105, 50, { align: 'center' });
 
   doc.setTextColor(245, 158, 11);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.text('OFFICIAL DIGITAL ALUMNI CREDENTIAL', 105, 46, { align: 'center' });
+  doc.text('OFFICIAL DIGITAL ALUMNI CREDENTIAL', 105, 57, { align: 'center' });
 
   doc.setFont('times', 'italic');
   doc.setFontSize(10);
   doc.setTextColor(209, 213, 219);
-  doc.text('Poblacion Ward II, Minglanilla, Cebu, Philippines', 105, 52, { align: 'center' });
+  doc.text('Poblacion Ward II, Minglanilla, Cebu, Philippines', 105, 63, { align: 'center' });
 
   // Verified Status Banner
   doc.setFillColor(6, 78, 59);
   doc.setDrawColor(16, 185, 129);
   doc.setLineWidth(0.5);
-  doc.roundedRect(30, 60, 150, 12, 3, 3, 'FD');
+  doc.roundedRect(30, 68, 150, 12, 3, 3, 'FD');
 
   doc.setTextColor(167, 243, 208);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text('ACCREDITED & VERIFIED ALUMNI RECORD', 105, 67.5, { align: 'center' });
+  doc.text('ACCREDITED & VERIFIED ALUMNI RECORD', 105, 75.5, { align: 'center' });
 
   // Alumnus Credentials Card Table
   doc.setFillColor(28, 25, 23);
-  doc.roundedRect(30, 80, 150, 95, 4, 4, 'F');
+  doc.roundedRect(30, 86, 150, 92, 4, 4, 'F');
   doc.setDrawColor(217, 119, 6);
   doc.setLineWidth(0.6);
-  doc.roundedRect(30, 80, 150, 95, 4, 4, 'D');
+  doc.roundedRect(30, 86, 150, 92, 4, 4, 'D');
 
   // Alumnus Name
   doc.setTextColor(255, 255, 255);

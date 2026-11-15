@@ -14,10 +14,12 @@ import { ShareButton } from '../common/ShareButton';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { useAlumni } from '../../context/AlumniContext';
 import { InteractiveHeartReaction } from '../common/InteractiveHeartReaction';
+import { HIGHLIGHT_RING_CLASS } from '../../hooks/useDeepLinkHighlight';
 
 interface AnnouncementCardProps {
   announcement: Announcement;
   isArchived?: boolean;
+  isHighlighted?: boolean;
   canManage?: boolean;
   onSelect: (announcement: Announcement) => void;
   onDelete?: (announcementId: string) => void;
@@ -28,6 +30,7 @@ interface AnnouncementCardProps {
 export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
   announcement,
   isArchived,
+  isHighlighted = false,
   canManage,
   onSelect,
   onDelete,
@@ -54,6 +57,7 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
 
   return (
     <div
+      data-notify-target-id={announcement.id}
       onClick={() => onSelect(announcement)}
       className={`relative overflow-hidden rounded-2xl border transition-all duration-200 cursor-pointer group flex flex-col justify-between hover:-translate-y-0.5 ${
         isArchived
@@ -63,7 +67,7 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
           : isPinned
           ? 'bg-gradient-to-br from-amber-50/40 to-white dark:from-amber-950/20 dark:to-stone-900 border-amber-200/90 dark:border-amber-900/40 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(180,83,9,0.05)]'
           : 'bg-white dark:bg-stone-900 border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md'
-      }`}
+      }${isHighlighted ? ` ${HIGHLIGHT_RING_CLASS}` : ''}`}
     >
       {/* Top accent line */}
       <div

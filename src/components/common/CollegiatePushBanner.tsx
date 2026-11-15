@@ -10,17 +10,21 @@ import {
   Megaphone
 } from 'lucide-react';
 
+import { buildPortalUrlForTab } from '../../lib/notificationDeepLink';
+
 export interface CollegiatePopupPayload {
   id?: string;
   title: string;
   body: string;
   category?: 'announcement' | 'event' | 'milestone' | 'message' | 'general' | string;
+  targetPath?: string;
+  targetRoute?: string;
   data?: Record<string, any>;
   timestamp?: string;
 }
 
 interface CollegiatePushBannerProps {
-  onNavigateTab?: (tab: string, contextId?: string) => void;
+  onNavigateTab?: (tabOrPath: string, contextId?: string) => void;
 }
 
 export const CollegiatePushBanner: React.FC<CollegiatePushBannerProps> = ({ onNavigateTab }) => {
@@ -94,18 +98,28 @@ export const CollegiatePushBanner: React.FC<CollegiatePushBannerProps> = ({ onNa
 
     const data = currentPopup.data || {};
     const category = (currentPopup.category || data.category || '').toLowerCase();
+    const explicitPath =
+      currentPopup.targetPath ||
+      currentPopup.targetRoute ||
+      data.targetPath ||
+      data.targetRoute ||
+      (typeof data.url === 'string' && data.url.startsWith('/portal/') ? data.url : undefined);
 
     if (onNavigateTab) {
-      if (category.includes('event') || data.eventId) {
-        onNavigateTab('events', data.eventId);
+      if (explicitPath) {
+        onNavigateTab(explicitPath, data.eventId || data.announcementId || data.postId || data.chatId || data.milestoneId);
+      } else if (category.includes('event') || data.eventId) {
+        onNavigateTab(buildPortalUrlForTab('events', undefined, data.eventId), data.eventId);
       } else if (category.includes('announcement') || data.announcementId) {
-        onNavigateTab('announcements', data.announcementId);
+        onNavigateTab(buildPortalUrlForTab('announcements', undefined, data.announcementId), data.announcementId);
       } else if (category.includes('message') || data.chatId) {
-        onNavigateTab('messages', data.chatId);
-      } else if (category.includes('milestone') || data.milestoneId) {
-        onNavigateTab('dashboard', data.milestoneId);
+        onNavigateTab(buildPortalUrlForTab('messages', undefined, data.chatId), data.chatId);
+      } else if (category.includes('milestone') || data.postId || data.milestoneId) {
+        onNavigateTab(buildPortalUrlForTab('dashboard', undefined, data.postId || data.milestoneId), data.postId || data.milestoneId);
+      } else if (category.includes('job') || data.jobId) {
+        onNavigateTab(buildPortalUrlForTab('opportunities', undefined, data.jobId), data.jobId);
       } else {
-        onNavigateTab('dashboard');
+        onNavigateTab('/portal/dashboard');
       }
     }
 
@@ -198,13 +212,12 @@ export const CollegiatePushBanner: React.FC<CollegiatePushBannerProps> = ({ onNa
 
               {/* Notification Content */}
               <div className="flex-1 min-w-0 pr-1">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase border ${catConfig.badgeBg}`}
-                  >
+                <div className="flex items-center gap-2 text-[11px] mb-1">
+                  <span className="font-semibold text-[#8B181B] dark:text-rose-400">
                     {catConfig.label}
                   </span>
-                  <span className="text-[10px] text-stone-400 font-medium">Just now</span>
+                  <span aria-hidden="true" className="text-stone-300 dark:text-stone-600">·</span>
+                  <span className="text-stone-500 dark:text-stone-400 font-medium">Just now</span>
                 </div>
 
                 <h4 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 tracking-tight leading-snug truncate">

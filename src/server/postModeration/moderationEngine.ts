@@ -25,6 +25,7 @@ import type {
   UserRole
 } from '../../types';
 import { POST_REPORT_REASONS, normalizeSystemRole } from '../../types';
+import { createNotificationPayload } from '../../lib/notificationDeepLink';
 import {
   AuthorAccountLike,
   ViewerContext,
@@ -213,6 +214,10 @@ export function isAdminRole(role?: string): boolean {
   return norm === 'admin' || norm === 'superadmin';
 }
 
+export function isSuperAdminRole(role?: string): boolean {
+  return (role || '').toLowerCase().trim() === 'superadmin';
+}
+
 function createInitialState(): ModerationStateSnapshot {
   return {
     posts: {},
@@ -294,6 +299,14 @@ export class PostModerationEngine {
     this.feedSessionSnapshots.clear();
   }
 
+  public resetToSuperadminOnly(): void {
+    this.state = createInitialState();
+    this.timelineCache.clear();
+    this.feedSessionSnapshots.clear();
+    this.syncProfilesFromAdapter();
+    this.persist();
+  }
+
   private invalidateCaches(): void {
     this.timelineCache.clear();
   }
@@ -347,14 +360,40 @@ export class PostModerationEngine {
   }
 
   private pushNotification(notif: Omit<AppNotification, 'id' | 'createdAt' | 'read'>): AppNotification {
-    const full: AppNotification = {
-      ...notif,
-      id: `mod_notif_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-      read: false,
-      createdAt: new Date().toISOString()
-    };
+    const recipientRole = notif.toUid ? this.accountAdapter?.getUserByUid(notif.toUid)?.role : undefined;
+    const full = createNotificationPayload(
+      {
+        ...notif,
+        id: `mod_notif_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        read: false,
+        createdAt: new Date().toISOString()
+      },
+      recipientRole
+    );
     this.state.notifications.unshift(full);
     return full;
+  }
+
+  public recordExternalSecurityAudit(entry: {
+    action: ModerationAuditRecord['action'];
+    actorId: string;
+    actorName: string;
+    actorRole: string;
+    note: string;
+    metadata?: Record<string, unknown>;
+  }): ModerationAuditRecord {
+    const record = this.appendAudit({
+      action: entry.action,
+      actorId: entry.actorId,
+      actorName: entry.actorName,
+      actorRole: entry.actorRole,
+      targetType: 'security',
+      reportIds: [],
+      note: entry.note,
+      metadata: entry.metadata
+    });
+    this.persist();
+    return record;
   }
 
   private async dispatchModerationEmail(toUid: string, subject: string, bodyText: string, badgeTitle: string): Promise<void> {
@@ -1235,6 +1274,15 @@ export class PostModerationEngine {
     const authorProfile = this.resolveAuthorProfile(post.authorId);
     if (!canUserViewPost(post, { surface: 'permalink', viewer: viewerCtx, authorAccount: authorProfile })) {
       throw new ModerationError(403, 'FORBIDDEN', 'You do not have permission to interact with this post.');
+    }
+
+    const isMilestonePost = post.postType === 'milestone' || Boolean(post.milestoneBadge);
+    if (post.authorId === actor.uid && !post.isAnonymous && isMilestonePost) {
+      throw new ModerationError(
+        400,
+        'SELF_CONGRATULATION_NOT_ALLOWED',
+        'You cannot congratulate or react to your own milestone post.'
+      );
     }
 
     if (reactionType === 'like') {
@@ -3429,8 +3477,8 @@ export class PostModerationEngine {
   // ===========================================================================
 
   public getAuditLogs(actor: ModerationActor): ModerationAuditRecord[] {
-    if (!isModeratorRole(actor.role)) {
-      throw new ModerationError(403, 'FORBIDDEN', 'Only moderators and administrators can read moderation audit logs.');
+    if (!isSuperAdminRole(actor.role)) {
+      throw new ModerationError(403, 'SUPERADMIN_REQUIRED', 'System audit logs are restricted to the Super Administrator.');
     }
     return [...this.state.auditLogs];
   }

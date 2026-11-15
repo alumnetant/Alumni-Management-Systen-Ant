@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Building2,
   Briefcase,
@@ -35,6 +35,7 @@ import { Opportunity, JobApplication, ApplicationStatus } from '../../types';
 import { JobApplicantsTrackerModal } from './JobApplicantsTrackerModal';
 import { EmployerDashboardSkeleton } from '../common/BentoSkeleton';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
+import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
 interface EmployerDashboardViewProps {
   onInitiateJobPost?: () => void;
@@ -56,7 +57,10 @@ export const EmployerDashboardView: React.FC<EmployerDashboardViewProps> = ({ on
     setActiveChatId,
     isEmployerExpired,
     requestEmployerRenewal,
-    isLoadingData
+    isLoadingData,
+    deepLinkTarget,
+    clearDeepLinkTarget,
+    highlightedItemId
   } = useAlumni();
 
   // Modal states
@@ -83,6 +87,17 @@ export const EmployerDashboardView: React.FC<EmployerDashboardViewProps> = ({ on
   // Filter state for my jobs
   const [statusFilter, setStatusFilter] = useState<'all' | 'approved' | 'pending_approval' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const missingTargetNotifiedRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!deepLinkTarget || (deepLinkTarget.targetType !== 'job' && deepLinkTarget.targetType !== 'employer')) return;
+    if (deepLinkTarget.targetId) {
+      setStatusFilter('all');
+      setSearchQuery('');
+    }
+    clearDeepLinkTarget();
+  }, [deepLinkTarget, clearDeepLinkTarget]);
 
   // Filter jobs posted by this employer (strictly restricted to this employer)
   const myOpportunities = useMemo(() => {
@@ -190,6 +205,51 @@ ${app.coverLetter || 'Submitted via Cecilian AlumNet Career Board.'}
   const interviewCount = useMemo(() => {
     return receivedApplications.filter((a) => a.status === 'Interview').length;
   }, [receivedApplications]);
+
+  useEffect(() => {
+    if (isLoadingData || !currentUser || !highlightedItemId) return;
+    const targetExists =
+      myOpportunities.some((o) => o.id === highlightedItemId) ||
+      receivedApplications.some((a) => a.id === highlightedItemId);
+
+    if (!targetExists && (opportunities.length > 0 || jobApplications.length > 0)) {
+      if (missingTargetNotifiedRef.current !== highlightedItemId) {
+        missingTargetNotifiedRef.current = highlightedItemId;
+        showToast('This job posting or applicant record is no longer available.', 'info');
+      }
+      return;
+    }
+
+    if (targetExists && (statusFilter !== 'all' || searchQuery.trim() !== '')) {
+      setStatusFilter('all');
+      setSearchQuery('');
+    }
+  }, [
+    isLoadingData,
+    currentUser,
+    highlightedItemId,
+    myOpportunities,
+    receivedApplications,
+    opportunities.length,
+    jobApplications.length,
+    statusFilter,
+    searchQuery,
+    showToast
+  ]);
+
+  const renderedTargetIds = useMemo(
+    () => [
+      ...displayedOpportunities.map((j) => j.id),
+      ...receivedApplications.map((a) => a.id)
+    ],
+    [displayedOpportunities, receivedApplications]
+  );
+
+  const { isHighlighted } = useDeepLinkHighlight(renderedTargetIds, [
+    isLoadingData,
+    statusFilter,
+    searchQuery
+  ]);
 
   if (isLoadingData) {
     return <EmployerDashboardSkeleton />;
@@ -601,7 +661,12 @@ ${app.coverLetter || 'Submitted via Cecilian AlumNet Career Board.'}
               return (
                 <div
                   key={job.id}
-                  className="bg-white border border-stone-200 rounded-2xl p-5 shadow-2xs space-y-4 transition-all hover:border-stone-300"
+                  data-notify-target-id={job.id}
+                  className={`bg-white border rounded-2xl p-5 shadow-2xs space-y-4 transition-all ${
+                    isHighlighted(job.id)
+                      ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                      : 'border-stone-200 hover:border-stone-300'
+                  }`}
                 >
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="space-y-1.5 flex-1 min-w-0">
@@ -720,7 +785,12 @@ ${app.coverLetter || 'Submitted via Cecilian AlumNet Career Board.'}
                           return (
                             <div
                               key={app.id}
-                              className="bg-stone-50/80 hover:bg-stone-50 border border-stone-200 rounded-xl p-3.5 transition-all text-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3"
+                              data-notify-target-id={app.id}
+                              className={`bg-stone-50/80 hover:bg-stone-50 border rounded-xl p-3.5 transition-all text-xs flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${
+                                isHighlighted(app.id)
+                                  ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
+                                  : 'border-stone-200'
+                              }`}
                             >
                               <div className="flex items-start gap-3 flex-1 min-w-0">
                                 <img

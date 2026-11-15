@@ -18,6 +18,7 @@ interface FeedEventCardProps {
   onReact: (reaction: FeedReactionType) => void;
   onAddComment: (text: string) => void;
   onShare: () => void;
+  onRsvp?: (eventId: string, status: 'going' | 'interested' | 'not_going') => void;
 }
 
 export const FeedEventCard: React.FC<FeedEventCardProps> = ({
@@ -26,7 +27,8 @@ export const FeedEventCard: React.FC<FeedEventCardProps> = ({
   onToggleBookmark,
   onReact,
   onAddComment,
-  onShare
+  onShare,
+  onRsvp
 }) => {
   const { rsvpEvent, setActiveTab, currentUser, showToast } = useAlumni();
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
@@ -47,7 +49,11 @@ export const FeedEventCard: React.FC<FeedEventCardProps> = ({
     try {
       const eventId = item.id.replace('event_', '');
       const newStatus = isAttending ? 'not_going' : 'going';
-      rsvpEvent(eventId, newStatus as any);
+      if (onRsvp) {
+        onRsvp(eventId, newStatus);
+      } else {
+        rsvpEvent(eventId, newStatus as any);
+      }
       showToast(isAttending ? 'RSVP updated: Not Attending' : 'Confirmed Attendance! Your seat is reserved.', 'success');
     } finally {
       setIsRsvping(false);

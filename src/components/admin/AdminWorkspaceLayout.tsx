@@ -65,7 +65,6 @@ import { useAlumni, STORAGE_KEYS } from '../../context/AlumniContext';
 import { useTheme } from '../../lib/theme';
 import { UserRole, UserProfile } from '../../types';
 import { AdminDashboardOverview } from './AdminDashboardOverview';
-import { AdminDatabaseSeederModal } from './AdminDatabaseSeederModal';
 import { AdminUsersTable } from './AdminUsersTable';
 import { RegistrarRegistryMatcher } from './RegistrarRegistryMatcher';
 import { AdminRequestsAndConflictsView } from './AdminRequestsAndConflictsView';
@@ -95,6 +94,10 @@ import { exportAlumniRosterCsv } from '../../services/adminExportService';
 import { compressImage } from '../../lib/utils';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { PullToRefreshWrapper } from '../common/PullToRefreshWrapper';
+import { PublicProfilePage } from '../profile/PublicProfilePage';
+import { PostPermalinkView } from '../social/PostPermalinkView';
+import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
+import { buildPortalUrlForTab, isSuperAdminRestrictedTarget } from '../../lib/notificationDeepLink';
 
 export type WorkspaceModuleId =
   | 'dashboard'
@@ -113,6 +116,7 @@ export type WorkspaceModuleId =
   | 'governance'
   | 'audit'
   | 'database'
+  | 'indexes'
   | 'automations'
   | 'messages'
   | 'settings'
@@ -149,10 +153,18 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
     updateUserRole,
     activeTab,
     setActiveTab,
+    deepLinkTarget,
+    clearDeepLinkTarget,
+    viewedProfileIdentifier,
+    viewedPostId,
+    closeSubRoute,
     chats,
     unreadNotificationsCount,
-    clientPlatform
+    clientPlatform,
+    reportUnauthorizedSuperAdminAccess
   } = useAlumni();
+
+  const isSuperAdmin = (currentUser?.role || '').toLowerCase().trim() === 'superadmin';
 
   // Internal workspace sub-module navigation
   const [currentModule, setCurrentModule] = useState<WorkspaceModuleId>(() => {
@@ -161,26 +173,90 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
     if (activeTab === 'settings') return 'settings';
     if (activeTab === 'profile') return 'profile';
     if (activeTab === 'messages') return 'messages';
+    if (activeTab === 'moderation') return 'moderation';
+    if (activeTab === 'jobs' || activeTab === 'employers') return 'jobs';
+    if (activeTab === 'events' || activeTab === 'attendance') return 'events';
+    if (activeTab === 'announcements') return 'announcements';
+    if (activeTab === 'conflicts' || activeTab === 'requests') return 'conflicts';
+    if (activeTab === 'users') return 'users';
+    if (activeTab === 'registry') return 'registry';
+    if (activeTab === 'milestones') return 'milestones';
+    if (activeTab === 'gallery') return 'gallery';
+    if (activeTab === 'audit') return 'audit';
+    if (activeTab === 'database') return 'database';
+    if (activeTab === 'indexes') return 'indexes';
+    if (activeTab === 'governance') return 'governance';
     return 'dashboard';
   });
 
   const [jobSubTab, setJobSubTab] = useState<'jobs' | 'employers'>('jobs');
   const [conflictSubTab, setConflictSubTab] = useState<'requests' | 'conflicts'>('conflicts');
+  const [moderationSubTab, setModerationSubTab] = useState<'cases' | 'appeals' | 'settings' | 'employers'>('cases');
 
-  // Keep in sync with parent activeTab if switched externally
+  // Keep in sync with parent activeTab & deepLinkTarget when switched externally (e.g. from Notifications or direct URL)
   useEffect(() => {
-    if (activeTab === 'notifications' && currentModule !== 'notifications') {
-      setCurrentModule('notifications');
-    } else if (activeTab === 'employer_portal' && currentModule !== 'employer_portal') {
-      setCurrentModule('employer_portal');
-    } else if (activeTab === 'settings' && currentModule !== 'settings') {
-      setCurrentModule('settings');
-    } else if (activeTab === 'profile' && currentModule !== 'profile') {
-      setCurrentModule('profile');
-    } else if (activeTab === 'messages' && currentModule !== 'messages') {
-      setCurrentModule('messages');
+    const allowedModules: WorkspaceModuleId[] = [
+      'dashboard',
+      'notifications',
+      'users',
+      'registry',
+      'conflicts',
+      'jobs',
+      'moderation',
+      'employer_portal',
+      'announcements',
+      'events',
+      'attendance',
+      'milestones',
+      'gallery',
+      'messages',
+      'settings',
+      'profile'
+    ];
+    if (activeTab === 'audit' || activeTab === 'database' || activeTab === 'indexes') {
+      if (currentModule !== activeTab) setCurrentModule(activeTab);
+    } else if (activeTab === 'governance') {
+      if (currentModule !== 'governance') setCurrentModule('governance');
+    } else if (activeTab === 'automations') {
+      if (isSuperAdmin) {
+        if (currentModule !== 'audit') setCurrentModule('audit');
+      } else {
+        setCurrentModule('dashboard');
+      }
+    } else if (activeTab === 'employers') {
+      setJobSubTab('employers');
+      if (currentModule !== 'jobs') setCurrentModule('jobs');
+    } else if (activeTab === 'requests') {
+      setConflictSubTab('requests');
+      if (currentModule !== 'conflicts') setCurrentModule('conflicts');
+    } else if (allowedModules.includes(activeTab as WorkspaceModuleId) && currentModule !== activeTab) {
+      setCurrentModule(activeTab as WorkspaceModuleId);
     }
-  }, [activeTab]);
+
+    if (deepLinkTarget?.targetType === 'moderation_queue') {
+      setModerationSubTab('cases');
+      if (currentModule !== 'moderation') setCurrentModule('moderation');
+    } else if (deepLinkTarget?.targetType === 'moderation_appeal') {
+      setModerationSubTab('appeals');
+      if (currentModule !== 'moderation') setCurrentModule('moderation');
+    } else if (deepLinkTarget?.subTab === 'employers' || deepLinkTarget?.subTab === 'jobs') {
+      setJobSubTab(deepLinkTarget.subTab);
+    } else if (deepLinkTarget?.subTab === 'requests' || deepLinkTarget?.subTab === 'conflicts') {
+      setConflictSubTab(deepLinkTarget.subTab);
+    }
+  }, [activeTab, deepLinkTarget, isSuperAdmin]);
+
+  // Report unauthorized superadmin module access attempts if a non-superadmin hits audit, database, or indexes
+  useEffect(() => {
+    if (isSuperAdmin) return;
+    if (currentModule === 'audit' || currentModule === 'database' || currentModule === 'indexes') {
+      const attemptedPath =
+        typeof window !== 'undefined' && isSuperAdminRestrictedTarget(window.location.pathname)
+          ? window.location.pathname
+          : buildPortalUrlForTab(currentModule);
+      reportUnauthorizedSuperAdminAccess(attemptedPath, currentModule).catch(() => {});
+    }
+  }, [currentModule, isSuperAdmin, reportUnauthorizedSuperAdminAccess]);
 
   // Sidebar expanded state: visible by default as requested
   const [isSidebarExpanded, setIsSidebarExpanded] = useState<boolean>(true);
@@ -209,9 +285,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
 
   // Command bar modal state
   const [showCommandBar, setShowCommandBar] = useState(false);
-
-  // Firestore Database Seeder Modal state
-  const [showDatabaseSeederModal, setShowDatabaseSeederModal] = useState(false);
 
   // Create User Modal state & validation
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
@@ -613,13 +686,21 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               ]
             : [
                 {
-                  id: (isModerator ? 'moderation' : 'jobs') as WorkspaceModuleId,
-                  label: isModerator ? 'Moderator Accreditation' : 'Jobs & Careers',
+                  id: 'jobs' as WorkspaceModuleId,
+                  label: isModerator ? 'Employer Accreditation' : 'Jobs & Careers',
                   shortLabel: isModerator ? 'Accreditation' : 'Careers',
-                  icon: isModerator ? ShieldCheck : Briefcase,
+                  icon: Briefcase,
                   badge: (pendingJobsCount + pendingEmployersCount) > 0 ? (pendingJobsCount + pendingEmployersCount) : null,
                   badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
                   visible: permissions.canManageJobModeration || permissions.canAccessEmployerAccreditation || isModerator
+                },
+                {
+                  id: 'moderation' as WorkspaceModuleId,
+                  label: 'Post & Content Moderation',
+                  shortLabel: 'Moderation',
+                  icon: ShieldAlert,
+                  badge: null,
+                  visible: isModerator || currentUser?.role === 'admin' || isSuperAdmin
                 }
               ]),
           {
@@ -661,19 +742,27 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
         items: [
           {
             id: 'audit' as WorkspaceModuleId,
-            label: currentUser?.role === 'admin' || currentUser?.role === 'superadmin' ? 'System Audit Logs' : 'Activity Logs',
-            shortLabel: 'Activity Logs',
+            label: 'System Audit Logs',
+            shortLabel: 'Audit Logs',
             icon: FileText,
             badge: null,
-            visible: clientPlatform === 'web'
+            visible: clientPlatform === 'web' && isSuperAdmin
           },
           {
             id: 'database' as WorkspaceModuleId,
-            label: 'Database & Indexes',
+            label: 'Database Configuration',
             shortLabel: 'Database',
             icon: Database,
             badge: null,
-            visible: clientPlatform === 'web' && (currentUser?.role === 'admin' || currentUser?.role === 'superadmin' || currentUser?.role === 'moderator')
+            visible: clientPlatform === 'web' && isSuperAdmin
+          },
+          {
+            id: 'indexes' as WorkspaceModuleId,
+            label: 'Index Administration',
+            shortLabel: 'Indexes',
+            icon: Sliders,
+            badge: null,
+            visible: clientPlatform === 'web' && isSuperAdmin
           },
           {
             id: 'settings' as WorkspaceModuleId,
@@ -688,6 +777,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
     ];
   }, [
     currentUser?.role,
+    isSuperAdmin,
     permissions,
     totalRequestsCount,
     pendingJobsCount,
@@ -737,17 +827,17 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
           
           {/* Zone 1: Institutional Brand Lockup */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Hamburger menu button: toggles mobile drawer on phones (< md), toggles sidebar expansion on tablet & desktop (>= md) */}
+            {/* Hamburger menu button: toggles mobile drawer on phones & tablet portrait (< lg), toggles sidebar expansion on desktop (>= lg) */}
             <button
               type="button"
               onClick={() => {
-                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
                   setShowMobileNav((prev) => !prev);
                 } else {
                   setIsSidebarExpanded((prev) => !prev);
                 }
               }}
-              className="p-2 -ml-1 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+              className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center -ml-1 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
               aria-label="Toggle navigation sidebar"
               title={isSidebarExpanded ? 'Hide sidebar (⌘B)' : 'Show sidebar (⌘B)'}
             >
@@ -755,7 +845,10 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             </button>
 
             <div
-              onClick={() => setCurrentModule('dashboard')}
+              onClick={() => {
+                closeSubRoute();
+                setCurrentModule('dashboard');
+              }}
               className="flex items-center gap-3 cursor-pointer group select-none"
               title="Return to Executive Overview"
             >
@@ -815,19 +908,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               title="Search Console (⌘K)"
             >
               <Search className="w-4 h-4 stroke-[1.75]" />
-            </button>
-
-
-
-            {/* Database Sample Seeder Launcher */}
-            <button
-              type="button"
-              onClick={() => setShowDatabaseSeederModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-[#8B181B] dark:text-amber-400 border border-amber-500/20 text-xs font-semibold transition-all cursor-pointer shadow-2xs active:scale-95"
-              title="Populate 50 sample records per core feature into live Firestore"
-            >
-              <Database className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Database Seeder</span>
             </button>
 
             {/* Universal Quick Theme Toggle (Light / Dark Mode) */}
@@ -948,7 +1028,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             DESKTOP & TABLET ADMINISTRATIVE SIDEBAR (VISIBLE BY DEFAULT, TOGGLABLE)
             ====================================================== */}
         <aside
-          className={`hidden md:flex shrink-0 sticky top-16 h-[calc(100dvh-4rem)] flex-col bg-white dark:bg-[#181615] transition-all duration-200 ease-in-out select-none z-30 shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${
+          className={`hidden lg:flex shrink-0 sticky top-16 h-[calc(100dvh-4rem)] flex-col bg-white dark:bg-[#181615] transition-all duration-200 ease-in-out select-none z-30 shadow-[0_1px_3px_rgba(0,0,0,0.02)] ${
             isSidebarExpanded
               ? 'w-60 border-r border-stone-200/80 dark:border-stone-800 opacity-100'
               : 'w-0 overflow-hidden border-r-0 opacity-0 pointer-events-none'
@@ -991,12 +1071,9 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                       key={item.id}
                       type="button"
                       onClick={() => {
+                        closeSubRoute();
                         setCurrentModule(item.id);
-                        if (item.id === 'employer_portal') setActiveTab('employer_portal');
-                        else if (item.id === 'messages') setActiveTab('messages');
-                        else if (item.id === 'settings') setActiveTab('settings');
-                        else if (item.id === 'profile') setActiveTab('profile');
-                        else setActiveTab('admin');
+                        setActiveTab(item.id);
                       }}
                       title={isSidebarCollapsed ? item.label : undefined}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
@@ -1078,14 +1155,14 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setShowMobileNav(false)}
-                className="fixed inset-0 bg-stone-950/40 backdrop-blur-xs z-50 md:hidden"
+                className="fixed inset-0 bg-stone-950/40 backdrop-blur-xs z-50 lg:hidden"
               />
               <motion.div
                 initial={{ x: '-100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ type: 'spring', damping: 26, stiffness: 280 }}
-                className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white dark:bg-[#181615] z-50 md:hidden flex flex-col shadow-2xl border-r border-stone-200 dark:border-stone-800"
+                className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-white dark:bg-[#181615] z-50 lg:hidden flex flex-col shadow-2xl border-r border-stone-200 dark:border-stone-800"
               >
                 <div className="p-4 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -1123,12 +1200,9 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                             key={item.id}
                             type="button"
                             onClick={() => {
+                              closeSubRoute();
                               setCurrentModule(item.id);
-                              if (item.id === 'employer_portal') setActiveTab('employer_portal');
-                              else if (item.id === 'messages') setActiveTab('messages');
-                              else if (item.id === 'settings') setActiveTab('settings');
-                              else if (item.id === 'profile') setActiveTab('profile');
-                              else setActiveTab('admin');
+                              setActiveTab(item.id);
                               setShowMobileNav(false);
                             }}
                             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold cursor-pointer ${
@@ -1177,7 +1251,13 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
         <main className="flex-1 min-w-0 w-full max-w-full px-3 sm:px-6 lg:px-8 py-6">
           <PullToRefreshWrapper onRefresh={refreshData} isOnline={isOnline}>
           <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto animate-in fade-in duration-200">
-            
+
+            {viewedProfileIdentifier ? (
+              <PublicProfilePage identifier={viewedProfileIdentifier} />
+            ) : viewedPostId ? (
+              <PostPermalinkView postId={viewedPostId} />
+            ) : (
+            <>
             {/* MODULE: Dashboard Overview (REFERENCE DESIGN) */}
             {currentModule === 'dashboard' && (
               currentUser?.role === 'employer' ? (
@@ -1187,8 +1267,11 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                   onNavigateTab={(tab) => {
                     if (tab === 'users') setCurrentModule('users');
                     else if (tab === 'registry') setCurrentModule('registry');
-                    else if (tab === 'governance' || tab === 'automations') {
-                      setCurrentModule('audit');
+                    else if (tab === 'governance') {
+                      setCurrentModule('governance');
+                    }
+                    else if (tab === 'automations') {
+                      setCurrentModule(isSuperAdmin ? 'audit' : 'dashboard');
                     }
                     else if (tab === 'conflicts') {
                       setConflictSubTab('conflicts');
@@ -1210,8 +1293,18 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                     else if (tab === 'events' || tab === 'attendance') setCurrentModule('events');
                     else if (tab === 'milestones') setCurrentModule('milestones');
                     else if (tab === 'gallery') setCurrentModule('gallery');
-                    else if (tab === 'audit') setCurrentModule('audit');
-                    else if (tab === 'database') setCurrentModule('database');
+                    else if (tab === 'audit') {
+                      setCurrentModule('audit');
+                      setActiveTab('audit');
+                    }
+                    else if (tab === 'database') {
+                      setCurrentModule('database');
+                      setActiveTab('database');
+                    }
+                    else if (tab === 'indexes') {
+                      setCurrentModule('indexes');
+                      setActiveTab('indexes');
+                    }
                     else if (tab === 'settings') setCurrentModule('settings');
                     else if (tab === 'profile') setCurrentModule('profile');
                     else if (tab === 'messages') setCurrentModule('messages');
@@ -1221,7 +1314,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                   onOpenCreateEvent={() => setCurrentModule('events')}
                   onOpenCreateAnnouncement={() => setCurrentModule('announcements')}
                   onOpenGalleryUpload={() => setShowGalleryUploadModal(true)}
-                  onOpenDatabaseSeeder={() => setShowDatabaseSeederModal(true)}
                 />
               )
             )}
@@ -1287,15 +1379,15 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               <AdminRequestsAndConflictsView initialSubTab={conflictSubTab} key={conflictSubTab} />
             )}
 
-            {/* MODULE: Jobs & Employers / Moderator Accreditation */}
+            {/* MODULE: Post & Content Moderation / Appeals / Feed Config */}
             {currentModule === 'moderation' && (
-              <ModeratorPanelView />
+              <ModeratorPanelView initialSubTab={moderationSubTab} key={moderationSubTab} />
             )}
             {currentModule === 'jobs' && (
               currentUser?.role === 'moderator' ? (
-                <ModeratorPanelView />
+                <ModeratorPanelView initialSubTab="employers" key="employers-mod" />
               ) : (
-                <AdminEmployersAndJobsView initialSubTab="jobs" key={jobSubTab} />
+                <AdminEmployersAndJobsView initialSubTab={jobSubTab} key={jobSubTab} />
               )
             )}
 
@@ -1452,38 +1544,72 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               <AdminGovernancePoliciesView />
             )}
 
-            {/* MODULE: Audit Logs (Web Portal Exclusive) */}
+            {/* MODULE: Audit Logs (Web Portal Exclusive & Superadmin Only) */}
             {currentModule === 'audit' && (
-              <PlatformOnly
-                client="web"
-                fallback={
-                  <div className="bg-white rounded-3xl p-10 text-center border border-stone-200/90 shadow-2xs max-w-xl mx-auto my-8 space-y-3">
-                    <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center mx-auto border border-purple-200">
-                      <FileText className="w-6 h-6 stroke-[2]" />
+              isSuperAdmin ? (
+                <PlatformOnly
+                  client="web"
+                  fallback={
+                    <div className="bg-white rounded-3xl p-10 text-center border border-stone-200/90 shadow-2xs max-w-xl mx-auto my-8 space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center mx-auto border border-purple-200">
+                        <FileText className="w-6 h-6 stroke-[2]" />
+                      </div>
+                      <h3 className="text-lg font-bold text-stone-900">System Audit Logs Restricted to Web</h3>
+                      <p className="text-xs text-stone-500 leading-relaxed">
+                        System Audit Logs, raw security traces, database backups, and API key management require desktop screen space and are exclusive to the Web Portal.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('dashboard')}
+                        className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        Return to Overview
+                      </button>
                     </div>
-                    <h3 className="text-lg font-bold text-stone-900">System Audit Logs Restricted to Web</h3>
-                    <p className="text-xs text-stone-500 leading-relaxed">
-                      System Audit Logs, raw security traces, database backups, and API key management require desktop screen space and are exclusive to the Web Portal.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setCurrentModule('dashboard')}
-                      className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      Return to Overview
-                    </button>
-                  </div>
-                }
-              >
-                <AuditLogView />
-              </PlatformOnly>
+                  }
+                >
+                  <AuditLogView />
+                </PlatformOnly>
+              ) : (
+                <ForbiddenAccessView
+                  attemptedPath="/portal/audit"
+                  attemptedModule="System Audit Logs"
+                  userRole={currentUser?.role}
+                  onReturnToOverview={() => setActiveTab('dashboard')}
+                />
+              )
             )}
 
-            {/* MODULE: Database & Index Configuration */}
+            {/* MODULE: Database Configuration Management (Superadmin Only) */}
             {currentModule === 'database' && (
-              <AdminDatabaseIndexConfigView
-                onOpenDatabaseSeeder={() => setShowDatabaseSeederModal(true)}
-              />
+              isSuperAdmin ? (
+                <AdminDatabaseIndexConfigView
+                  initialSection="collections"
+                />
+              ) : (
+                <ForbiddenAccessView
+                  attemptedPath="/portal/database"
+                  attemptedModule="Database Configuration Management"
+                  userRole={currentUser?.role}
+                  onReturnToOverview={() => setActiveTab('dashboard')}
+                />
+              )
+            )}
+
+            {/* MODULE: Index Administration (Superadmin Only) */}
+            {currentModule === 'indexes' && (
+              isSuperAdmin ? (
+                <AdminDatabaseIndexConfigView
+                  initialSection="indexes"
+                />
+              ) : (
+                <ForbiddenAccessView
+                  attemptedPath="/portal/indexes"
+                  attemptedModule="Index Administration"
+                  userRole={currentUser?.role}
+                  onReturnToOverview={() => setActiveTab('dashboard')}
+                />
+              )
             )}
 
             {/* MODULE: Messages */}
@@ -1504,6 +1630,8 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             {/* MODULE: Campus Gallery */}
             {currentModule === 'gallery' && (
               <AdminCampusGalleryView />
+            )}
+            </>
             )}
 
           </div>
@@ -2024,15 +2152,27 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               onNavigateTab={(tab) => {
                 if (tab === 'users') setCurrentModule('users');
                 else if (tab === 'registry') setCurrentModule('registry');
-                else if (tab === 'governance' || tab === 'automations') setCurrentModule('audit');
+                else if (tab === 'governance') setCurrentModule('governance');
+                else if (tab === 'automations') setCurrentModule(isSuperAdmin ? 'audit' : 'dashboard');
                 else if (tab === 'conflicts' || tab === 'requests') setCurrentModule('conflicts');
                 else if (tab === 'jobs' || tab === 'employers') setCurrentModule('jobs');
+                else if (tab === 'moderation') setCurrentModule('moderation');
                 else if (tab === 'announcements') setCurrentModule('announcements');
                 else if (tab === 'events' || tab === 'attendance') setCurrentModule('events');
                 else if (tab === 'milestones') setCurrentModule('milestones');
                 else if (tab === 'gallery') setCurrentModule('gallery');
-                else if (tab === 'audit') setCurrentModule('audit');
-                else if (tab === 'database') setCurrentModule('database');
+                else if (tab === 'audit') {
+                  setCurrentModule('audit');
+                  setActiveTab('audit');
+                }
+                else if (tab === 'database') {
+                  setCurrentModule('database');
+                  setActiveTab('database');
+                }
+                else if (tab === 'indexes') {
+                  setCurrentModule('indexes');
+                  setActiveTab('indexes');
+                }
                 else setCurrentModule('dashboard');
                 setShowCommandBar(false);
               }}
@@ -2059,14 +2199,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
       )}
 
       {/* ========================================================
-          FIRESTORE DATABASE SAMPLE SEEDER MODAL
-          ======================================================== */}
-      <AdminDatabaseSeederModal
-        isOpen={showDatabaseSeederModal}
-        onClose={() => setShowDatabaseSeederModal(false)}
-      />
-
-      {/* ========================================================
           ADMINISTRATIVE FOOTER
           ======================================================== */}
       <footer className="bg-white dark:bg-[#181615] border-t border-stone-200/90 dark:border-stone-800 py-4 px-4 sm:px-6 lg:px-8 mt-auto">
@@ -2076,11 +2208,13 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             <span>•</span>
             <span className="text-stone-400 dark:text-stone-500">Institutional Administration System</span>
             <span>•</span>
-            <span className="text-emerald-700 dark:text-emerald-400 font-medium">Sec-Audited</span>
+            <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+              {isSuperAdmin ? 'Sec-Audited' : 'RBAC Enforced'}
+            </span>
           </div>
 
           <div className="flex items-center gap-4 text-stone-400 dark:text-stone-500 text-[11px]">
-            <span>Audit Trail Enabled</span>
+            <span>{isSuperAdmin ? 'Audit Trail Enabled' : 'Role-Based Access Active'}</span>
             <span>•</span>
             <span>© {new Date().getFullYear()} St. Cecilia’s College. All Rights Reserved.</span>
           </div>

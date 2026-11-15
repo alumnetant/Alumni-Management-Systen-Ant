@@ -32,8 +32,16 @@ export const FeedCardActions: React.FC<FeedCardActionsProps> = ({
   const heartsCount = item.reactions.count;
 
   // Self-congratulations prevention: User cannot congratulate/react to their own achievement post
-  const isOwnPost = currentUser?.uid && item.author.uid === currentUser.uid;
-  const isAchievementPost = item.type === 'milestone' || (item.rawItem && (item.rawItem.type === 'achievement' || item.rawItem.badge));
+  const isOwnPost = Boolean(currentUser?.uid && item.author.uid === currentUser.uid);
+  const isAchievementPost =
+    item.type === 'milestone' ||
+    Boolean(
+      item.rawItem &&
+        (item.rawItem.type === 'achievement' ||
+          item.rawItem.postType === 'milestone' ||
+          item.rawItem.badge ||
+          item.rawItem.milestoneBadge)
+    );
   const isSelfAchievement = Boolean(isOwnPost && isAchievementPost);
 
   const handleHeartClick = () => {

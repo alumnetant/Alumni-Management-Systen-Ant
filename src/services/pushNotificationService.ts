@@ -19,6 +19,7 @@ import {
   PushNotificationSchema
 } from '@capacitor/push-notifications';
 import { playCollegiateChime } from './eventPushNotificationService';
+import { buildPortalUrlForTab } from '../lib/notificationDeepLink';
 
 export interface PushRegistrationResult {
   granted: boolean;
@@ -33,6 +34,8 @@ export interface PushNotificationPayload {
   title: string;
   body: string;
   category?: NotificationCategory;
+  targetPath?: string;
+  targetRoute?: string;
   data?: Record<string, any>;
   icon?: string;
   tag?: string;
@@ -287,16 +290,26 @@ export function initPushNotificationListeners(
         console.info('[Push] User tapped notification action:', action);
         const data = action.notification.data || {};
         const category = (data.category || data.type || '').toLowerCase();
+        const explicitPath =
+          data.targetPath ||
+          data.targetRoute ||
+          (typeof data.url === 'string' && data.url.startsWith('/portal/') ? data.url : undefined);
 
         if (onNavigateTab) {
-          if (category === 'event' || category === 'events' || data.eventId) {
-            onNavigateTab('events', data.eventId);
+          if (explicitPath) {
+            onNavigateTab(explicitPath, data.targetId || data.eventId || data.announcementId || data.postId || data.chatId);
+          } else if (category === 'event' || category === 'events' || data.eventId) {
+            onNavigateTab(buildPortalUrlForTab('events', undefined, data.eventId), data.eventId);
           } else if (category === 'message' || category === 'messages' || data.chatId) {
-            onNavigateTab('messages', data.chatId);
+            onNavigateTab(buildPortalUrlForTab('messages', undefined, data.chatId), data.chatId);
           } else if (category === 'announcement' || category === 'announcements' || data.announcementId) {
-            onNavigateTab('announcements', data.announcementId);
+            onNavigateTab(buildPortalUrlForTab('announcements', undefined, data.announcementId), data.announcementId);
+          } else if (category === 'milestone' || data.postId || data.milestoneId) {
+            onNavigateTab(buildPortalUrlForTab('dashboard', undefined, data.postId || data.milestoneId), data.postId || data.milestoneId);
+          } else if (category === 'job' || data.jobId) {
+            onNavigateTab(buildPortalUrlForTab('opportunities', undefined, data.jobId), data.jobId);
           } else {
-            onNavigateTab('dashboard');
+            onNavigateTab('/portal/dashboard');
           }
         }
 
@@ -318,16 +331,26 @@ export function initPushNotificationListeners(
     if (event.data && event.data.type === 'PUSH_NOTIFICATION_CLICK') {
       const clickData = event.data.data || {};
       const category = (clickData.category || clickData.type || '').toLowerCase();
+      const explicitPath =
+        clickData.targetPath ||
+        clickData.targetRoute ||
+        (typeof clickData.url === 'string' && clickData.url.startsWith('/portal/') ? clickData.url : undefined);
 
       if (onNavigateTab) {
-        if (category === 'message' || clickData.chatId) {
-          onNavigateTab('messages', clickData.chatId);
+        if (explicitPath) {
+          onNavigateTab(explicitPath, clickData.targetId || clickData.eventId || clickData.announcementId || clickData.postId || clickData.chatId);
+        } else if (category === 'message' || clickData.chatId) {
+          onNavigateTab(buildPortalUrlForTab('messages', undefined, clickData.chatId), clickData.chatId);
         } else if (category === 'event' || clickData.eventId) {
-          onNavigateTab('events', clickData.eventId);
+          onNavigateTab(buildPortalUrlForTab('events', undefined, clickData.eventId), clickData.eventId);
         } else if (category === 'announcement' || clickData.announcementId) {
-          onNavigateTab('announcements', clickData.announcementId);
+          onNavigateTab(buildPortalUrlForTab('announcements', undefined, clickData.announcementId), clickData.announcementId);
+        } else if (category === 'milestone' || clickData.postId || clickData.milestoneId) {
+          onNavigateTab(buildPortalUrlForTab('dashboard', undefined, clickData.postId || clickData.milestoneId), clickData.postId || clickData.milestoneId);
+        } else if (category === 'job' || clickData.jobId) {
+          onNavigateTab(buildPortalUrlForTab('opportunities', undefined, clickData.jobId), clickData.jobId);
         } else {
-          onNavigateTab('dashboard');
+          onNavigateTab('/portal/dashboard');
         }
       }
     }
@@ -475,7 +498,9 @@ export async function triggerTestPushNotification(
           vibrate: [120, 60, 120, 60, 180],
           tag: `test-push-${Date.now()}`,
           data: {
-            url: '/?tab=notifications',
+            targetPath: '/portal/notifications',
+            targetRoute: '/portal/notifications',
+            url: '/portal/notifications',
             category: 'general'
           }
         } as any);

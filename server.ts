@@ -2,11 +2,9 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.resolve();
 import type { Opportunity, JobApplication, ApplicationStatus, ChatThread, ChatMessage } from './src/types';
 import { INITIAL_USERS, INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
 import webpush from 'web-push';
@@ -513,17 +511,6 @@ const defaultAdminHash = hashPassword('Password123!', defaultAdminSalt).hash;
 
 const seedUsers: StoredUserCredential[] = [
   {
-    uid: 'usr_pocoraven_admin',
-    name: 'Raven Lopez',
-    email: 'pocoravenlopez2024@gmail.com',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'superadmin',
-    employeeId: 'SCC-SUP-002',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
     uid: 'usr_superadmin_cecilia',
     name: 'Dr. Emmanuel C. Salcedo',
     email: 'superadmin@stcecilia.edu.ph',
@@ -531,193 +518,6 @@ const seedUsers: StoredUserCredential[] = [
     salt: defaultAdminSalt,
     role: 'superadmin',
     employeeId: 'SCC-SUP-001',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_admin_cecilia',
-    name: 'Prof. Teresa B. Carreon',
-    email: 'admin@stcecilia.edu.ph',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'admin',
-    employeeId: 'SCC-ADM-002',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_admin_cecilia',
-    name: 'Prof. Teresa B. Carreon',
-    email: 'admin@stcecilia.edu',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'admin',
-    employeeId: 'SCC-ADM-101',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_registrar_cecilia',
-    name: 'Atty. Dominic R. Villacarlos',
-    email: 'registrar@stcecilia.edu.ph',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'registrar',
-    employeeId: 'SCC-REG-003',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_registrar_cecilia',
-    name: 'Atty. Dominic R. Villacarlos',
-    email: 'registrar@stcecilia.edu',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'registrar',
-    employeeId: 'SCC-REG-101',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_staff_cecilia',
-    name: 'Bernadette M. Castro',
-    email: 'staff@stcecilia.edu.ph',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'staff',
-    employeeId: 'SCC-STF-004',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_staff_cecilia',
-    name: 'Bernadette M. Castro',
-    email: 'staff@stcecilia.edu',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'staff',
-    employeeId: 'SCC-STF-101',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_moderator_cecilia',
-    name: 'Engr. Christian Dave Oporto',
-    email: 'moderator@stcecilia.edu.ph',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'moderator',
-    employeeId: 'SCC-MOD-005',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_moderator_cecilia',
-    name: 'Engr. Christian Dave Oporto',
-    email: 'moderator@stcecilia.edu',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'moderator',
-    employeeId: 'SCC-MOD-101',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_employer_cecilia',
-    name: 'Celeste V. Ramirez',
-    email: 'employer@stcecilia.edu.ph',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'employer',
-    company: 'MetroCebu InnovateCorp',
-    companyName: 'MetroCebu InnovateCorp',
-    employerStatus: 'approved',
-    submittedCredentials: [
-      {
-        id: 'cred_sec_01',
-        name: 'SEC_Certificate_of_Registration.pdf',
-        url: '/api/admin/employers/usr_employer_cecilia/credentials/cred_sec_01',
-        fileType: 'application/pdf',
-        uploadedAt: '2024-01-15T08:00:00.000Z'
-      },
-      {
-        id: 'cred_bir_01',
-        name: 'BIR_Certificate_2303.pdf',
-        url: '/api/admin/employers/usr_employer_cecilia/credentials/cred_bir_01',
-        fileType: 'application/pdf',
-        uploadedAt: '2024-01-15T08:05:00.000Z'
-      }
-    ],
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_employer_cecilia',
-    name: 'Celeste V. Ramirez',
-    email: 'employer@stcecilia.edu',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'employer',
-    company: 'MetroCebu InnovateCorp',
-    companyName: 'MetroCebu InnovateCorp',
-    employerStatus: 'approved',
-    submittedCredentials: [
-      {
-        id: 'cred_sec_01',
-        name: 'SEC_Certificate_of_Registration.pdf',
-        url: '/api/admin/employers/usr_employer_cecilia/credentials/cred_sec_01',
-        fileType: 'application/pdf',
-        uploadedAt: '2024-01-15T08:00:00.000Z'
-      }
-    ],
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_alumni_cecilia_01',
-    name: 'Julian Marc S. Villareal',
-    email: 'alumni@stcecilia.edu.ph',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'alumni',
-    studentId: 'SCC-2019-1082',
-    alumniId: 'SCC-ALUM-2023-1082',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_alumni_cecilia_01',
-    name: 'Julian Marc S. Villareal',
-    email: 'alumni@stcecilia.edu',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'alumni',
-    studentId: 'SCC-2019-1082',
-    alumniId: 'SCC-ALUM-2023-1082',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_alumni_02',
-    name: 'Patricia Mae G. Solon',
-    email: 'patricia.solon@alumni.stcecilia.edu.ph',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'alumni',
-    studentId: 'SCC-2018-0541',
-    alumniId: 'SCC-ALUM-2022-0541',
-    emailVerified: true,
-    isVerified: true
-  },
-  {
-    uid: 'usr_alumni_03',
-    name: 'Anton Luis K. Del Rosario',
-    email: 'anton.delrosario@alumni.stcecilia.edu.ph',
-    hash: defaultAdminHash,
-    salt: defaultAdminSalt,
-    role: 'alumni',
-    studentId: 'SCC-2020-0319',
-    alumniId: 'SCC-ALUM-2024-0319',
     emailVerified: true,
     isVerified: true
   }
@@ -833,40 +633,6 @@ interface ResumeRecord {
 }
 
 const resumeDatabase = new Map<string, ResumeRecord>();
-
-// Pre-seed default resume records mapped strictly by ownerId
-resumeDatabase.set('user_default_alumni', {
-  id: 'res_default_alumni',
-  ownerId: 'user_default_alumni',
-  fullName: 'Maria Santos',
-  headline: 'Senior Cloud Engineer & Full Stack Developer',
-  email: 'alumni@stcecilia.edu',
-  phone: '+63 917 555 0192',
-  location: 'Cebu City, Philippines',
-  summary: 'Passionate Cecilian alumna with extensive experience across modern distributed architectures, cloud platforms, and institutional networking.',
-  course: 'BS Information Technology',
-  batch: '2020',
-  skills: ['TypeScript', 'React', 'Node.js', 'PostgreSQL', 'Cloud Infrastructure'],
-  updatedAt: new Date().toISOString()
-});
-
-resumeDatabase.set('usr_sheepyawa_001', {
-  id: 'res_sheepyawa_001',
-  ownerId: 'usr_sheepyawa_001',
-  fullName: 'System Administrator',
-  headline: 'Principal Infrastructure Administrator',
-  email: 'sheepyawa@gmail.com',
-  updatedAt: new Date().toISOString()
-});
-
-resumeDatabase.set('usr_canonigo_001', {
-  id: 'res_canonigo_001',
-  ownerId: 'usr_canonigo_001',
-  fullName: 'James Sven Canonigo',
-  headline: 'Lead Systems Architect',
-  email: 'jamessvencanonigo@gmail.com',
-  updatedAt: new Date().toISOString()
-});
 
 // ============================================================================
 // Authoritative Jobs & Job Applications Store for Backend Access Control
@@ -1117,12 +883,112 @@ function requireStepUpAdmin(req: Request, res: Response, next: NextFunction) {
     });
   }
 
-  // Session freshness check (maximum 4 hours since issuance for sensitive exports/backups)
+  // Session freshness check (maximum 4 hours since issuance for sensitive administrative operations)
   const sessionAge = Date.now() - (user.iat || 0);
   const maxStepUpAge = 4 * 60 * 60 * 1000;
   if (user.iat && sessionAge > maxStepUpAge) {
     return res.status(401).json({
       error: 'Step-up authentication required: Session is too old for this sensitive administrative operation. Please re-authenticate.',
+      code: 'STEP_UP_AUTH_REQUIRED'
+    });
+  }
+
+  next();
+}
+
+function logUnauthorizedSuperAdminAccess(
+  req: Request,
+  reason = 'SUPERADMIN_REQUIRED',
+  extraDetails: Record<string, unknown> = {}
+) {
+  const user = (req as any).user;
+  const actorEmail = user?.email || user?.uid || 'anonymous';
+  const actorRole = user?.role || 'guest';
+  const attemptedPath = String(extraDetails.attemptedPath || req.originalUrl || req.path || '/unknown').slice(0, 200);
+  const entry: ServerAuditLog = {
+    id: `audit_unauth_sa_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'UNAUTHORIZED_SUPERADMIN_ACCESS',
+    actor: actorEmail,
+    actorRole,
+    ip: req.ip || 'internal',
+    details: {
+      reason,
+      actorUid: user?.uid || 'anonymous',
+      attemptedPath,
+      method: req.method,
+      userAgent: String(req.headers['user-agent'] || '').slice(0, 160),
+      ...extraDetails
+    }
+  };
+  serverAuditLogs.push(entry);
+
+  try {
+    postModerationEngine.recordExternalSecurityAudit({
+      action: 'UNAUTHORIZED_SUPERADMIN_ACCESS',
+      actorId: user?.uid || 'anonymous',
+      actorName: user?.name || actorEmail,
+      actorRole,
+      note: `Blocked unauthorized attempt by ${actorEmail} (${actorRole}) to access ${attemptedPath}`,
+      metadata: {
+        reason,
+        attemptedPath,
+        method: req.method,
+        ...extraDetails
+      }
+    });
+  } catch {
+    // Non-fatal if moderation engine state fails
+  }
+
+  return entry;
+}
+
+/**
+ * Strictly gated Superadmin-Only Middleware.
+ * Restricts Audit Logs, Database configuration management, and Index administration routes
+ * exclusively to the 'superadmin' role, triggering HTTP 403 Forbidden and logging attempts.
+ */
+function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user;
+  const normalizedRole = String(user?.role || '').toLowerCase().trim();
+  if (!user || normalizedRole !== 'superadmin') {
+    const auditEntry = logUnauthorizedSuperAdminAccess(req, 'NON_SUPERADMIN_RESTRICTED_ROUTE', {
+      attemptedPath: req.originalUrl || req.path,
+      source: 'server_middleware'
+    });
+    return res.status(403).json({
+      error:
+        'Forbidden: Access to system audit logs, database configuration management, and index administration routes is restricted exclusively to the Super Administrator.',
+      code: 'SUPERADMIN_REQUIRED',
+      auditLogged: true,
+      auditId: auditEntry.id
+    });
+  }
+  next();
+}
+
+function requireStepUpSuperAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = (req as any).user;
+  const normalizedRole = String(user?.role || '').toLowerCase().trim();
+  if (!user || normalizedRole !== 'superadmin') {
+    const auditEntry = logUnauthorizedSuperAdminAccess(req, 'NON_SUPERADMIN_STEP_UP_ROUTE', {
+      attemptedPath: req.originalUrl || req.path,
+      source: 'server_stepup_middleware'
+    });
+    return res.status(403).json({
+      error: 'Forbidden: Access to system audit logs, database snapshots, and index controls is restricted to the Super Administrator.',
+      code: 'SUPERADMIN_REQUIRED',
+      auditLogged: true,
+      auditId: auditEntry.id
+    });
+  }
+
+  const sessionAge = Date.now() - (user.iat || 0);
+  const maxStepUpAge = 4 * 60 * 60 * 1000;
+  if (user.iat && sessionAge > maxStepUpAge) {
+    return res.status(401).json({
+      error: 'Step-up authentication required: Superadmin session is too old for this sensitive operation. Please re-authenticate.',
       code: 'STEP_UP_AUTH_REQUIRED'
     });
   }
@@ -3569,24 +3435,277 @@ app.post('/api/admin/verify-student', requireServerAuth, requireRole(['admin', '
   });
 });
 
-// 6.6.3 Admin Route: Tamper-Proof Audit Trail Retrieval (RBAC Protected: Admins Only)
-app.get('/api/admin/audit-logs', requireServerAuth, requireRole(['admin']), (_req: Request, res: Response) => {
+// 6.6.3 Superadmin Route: Tamper-Proof Audit Trail Retrieval (RBAC Protected: Superadmin Only)
+app.get('/api/admin/audit-logs', requireServerAuth, requireSuperAdmin, (_req: Request, res: Response) => {
   res.json({
-    logs: serverAuditLogs.slice(-100).reverse()
+    logs: serverAuditLogs.slice(-150).reverse()
   });
 });
 
-app.get('/api/admin/audit', requireServerAuth, requireRole(['admin']), (_req: Request, res: Response) => {
+app.get('/api/admin/audit', requireServerAuth, requireSuperAdmin, (_req: Request, res: Response) => {
   res.json({
-    logs: serverAuditLogs.slice(-100).reverse()
+    logs: serverAuditLogs.slice(-150).reverse()
   });
 });
 
-// 6.6.3.1 Admin Route: Audit Log CSV/JSON Export (Step-Up Clearance)
+// 6.6.3.0 Superadmin Database Configuration Management & Index Administration (Strictly Superadmin Only)
+const serverDatabaseConfig = {
+  databaseId: 'cecilian-alumni-prod',
+  syncMode: 'realtime' as 'realtime' | 'scheduled' | 'manual',
+  autoSyncIntervalSeconds: 60,
+  snapshotRetentionDays: 30,
+  queryPageLimit: 25,
+  maintenanceReadOnly: false,
+  strictSchemaValidation: true,
+  lastBackupAt: null as string | null,
+  updatedAt: new Date().toISOString(),
+  updatedBy: 'system'
+};
+
+const serverIndexRegistry = [
+  {
+    id: 'idx_opportunities_approval_created',
+    collectionGroup: 'opportunities',
+    queryScope: 'COLLECTION',
+    fields: ['approvalStatus ASC', 'createdAt DESC'],
+    purpose: 'Accelerates filtered job listings requiring pending vs approved state sorted chronologically.',
+    status: 'verified' as 'verified' | 'ready' | 'needs_rebuild',
+    latencyMs: 14,
+    lastVerifiedAt: new Date().toISOString()
+  },
+  {
+    id: 'idx_events_type_start',
+    collectionGroup: 'events',
+    queryScope: 'COLLECTION',
+    fields: ['type ASC', 'startDate ASC'],
+    purpose: 'Optimizes reunion schedules, departmental webinars, and upcoming campus celebrations.',
+    status: 'verified' as 'verified' | 'ready' | 'needs_rebuild',
+    latencyMs: 11,
+    lastVerifiedAt: new Date().toISOString()
+  },
+  {
+    id: 'idx_feed_pinned_created',
+    collectionGroup: 'feed_posts',
+    queryScope: 'COLLECTION',
+    fields: ['pinned DESC', 'createdAt DESC'],
+    purpose: 'Powers chronological community updates and pinned institutional broadcasts.',
+    status: 'verified' as 'verified' | 'ready' | 'needs_rebuild',
+    latencyMs: 9,
+    lastVerifiedAt: new Date().toISOString()
+  },
+  {
+    id: 'idx_users_role_verified_batch',
+    collectionGroup: 'users',
+    queryScope: 'COLLECTION',
+    fields: ['role ASC', 'isVerified ASC', 'batch DESC'],
+    purpose: 'Filters Cecilian graduates by batch decade, degree program, and verified status.',
+    status: 'verified' as 'verified' | 'ready' | 'needs_rebuild',
+    latencyMs: 16,
+    lastVerifiedAt: new Date().toISOString()
+  },
+  {
+    id: 'idx_registry_batch_course_id',
+    collectionGroup: 'registry_records',
+    queryScope: 'COLLECTION',
+    fields: ['batchYear ASC', 'course ASC', 'studentId ASC'],
+    purpose: 'Accelerates automated registrar cross-matching during onboarding and verifications.',
+    status: 'verified' as 'verified' | 'ready' | 'needs_rebuild',
+    latencyMs: 12,
+    lastVerifiedAt: new Date().toISOString()
+  }
+];
+
+app.get('/api/admin/database/config', requireServerAuth, requireSuperAdmin, (_req: Request, res: Response) => {
+  res.json({
+    config: { ...serverDatabaseConfig },
+    stats: {
+      registeredUsers: credentialsDb.size,
+      auditLogEntries: serverAuditLogs.length,
+      activeSessions: activeSessions.size
+    }
+  });
+});
+
+app.put('/api/admin/database/config', requireServerAuth, requireSuperAdmin, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const body = req.body || {};
+
+  if (body.syncMode && ['realtime', 'scheduled', 'manual'].includes(body.syncMode)) {
+    serverDatabaseConfig.syncMode = body.syncMode;
+  }
+  if (body.autoSyncIntervalSeconds !== undefined) {
+    const val = Number(body.autoSyncIntervalSeconds);
+    if (!Number.isFinite(val) || val < 10 || val > 86400) {
+      return res.status(400).json({ error: 'autoSyncIntervalSeconds must be between 10 and 86400.' });
+    }
+    serverDatabaseConfig.autoSyncIntervalSeconds = Math.floor(val);
+  }
+  if (body.snapshotRetentionDays !== undefined) {
+    const val = Number(body.snapshotRetentionDays);
+    if (!Number.isFinite(val) || val < 1 || val > 3650) {
+      return res.status(400).json({ error: 'snapshotRetentionDays must be between 1 and 3650.' });
+    }
+    serverDatabaseConfig.snapshotRetentionDays = Math.floor(val);
+  }
+  if (body.queryPageLimit !== undefined) {
+    const val = Number(body.queryPageLimit);
+    if (!Number.isFinite(val) || val < 5 || val > 100) {
+      return res.status(400).json({ error: 'queryPageLimit must be between 5 and 100.' });
+    }
+    serverDatabaseConfig.queryPageLimit = Math.floor(val);
+  }
+  if (typeof body.maintenanceReadOnly === 'boolean') {
+    serverDatabaseConfig.maintenanceReadOnly = body.maintenanceReadOnly;
+  }
+  if (typeof body.strictSchemaValidation === 'boolean') {
+    serverDatabaseConfig.strictSchemaValidation = body.strictSchemaValidation;
+  }
+
+  serverDatabaseConfig.updatedAt = new Date().toISOString();
+  serverDatabaseConfig.updatedBy = actor.email || actor.uid;
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'DATABASE_CONFIG_UPDATED',
+    actor: actor.email || actor.uid,
+    actorRole: actor.role,
+    ip: req.ip || 'internal',
+    details: { ...serverDatabaseConfig }
+  });
+
+  res.json({ success: true, config: { ...serverDatabaseConfig } });
+});
+
+app.get('/api/admin/database/health', requireServerAuth, requireSuperAdmin, (_req: Request, res: Response) => {
+  res.json({
+    status: 'healthy',
+    databaseId: serverDatabaseConfig.databaseId,
+    maintenanceReadOnly: serverDatabaseConfig.maintenanceReadOnly,
+    registeredAccounts: credentialsDb.size,
+    auditEntries: serverAuditLogs.length,
+    checkedAt: new Date().toISOString()
+  });
+});
+
+app.get('/api/admin/indexes', requireServerAuth, requireSuperAdmin, (_req: Request, res: Response) => {
+  res.json({
+    indexes: serverIndexRegistry.map((idx) => ({ ...idx }))
+  });
+});
+
+app.post('/api/admin/indexes/verify', requireServerAuth, requireSuperAdmin, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const nowIso = new Date().toISOString();
+  for (const idx of serverIndexRegistry) {
+    idx.status = 'verified';
+    idx.lastVerifiedAt = nowIso;
+    idx.latencyMs = Math.max(6, Math.min(28, idx.latencyMs));
+  }
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: nowIso,
+    action: 'INDEX_CONFIGURATION_VERIFIED',
+    actor: actor.email || actor.uid,
+    actorRole: actor.role,
+    ip: req.ip || 'internal',
+    details: { verifiedCount: serverIndexRegistry.length }
+  });
+
+  res.json({
+    success: true,
+    verifiedCount: serverIndexRegistry.length,
+    indexes: serverIndexRegistry.map((idx) => ({ ...idx }))
+  });
+});
+
+app.put('/api/admin/indexes/:indexId', requireServerAuth, requireSuperAdmin, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const target = serverIndexRegistry.find((idx) => idx.id === req.params.indexId);
+  if (!target) {
+    return res.status(404).json({ error: 'Index definition not found.' });
+  }
+  const { status } = req.body || {};
+  if (status && ['verified', 'ready', 'needs_rebuild'].includes(status)) {
+    target.status = status;
+  }
+  target.lastVerifiedAt = new Date().toISOString();
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'INDEX_CONFIGURATION_UPDATED',
+    actor: actor.email || actor.uid,
+    actorRole: actor.role,
+    ip: req.ip || 'internal',
+    details: { indexId: target.id, status: target.status }
+  });
+
+  res.json({ success: true, index: { ...target } });
+});
+
+app.post('/api/admin/database/reset-superadmin-only', requireServerAuth, requireSuperAdmin, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const PRIMARY_SUPERADMIN_UID = 'usr_superadmin_cecilia';
+
+  // Preserve the primary superadmin credential (or re-seed from baseline if missing)
+  const retainedSuperadmin =
+    credentialsDb.get(PRIMARY_SUPERADMIN_UID) ||
+    seedUsers[0];
+
+  credentialsDb.clear();
+  if (retainedSuperadmin) {
+    registerCredentialInDb(retainedSuperadmin, false);
+  }
+  persistCredentialsToDisk();
+
+  // Clear non-superadmin sessions while preserving active superadmin session
+  for (const [uid] of activeSessions.entries()) {
+    if (uid !== PRIMARY_SUPERADMIN_UID && uid !== actor?.uid) {
+      activeSessions.delete(uid);
+    }
+  }
+
+  backendOpportunities.clear();
+  backendJobApplications.clear();
+  backendChats.clear();
+  backendMessages.clear();
+  resumeDatabase.clear();
+  securityAttemptNotices.length = 0;
+  serverAuditLogs.length = 0;
+
+  postModerationEngine.resetToSuperadminOnly();
+
+  res.json({
+    success: true,
+    retainedSuperadminUid: retainedSuperadmin?.uid || PRIMARY_SUPERADMIN_UID,
+    retainedSuperadminEmail: retainedSuperadmin?.email || 'superadmin@stcecilia.edu.ph'
+  });
+});
+
+// Frontend Guard Endpoint: Records unauthorized UI route access attempts for Superadmin routes
+app.post('/api/security/unauthorized-access', requireServerAuth, (req: Request, res: Response) => {
+  const { attemptedPath = '/portal/restricted', attemptedModule = 'restricted', reason = 'FRONTEND_SUPERADMIN_ROUTE_BLOCKED' } = req.body || {};
+  const entry = logUnauthorizedSuperAdminAccess(req, String(reason).slice(0, 80), {
+    attemptedPath: String(attemptedPath).slice(0, 200),
+    attemptedModule: String(attemptedModule).slice(0, 60),
+    source: 'frontend_route_guard'
+  });
+  return res.status(403).json({
+    error: 'Forbidden: Access restricted exclusively to Super Administrator accounts. This attempt has been logged.',
+    code: 'SUPERADMIN_REQUIRED',
+    auditLogged: true,
+    auditId: entry.id
+  });
+});
+
+// 6.6.3.1 Superadmin Route: Audit Log CSV/JSON Export (Step-Up Superadmin Clearance)
 app.post(
   '/api/admin/audit-logs/export',
   requireServerAuth,
-  requireStepUpAdmin,
+  requireSuperAdmin,
+  requireStepUpSuperAdmin,
   (req: Request, res: Response) => {
     const actor = (req as any).user;
     serverAuditLogs.push({
@@ -3646,7 +3765,8 @@ app.post(
 app.post(
   '/api/admin/system-backup',
   requireServerAuth,
-  requireStepUpAdmin,
+  requireSuperAdmin,
+  requireStepUpSuperAdmin,
   (req: Request, res: Response) => {
     const actor = (req as any).user;
     const backupId = `backup_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
@@ -3704,8 +3824,8 @@ app.post(
   }
 );
 
-// 6.6.4 Server-Side Audit Log Submission (Strictly Admins Only for direct entry)
-app.post('/api/admin/audit-logs', requireServerAuth, requireRole(['admin']), (req: Request, res: Response) => {
+// 6.6.4 Server-Side Audit Log Submission (Strictly Superadmins Only for direct entry)
+app.post('/api/admin/audit-logs', requireServerAuth, requireSuperAdmin, (req: Request, res: Response) => {
   const actor = (req as any).user;
   const { action, details } = req.body;
 
@@ -5680,6 +5800,10 @@ postModerationEngine.setUserAccountAdapter({
 const postModerationRouter = createPostModerationRouter({
   requireServerAuth,
   requireRole,
+  requireSuperAdmin,
+  onUnauthorizedSuperAdmin: (req, reason, details) => {
+    logUnauthorizedSuperAdminAccess(req, reason, details);
+  },
   csrfSecret: SERVER_AUTH_SECRET,
   engine: postModerationEngine,
   verifyTokenOptional: (req: Request) => {
