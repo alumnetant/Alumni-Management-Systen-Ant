@@ -1123,7 +1123,8 @@ export interface ModerationAuditRecord {
     | 'APPEAL_UPHELD'
     | 'APPEAL_REVERSED'
     | 'MODERATION_CONFIG_UPDATED'
-    | 'UNAUTHORIZED_SUPERADMIN_ACCESS';
+    | 'UNAUTHORIZED_SUPERADMIN_ACCESS'
+    | 'ACCOUNT_SOFT_DELETED';
   actorId: string;
   actorName: string;
   actorRole: string;

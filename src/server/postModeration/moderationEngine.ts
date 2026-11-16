@@ -568,6 +568,9 @@ export class PostModerationEngine {
 
   public upsertProfileRecord(input: Partial<StoredProfileRecord> & { uid: string }, persistChanges = true): StoredProfileRecord {
     const existing = this.state.profiles[input.uid];
+    if (existing && isAccountDeleted(existing)) {
+      return existing;
+    }
     const handles = this.getAllKnownHandlesSet(input.uid);
     const desiredName = input.name || existing?.name || input.email || 'Cecilian Member';
     const rawSlug = input.username ? slugifyUsername(input.username) : existing?.username;
@@ -1849,52 +1852,151 @@ export class PostModerationEngine {
     return { blockedUsers: selfProfile.blockedUsers };
   }
 
-  public deleteAndAnonymizeAccount(targetUid: string, actor: ModerationActor): { success: boolean; anonymizedPosts: number } {
+  public deleteAndAnonymizeAccount(
+    targetUid: string,
+    actor: ModerationActor
+  ): { success: boolean; deletedPosts: number; deletedComments: number; anonymizedPosts: number } {
     if (actor.uid !== targetUid && !isAdminRole(actor.role)) {
       throw new ModerationError(403, 'FORBIDDEN', 'Only the account owner or an Administrator can delete this account.');
     }
+    if (targetUid === 'usr_superadmin_cecilia') {
+      throw new ModerationError(403, 'PROTECTED_ACCOUNT', 'The primary Super Administrator account cannot be deleted.');
+    }
     const existing = this.resolveAuthorProfile(targetUid) || this.upsertProfileRecord({
       uid: targetUid,
-      name: 'Former alumni',
+      name: 'Former Member (Deleted)',
       email: '',
       role: 'alumni'
     }, false);
+    const targetRole = normalizeSystemRole(existing.role as string);
+    if ((targetRole === 'admin' || targetRole === 'superadmin') && !isSuperAdminRole(actor.role)) {
+      throw new ModerationError(403, 'FORBIDDEN', 'Only Super Administrators can delete administrative accounts.');
+    }
 
+    const now = new Date().toISOString();
+
+    // Release any old username / slug redirects so future registrations are unaffected
+    for (const [slug, mappedUid] of Object.entries(this.state.slugRedirects)) {
+      if (mappedUid === targetUid) {
+        delete this.state.slugRedirects[slug];
+      }
+    }
+
+    // Soft-delete profile tombstone: strip all personal app profile data & release identity identifiers
     existing.isDeleted = true;
     existing.accountStatus = 'DELETED';
     existing.status = 'DELETED';
-    existing.deletedAt = new Date().toISOString();
-    existing.name = 'Former alumni';
+    existing.deletedAt = now;
+    existing.name = 'Former Member (Deleted)';
+    existing.username = `deleted.${targetUid.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().slice(-8) || 'user'}`;
+    existing.previousUsernames = [];
     existing.profilePictureUrl = '';
     existing.coverPhotoUrl = '';
     existing.phone = '';
     existing.email = '';
+    existing.headline = '';
+    existing.about = '';
+    existing.location = '';
+    existing.company = '';
+    existing.currentPosition = '';
+    existing.batch = undefined;
+    existing.course = undefined;
+    existing.department = undefined;
+    existing.quickStatus = undefined;
+    existing.blockedUsers = [];
+    existing.groupIds = [];
     existing.pinnedPostId = undefined;
     this.state.profiles[targetUid] = existing;
 
-    let anonymizedPosts = 0;
-    for (const post of Object.values(this.state.posts)) {
+    // Permanently delete all posts authored by the deleted account and strip all comments/reactions by this user
+    let deletedPosts = 0;
+    let deletedComments = 0;
+    const deletedPostIds = new Set<string>();
+
+    for (const [postId, post] of Object.entries(this.state.posts)) {
       if (post.authorId === targetUid) {
-        post.authorName = 'Former alumni';
-        post.authorAvatar = '';
-        post.authorUsername = undefined;
-        post.authorDeleted = true;
-        anonymizedPosts++;
+        deletedPostIds.add(postId);
+        delete this.state.posts[postId];
+        delete this.state.postMedia[postId];
+        deletedPosts++;
+      } else {
+        let modified = false;
+        if (Array.isArray(post.comments)) {
+          const remainingComments = post.comments.filter((c) => c.authorId !== targetUid);
+          if (remainingComments.length !== post.comments.length) {
+            deletedComments += post.comments.length - remainingComments.length;
+            post.comments = remainingComments;
+            modified = true;
+          }
+        }
+        if (Array.isArray(post.likes) && post.likes.includes(targetUid)) {
+          post.likes = post.likes.filter((id) => id !== targetUid);
+          modified = true;
+        }
+        if (Array.isArray(post.hearts) && post.hearts.includes(targetUid)) {
+          post.hearts = post.hearts.filter((id) => id !== targetUid);
+          modified = true;
+        }
+        if (modified) {
+          this.state.posts[postId] = post;
+        }
       }
     }
 
-    this.accountAdapter?.updateUserSuspension(targetUid, {
-      accountStatus: 'DELETED',
-      reason: 'Account deleted',
+    // Close open moderation cases/reports referencing permanently deleted posts cleanly
+    if (deletedPostIds.size > 0) {
+      for (const modCase of this.state.cases) {
+        if (modCase.targetType === 'post' && deletedPostIds.has(modCase.targetId)) {
+          if (modCase.status === 'pending' || modCase.status === 'reviewed') {
+            modCase.status = 'post_removed';
+            modCase.resolvedAction = 'post_removed';
+            modCase.resolvedBy = actor.uid;
+            modCase.resolvedByName = actor.name;
+            modCase.resolvedByRole = actor.role;
+            modCase.resolvedAt = now;
+            modCase.resolutionNote = 'Post permanently deleted during account removal.';
+            modCase.autoHiddenPendingReview = false;
+            modCase.updatedAt = now;
+          }
+          modCase.postAuthorName = 'Former Member (Deleted)';
+          if (modCase.contentSnapshot) {
+            modCase.contentSnapshot.authorName = 'Former Member (Deleted)';
+          }
+        }
+      }
+      for (const report of this.state.reports) {
+        if (report.targetType === 'post' && deletedPostIds.has(report.targetId) && (report.status === 'pending' || report.status === 'reviewed')) {
+          report.status = 'post_removed';
+          report.resolvedAt = now;
+          report.resolvedBy = actor.uid;
+          report.resolvedOutcome = 'post_removed';
+        }
+      }
+    }
+
+    // Preserve anonymized audit record without linking to any future registered profile
+    this.appendAudit({
+      action: 'ACCOUNT_SOFT_DELETED',
       actorId: actor.uid,
       actorName: actor.name,
-      actorRole: actor.role
+      actorRole: actor.role,
+      targetType: 'user',
+      targetUserId: targetUid,
+      reportIds: [],
+      note: `Account soft-deleted and anonymized; permanently removed ${deletedPosts} post(s) and ${deletedComments} comment(s).`,
+      metadata: {
+        deletedPosts,
+        deletedComments,
+        anonymized: true
+      }
     });
+
     this.accountAdapter?.deleteUserAccount?.(targetUid);
 
+    this.feedSessionSnapshots.clear();
     this.invalidateCaches();
     this.persist();
-    return { success: true, anonymizedPosts };
+    return { success: true, deletedPosts, deletedComments, anonymizedPosts: 0 };
   }
 
   public sharePost(actor: ModerationActor, sourcePostId: string, commentary?: string): InstitutionalFeedPost {

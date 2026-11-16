@@ -107,10 +107,12 @@ import {
   getAuthCredentialFromFirestore,
   purgeAllFirestoreSampleData,
   testFirestoreWriteSync,
+  purgeUserPostsAndCommentsInFirestore,
   FIRESTORE_DATABASE_ID
 } from '../lib/firebase';
 import {
   markRegistryRecordAsRegistered,
+  releaseRegistryRecordRegistration,
   getRegistrarRecords,
   isValidStudentIdPattern,
   normalizeStudentId,
@@ -127,7 +129,7 @@ import {
   getCoverPhoto,
   getEventImage
 } from '../lib/defaultImages';
-import { dedupePostsById } from '../lib/postVisibility';
+import { dedupePostsById, isAccountDeleted } from '../lib/postVisibility';
 import { alumniService } from '../services/alumniService';
 import { calculateProfileCompletion } from '../services/automationService';
 import { analyzeUserRegistryIntegrity } from '../services/governanceLogicService';
@@ -539,6 +541,54 @@ export const STORAGE_KEYS = {
 };
 
 export const CREDENTIALS_VAULT_KEY = 'st_cecilia_auth_credentials_vault_v1';
+export const DELETED_ACCOUNT_UIDS_KEY = 'st_cecilia_deleted_account_uids_v1';
+
+export function getDeletedAccountUids(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_ACCOUNT_UIDS_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed.filter((id) => typeof id === 'string' && id.length > 0)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function addDeletedAccountUids(uids: string[]): Set<string> {
+  const existing = getDeletedAccountUids();
+  let changed = false;
+  for (const uid of uids) {
+    if (uid && uid !== 'usr_superadmin_cecilia' && !existing.has(uid)) {
+      existing.add(uid);
+      changed = true;
+    }
+  }
+  if (changed) {
+    try {
+      localStorage.setItem(DELETED_ACCOUNT_UIDS_KEY, JSON.stringify(Array.from(existing)));
+    } catch {}
+  }
+  return existing;
+}
+
+export function purgeDeletedUidsFromVaultAndStorage(uids: Iterable<string>) {
+  const uidSet = new Set(Array.from(uids).filter((id) => id && id !== 'usr_superadmin_cecilia'));
+  if (uidSet.size === 0) return;
+  try {
+    const vault = getStoredCredentialsVault();
+    let vaultChanged = false;
+    for (const key of Object.keys(vault)) {
+      const entry = vault[key];
+      if (entry?.uid && uidSet.has(entry.uid)) {
+        delete vault[key];
+        vaultChanged = true;
+      }
+    }
+    if (vaultChanged) {
+      localStorage.setItem(CREDENTIALS_VAULT_KEY, JSON.stringify(vault));
+    }
+  } catch {}
+}
 
 export interface StoredCredentialEntry {
   uid: string;
@@ -565,6 +615,9 @@ export function getStoredCredentialsVault(): Record<string, StoredCredentialEntr
 
 export function saveCredentialToVault(entry: StoredCredentialEntry) {
   try {
+    if (entry.uid && getDeletedAccountUids().has(entry.uid)) {
+      return;
+    }
     const vault = getStoredCredentialsVault();
     if (entry.uid) vault[entry.uid] = entry;
     if (entry.email) vault[entry.email.toLowerCase()] = entry;
@@ -612,11 +665,20 @@ export function removeCredentialFromVault(identifier: {
     const vault = getStoredCredentialsVault();
     const targetUid = identifier.uid;
     const targetEmail = identifier.email?.toLowerCase().trim();
+    const targetStudentNorm = identifier.studentId?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+    const targetAlumniNorm = identifier.alumniId?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+    const targetEmployeeNorm = identifier.employeeId?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
     for (const key of Object.keys(vault)) {
       const entry = vault[key];
+      const entryStudentNorm = entry?.studentId?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+      const entryAlumniNorm = entry?.alumniId?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+      const entryEmployeeNorm = entry?.employeeId?.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
       if (
         (targetUid && entry?.uid === targetUid) ||
-        (targetEmail && entry?.email?.toLowerCase().trim() === targetEmail)
+        (targetEmail && entry?.email?.toLowerCase().trim() === targetEmail) ||
+        (targetStudentNorm && entryStudentNorm && entryStudentNorm === targetStudentNorm) ||
+        (targetAlumniNorm && entryAlumniNorm && entryAlumniNorm === targetAlumniNorm) ||
+        (targetEmployeeNorm && entryEmployeeNorm && entryEmployeeNorm === targetEmployeeNorm)
       ) {
         delete vault[key];
       }
@@ -631,7 +693,11 @@ export function findCredentialInVault(identifier: string): StoredCredentialEntry
     const trimmed = identifier.trim().toLowerCase();
     const norm = trimmed.replace(/[^a-zA-Z0-9]/g, '');
     const clean = trimmed.replace(/^scc-?/i, '').replace(/^alum-?/i, '');
-    return vault[trimmed] || vault[norm] || vault[clean] || vault[`scc-${clean}`] || vault[`scc${norm}`] || null;
+    const found = vault[trimmed] || vault[norm] || vault[clean] || vault[`scc-${clean}`] || vault[`scc${norm}`] || null;
+    if (found && getDeletedAccountUids().has(found.uid)) {
+      return null;
+    }
+    return found;
   } catch {
     return null;
   }
@@ -866,8 +932,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         } catch {}
       }
 
+      const deletedUids = getDeletedAccountUids();
+      purgeDeletedUidsFromVaultAndStorage(deletedUids);
+
       // Seed initial superadmin into vault
       INITIAL_USERS.forEach((seedUser) => {
+        if (deletedUids.has(seedUser.uid)) return;
         saveCredentialToVault({
           uid: seedUser.uid,
           name: seedUser.name,
@@ -885,7 +955,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       let list: UserProfile[] = saved ? JSON.parse(saved) : INITIAL_USERS;
       if (!Array.isArray(list)) list = INITIAL_USERS;
 
-      // Filter out all obsolete legacy mock accounts and previous accounts
+      // Filter out all obsolete legacy mock accounts, previous accounts, and soft-deleted accounts
       const PREVIOUS_DEPRECATED_UIDS = [
         'usr_superadmin_01',
         'usr_admin_01',
@@ -902,7 +972,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           u &&
           !u.uid.startsWith('usr_sheepyawa') &&
           !u.uid.startsWith('usr_canonigo') &&
-          !PREVIOUS_DEPRECATED_UIDS.includes(u.uid)
+          !PREVIOUS_DEPRECATED_UIDS.includes(u.uid) &&
+          !deletedUids.has(u.uid) &&
+          !isAccountDeleted(u)
       );
 
       // If list does not contain new official accounts, reset strictly to INITIAL_USERS
@@ -921,6 +993,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       // Synchronize/backfill official studentId, alumniId, and passwords from INITIAL_USERS and vault into cached profiles
       const vault = getStoredCredentialsVault();
       INITIAL_USERS.forEach((seedUser) => {
+        if (deletedUids.has(seedUser.uid)) return;
         const existingIdx = list.findIndex(
           (u) => u.uid === seedUser.uid || (seedUser.email && u.email?.toLowerCase() === seedUser.email.toLowerCase())
         );
@@ -950,8 +1023,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         };
       });
 
-      // Restore any registered users from credentials vault if they're not in list
+      // Restore any registered active users from credentials vault if they're not in list
       Object.values(vault).forEach((entry) => {
+        if (!entry?.uid || deletedUids.has(entry.uid)) return;
         if (!list.some(u => u.uid === entry.uid || (entry.email && u.email?.toLowerCase() === entry.email.toLowerCase()))) {
           list.push({
             uid: entry.uid,
@@ -985,6 +1059,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       // Guarantee all official role accounts from INITIAL_USERS are actively present
       INITIAL_USERS.forEach((seedUser) => {
+        if (deletedUids.has(seedUser.uid)) return;
         const existingIdx = list.findIndex(
           (u) => u.uid === seedUser.uid || (seedUser.email && u.email?.toLowerCase() === seedUser.email.toLowerCase())
         );
@@ -1002,7 +1077,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
       });
 
-      return list;
+      const finalCleanList = list.filter((u) => !deletedUids.has(u.uid) && !isAccountDeleted(u));
+      try {
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(finalCleanList));
+      } catch {}
+      return finalCleanList;
     } catch {
       return INITIAL_USERS;
     }
@@ -1690,17 +1769,38 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setIsBackgroundSyncing(true);
 
     try {
-      // 1. Fetch live alumni users and update local cached state
+      // 1. Sync authoritative deleted UIDs from server and fetch live alumni users from Firestore
       const usersPromise = (async () => {
         try {
-          const firestoreUsers = await alumniService.getAllAlumni();
-          if (firestoreUsers && firestoreUsers.length > 0) {
+          const [deletedRes, firestoreUsers] = await Promise.all([
+            fetch('/api/auth/deleted-uids').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+            alumniService.getAllAlumni()
+          ]);
+          const serverDeletedUids: string[] = Array.isArray(deletedRes?.deletedUids) ? deletedRes.deletedUids : [];
+          const firestoreDeletedUids = (firestoreUsers || []).filter((u) => isAccountDeleted(u)).map((u) => u.uid);
+          const allDeletedSet = addDeletedAccountUids([...serverDeletedUids, ...firestoreDeletedUids]);
+          purgeDeletedUidsFromVaultAndStorage(allDeletedSet);
+
+          if (currentUserIdRef.current && allDeletedSet.has(currentUserIdRef.current)) {
+            clearStoredSession();
+            setCurrentUserId(null);
+          }
+
+          if ((firestoreUsers && firestoreUsers.length > 0) || allDeletedSet.size > 0) {
             setUsers((prevUsers) => {
               const vault = getStoredCredentialsVault();
               const userMap = new Map<string, UserProfile>();
-              prevUsers.forEach((u) => userMap.set(u.uid, u));
+              prevUsers.forEach((u) => {
+                if (!allDeletedSet.has(u.uid) && !isAccountDeleted(u)) {
+                  userMap.set(u.uid, u);
+                }
+              });
 
-              firestoreUsers.forEach((fUser) => {
+              (firestoreUsers || []).forEach((fUser) => {
+                if (allDeletedSet.has(fUser.uid) || isAccountDeleted(fUser)) {
+                  userMap.delete(fUser.uid);
+                  return;
+                }
                 const existing = userMap.get(fUser.uid);
                 const cred = vault[fUser.uid] || (fUser.email ? vault[fUser.email.toLowerCase()] : null);
                 const preservedPassword = existing?.password || fUser.password || cred?.password || 'Password123!';
@@ -2151,18 +2251,51 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
 
         const candidateUid = tokenCandidateUid || storedUserId;
+        const localDeletedUids = getDeletedAccountUids();
 
         if (
           !candidateUid ||
+          localDeletedUids.has(candidateUid) ||
           ['user_default_alumni', 'user_default_student', 'user_default_moderator', 'user_default_staff', 'user_default_employer'].includes(candidateUid)
         ) {
           clearStoredSession();
+          if (candidateUid && localDeletedUids.has(candidateUid)) {
+            purgeDeletedUidsFromVaultAndStorage([candidateUid]);
+          }
           if (!isCancelled) {
             setCurrentUserId(null);
             setAuthReady(true);
           }
           return;
         }
+
+        // Check server-authoritative deleted UIDs list first (non-blocking fast timeout)
+        try {
+          const delRes = await apiFetch('/api/auth/deleted-uids', {}, 1500);
+          if (delRes.ok) {
+            const delData = await delRes.json();
+            const serverDeleted = Array.isArray(delData?.deletedUids) ? delData.deletedUids : [];
+            if (serverDeleted.length > 0) {
+              const updatedDeleted = addDeletedAccountUids(serverDeleted);
+              purgeDeletedUidsFromVaultAndStorage(updatedDeleted);
+              if (updatedDeleted.has(candidateUid)) {
+                clearStoredSession();
+                setUsers((prev) => {
+                  const cleaned = prev.filter((u) => !updatedDeleted.has(u.uid) && !isAccountDeleted(u));
+                  try {
+                    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(cleaned));
+                  } catch {}
+                  return cleaned;
+                });
+                if (!isCancelled) {
+                  setCurrentUserId(null);
+                  setAuthReady(true);
+                }
+                return;
+              }
+            }
+          }
+        } catch {}
 
         // Resolve candidate user across memory, credentials vault, initial seeds, and Firestore
         let resolvedUser: UserProfile | null = null;
@@ -2173,6 +2306,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           (u) => u.uid === candidateUid || (candidateEmail && u.email?.toLowerCase() === candidateEmail)
         );
         if (inMemory) {
+          if (isAccountDeleted(inMemory)) {
+            addDeletedAccountUids([inMemory.uid]);
+            purgeDeletedUidsFromVaultAndStorage([inMemory.uid]);
+            clearStoredSession();
+            if (!isCancelled) {
+              setCurrentUserId(null);
+              setAuthReady(true);
+            }
+            return;
+          }
           resolvedUser = inMemory;
         }
 
@@ -2180,7 +2323,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (!resolvedUser) {
           const vault = getStoredCredentialsVault();
           const cred = vault[candidateUid] || (candidateEmail ? vault[candidateEmail] : null);
-          if (cred) {
+          if (cred && !getDeletedAccountUids().has(cred.uid)) {
             resolvedUser = {
               uid: cred.uid,
               name: cred.name || 'Alumnus Member',
@@ -2216,7 +2359,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const seedMatch = INITIAL_USERS.find(
             (u) => u.uid === candidateUid || (candidateEmail && u.email?.toLowerCase() === candidateEmail)
           );
-          if (seedMatch) {
+          if (seedMatch && !getDeletedAccountUids().has(seedMatch.uid)) {
             resolvedUser = { ...seedMatch };
           }
         }
@@ -2226,6 +2369,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           try {
             const cloudUser = await getUserFromFirestore(candidateUid);
             if (cloudUser) {
+              if (isAccountDeleted(cloudUser)) {
+                addDeletedAccountUids([cloudUser.uid || candidateUid]);
+                purgeDeletedUidsFromVaultAndStorage([cloudUser.uid || candidateUid]);
+                clearStoredSession();
+                if (!isCancelled) {
+                  setCurrentUserId(null);
+                  setAuthReady(true);
+                }
+                return;
+              }
               resolvedUser = cloudUser;
             }
           } catch {}
@@ -2233,20 +2386,22 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
         // INSTANT ACTIVATION (Offline-First):
         // If user was resolved locally from storage, vault, or seed, activate session IMMEDIATELY
-        if (resolvedUser && !isCancelled) {
+        if (resolvedUser && !isAccountDeleted(resolvedUser) && !getDeletedAccountUids().has(resolvedUser.uid) && !isCancelled) {
           const canonicalUser = { ...resolvedUser, uid: normalizeUid(resolvedUser.uid) || resolvedUser.uid };
 
           setUsers((prev) => {
-            const idx = prev.findIndex((u) => u.uid === canonicalUser.uid);
+            const deleted = getDeletedAccountUids();
+            const cleanedPrev = prev.filter((u) => !deleted.has(u.uid) && !isAccountDeleted(u));
+            const idx = cleanedPrev.findIndex((u) => u.uid === canonicalUser.uid);
             if (idx >= 0) {
-              const updated = [...prev];
+              const updated = [...cleanedPrev];
               updated[idx] = { ...updated[idx], ...canonicalUser };
               try {
                 localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
               } catch {}
               return updated;
             }
-            const newList = [canonicalUser, ...prev];
+            const newList = [canonicalUser, ...cleanedPrev];
             try {
               localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(newList));
             } catch {}
@@ -2269,6 +2424,21 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     setUsers((prev) =>
                       prev.map((u) => (u.uid === canonicalUser.uid ? { ...u, ...data.user } : u))
                     );
+                  }
+                } else if (res.status === 401) {
+                  const errData = await res.json().catch(() => ({}));
+                  if (errData?.code === 'ACCOUNT_DELETED' && !isCancelled) {
+                    addDeletedAccountUids([canonicalUser.uid]);
+                    purgeDeletedUidsFromVaultAndStorage([canonicalUser.uid]);
+                    clearStoredSession();
+                    setCurrentUserId(null);
+                    setUsers((prev) => {
+                      const next = prev.filter((u) => u.uid !== canonicalUser.uid);
+                      try {
+                        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
+                      } catch {}
+                      return next;
+                    });
                   }
                 }
               })
@@ -2402,23 +2572,38 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => {
     let isSubscribed = true;
 
-    // Fetch live alumni directory directly from Firestore instance on load
+    // Fetch live alumni directory directly from Firestore instance and deleted-UIDs from backend on load
     const fetchAlumniFromFirestore = async () => {
       try {
-        const firestoreUsers = await alumniService.getAllAlumni();
-        if (isSubscribed && firestoreUsers && firestoreUsers.length > 0) {
+        const [deletedRes, firestoreUsers] = await Promise.all([
+          fetch('/api/auth/deleted-uids').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+          alumniService.getAllAlumni()
+        ]);
+        const serverDeletedUids: string[] = Array.isArray(deletedRes?.deletedUids) ? deletedRes.deletedUids : [];
+        const firestoreDeletedUids = (firestoreUsers || []).filter((u) => isAccountDeleted(u)).map((u) => u.uid);
+        const allDeletedSet = addDeletedAccountUids([...serverDeletedUids, ...firestoreDeletedUids]);
+        purgeDeletedUidsFromVaultAndStorage(allDeletedSet);
+
+        if (isSubscribed && ((firestoreUsers && firestoreUsers.length > 0) || allDeletedSet.size > 0)) {
           setUsers((prevUsers) => {
             const vault = getStoredCredentialsVault();
             const userMap = new Map<string, UserProfile>();
-            // Keep all existing local users
-            prevUsers.forEach((u) => userMap.set(u.uid, u));
+            prevUsers.forEach((u) => {
+              if (!allDeletedSet.has(u.uid) && !isAccountDeleted(u)) {
+                userMap.set(u.uid, u);
+              }
+            });
 
-            // Merge incoming Firestore users preserving password & verified statuses
-            firestoreUsers.forEach((fUser) => {
+            // Merge incoming non-deleted Firestore users preserving password & verified statuses
+            (firestoreUsers || []).forEach((fUser) => {
+              if (allDeletedSet.has(fUser.uid) || isAccountDeleted(fUser)) {
+                userMap.delete(fUser.uid);
+                return;
+              }
               const existing = userMap.get(fUser.uid);
               const cred = vault[fUser.uid] || (fUser.email ? vault[fUser.email.toLowerCase()] : null) || (fUser.studentId ? vault[fUser.studentId.toLowerCase()] : null);
               const preservedPassword = existing?.password || fUser.password || cred?.password || (INITIAL_USERS.find(iu => iu.uid === fUser.uid || iu.email?.toLowerCase() === fUser.email?.toLowerCase())?.password) || 'Password123!';
-              
+
               userMap.set(fUser.uid, {
                 ...fUser,
                 password: preservedPassword,
@@ -2427,7 +2612,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               });
             });
 
-            return Array.from(userMap.values());
+            const merged = Array.from(userMap.values());
+            try {
+              localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(merged));
+            } catch {}
+            return merged;
           });
         }
       } catch (err) {
@@ -2441,18 +2630,34 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const unsubUsers = alumniService.subscribeToAlumniDirectory(
       (firestoreUsers) => {
         if (isSubscribed && firestoreUsers && firestoreUsers.length > 0) {
+          const firestoreDeletedUids = firestoreUsers.filter((u) => isAccountDeleted(u)).map((u) => u.uid);
+          const allDeletedSet = addDeletedAccountUids(firestoreDeletedUids);
+          purgeDeletedUidsFromVaultAndStorage(allDeletedSet);
+
+          if (currentUserIdRef.current && allDeletedSet.has(currentUserIdRef.current)) {
+            clearStoredSession();
+            setCurrentUserId(null);
+          }
+
           setUsers((prevUsers) => {
             const vault = getStoredCredentialsVault();
             const userMap = new Map<string, UserProfile>();
-            // Keep all existing local users
-            prevUsers.forEach((u) => userMap.set(u.uid, u));
+            prevUsers.forEach((u) => {
+              if (!allDeletedSet.has(u.uid) && !isAccountDeleted(u)) {
+                userMap.set(u.uid, u);
+              }
+            });
 
-            // Merge incoming Firestore users preserving password & verified statuses
+            // Merge incoming non-deleted Firestore users preserving password & verified statuses
             firestoreUsers.forEach((fUser) => {
+              if (allDeletedSet.has(fUser.uid) || isAccountDeleted(fUser)) {
+                userMap.delete(fUser.uid);
+                return;
+              }
               const existing = userMap.get(fUser.uid);
               const cred = vault[fUser.uid] || (fUser.email ? vault[fUser.email.toLowerCase()] : null) || (fUser.studentId ? vault[fUser.studentId.toLowerCase()] : null);
               const preservedPassword = existing?.password || fUser.password || cred?.password || (INITIAL_USERS.find(iu => iu.uid === fUser.uid || iu.email?.toLowerCase() === fUser.email?.toLowerCase())?.password) || 'Password123!';
-              
+
               userMap.set(fUser.uid, {
                 ...fUser,
                 password: preservedPassword,
@@ -2461,7 +2666,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               });
             });
 
-            return Array.from(userMap.values());
+            const merged = Array.from(userMap.values());
+            try {
+              localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(merged));
+            } catch {}
+            return merged;
           });
         }
       },
@@ -2552,11 +2761,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Current User resolution with resilient session recovery
   const currentUser = useMemo(() => {
     if (!currentUserId) return null;
+    const deletedUids = getDeletedAccountUids();
+    if (deletedUids.has(currentUserId)) return null;
     let found = users.find((u) => u.uid === currentUserId);
+    if (found && isAccountDeleted(found)) return null;
     if (!found) {
       const vault = getStoredCredentialsVault();
       const cred = vault[currentUserId];
-      if (cred) {
+      if (cred && !deletedUids.has(cred.uid)) {
         found = {
           uid: cred.uid,
           name: cred.name || 'Alumnus Member',
@@ -2614,12 +2826,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [currentUser?.uid, currentUser?.role, triggerItemHighlight]);
 
-  // Ensure recovered session user is back in active users array
+  // Ensure recovered session user is back in active users array (never resurrect deleted UIDs)
   useEffect(() => {
-    if (currentUserId && !users.some((u) => u.uid === currentUserId)) {
+    if (currentUserId && !getDeletedAccountUids().has(currentUserId) && !users.some((u) => u.uid === currentUserId)) {
       const vault = getStoredCredentialsVault();
       const cred = vault[currentUserId];
-      if (cred) {
+      if (cred && !getDeletedAccountUids().has(cred.uid)) {
         setUsers((prev) => {
           if (prev.some((u) => u.uid === currentUserId)) return prev;
           const recovered: UserProfile = {
@@ -3210,15 +3422,28 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
 
       if (serverRes.status === 401) {
+        let deletedUids = getDeletedAccountUids();
+        try {
+          const delRes = await fetch('/api/auth/deleted-uids');
+          if (delRes.ok) {
+            const delJson = await delRes.json();
+            if (Array.isArray(delJson?.deletedUids)) {
+              deletedUids = addDeletedAccountUids(delJson.deletedUids);
+              purgeDeletedUidsFromVaultAndStorage(deletedUids);
+            }
+          }
+        } catch {}
         // If not found in backend in-memory cache, check if user exists locally with matching credentials and auto-sync
         const localUser = users.find(
           (u) =>
-            u.email?.toLowerCase() === trimmed ||
-            (u.studentId && normalizeStudentId(u.studentId).toLowerCase() === normalizedInputId)
+            !isAccountDeleted(u) &&
+            !deletedUids.has(u.uid) &&
+            (u.email?.toLowerCase() === trimmed ||
+              (u.studentId && normalizeStudentId(u.studentId).toLowerCase() === normalizedInputId))
         );
         const localVault = findCredentialInVault(trimmed);
 
-        if (localUser && (localUser.password === pass || localVault?.password === pass)) {
+        if (localUser && (localUser.password === pass || (localVault && !deletedUids.has(localVault.uid) && localVault.password === pass))) {
           await fetch('/api/auth/sync-credentials', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3295,8 +3520,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       // In offline / standalone preview mode, continue to local validation
     }
 
-    // 3. User lookup across registered accounts (supports Email, SCC Student ID, Alumni ID, Employee ID)
+    const deletedUidsForLookup = getDeletedAccountUids();
+
+    // 3. User lookup across active registered accounts (supports Email, SCC Student ID, Alumni ID, Employee ID)
     let user = users.find((u) => {
+      if (isAccountDeleted(u) || deletedUidsForLookup.has(u.uid)) return false;
+
       // Direct Email match
       if (u.email && u.email.toLowerCase() === trimmed) return true;
       if (trimmed === 'juan@email.com' && (u.email === 'alumni@stcecilia.edu' || u.email === 'maria.santos@alumni.stcecilia.edu')) return true;
@@ -3348,15 +3577,25 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
 
     const vaultCred = findCredentialInVault(trimmed);
-    if (!user && vaultCred) {
-      user = users.find((u) => u.uid === vaultCred.uid || (u.email && u.email.toLowerCase() === vaultCred.email.toLowerCase()));
+    if (!user && vaultCred && !deletedUidsForLookup.has(vaultCred.uid)) {
+      user = users.find(
+        (u) =>
+          !isAccountDeleted(u) &&
+          !deletedUidsForLookup.has(u.uid) &&
+          (u.uid === vaultCred.uid || (u.email && u.email.toLowerCase() === vaultCred.email.toLowerCase()))
+      );
       if (!user) {
         try {
           const rawSaved = localStorage.getItem(STORAGE_KEYS.USERS);
           if (rawSaved) {
             const parsedList: UserProfile[] = JSON.parse(rawSaved);
             if (Array.isArray(parsedList)) {
-              user = parsedList.find((u) => u.uid === vaultCred.uid || (u.email && u.email.toLowerCase() === vaultCred.email.toLowerCase()));
+              user = parsedList.find(
+                (u) =>
+                  !isAccountDeleted(u) &&
+                  !deletedUidsForLookup.has(u.uid) &&
+                  (u.uid === vaultCred.uid || (u.email && u.email.toLowerCase() === vaultCred.email.toLowerCase()))
+              );
               if (user) {
                 setUsers((prev) => [user!, ...prev]);
               }
@@ -3912,10 +4151,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return false;
     }
 
+    const deletedUidsForReg = getDeletedAccountUids();
+
     // Check if employer was previously rejected - block re-application
     if (role === 'employer') {
       const isRejected = users.some(
         (u) =>
+          !isAccountDeleted(u) &&
+          !deletedUidsForReg.has(u.uid) &&
           u.role === 'employer' &&
           (u.employerStatus === 'rejected' || u.employerVerificationStatus === 'rejected') &&
           (
@@ -3930,8 +4173,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
     }
 
-    // Check if email already exists
-    if (data.email && users.some((u) => u.email.toLowerCase() === data.email!.toLowerCase())) {
+    // Check if email already exists among active (non-deleted) accounts
+    if (data.email && users.some((u) => !isAccountDeleted(u) && !deletedUidsForReg.has(u.uid) && u.email?.toLowerCase() === data.email!.toLowerCase())) {
       showToast('An account with this email already exists.', 'error');
       return false;
     }
@@ -3975,9 +4218,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return false;
       }
 
-      // Reject if student ID is already claimed by another active profile
+      // Reject if student ID is already claimed by another active (non-deleted) profile
       const alreadyClaimed = users.some(
         (u) =>
+          !isAccountDeleted(u) &&
+          !deletedUidsForReg.has(u.uid) &&
           u.studentId &&
           normalizeStudentId(u.studentId).toUpperCase() === normalizeStudentId(rawStudentId).toUpperCase()
       );
@@ -4806,7 +5051,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
         if (res.status === 401) {
           const errData = await res.json().catch(() => ({}));
-          if (errData.code === 'SESSION_TERMINATED') {
+          if (errData.code === 'ACCOUNT_DELETED') {
+            addDeletedAccountUids([currentUserId]);
+            purgeDeletedUidsFromVaultAndStorage([currentUserId]);
+            setUsers((prev) => {
+              const next = prev.filter((u) => u.uid !== currentUserId);
+              try {
+                localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+            logout({ revokeBiometrics: true });
+            showToast('This account has been deleted.', 'info');
+          } else if (errData.code === 'SESSION_TERMINATED') {
             logout();
             showToast('You were signed out because this account was logged into on another device.', 'error');
           } else if (errData.code === 'SESSION_EXPIRED') {
@@ -4876,21 +5133,31 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return true;
   };
 
-  const performFullAccountDeletion = useCallback(async (uidToDelete: string): Promise<boolean> => {
+  const cascadeDeleteAccount = useCallback(async (uidToDelete: string, mode: 'self' | 'admin'): Promise<boolean> => {
+    if (!uidToDelete || uidToDelete === 'usr_superadmin_cecilia') {
+      showToast('The primary Superadmin institutional account cannot be deleted.', 'error');
+      return false;
+    }
     const target = users.find((u) => u.uid === uidToDelete);
+    if (mode === 'admin') {
+      if ((target?.role === 'admin' || target?.role === 'superadmin') && currentUserRoleRef.current !== 'superadmin') {
+        showToast('Only Superadmin accounts can delete institutional administrators.', 'error');
+        return false;
+      }
+    }
+
     if (getAuthToken()) {
-      const res = await apiFetchWithCsrf('/api/profiles/me', { method: 'DELETE' }).catch(() => null);
+      const endpoint = mode === 'self' ? '/api/profiles/me' : `/api/profiles/${encodeURIComponent(uidToDelete)}`;
+      const res = await apiFetchWithCsrf(endpoint, { method: 'DELETE' }).catch(() => null);
       if (res && !res.ok && res.status !== 401 && res.status !== 404) {
         const d = await res.json().catch(() => null);
         showToast(d?.error || 'Failed to delete account on server.', 'error');
         return false;
       }
     }
-    try {
-      await alumniService.deleteAlumni(uidToDelete);
-    } catch (err) {
-      console.warn('Error deleting user account from Firestore:', err);
-    }
+
+    // 1. Mark UID as deleted locally so neither vault nor stale caches can restore it
+    addDeletedAccountUids([uidToDelete]);
     removeCredentialFromVault({
       uid: uidToDelete,
       email: target?.email,
@@ -4898,20 +5165,68 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       alumniId: target?.alumniId,
       employeeId: target?.employeeId
     });
-    setFeedPosts((prev) =>
-      prev.map((p) => {
-        if (p.authorId !== uidToDelete) return p;
-        const anonymized: InstitutionalFeedPost = {
-          ...p,
-          authorName: 'Former alumni',
-          authorAvatar: '',
-          authorUsername: undefined,
-          authorDeleted: true
+
+    // 2. Soft-delete user profile in Firestore (wipes personal fields & security vault, stores anonymized tombstone)
+    try {
+      await alumniService.deleteAlumni(uidToDelete);
+    } catch (err) {
+      console.warn('Error soft-deleting user account from Firestore:', err);
+    }
+
+    // 3. Release registrar verification claim while keeping core institutional verification record
+    try {
+      releaseRegistryRecordRegistration(target?.studentId, uidToDelete);
+    } catch {}
+
+    // 4. Permanently delete all posts created by the deleted user AND remove their comments/reactions everywhere
+    setFeedPosts((prev) => {
+      const cleaned = prev
+        .filter((p) => p.authorId !== uidToDelete)
+        .map((p) => {
+          const hadComment = Array.isArray(p.comments) && p.comments.some((c) => c.authorId === uidToDelete);
+          const hadLike = Array.isArray(p.likes) && p.likes.includes(uidToDelete);
+          const hadHeart = Array.isArray(p.hearts) && p.hearts.includes(uidToDelete);
+          if (!hadComment && !hadLike && !hadHeart) return p;
+          return {
+            ...p,
+            comments: hadComment ? (p.comments || []).filter((c) => c.authorId !== uidToDelete) : p.comments,
+            likes: hadLike ? (p.likes || []).filter((id) => id !== uidToDelete) : p.likes,
+            hearts: hadHeart ? (p.hearts || []).filter((id) => id !== uidToDelete) : p.hearts
+          };
+        });
+      try {
+        localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(cleaned));
+      } catch {}
+      return cleaned;
+    });
+
+    setEvents((prev) => {
+      const cleaned = prev.map((ev) => {
+        if (!Array.isArray(ev.comments) || !ev.comments.some((c) => c.authorId === uidToDelete)) return ev;
+        return {
+          ...ev,
+          comments: ev.comments.filter((c) => c.authorId !== uidToDelete)
         };
-        saveFeedPostToFirestore(anonymized).catch(() => {});
-        return anonymized;
-      })
-    );
+      });
+      try {
+        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(cleaned));
+      } catch {}
+      return cleaned;
+    });
+
+    setFriendRequests((prev) => {
+      const cleaned = prev.filter((r) => r.fromUid !== uidToDelete && r.toUid !== uidToDelete);
+      try {
+        localStorage.setItem(STORAGE_KEYS.REQUESTS, JSON.stringify(cleaned));
+      } catch {}
+      return cleaned;
+    });
+
+    purgeUserPostsAndCommentsInFirestore(uidToDelete).catch((err) => {
+      console.warn('Background Firestore purge notice:', err);
+    });
+
+    // 5. Remove from in-memory directory & localStorage users cache
     setUsers((prev) => {
       const next = prev.filter((u) => u.uid !== uidToDelete);
       try {
@@ -4919,10 +5234,36 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       } catch {}
       return next;
     });
-    logout({ revokeBiometrics: true });
-    showToast('Account permanently deleted from the database.', 'info');
+
+    setSelectedUserIdForModal((prev) => (prev === uidToDelete ? null : prev));
+
+    // 6. Preserve anonymized security/governance audit trail without PII linking to future registrations
+    try {
+      addAuditLog({
+        action: 'ACCOUNT_SOFT_DELETED',
+        actorId: currentUserIdRef.current || 'system_admin',
+        actorName: mode === 'self' ? 'Account Owner' : 'Institutional Administrator',
+        actorRole: currentUserRoleRef.current || 'superadmin',
+        category: 'user_management',
+        details: 'Soft-deleted account profile and permanently purged authored posts and comments. Institutional verification record released for fresh verification.',
+        severity: 'warning',
+        targetRecordId: `redacted_${uidToDelete.slice(-6)}`
+      });
+    } catch {}
+
+    if (mode === 'self' || uidToDelete === currentUserId) {
+      logout({ revokeBiometrics: true });
+      showToast('Account permanently deleted from the database.', 'info');
+    } else {
+      showToast('Member account deleted and posts/comments purged.', 'info');
+    }
+
     return true;
-  }, [users, logout, showToast]);
+  }, [users, currentUserId, logout, showToast, addAuditLog]);
+
+  const performFullAccountDeletion = useCallback(async (uidToDelete: string): Promise<boolean> => {
+    return cascadeDeleteAccount(uidToDelete, 'self');
+  }, [cascadeDeleteAccount]);
 
   const deleteAccount = async (): Promise<boolean> => {
     if (!currentUserId) return false;
@@ -8511,17 +8852,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const deleteAlumni = async (uid: string): Promise<boolean> => {
     if (!permissions.canAccessAdminPanel) {
-      showToast('Permission denied: Only administrators can remove alumni records.');
+      showToast('Permission denied: Only administrators can remove alumni records.', 'error');
       return false;
     }
     try {
-      await alumniService.deleteAlumni(uid);
-      setUsers((prev) => prev.filter((u) => u.uid !== uid));
-      showToast('Alumni record deleted successfully from directory.');
-      return true;
+      return await cascadeDeleteAccount(uid, 'admin');
     } catch (err) {
       console.error('Failed to delete alumnus:', err);
-      showToast('Error removing alumni record from Firestore.');
+      showToast('Error removing alumni record.', 'error');
       return false;
     }
   };
@@ -8530,10 +8868,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const fetchAlumni = async (): Promise<UserProfile[]> => {
     try {
       setIsFirestoreSyncing(true);
-      const liveUsers = await alumniService.getAllAlumni();
+      const [deletedRes, liveUsers] = await Promise.all([
+        fetch('/api/auth/deleted-uids').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        alumniService.getAllAlumni()
+      ]);
+      const serverDeletedUids: string[] = Array.isArray(deletedRes?.deletedUids) ? deletedRes.deletedUids : [];
+      const firestoreDeletedUids = (liveUsers || []).filter((u) => isAccountDeleted(u)).map((u) => u.uid);
+      const allDeletedSet = addDeletedAccountUids([...serverDeletedUids, ...firestoreDeletedUids]);
+      purgeDeletedUidsFromVaultAndStorage(allDeletedSet);
+
       if (liveUsers && liveUsers.length > 0) {
-        const normalized = liveUsers.map((u) => ({ ...u, role: normalizeSystemRole(u.role) }));
+        const normalized = liveUsers
+          .filter((u) => !allDeletedSet.has(u.uid) && !isAccountDeleted(u))
+          .map((u) => ({ ...u, role: normalizeSystemRole(u.role) }));
         setUsers(normalized);
+        try {
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(normalized));
+        } catch {}
         return normalized;
       }
       return [];
@@ -9668,6 +10019,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           STORAGE_KEYS.BACKUPS,
           STORAGE_KEYS.RESERVATIONS,
           CREDENTIALS_VAULT_KEY,
+          DELETED_ACCOUNT_UIDS_KEY,
           'st_cecilia_credentials_vault',
           'st_cecilia_registrar_student_records',
           'st_cecilia_registrar_records_v1',

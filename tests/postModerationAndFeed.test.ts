@@ -626,15 +626,13 @@ describe('Alumni Feed, Profile Timeline, Moderation, Superadmin RBAC & Deep-Link
     const sharedEntry = joseTimeline.json.posts.find((p: InstitutionalFeedPost) => p.sharedFromPostId === 'tp_1');
     expect(sharedEntry?.sharedLabel).toBe('Shared');
 
-    // Delete Maria's account -> anonymizes existing posts as 'Former alumni'
+    // Delete Maria's account -> permanently deletes all posts & comments authored by Maria and leaves unavailable tombstone
     const delAccRes = await apiCall('/api/profiles/me', { method: 'DELETE', uid: 'usr_alumni_1' });
     expect(delAccRes.status).toBe(200);
-    expect(delAccRes.json.anonymizedPosts).toBeGreaterThanOrEqual(1);
+    expect(delAccRes.json.deletedPosts).toBeGreaterThanOrEqual(1);
 
     const postAfterDel = await apiCall('/api/posts/tp_1', { uid: 'usr_alumni_3' });
-    expect(postAfterDel.status).toBe(200);
-    expect(postAfterDel.json.post.authorName).toBe('Former alumni');
-    expect(postAfterDel.json.post.authorDeleted).toBe(true);
+    expect(postAfterDel.status).toBe(404);
 
     const deletedProfileView = await apiCall('/api/profiles/usr_alumni_1', { uid: 'usr_alumni_3' });
     expect(deletedProfileView.status).toBe(200);

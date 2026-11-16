@@ -397,4 +397,121 @@ describe('PostModerationEngine moderation queue, legacy post normalization, and 
     const deduped = dedupePostsById([shared, regularPost, shared, regularPost, pinnedAdminPost]);
     expect(deduped.map((p) => p.id)).toEqual([shared.id, regularPost.id, pinnedAdminPost.id]);
   });
+
+  it('permanently deletes posts and comments on soft-delete, blocks tombstone revival, and preserves anonymized audit logs', () => {
+    const engine = new PostModerationEngine({ persistToDisk: false });
+    const deletedAdapterUids: string[] = [];
+    const adapterUsers = new Map<string, any>();
+
+    engine.setUserAccountAdapter({
+      getUserByUid: (uid) => adapterUsers.get(uid),
+      updateUserSuspension: () => {},
+      getModeratorsAndAdmins: () => [],
+      deleteUserAccount: (uid) => {
+        deletedAdapterUids.push(uid);
+        adapterUsers.delete(uid);
+      }
+    });
+
+    const superadmin = { uid: 'usr_superadmin_cecilia', name: 'Super Admin', email: 'superadmin@stcecilia.edu.ph', role: 'superadmin' };
+    const admin = { uid: 'u_admin_1', name: 'Admin One', email: 'admin1@stcecilia.edu.ph', role: 'admin' };
+    const admin2 = { uid: 'u_admin_2', name: 'Admin Two', email: 'admin2@stcecilia.edu.ph', role: 'admin' };
+    const targetAlumni = {
+      uid: 'u_target_del',
+      name: 'Maria Deleted',
+      email: 'maria.del@stcecilia.edu.ph',
+      batch: '2021',
+      role: 'alumni'
+    };
+    const peerAlumni = { uid: 'u_peer_keep', name: 'Juan Keep', email: 'juan.keep@stcecilia.edu.ph', role: 'alumni' };
+
+    [superadmin, admin, admin2, targetAlumni, peerAlumni].forEach((u) => {
+      adapterUsers.set(u.uid, { ...u });
+      engine.upsertProfileRecord({ ...u, accountStatus: 'ACTIVE', status: 'ACTIVE' }, false);
+    });
+
+    // Target creates a post and comments + reacts on Peer's post
+    const targetPost = engine.upsertPost(
+      {
+        id: 'post_from_deleted_user',
+        authorId: targetAlumni.uid,
+        authorName: targetAlumni.name,
+        authorRole: 'alumni',
+        authorAvatar: '',
+        postType: 'update',
+        title: 'Target Post',
+        content: 'Will be permanently deleted',
+        likes: [],
+        hearts: [],
+        comments: [],
+        sharesCount: 0,
+        visibility: 'alumni',
+        createdAt: new Date().toISOString()
+      },
+      targetAlumni
+    );
+
+    const peerPost = engine.upsertPost(
+      {
+        id: 'post_from_peer_user',
+        authorId: peerAlumni.uid,
+        authorName: peerAlumni.name,
+        authorRole: 'alumni',
+        authorAvatar: '',
+        postType: 'update',
+        title: 'Peer Post',
+        content: 'Stays alive without deleted user comments',
+        likes: [],
+        hearts: [],
+        comments: [],
+        sharesCount: 0,
+        visibility: 'alumni',
+        createdAt: new Date().toISOString()
+      },
+      peerAlumni
+    );
+
+    engine.togglePostReaction(peerPost.id, targetAlumni, 'heart');
+    engine.addPostComment(peerPost.id, targetAlumni, 'Comment from user about to be deleted');
+    engine.addPostComment(peerPost.id, peerAlumni, 'Peer self note');
+
+    // Admin cannot delete another admin or primary superadmin
+    expect(() => engine.deleteAndAnonymizeAccount(superadmin.uid, superadmin)).toThrow(/cannot be deleted/i);
+    expect(() => engine.deleteAndAnonymizeAccount(admin2.uid, admin)).toThrow(/only super administrators/i);
+
+    // Superadmin soft-deletes targetAlumni
+    const result = engine.deleteAndAnonymizeAccount(targetAlumni.uid, superadmin);
+    expect(result.success).toBe(true);
+    expect(result.deletedPosts).toBe(1);
+    expect(result.deletedComments).toBe(1);
+    expect(deletedAdapterUids).toContain(targetAlumni.uid);
+
+    // Target's own post is permanently gone from feed
+    const feed = engine.getMainFeed(peerAlumni, { limit: 20 });
+    expect(feed.posts.some((p) => p.id === targetPost.id)).toBe(false);
+
+    // Target's comment & heart are permanently stripped from peerPost while peer's own comment stays
+    const refreshedPeerPost = feed.posts.find((p) => p.id === peerPost.id);
+    expect(refreshedPeerPost).toBeDefined();
+    expect(refreshedPeerPost!.comments.some((c) => c.authorId === targetAlumni.uid)).toBe(false);
+    expect(refreshedPeerPost!.comments.some((c) => c.authorId === peerAlumni.uid)).toBe(true);
+    expect(refreshedPeerPost!.hearts).not.toContain(targetAlumni.uid);
+
+    // Tombstone cannot be revived by upsertProfileRecord
+    const revivedAttempt = engine.upsertProfileRecord(
+      { uid: targetAlumni.uid, name: 'Maria Revived', email: 'maria.del@stcecilia.edu.ph', role: 'alumni' },
+      false
+    );
+    expect(revivedAttempt.isDeleted).toBe(true);
+    expect(revivedAttempt.email).toBe('');
+    expect(revivedAttempt.batch).toBeUndefined();
+
+    // Anonymized audit trail exists without exposing personal email/name
+    const logs = engine.getAuditLogs(superadmin);
+    const delLog = logs.find((l) => l.action === 'ACCOUNT_SOFT_DELETED');
+    expect(delLog).toBeDefined();
+    expect(delLog?.note || '').not.toContain('maria.del@stcecilia.edu.ph');
+    expect(delLog?.note || '').not.toContain('Maria Deleted');
+  });
 });
+

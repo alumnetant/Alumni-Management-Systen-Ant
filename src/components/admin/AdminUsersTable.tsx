@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { UserProfile, UserRole, isAdministrativeOrStaffRole } from '../../types';
+import { isAccountDeleted } from '../../lib/postVisibility';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { exportAlumniRosterCsv, exportAlumniRosterExcel } from '../../services/adminExportService';
 import { ConfirmationModal } from '../common/ConfirmationModal';
@@ -136,24 +137,26 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
     setCurrentPage(1);
   }, [searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter, sortBy]);
 
+  const activeUsers = useMemo(() => users.filter((u) => !isAccountDeleted(u)), [users]);
+
   // Aggregate counts for quick tabs and options
-  const totalVerified = useMemo(() => users.filter((u) => u.isVerified).length, [users]);
-  const totalPending = useMemo(() => users.filter((u) => !u.isVerified).length, [users]);
-  const totalAlumniOnly = useMemo(() => users.filter((u) => u.role === 'alumni').length, [users]);
+  const totalVerified = useMemo(() => activeUsers.filter((u) => u.isVerified).length, [activeUsers]);
+  const totalPending = useMemo(() => activeUsers.filter((u) => !u.isVerified).length, [activeUsers]);
+  const totalAlumniOnly = useMemo(() => activeUsers.filter((u) => u.role === 'alumni').length, [activeUsers]);
   const totalStaffAdmin = useMemo(
-    () => users.filter((u) => u.role !== 'employer' && (u.role === 'admin' || u.role === 'superadmin' || u.role === 'moderator')).length,
-    [users]
+    () => activeUsers.filter((u) => u.role !== 'employer' && (u.role === 'admin' || u.role === 'superadmin' || u.role === 'moderator')).length,
+    [activeUsers]
   );
-  const totalEmployers = useMemo(() => users.filter((u) => u.role === 'employer').length, [users]);
+  const totalEmployers = useMemo(() => activeUsers.filter((u) => u.role === 'employer').length, [activeUsers]);
 
   // Distinct batches with user counts
   const batchCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    users.forEach((u) => {
+    activeUsers.forEach((u) => {
       if (u.batch) counts[u.batch] = (counts[u.batch] || 0) + 1;
     });
     return counts;
-  }, [users]);
+  }, [activeUsers]);
 
   const allBatches = useMemo(() => {
     const batches = Object.keys(batchCounts);
@@ -162,11 +165,11 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
 
   const roleBreakdown = useMemo(() => {
     const counts: Record<string, number> = {};
-    users.forEach((u) => {
+    activeUsers.forEach((u) => {
       counts[u.role] = (counts[u.role] || 0) + 1;
     });
     return counts;
-  }, [users]);
+  }, [activeUsers]);
 
   // Active filter counter
   const activeFiltersCount = useMemo(() => {
@@ -202,7 +205,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
   const filteredUsers = useMemo(() => {
     const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
 
-    const matches = users.filter((u) => {
+    const matches = activeUsers.filter((u) => {
       // Tokenized multi-term search across all key attributes
       const matchesSearch =
         tokens.length === 0 ||
@@ -281,7 +284,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
       }
       return 0;
     });
-  }, [users, searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter, sortBy]);
+  }, [activeUsers, searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter, sortBy]);
 
   // Reset pagination on filter or search changes
   useEffect(() => {
@@ -353,14 +356,13 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
 
   const confirmDelete = async () => {
     if (!userToDelete) return;
-    const targetUser = users.find((u) => u.uid === userToDelete.uid);
+    const targetUser = activeUsers.find((u) => u.uid === userToDelete.uid);
     if ((targetUser?.role === 'admin' || targetUser?.role === 'superadmin') && currentUser?.role !== 'superadmin') {
       showToast('Only Superadmin accounts can delete institutional administrators.', 'error');
       setUserToDelete(null);
       return;
     }
     await deleteAlumni(userToDelete.uid);
-    showToast(`Member record for ${userToDelete.name} deleted.`, 'info');
     setUserToDelete(null);
   };
 
@@ -444,7 +446,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
             <button
               type="button"
               onClick={() => {
-                const target = filteredUsers.length > 0 ? filteredUsers : users;
+                const target = filteredUsers.length > 0 ? filteredUsers : activeUsers;
                 exportAlumniRosterCsv(target, 'st_cecilia_alumni_directory');
                 showToast(`Exported ${target.length} directory records to CSV!`, 'success');
               }}
@@ -457,7 +459,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
             <button
               type="button"
               onClick={() => {
-                const target = filteredUsers.length > 0 ? filteredUsers : users;
+                const target = filteredUsers.length > 0 ? filteredUsers : activeUsers;
                 exportAlumniRosterExcel(target, 'st_cecilia_alumni_directory');
                 showToast(`Exported ${target.length} directory records to Excel (.xlsx)!`, 'success');
               }}

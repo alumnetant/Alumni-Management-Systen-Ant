@@ -16,8 +16,10 @@ import {
   auth,
   FIRESTORE_COLLECTIONS,
   OperationType,
-  handleFirestoreError
+  handleFirestoreError,
+  softDeleteUserInFirestore
 } from '../lib/firebase';
+import { isAccountDeleted } from '../lib/postVisibility';
 import { UserProfile, UserRole } from '../types';
 import { INITIAL_USERS } from '../data/initialData';
 
@@ -170,7 +172,10 @@ export const alumniService = {
       const snapshot = await getDocs(q);
       let list: UserProfile[] = [];
       snapshot.forEach((d) => {
-        list.push(d.data() as UserProfile);
+        const data = d.data() as UserProfile;
+        if (!isAccountDeleted(data)) {
+          list.push(data);
+        }
       });
 
       // Filter in-memory for course or text search if specified
@@ -234,19 +239,12 @@ export const alumniService = {
   },
 
   /**
-   * DELETE: Delete an alumnus profile from Firestore
+   * DELETE: Soft-delete an alumnus profile in Firestore (wipe personal data & vault, retain anonymized tombstone)
    */
   async deleteAlumni(uid: string): Promise<void> {
     const docPath = `${FIRESTORE_COLLECTIONS.USERS}/${uid}`;
     try {
-      try {
-        const userSecRef = doc(db, FIRESTORE_COLLECTIONS.USERS, uid, 'security', 'vault');
-        await deleteDoc(userSecRef);
-      } catch {
-        // Security vault doc may not exist; continue deleting user record
-      }
-      const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, uid);
-      await deleteDoc(userRef);
+      await softDeleteUserInFirestore(uid);
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, docPath);
     }

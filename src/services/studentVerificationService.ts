@@ -5,11 +5,13 @@ import {
   saveRegistryRecordsBatchToFirestore,
   getRegistryRecordsFromFirestore,
   markRegistryRecordRegisteredInFirestore,
+  releaseRegistryRecordInFirestore,
   deleteRegistryRecordFromFirestore,
   saveConflictRecordToFirestore,
   getConflictRecordsFromFirestore,
   saveNotificationToFirestore
 } from '../lib/firebase';
+import { isAccountDeleted } from '../lib/postVisibility';
 import { generateSecureNumericCode, generateSecureId } from '../lib/secureId';
 
 /**
@@ -275,6 +277,45 @@ export function markRegistryRecordAsRegistered(studentId: string, uid: string = 
 }
 
 /**
+ * Releases the active account registration link on a registrar record during account soft-deletion.
+ * Keeps the core institutional verification record intact while allowing the Student/Alumni ID
+ * to be used for a brand-new registration requiring fresh verification.
+ */
+export function releaseRegistryRecordRegistration(studentId?: string, matchedUid?: string): void {
+  const norm = studentId ? normalizeStudentId(studentId).toUpperCase() : '';
+  if (!norm && !matchedUid) return;
+
+  const current = getRegistrarRecords();
+  const releasedStudentIds: string[] = [];
+
+  const updated = current.map((r) => {
+    const rNorm = normalizeStudentId(r.studentId).toUpperCase();
+    const matchesStudentId = Boolean(norm && rNorm === norm);
+    const matchesUid = Boolean(matchedUid && r.matchedUid && r.matchedUid === matchedUid);
+    if (matchesStudentId || matchesUid) {
+      releasedStudentIds.push(r.studentId);
+      const next: StudentVerificationRecord = {
+        ...r,
+        isRegistered: false
+      };
+      delete next.matchedUid;
+      delete next.registeredAt;
+      return next;
+    }
+    return r;
+  });
+
+  if (releasedStudentIds.length > 0) {
+    saveRegistrarRecords(updated);
+    releasedStudentIds.forEach((id) => {
+      releaseRegistryRecordInFirestore(id).catch(() => {});
+    });
+  } else if (norm) {
+    releaseRegistryRecordInFirestore(norm).catch(() => {});
+  }
+}
+
+/**
  * Clears and resets the registry back to initial accredited graduates
  */
 export function resetRegistrarRecords(): void {
@@ -382,9 +423,10 @@ export function validateStudentRegistrationStrict(
     };
   }
 
-  // Check if duplicate (already registered)
+  // Check if duplicate (already registered by an active non-deleted account)
   const alreadyRegisteredInUsers = existingUsers.some(
     (u) =>
+      !isAccountDeleted(u) &&
       u.studentId &&
       normalizeStudentId(u.studentId).toUpperCase() === normId
   );
@@ -1741,10 +1783,11 @@ export function evaluateIncomingRegistration(
   const applicantEmail = applicant.email ? applicant.email.trim().toLowerCase() : '';
   const applicantBatch = applicant.batch ? applicant.batch.trim() : '';
 
-  // 1. Check if the provided Student ID is already linked to another active account
+  // 1. Check if the provided Student ID is already linked to another active (non-deleted) account
   if (normId) {
     const existingAccountWithId = existingUsers.find(
       (u) =>
+        !isAccountDeleted(u) &&
         u.studentId &&
         normalizeStudentId(u.studentId).toUpperCase() === normId &&
         (!applicant.uid || u.uid !== applicant.uid)

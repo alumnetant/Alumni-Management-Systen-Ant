@@ -27,6 +27,7 @@ import {
   orderBy,
   limit,
   deleteDoc,
+  deleteField,
   writeBatch
 } from 'firebase/firestore';
 // Safely load local firebase config file if present, without crashing remote CI or Vercel builds
@@ -296,6 +297,9 @@ export interface FirestoreConversationMessageDoc {
  * Sync user profile to Firestore
  */
 export async function saveUserToFirestore(user: UserProfile): Promise<void> {
+  if (!user?.uid || user.isDeleted || user.accountStatus === 'DELETED' || user.status === 'DELETED') {
+    return;
+  }
   try {
     const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, user.uid);
     // Sanitize undefined fields and strip sensitive credentials
@@ -305,6 +309,125 @@ export async function saveUserToFirestore(user: UserProfile): Promise<void> {
   } catch (err) {
     console.warn('Failed to save user to Firestore:', err);
   }
+}
+
+/**
+ * Soft-delete user in Firestore: wipes personal profile fields and security vault
+ * while retaining an anonymized tombstone so stale clients/caches cannot resurrect the UID.
+ */
+export async function softDeleteUserInFirestore(uid: string): Promise<void> {
+  if (!uid) return;
+  try {
+    const userSecRef = doc(db, FIRESTORE_COLLECTIONS.USERS, uid, 'security', 'vault');
+    await deleteDoc(userSecRef).catch(() => {});
+  } catch {
+    // Ignore missing security subcollection
+  }
+  const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, uid);
+  const tombstone = {
+    uid,
+    name: 'Former Member (Deleted)',
+    role: 'alumni',
+    isDeleted: true,
+    accountStatus: 'DELETED',
+    status: 'DELETED',
+    deletedAt: new Date().toISOString()
+  };
+  await setDoc(userRef, tombstone);
+}
+
+/**
+ * Permanently purge all posts, comments, reactions, and social links belonging to a deleted user in Firestore.
+ */
+export async function purgeUserPostsAndCommentsInFirestore(targetUid: string): Promise<{ deletedPosts: number; updatedPosts: number }> {
+  let deletedPosts = 0;
+  let updatedPosts = 0;
+  if (!targetUid) return { deletedPosts, updatedPosts };
+
+  try {
+    const postsSnap = await getDocs(collection(db, FIRESTORE_COLLECTIONS.FEED_POSTS));
+    for (const postDoc of postsSnap.docs) {
+      const data = postDoc.data() as any;
+      if (data?.authorId === targetUid) {
+        try {
+          await deleteDoc(postDoc.ref);
+          deletedPosts++;
+        } catch (err) {
+          console.warn(`Notice deleting post ${postDoc.id} for deleted user:`, err);
+        }
+        continue;
+      }
+
+      const nextUpdates: Record<string, any> = {};
+      let needsUpdate = false;
+      if (Array.isArray(data?.comments)) {
+        const filteredComments = data.comments.filter((c: any) => c?.authorId !== targetUid);
+        if (filteredComments.length !== data.comments.length) {
+          nextUpdates.comments = filteredComments;
+          needsUpdate = true;
+        }
+      }
+      if (Array.isArray(data?.likes) && data.likes.includes(targetUid)) {
+        nextUpdates.likes = data.likes.filter((id: string) => id !== targetUid);
+        needsUpdate = true;
+      }
+      if (Array.isArray(data?.hearts) && data.hearts.includes(targetUid)) {
+        nextUpdates.hearts = data.hearts.filter((id: string) => id !== targetUid);
+        needsUpdate = true;
+      }
+      if (needsUpdate) {
+        try {
+          await updateDoc(postDoc.ref, nextUpdates);
+          updatedPosts++;
+        } catch (err) {
+          console.warn(`Notice removing deleted user's comments/reactions on post ${postDoc.id}:`, err);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Notice purging user feed posts/comments from Firestore:', err);
+  }
+
+  // Clean up event comments authored by the deleted user
+  try {
+    const eventsSnap = await getDocs(collection(db, FIRESTORE_COLLECTIONS.EVENTS));
+    for (const evDoc of eventsSnap.docs) {
+      const data = evDoc.data() as any;
+      if (Array.isArray(data?.comments)) {
+        const filtered = data.comments.filter((c: any) => c?.authorId !== targetUid);
+        if (filtered.length !== data.comments.length) {
+          await updateDoc(evDoc.ref, { comments: filtered }).catch(() => {});
+        }
+      }
+    }
+  } catch {}
+
+  // Clean up pending/accepted friend requests and connections involving deleted user
+  try {
+    const reqSnap = await getDocs(collection(db, FIRESTORE_COLLECTIONS.FRIEND_REQUESTS));
+    for (const reqDoc of reqSnap.docs) {
+      const data = reqDoc.data() as any;
+      if (data?.fromUid === targetUid || data?.toUid === targetUid) {
+        await deleteDoc(reqDoc.ref).catch(() => {});
+      }
+    }
+  } catch {}
+
+  try {
+    const connSnap = await getDocs(collection(db, FIRESTORE_COLLECTIONS.CONNECTIONS));
+    for (const connDoc of connSnap.docs) {
+      const data = connDoc.data() as any;
+      if (
+        data?.userId === targetUid ||
+        data?.connectedUserId === targetUid ||
+        (Array.isArray(data?.participants) && data.participants.includes(targetUid))
+      ) {
+        await deleteDoc(connDoc.ref).catch(() => {});
+      }
+    }
+  } catch {}
+
+  return { deletedPosts, updatedPosts };
 }
 
 /**
@@ -1136,6 +1259,25 @@ export async function markRegistryRecordRegisteredInFirestore(
 }
 
 /**
+ * Releases the active account registration link on a registrar masterlist record
+ * while keeping the institutional verification identity record intact for fresh re-registration.
+ */
+export async function releaseRegistryRecordInFirestore(studentId: string): Promise<void> {
+  if (!studentId) return;
+  try {
+    const docId = studentId.replace(/[\/\s]/g, '_');
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.REGISTRY_RECORDS, docId);
+    await updateDoc(docRef, {
+      isRegistered: false,
+      matchedUid: deleteField(),
+      registeredAt: deleteField()
+    });
+  } catch (err) {
+    console.warn('Failed to release registry registration link in Firestore:', err);
+  }
+}
+
+/**
  * Real-time subscription to registry records
  */
 export function subscribeToRegistryRecords(onUpdate: (records: StudentVerificationRecord[]) => void) {
@@ -1343,6 +1485,7 @@ export async function syncAllCollectionsToFirestore(payload: {
     if (payload.users && payload.users.length > 0) {
       payload.onProgress?.('Uploading alumni and accounts to Firestore...', 20);
       for (const user of payload.users) {
+        if (user.isDeleted || user.accountStatus === 'DELETED' || user.status === 'DELETED') continue;
         try {
           const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, user.uid);
           const sanitizedUser = JSON.parse(JSON.stringify(user));

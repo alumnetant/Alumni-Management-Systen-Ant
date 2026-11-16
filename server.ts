@@ -547,7 +547,16 @@ function persistCredentialsToDisk(): void {
   }
 }
 
+function isCredentialDeleted(u: any): boolean {
+  if (!u) return false;
+  const st = String(u.accountStatus || u.status || '').toUpperCase().trim();
+  return Boolean(u.isDeleted || st === 'DELETED' || (u.uid && deletedAccountUids.has(u.uid)));
+}
+
 function registerCredentialInDb(u: StoredUserCredential, persist: boolean = true) {
+  if (!u || !u.uid || isCredentialDeleted(u)) {
+    return;
+  }
   credentialsDb.set(u.uid, u);
   if (u.email) {
     credentialsDb.set(u.email.toLowerCase().trim(), u);
@@ -585,7 +594,38 @@ function registerCredentialInDb(u: StoredUserCredential, persist: boolean = true
   }
 }
 
+const DELETED_ACCOUNTS_FILE = path.join(process.cwd(), 'data', 'deleted_accounts.json');
 const deletedAccountUids = new Set<string>();
+
+function persistDeletedAccountsToDisk(): void {
+  try {
+    const dir = path.dirname(DELETED_ACCOUNTS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(DELETED_ACCOUNTS_FILE, JSON.stringify(Array.from(deletedAccountUids), null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[Credentials DB] Failed to persist deleted account UIDs to disk:', err);
+  }
+}
+
+function loadDeletedAccountsFromDisk(): void {
+  try {
+    if (fs.existsSync(DELETED_ACCOUNTS_FILE)) {
+      const raw = fs.readFileSync(DELETED_ACCOUNTS_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((uid) => {
+          if (typeof uid === 'string' && uid.trim()) {
+            deletedAccountUids.add(uid.trim());
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[Credentials DB] Could not read deleted account UIDs from disk:', err);
+  }
+}
 
 function deleteCredentialFromDb(uid: string, persist: boolean = true) {
   if (!uid) return;
@@ -595,13 +635,19 @@ function deleteCredentialFromDb(uid: string, persist: boolean = true) {
       credentialsDb.delete(key);
     }
   }
+  const activeSess = activeSessions.get(uid);
+  if (activeSess?.token) {
+    revokedTokens.add(activeSess.token);
+  }
   activeSessions.delete(uid);
   for (const [token, session] of Array.from(refreshTokenStore.entries())) {
     if (session.uid === uid) {
+      revokedTokens.add(token);
       refreshTokenStore.delete(token);
     }
   }
   if (persist) {
+    persistDeletedAccountsToDisk();
     persistCredentialsToDisk();
   }
 }
@@ -613,7 +659,9 @@ function loadCredentialsFromDisk(): boolean {
       const records: StoredUserCredential[] = JSON.parse(raw);
       if (Array.isArray(records) && records.length > 0) {
         records.forEach((cred) => {
-          registerCredentialInDb(cred, false);
+          if (!isCredentialDeleted(cred)) {
+            registerCredentialInDb(cred, false);
+          }
         });
         console.log(`[Credentials DB] Successfully hydrated ${records.length} user records from disk.`);
         return true;
@@ -624,6 +672,8 @@ function loadCredentialsFromDisk(): boolean {
   }
   return false;
 }
+
+loadDeletedAccountsFromDisk();
 
 // Initialize seed users
 seedUsers.forEach((u) => {
@@ -839,6 +889,12 @@ function requireServerAuth(req: Request, res: Response, next: NextFunction) {
     }
 
     const userUid = payload.uid || payload.user_id || payload.sub || 'usr_session';
+    if (deletedAccountUids.has(userUid)) {
+      return res.status(401).json({
+        error: 'This account has been deleted.',
+        code: 'ACCOUNT_DELETED'
+      });
+    }
 
     if (payload.exp && typeof payload.exp === 'number') {
       const expMs = payload.exp < 10000000000 ? payload.exp * 1000 : payload.exp;
@@ -1268,7 +1324,7 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
   }
 
   // Password verification is strictly mandatory - never allow login without valid password
-  if (!user || !verifyPassword(password, user.salt, user.hash)) {
+  if (!user || isCredentialDeleted(user) || !verifyPassword(password, user.salt, user.hash)) {
     return res.status(401).json({ error: 'Invalid email address/Student ID or password.' });
   }
 
@@ -1866,7 +1922,14 @@ app.post('/api/auth/sync-credentials', (req: Request, res: Response) => {
   res.json({
     success: true,
     syncedCount,
-    totalRecords: Array.from(new Set(Array.from(credentialsDb.values()).map((c) => c.uid))).length
+    totalRecords: Array.from(new Set(Array.from(credentialsDb.values()).map((c) => c.uid))).length,
+    deletedUids: Array.from(deletedAccountUids)
+  });
+});
+
+app.get('/api/auth/deleted-uids', (_req: Request, res: Response) => {
+  res.json({
+    deletedUids: Array.from(deletedAccountUids)
   });
 });
 
@@ -1963,7 +2026,7 @@ app.post('/api/auth/refresh', authRateLimiter, (req: Request, res: Response) => 
   if (!user && payload.email) {
     user = credentialsDb.get(payload.email.toLowerCase());
   }
-  if (!user) {
+  if (!user || isCredentialDeleted(user)) {
     return res.status(404).json({ error: 'Account not found in university directory.', code: 'USER_NOT_FOUND' });
   }
 
@@ -2060,10 +2123,17 @@ app.get('/api/auth/session', requireServerAuth, (req: Request, res: Response) =>
     return res.status(401).json({ error: 'Invalid session payload.', code: 'INVALID_SESSION' });
   }
 
+  if (deletedAccountUids.has(userPayload.uid)) {
+    return res.status(401).json({ error: 'Account has been deleted.', code: 'ACCOUNT_DELETED' });
+  }
+
   // Lookup freshest credential record in database
   let matchedUser = credentialsDb.get(userPayload.uid);
   if (!matchedUser && userPayload.email) {
     matchedUser = credentialsDb.get(userPayload.email.toLowerCase());
+  }
+  if (matchedUser && isCredentialDeleted(matchedUser)) {
+    return res.status(401).json({ error: 'Account has been deleted.', code: 'ACCOUNT_DELETED' });
   }
 
   const activeSess = activeSessions.get(userPayload.uid);
@@ -2383,16 +2453,22 @@ app.get('/api/auth/verify-email/status', (req: Request, res: Response) => {
 
 // 6.6 Admin Route: Server-side Protected User Management
 app.get('/api/admin/users', requireServerAuth, requireRole(['admin', 'superadmin', 'staff', 'registrar']), (_req: Request, res: Response) => {
-  const userList = Array.from(credentialsDb.values()).map((u) => ({
-    uid: u.uid,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    status: u.accountStatus || u.status || 'ACTIVE',
-    accountStatus: u.accountStatus || u.status || 'ACTIVE',
-    emailVerified: u.emailVerified
-  }));
-  res.json({ users: userList });
+  const seen = new Set<string>();
+  const userList: Array<Record<string, any>> = [];
+  for (const u of credentialsDb.values()) {
+    if (!u?.uid || seen.has(u.uid) || isCredentialDeleted(u)) continue;
+    seen.add(u.uid);
+    userList.push({
+      uid: u.uid,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      status: u.accountStatus || u.status || 'ACTIVE',
+      accountStatus: u.accountStatus || u.status || 'ACTIVE',
+      emailVerified: u.emailVerified
+    });
+  }
+  res.json({ users: userList, deletedUids: Array.from(deletedAccountUids) });
 });
 
 // 6.6.0 Moderator Quota Status Route (Strict Max 3 Active Accounts)
@@ -3408,8 +3484,13 @@ app.get('/api/alumni/directory', requireServerAuth, (req: Request, res: Response
   }
 
   // Data Minimization: Return only public fields and respect individual privacy flags
+  const seenDirectoryUids = new Set<string>();
   const publicAlumni = Array.from(credentialsDb.values())
-    .filter((u) => u.role === 'alumni')
+    .filter((u) => {
+      if (!u?.uid || seenDirectoryUids.has(u.uid) || isCredentialDeleted(u)) return false;
+      seenDirectoryUids.add(u.uid);
+      return u.role === 'alumni';
+    })
     .map((u) => {
       const showEmail = u.show_email !== false;
       const showPhone = u.show_phone !== false;
@@ -5788,7 +5869,9 @@ app.post('/api/jobs/:id/report', (req: Request, res: Response) => {
 // ============================================================================
 postModerationEngine.setUserAccountAdapter({
   getUserByUid: (uid: string) => {
+    if (deletedAccountUids.has(uid)) return undefined;
     const cred = credentialsDb.get(uid);
+    if (cred && isCredentialDeleted(cred)) return undefined;
     const seed = INITIAL_USERS.find((u) => u.uid === uid);
     if (cred && seed) {
       return { ...seed, ...cred };
@@ -5796,6 +5879,7 @@ postModerationEngine.setUserAccountAdapter({
     return cred || seed;
   },
   updateUserSuspension: (uid, payload) => {
+    if (deletedAccountUids.has(uid)) return;
     const targetUser = credentialsDb.get(uid);
     if (!targetUser) return;
     targetUser.accountStatus = payload.accountStatus;
@@ -5805,8 +5889,8 @@ postModerationEngine.setUserAccountAdapter({
       (targetUser as any).isDeactivated = true;
     }
     if (payload.accountStatus === 'DELETED') {
-      (targetUser as any).isDeleted = true;
-      targetUser.name = 'Former alumni';
+      deleteCredentialFromDb(uid, true);
+      return;
     }
     targetUser.suspensionReason = payload.reason;
     targetUser.suspensionEndDate = payload.endDate;
@@ -5866,7 +5950,7 @@ postModerationEngine.setUserAccountAdapter({
     const seen = new Set<string>();
     const list: Array<{ uid: string; name: string; email: string; role: string }> = [];
     for (const cred of credentialsDb.values()) {
-      if (seen.has(cred.uid)) continue;
+      if (seen.has(cred.uid) || isCredentialDeleted(cred)) continue;
       seen.add(cred.uid);
       const r = (cred.role || '').toLowerCase().trim();
       if (['moderator', 'admin', 'superadmin'].includes(r)) {
@@ -5883,9 +5967,12 @@ postModerationEngine.setUserAccountAdapter({
   getAllUsers: () => {
     const byUid = new Map<string, any>();
     for (const seed of INITIAL_USERS) {
-      byUid.set(seed.uid, { ...seed });
+      if (!isCredentialDeleted(seed)) {
+        byUid.set(seed.uid, { ...seed });
+      }
     }
     for (const cred of credentialsDb.values()) {
+      if (isCredentialDeleted(cred)) continue;
       const prev = byUid.get(cred.uid) || {};
       byUid.set(cred.uid, { ...prev, ...cred });
     }

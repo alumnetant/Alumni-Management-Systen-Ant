@@ -1356,7 +1356,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setFormLock(null);
 
     if (finalStudentId) {
-      markRegistryRecordAsRegistered(finalStudentId, `user_${Date.now()}`);
       addAuditLog({
         action: 'INSTANT_REGISTRY_AUTO_REGISTRATION',
         actorId: 'alumni_registration_screening',
