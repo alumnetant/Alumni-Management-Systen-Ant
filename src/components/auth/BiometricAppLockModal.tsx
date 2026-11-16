@@ -757,7 +757,7 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
                 </div>
               ) : (
                 <p className="text-[10px] text-stone-400 mb-2 font-mono">
-                  Default Emergency PIN: <strong className="text-stone-300">1973</strong> (Founding Year)
+                  Enter your 4-6 digit Emergency PIN
                 </p>
               )}
 
@@ -863,7 +863,7 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
                 className="w-full py-2 px-3 bg-stone-850 hover:bg-stone-800 text-stone-300 hover:text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <KeyRound className="w-3 h-3 text-amber-400" />
-                <span>Use Emergency PIN Fallback (1973)</span>
+                <span>Use Emergency PIN Fallback</span>
               </button>
             ) : (
               <button

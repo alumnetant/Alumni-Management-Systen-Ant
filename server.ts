@@ -31,9 +31,9 @@ const PORT = 3000;
 const IS_PROD = process.env.NODE_ENV === 'production';
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'institutional-secure-webhook-key-2026';
 
-// Parse JSON bodies with a conservative size limit to mitigate DoS
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+// Parse JSON bodies with an appropriate limit for base64 post photos and profile sync
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // ============================================================================
 // 1. CORS & SECURITY HEADERS (CORS for Android APK, CSP, HSTS, Sniffing)
@@ -580,6 +580,27 @@ function registerCredentialInDb(u: StoredUserCredential, persist: boolean = true
     credentialsDb.set(`scc-${eClean}`, u);
   }
 
+  if (persist) {
+    persistCredentialsToDisk();
+  }
+}
+
+const deletedAccountUids = new Set<string>();
+
+function deleteCredentialFromDb(uid: string, persist: boolean = true) {
+  if (!uid) return;
+  deletedAccountUids.add(uid);
+  for (const [key, cred] of Array.from(credentialsDb.entries())) {
+    if (cred.uid === uid) {
+      credentialsDb.delete(key);
+    }
+  }
+  activeSessions.delete(uid);
+  for (const [token, session] of Array.from(refreshTokenStore.entries())) {
+    if (session.uid === uid) {
+      refreshTokenStore.delete(token);
+    }
+  }
   if (persist) {
     persistCredentialsToDisk();
   }
@@ -1788,6 +1809,10 @@ app.post('/api/auth/sync-credentials', (req: Request, res: Response) => {
   let syncedCount = 0;
   users.forEach((u: any) => {
     if (!u.email) return;
+    if (u.isDeleted || u.accountStatus === 'DELETED' || u.status === 'DELETED' || deletedAccountUids.has(u.uid)) {
+      if (u.uid) deleteCredentialFromDb(u.uid, false);
+      return;
+    }
     const normEmail = String(u.email).toLowerCase().trim();
     let existing = credentialsDb.get(normEmail) || credentialsDb.get(u.uid);
 
@@ -5833,6 +5858,9 @@ postModerationEngine.setUserAccountAdapter({
     }
 
     registerCredentialInDb(targetUser, true);
+  },
+  deleteUserAccount: (uid: string) => {
+    deleteCredentialFromDb(uid, true);
   },
   getModeratorsAndAdmins: () => {
     const seen = new Set<string>();

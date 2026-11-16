@@ -128,10 +128,10 @@ export const PostCard: React.FC<PostCardProps> = ({
   const isHeartedByMe = Boolean(currentUser?.uid && reactorUids.includes(currentUser.uid));
   const comments = Array.isArray(post.comments) ? post.comments : [];
 
-  const isSelfUpdate = Boolean(isOwner && post.postType === 'update');
+  const isSelfPost = Boolean(isOwner && !post.isAnonymous);
 
   const handleToggleHeart = () => {
-    if (isSelfUpdate) {
+    if (isSelfPost) {
       showToast('You cannot congratulate or react to your own post.', 'info');
       return;
     }
@@ -541,8 +541,9 @@ export const PostCard: React.FC<PostCardProps> = ({
         {/* Media Attachment */}
         {mediaUrl && (
           <DoubleTapHeartOverlay
+            disabled={isSelfPost}
             onTrigger={() => {
-              if (!isSelfUpdate) {
+              if (!isSelfPost) {
                 handleToggleHeart();
               } else {
                 showToast('You cannot congratulate or react to your own post.', 'info');
@@ -604,10 +605,10 @@ export const PostCard: React.FC<PostCardProps> = ({
             onToggle={handleToggleHeart}
             reactorUids={reactorUids}
             allUsers={users}
-            disabled={isSelfUpdate}
+            disabled={isSelfPost}
             variant="button"
-            label={isSelfUpdate ? 'Own Post' : isHeartedByMe ? 'Hearted' : 'Heart'}
-            className={`w-full ${isSelfUpdate ? 'opacity-50 cursor-not-allowed' : ''}`}
+            label={isSelfPost ? 'Own Post' : isHeartedByMe ? 'Hearted' : 'Heart'}
+            className={`w-full ${isSelfPost ? 'opacity-50 cursor-not-allowed' : ''}`}
           />
 
           <button

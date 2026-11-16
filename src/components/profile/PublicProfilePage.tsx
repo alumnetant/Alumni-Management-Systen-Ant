@@ -918,14 +918,16 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
           </div>
 
           {/* Metrics Ribbon */}
-          <div className="mt-5 grid grid-cols-3 gap-3 p-3.5 bg-stone-50/90 dark:bg-stone-800/50 rounded-2xl border border-stone-200/70 dark:border-stone-700/60 text-center">
-            <div>
-              <div className="text-lg font-bold font-mono tabular-nums text-stone-900 dark:text-white">
-                {totalCount || profile.postsCount || 0}
+          <div className={`mt-5 grid ${profile.role === 'employer' ? 'grid-cols-2' : 'grid-cols-3'} gap-3 p-3.5 bg-stone-50/90 dark:bg-stone-800/50 rounded-2xl border border-stone-200/70 dark:border-stone-700/60 text-center`}>
+            {profile.role !== 'employer' && (
+              <div>
+                <div className="text-lg font-bold font-mono tabular-nums text-stone-900 dark:text-white">
+                  {totalCount || profile.postsCount || 0}
+                </div>
+                <div className="text-[11px] text-stone-500 dark:text-stone-400">Published Posts</div>
               </div>
-              <div className="text-[11px] text-stone-500 dark:text-stone-400">Published Posts</div>
-            </div>
-            <div className="border-x border-stone-200/70 dark:border-stone-700/60">
+            )}
+            <div className={profile.role === 'employer' ? 'border-r border-stone-200/70 dark:border-stone-700/60' : 'border-x border-stone-200/70 dark:border-stone-700/60'}>
               <div className="text-lg font-bold font-mono tabular-nums text-stone-900 dark:text-white">
                 {profile.connectionsCount || 0}
               </div>
@@ -935,7 +937,9 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
               <div className="text-lg font-bold font-mono tabular-nums text-[#8B181B] dark:text-red-400">
                 {profile.batch || '—'}
               </div>
-              <div className="text-[11px] text-stone-500 dark:text-stone-400">Batch</div>
+              <div className="text-[11px] text-stone-500 dark:text-stone-400">
+                {profile.role === 'employer' ? 'Partner Cohort' : 'Batch'}
+              </div>
             </div>
           </div>
 
@@ -943,14 +947,16 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
           <div className="mt-6 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-6">
               {(
-                [
-                  { id: 'posts', label: 'Posts', icon: Megaphone },
-                  { id: 'media', label: 'Media', icon: ImageIcon },
-                  { id: 'about', label: 'About', icon: FileText }
-                ] as const
+                profile.role === 'employer'
+                  ? ([{ id: 'about', label: 'About', icon: FileText }] as const)
+                  : ([
+                      { id: 'posts', label: 'Posts', icon: Megaphone },
+                      { id: 'media', label: 'Media', icon: ImageIcon },
+                      { id: 'about', label: 'About', icon: FileText }
+                    ] as const)
               ).map((tab) => {
                 const Icon = tab.icon;
-                const active = subTab === tab.id;
+                const active = (profile.role === 'employer' ? 'about' : subTab) === tab.id;
                 return (
                   <button
                     key={tab.id}
@@ -969,7 +975,7 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
               })}
             </div>
 
-            {subTab !== 'about' && (
+            {profile.role !== 'employer' && subTab !== 'about' && (
               <div className="flex items-center gap-2 pb-2">
                 <select
                   value={postTypeFilter}
@@ -1043,8 +1049,8 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
         </div>
       )}
 
-      {/* Own Profile Inline Post Composer */}
-      {isSelf && subTab === 'posts' && (
+      {/* Own Profile Inline Post Composer (Disabled for Employer role) */}
+      {isSelf && subTab === 'posts' && profile.role !== 'employer' && currentUser?.role !== 'employer' && (
         <form
           onSubmit={handlePublishFromProfile}
           className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-5 space-y-3 shadow-[0_1px_3px_rgba(0,0,0,0.03)]"
@@ -1178,7 +1184,7 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
       )}
 
       {/* Sub-Tab Body */}
-      {subTab === 'about' ? (
+      {subTab === 'about' || profile.role === 'employer' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-6 space-y-3">
             <h2 className="text-sm font-bold uppercase tracking-wider text-stone-900 dark:text-white">

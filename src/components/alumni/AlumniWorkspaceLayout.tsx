@@ -1163,7 +1163,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
         {/* ======================================================
             PRIMARY ALUMNI CONTENT VIEWPORT
             ====================================================== */}
-        <main className="flex-1 min-w-0 w-full max-w-full px-3 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
+        <main className="flex-1 min-w-0 w-full max-w-full px-3 sm:px-6 lg:px-8 py-6 pb-32 lg:pb-10">
           <PullToRefreshWrapper onRefresh={refreshData} isOnline={isOnline}>
             <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto">
               {viewedProfileIdentifier ? (
@@ -1375,7 +1375,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
           onClick={() => setShowDigitalPassModal(false)}
         >
           <div
-            className="max-w-xl w-full"
+            className="max-w-2xl w-full"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3 text-white px-1">
@@ -1427,6 +1427,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       <FloatingQuickDock
         onOpenPass={() => setShowDigitalPassModal(true)}
         onOpenSearch={() => setShowCommandPalette(true)}
+        hide={currentModule === 'settings'}
       />
 
     </div>

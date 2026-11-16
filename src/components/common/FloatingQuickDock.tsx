@@ -6,22 +6,31 @@ import { triggerHaptic } from '../../services/hapticsService';
 interface FloatingQuickDockProps {
   onOpenPass?: () => void;
   onOpenSearch?: () => void;
+  hide?: boolean;
 }
 
 export const FloatingQuickDock: React.FC<FloatingQuickDockProps> = ({
   onOpenPass,
-  onOpenSearch
+  onOpenSearch,
+  hide = false
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
+      if (hide) {
+        setIsVisible(false);
+        return;
+      }
       const windowScrolled = window.scrollY > 200;
       const mainEl = document.querySelector('main');
       const mainScrolled = (mainEl?.scrollTop || 0) > 200;
-      setIsVisible(windowScrolled || mainScrolled);
+      const nearBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 100;
+      setIsVisible((windowScrolled || mainScrolled) && !nearBottom);
     };
 
+    handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     const mainEl = document.querySelector('main');
     if (mainEl) {
@@ -34,7 +43,7 @@ export const FloatingQuickDock: React.FC<FloatingQuickDockProps> = ({
         mainEl.removeEventListener('scroll', handleScroll);
       }
     };
-  }, []);
+  }, [hide]);
 
   const handleScrollToTop = () => {
     triggerHaptic?.('light');
@@ -65,7 +74,7 @@ export const FloatingQuickDock: React.FC<FloatingQuickDockProps> = ({
 
   return (
     <AnimatePresence>
-      {isVisible && (
+      {!hide && isVisible && (
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}

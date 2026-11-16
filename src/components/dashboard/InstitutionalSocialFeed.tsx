@@ -106,7 +106,10 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
   const canPublishPost = Boolean(
     currentUser &&
       currentUser.role !== 'employer' &&
-      (currentUser.role !== 'alumni' || currentUser.isVerified)
+      (currentUser.role !== 'alumni' ||
+        currentUser.isVerified ||
+        (currentUser as any).verified ||
+        currentUser.verificationStatus === 'verified')
   );
 
   // Build local fallback page using the shared single visibility evaluator
@@ -264,9 +267,9 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
     void loadFeedPage(null, false);
   }, [activeFilter, searchQuery, currentUser?.uid, currentUser?.blockedUsers?.length]);
 
-  // Synchronize optimistic context mutations (reactions, comments, edits, deletes) into stream
+  // Synchronize optimistic context mutations (creations, reactions, comments, edits, deletes) into stream
   useEffect(() => {
-    if (!feedPosts || feedPosts.length === 0) return;
+    if (!feedPosts) return;
     const contextMap = new Map(feedPosts.map((p) => [p.id, p]));
     const usersMap = new Map(users.map((u) => [u.uid, u]));
     const viewerCtx = currentUser
@@ -281,16 +284,39 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
         }
       : null;
 
-    setStreamPosts((prev) =>
-      prev
+    const matchesFilter = (p: InstitutionalFeedPost) => {
+      if (alumniOnly && p.authorRole !== 'alumni') return false;
+      if (activeFilter !== 'all' && p.postType !== activeFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        const hay = `${p.title} ${p.content} ${p.authorName} ${(p.tags || []).join(' ')}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return canUserViewPost(p, {
+        surface: 'feed',
+        viewer: viewerCtx,
+        authorAccount: usersMap.get(p.authorId)
+      });
+    };
+
+    const hydratedContext = feedPosts
+      .filter(matchesFilter)
+      .map((p) => hydratePostWithLiveAuthor(p, usersMap.get(p.authorId), viewerCtx));
+
+    const pinnedList = hydratedContext
+      .filter((p) => (p.authorRole === 'admin' || p.authorRole === 'superadmin') && isPinActive(p))
+      .sort(comparePostsCreatedDesc)
+      .slice(0, 3);
+    const pinnedSet = new Set(pinnedList.map((p) => p.id));
+
+    setPinnedPosts(pinnedList);
+    setStreamPosts((prev) => {
+      const updatedExisting = prev
         .filter((item) => {
+          if (pinnedSet.has(item.id)) return false;
           const ctxItem = contextMap.get(item.id);
-          if (!ctxItem) return true;
-          return canUserViewPost(ctxItem, {
-            surface: 'feed',
-            viewer: viewerCtx,
-            authorAccount: usersMap.get(ctxItem.authorId)
-          });
+          if (!ctxItem) return feedPosts.length === 0;
+          return matchesFilter(ctxItem);
         })
         .map((item) => {
           const ctxItem = contextMap.get(item.id);
@@ -304,29 +330,16 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
             usersMap.get(ctxItem.authorId),
             viewerCtx
           );
-        })
-    );
+        });
 
-    setPinnedPosts((prev) =>
-      prev
-        .filter((item) => {
-          const ctxItem = contextMap.get(item.id);
-          if (!ctxItem) return true;
-          return (
-            isPinActive(ctxItem) &&
-            canUserViewPost(ctxItem, {
-              surface: 'feed',
-              viewer: viewerCtx,
-              authorAccount: usersMap.get(ctxItem.authorId)
-            })
-          );
-        })
-        .map((item) => {
-          const ctxItem = contextMap.get(item.id);
-          return ctxItem ? { ...item, ...ctxItem } : item;
-        })
-    );
-  }, [feedPosts, users, currentUser]);
+      const existingIds = new Set(updatedExisting.map((p) => p.id));
+      const newAdditions = hydratedContext
+        .filter((p) => !pinnedSet.has(p.id) && !existingIds.has(p.id))
+        .sort(comparePostsCreatedDesc);
+
+      return [...newAdditions, ...updatedExisting];
+    });
+  }, [feedPosts, users, currentUser, alumniOnly, activeFilter, searchQuery]);
 
   // Poll for new posts arriving while scrolling (banner instead of pushing scroll down)
   useEffect(() => {
@@ -603,7 +616,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
         </div>
 
         {/* Segmented Category Filter */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
           {[
             { id: 'all', label: 'All Posts', icon: Sparkles },
             { id: 'update', label: 'Updates', icon: Sparkles },
@@ -617,7 +630,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveFilter(tab.id as any)}
-                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer min-h-[38px] ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer min-h-[36px] ${
                   active
                     ? 'bg-[#8B181B] text-white shadow-2xs'
                     : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-200 dark:hover:bg-stone-700'

@@ -7,11 +7,9 @@ import {
   Wifi,
   Copy,
   Check,
-  Download,
   Maximize2,
   X,
   Camera,
-  FileText,
   Share2,
   Award,
   Upload
@@ -22,7 +20,6 @@ import { generateAlumniId } from '../../services/studentVerificationService';
 import { triggerHaptic } from '../../services/hapticsService';
 import { secureStorageService } from '../../services/secureStorageService';
 import { getAlumniVerificationUrl } from '../../services/alumniIdVerificationService';
-import { exportAlumniCardToPng, exportAlumniCardToPdf } from '../../services/alumniIdCardExportService';
 import { compressImage } from '../../lib/utils';
 
 interface DigitalAlumniCardProps {
@@ -39,8 +36,6 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   const [copied, setCopied] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [sealImgSrc, setSealImgSrc] = useState('/assets/cecilians-seal.jpg');
-  const [isExportingPng, setIsExportingPng] = useState(false);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -182,36 +177,6 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownloadPng = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      setIsExportingPng(true);
-      triggerHaptic('light');
-      await exportAlumniCardToPng(user, formattedId);
-      showToast('High-resolution Digital ID Pass downloaded.', 'success');
-    } catch (err) {
-      console.error('PNG export failed', err);
-      showToast('Failed to export ID image. Please try again.', 'error');
-    } finally {
-      setIsExportingPng(false);
-    }
-  };
-
-  const handleDownloadPdf = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      setIsExportingPdf(true);
-      triggerHaptic('light');
-      await exportAlumniCardToPdf(user, formattedId);
-      showToast('Printable PDF Alumni Credential generated.', 'success');
-    } catch (err) {
-      console.error('PDF export failed', err);
-      showToast('Failed to generate PDF pass. Please try again.', 'error');
-    } finally {
-      setIsExportingPdf(false);
-    }
-  };
-
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -238,7 +203,6 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
         });
       }
 
-      showToast('Profile photo updated and synchronized with your Digital ID!', 'success');
       triggerHaptic('success');
     } catch (err) {
       console.error('Failed to update photo', err);
@@ -255,7 +219,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   // CARD FRONT — SIGNATURE DEEP CRIMSON (#8B181B) & GOLD THEME
   // ==========================================
   const cardFront = (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-[#8B181B] via-[#6b1215] to-[#2b0709] text-white p-3.5 sm:p-5 flex flex-col justify-between shadow-[0_14px_44px_rgba(139,24,27,0.45),0_0_0_1px_rgba(245,158,11,0.35)] border-2 border-amber-400/60 select-none">
+    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-[#8B181B] via-[#6b1215] to-[#2b0709] text-white p-4 sm:p-6 flex flex-col justify-between gap-3 shadow-[0_14px_44px_rgba(139,24,27,0.45),0_0_0_1px_rgba(245,158,11,0.35)] border-2 border-amber-400/60 select-none">
       {/* Background Guilloche Security Pattern & Gold Radial Ambience */}
       <div className="absolute inset-0 opacity-25 pointer-events-none bg-[radial-gradient(ellipse_at_80%_20%,rgba(245,158,11,0.4),transparent_60%),radial-gradient(circle_at_20%_80%,rgba(139,24,27,0.45),transparent_50%)]" />
       <div className="absolute -right-14 -bottom-14 w-56 h-56 rounded-full border border-amber-400/20 pointer-events-none" />
@@ -263,8 +227,8 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
       <div className="absolute -left-12 -top-12 w-48 h-48 rounded-full border border-amber-400/15 pointer-events-none" />
 
       {/* 1. Header: Circular Logo + ST. CECILIA'S COLLEGE + Digital Alumni Credential + Verified Badge */}
-      <div className="relative z-10 flex items-start justify-between gap-2 border-b border-amber-500/20 pb-2">
-        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+      <div className="relative z-10 flex items-start justify-between gap-2.5 border-b border-amber-500/20 pb-2.5">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <img
             src={sealImgSrc}
             alt="St. Cecilia's College Seal"
@@ -273,13 +237,13 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
                 setSealImgSrc('/assets/cecilians-seal.jpg');
               }
             }}
-            className="w-9 h-9 sm:w-11 sm:h-11 rounded-full border-2 border-amber-400 shadow-md object-cover bg-white shrink-0"
+            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-amber-400 shadow-md object-cover bg-white shrink-0"
           />
           <div className="min-w-0">
-            <span className="text-[11px] sm:text-[13px] font-black tracking-wider uppercase text-amber-200 font-serif block truncate drop-shadow-xs">
+            <span className="text-xs sm:text-base font-black tracking-wider uppercase text-amber-200 font-serif block leading-tight drop-shadow-xs">
               ST. CECILIA'S COLLEGE
             </span>
-            <span className="text-[8px] sm:text-[10px] font-bold tracking-widest text-amber-400/90 font-mono uppercase block truncate">
+            <span className="text-[9px] sm:text-[11px] font-bold tracking-widest text-amber-400/90 font-mono uppercase block leading-tight mt-0.5">
               Digital Alumni Credential
             </span>
           </div>
@@ -289,20 +253,20 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
         <div className="flex items-center gap-1.5 shrink-0">
           <div className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 shadow-xs">
             <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
-            <span className="text-[8px] sm:text-[10px] font-extrabold uppercase tracking-wider">
+            <span className="text-[9px] sm:text-[10.5px] font-extrabold uppercase tracking-wider">
               VERIFIED
             </span>
           </div>
-          <Wifi className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300/80 rotate-90 hidden min-[380px]:block" />
+          <Wifi className="w-4 h-4 text-amber-300/80 rotate-90 hidden sm:block" />
         </div>
       </div>
 
-      {/* 2. Middle Row: Prominent Profile Picture + Metallic EMV Chip + Alumnus Information + QR Code */}
-      <div className="relative z-10 grid grid-cols-12 gap-2.5 sm:gap-3.5 items-center my-auto py-1 sm:py-1.5">
-        {/* Left Column (4 cols): Alumnus Profile Picture Frame */}
+      {/* 2. Middle Row: Prominent Profile Picture + Alumnus Information + QR Code */}
+      <div className="relative z-10 grid grid-cols-12 gap-3 sm:gap-4 items-center my-auto py-1.5">
+        {/* Left Column: Alumnus Profile Picture Frame */}
         <div className="col-span-4 sm:col-span-3 flex flex-col items-center">
           <div className="relative group">
-            <div className="w-16 h-20 sm:w-20 sm:h-24 md:w-24 md:h-28 rounded-xl p-0.5 sm:p-1 bg-gradient-to-tr from-amber-500 via-amber-200 to-amber-600 shadow-lg overflow-hidden">
+            <div className="w-20 h-24 sm:w-24 sm:h-28 md:w-28 md:h-32 rounded-xl p-0.5 sm:p-1 bg-gradient-to-tr from-amber-500 via-amber-200 to-amber-600 shadow-lg overflow-hidden">
               {avatarUrl ? (
                 <img
                   src={avatarUrl}
@@ -311,10 +275,10 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
                 />
               ) : (
                 <div className="w-full h-full rounded-[9px] bg-stone-900 flex flex-col items-center justify-center text-amber-300 p-1 text-center">
-                  <span className="text-xl sm:text-2xl font-serif font-black">
+                  <span className="text-2xl sm:text-3xl font-serif font-black">
                     {user.name.charAt(0)}
                   </span>
-                  <span className="text-[7px] text-amber-400/80 uppercase font-semibold mt-0.5">
+                  <span className="text-[8px] text-amber-400/80 uppercase font-semibold mt-0.5">
                     No Photo
                   </span>
                 </div>
@@ -328,45 +292,45 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
                 e.stopPropagation();
                 fileInputRef.current?.click();
               }}
-              className="absolute -bottom-1 -right-1 p-1 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-full border border-black shadow-md transition-transform hover:scale-110 cursor-pointer"
+              className="absolute -bottom-1 -right-1 p-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-full border border-black shadow-md transition-transform hover:scale-110 cursor-pointer"
               title="Update profile picture on Digital ID"
               aria-label="Upload profile picture"
             >
               {isUploadingPhoto ? (
                 <div className="w-3 h-3 border-2 border-stone-950 border-t-transparent rounded-full animate-spin" />
               ) : (
-                <Camera className="w-3 h-3" />
+                <Camera className="w-3.5 h-3.5" />
               )}
             </button>
           </div>
 
-          <span className="text-[7.5px] sm:text-[8.5px] text-amber-400/80 font-mono mt-1 text-center uppercase tracking-wider block truncate max-w-full">
+          <span className="text-[8.5px] sm:text-[10px] text-amber-300/90 font-mono mt-1.5 text-center uppercase tracking-wider leading-tight">
             {graduationCohort}
           </span>
         </div>
 
-        {/* Center-Right Column (8 cols): Name, Degree, Membership & Verification QR */}
-        <div className="col-span-8 sm:col-span-9 flex items-center justify-between gap-2 min-w-0">
-          <div className="min-w-0 flex-1 space-y-0.5 sm:space-y-1">
+        {/* Center-Right Column: Name, Degree, Membership & Verification QR */}
+        <div className="col-span-8 sm:col-span-9 flex items-center justify-between gap-2.5 sm:gap-3 min-w-0">
+          <div className="min-w-0 flex-1 space-y-1 sm:space-y-1.5">
             {/* Membership Type Pill */}
-            <div className="inline-flex items-center gap-1 text-[8px] sm:text-[9.5px] font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-1.5 sm:px-2 py-0.5 rounded border border-amber-500/30 truncate max-w-full">
-              <Award className="w-2.5 h-2.5 text-amber-400 shrink-0" />
-              <span className="truncate">{membershipType}</span>
+            <div className="inline-flex items-center gap-1 text-[9px] sm:text-[10.5px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/35 max-w-full">
+              <Award className="w-3 h-3 text-amber-400 shrink-0" />
+              <span className="leading-tight">{membershipType}</span>
             </div>
 
             {/* Alumnus Name */}
-            <h3 className="text-xs sm:text-base md:text-lg font-black tracking-tight uppercase text-white truncate drop-shadow-sm font-sans">
+            <h3 className="text-sm sm:text-lg md:text-xl font-black tracking-tight uppercase text-white leading-tight break-words drop-shadow-sm font-sans">
               {user.name}
             </h3>
 
             {/* Degree / Program */}
-            <p className="text-[9px] sm:text-[11.5px] font-bold text-amber-200/90 truncate">
+            <p className="text-[10.5px] sm:text-xs md:text-sm font-bold text-amber-200/95 leading-snug break-words">
               {degreeProgram}
             </p>
 
             {/* Alumni ID Number Box */}
-            <div className="pt-0.5 flex items-center gap-1.5">
-              <div className="bg-black/60 px-1.5 sm:px-2 py-0.5 rounded border border-amber-500/30 font-mono text-[9px] sm:text-xs font-bold text-amber-300 tracking-wider truncate">
+            <div className="pt-0.5 flex flex-wrap items-center gap-1.5">
+              <div className="bg-black/60 px-2 py-0.5 rounded border border-amber-500/30 font-mono text-[10px] sm:text-xs font-bold text-amber-300 tracking-wider">
                 {maskedId}
               </div>
               <button
@@ -375,7 +339,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
                   e.stopPropagation();
                   setShowFullNumber(!showFullNumber);
                 }}
-                className="text-[7px] sm:text-[8px] uppercase font-bold px-1.5 py-0.5 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-amber-500/20 cursor-pointer shrink-0"
+                className="text-[8px] sm:text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-amber-500/20 cursor-pointer shrink-0"
               >
                 {showFullNumber ? 'Hide' : 'Reveal'}
               </button>
@@ -389,13 +353,13 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
                 <img
                   src={verificationQrUrl}
                   alt="Alumni Verification QR Code"
-                  className="w-12 h-12 sm:w-16 sm:h-16 object-contain"
+                  className="w-14 h-14 sm:w-[72px] sm:h-[72px] md:w-20 md:h-20 object-contain"
                 />
               ) : (
-                <QrCode className="w-12 h-12 sm:w-16 sm:h-16 text-black" />
+                <QrCode className="w-14 h-14 sm:w-[72px] sm:h-[72px] md:w-20 md:h-20 text-black" />
               )}
             </div>
-            <span className="text-[6.5px] sm:text-[7.5px] text-amber-300/80 font-mono tracking-widest uppercase mt-0.5">
+            <span className="text-[7px] sm:text-[8.5px] text-amber-300/85 font-mono tracking-widest uppercase mt-1">
               Scan Verify
             </span>
           </div>
@@ -403,7 +367,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
       </div>
 
       {/* 3. Footer: Latin Motto "VIRTUS • SCIENTIA • CHARITAS" & Security Signature */}
-      <div className="relative z-10 pt-1.5 sm:pt-2 border-t border-amber-500/20 flex items-center justify-between text-[8px] sm:text-[9.5px]">
+      <div className="relative z-10 pt-2 border-t border-amber-500/20 flex items-center justify-between gap-2 text-[8.5px] sm:text-[10px]">
         <div className="flex items-center gap-1.5">
           <span className="text-amber-400/90 font-serif font-bold tracking-widest">
             VIRTUS • SCIENTIA • CHARITAS
@@ -411,7 +375,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
         </div>
 
         <div className="text-right">
-          <span className="font-mono text-amber-200/70 tracking-wider">
+          <span className="font-mono text-amber-200/75 tracking-wider">
             OFFICIAL ALUMNI CREDENTIAL
           </span>
         </div>
@@ -487,7 +451,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
 
   return (
     <>
-      <div className={`flex flex-col items-center ${compact ? 'max-w-md w-full' : 'max-w-lg w-full'} mx-auto`}>
+      <div className={`flex flex-col items-center ${compact ? 'max-w-lg w-full' : 'max-w-2xl w-full'} mx-auto`}>
         {/* Card Canvas Container with 3D Flip */}
         <div
           role="button"
@@ -505,7 +469,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
             }
           }}
           style={{ perspective: '1200px', WebkitPerspective: '1200px', touchAction: 'manipulation' }}
-          className="w-full aspect-[1.586/1] min-h-[200px] sm:min-h-[240px] cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99] duration-300 group select-none"
+          className="w-full min-h-[250px] sm:aspect-[1.586/1] sm:min-h-[305px] md:min-h-[340px] cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99] duration-300 group select-none"
           title="Click to flip between front and back of your Digital Alumni ID"
           aria-label="Digital Alumni Card - tap to flip"
         >
@@ -552,8 +516,8 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
           </div>
         </div>
 
-        {/* Card Action Toolbar: Flip, PNG, PDF, Full-Screen, Copy */}
-        <div className="grid grid-cols-5 gap-1.5 sm:gap-2 w-full mt-3.5 text-xs">
+        {/* Card Action Toolbar: Flip, Copy, Pass */}
+        <div className="grid grid-cols-3 gap-2 w-full mt-3.5 text-xs">
           {/* Flip */}
           <button
             type="button"
@@ -562,50 +526,26 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
               triggerHaptic('light');
               setIsFlipped((prev) => !prev);
             }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl bg-stone-900 hover:bg-stone-850 text-stone-200 border border-amber-500/20 font-semibold transition-colors shadow-xs cursor-pointer text-center"
+            className="flex flex-col sm:flex-row items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 border border-amber-500/20 font-semibold transition-colors shadow-xs cursor-pointer text-center"
             title="Flip Card"
           >
-            <RotateCw className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-[10px] sm:text-xs truncate">{isFlipped ? 'Front' : 'Flip'}</span>
-          </button>
-
-          {/* Download PNG */}
-          <button
-            type="button"
-            onClick={handleDownloadPng}
-            disabled={isExportingPng}
-            className="flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl bg-stone-900 hover:bg-stone-850 text-stone-200 border border-amber-500/20 font-semibold transition-colors shadow-xs cursor-pointer text-center disabled:opacity-50"
-            title="Download high-resolution ID Image (PNG)"
-          >
-            <Download className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-[10px] sm:text-xs truncate">{isExportingPng ? 'Saving...' : 'PNG'}</span>
-          </button>
-
-          {/* Download PDF */}
-          <button
-            type="button"
-            onClick={handleDownloadPdf}
-            disabled={isExportingPdf}
-            className="flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl bg-stone-900 hover:bg-stone-850 text-stone-200 border border-amber-500/20 font-semibold transition-colors shadow-xs cursor-pointer text-center disabled:opacity-50"
-            title="Download Printable PDF Credential"
-          >
-            <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-[10px] sm:text-xs truncate">{isExportingPdf ? 'Exporting...' : 'PDF'}</span>
+            <RotateCw className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="text-[11px] sm:text-xs">{isFlipped ? 'Show Front' : 'Flip Card'}</span>
           </button>
 
           {/* Copy ID */}
           <button
             type="button"
             onClick={handleCopyCard}
-            className="flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl bg-stone-900 hover:bg-stone-850 text-stone-200 border border-amber-500/20 font-medium transition-colors shadow-xs cursor-pointer text-center"
+            className="flex flex-col sm:flex-row items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-stone-200 border border-amber-500/20 font-medium transition-colors shadow-xs cursor-pointer text-center"
             title="Copy Official Alumni ID"
           >
             {copied ? (
-              <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
             ) : (
-              <Copy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <Copy className="w-4 h-4 text-amber-400 shrink-0" />
             )}
-            <span className="text-[10px] sm:text-xs truncate">{copied ? 'Copied' : 'Copy'}</span>
+            <span className="text-[11px] sm:text-xs">{copied ? 'Copied' : 'Copy ID'}</span>
           </button>
 
           {/* Full Screen Gate Pass */}
@@ -615,11 +555,11 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
               triggerHaptic('light');
               setIsFullScreen(true);
             }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-1 py-2 px-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold transition-colors shadow-xs cursor-pointer text-center"
+            className="flex flex-col sm:flex-row items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold transition-colors shadow-xs cursor-pointer text-center"
             title="Full screen gate pass for campus turnstiles"
           >
-            <Maximize2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-[10px] sm:text-xs truncate">Pass</span>
+            <Maximize2 className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="text-[11px] sm:text-xs">Gate Pass</span>
           </button>
         </div>
       </div>
@@ -627,7 +567,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
       {/* Full Screen Gate Pass Modal for Campus Turnstiles & Verification */}
       {isFullScreen && (
         <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 pt-safe pb-safe animate-in fade-in">
-          <div className="bg-stone-900 border border-amber-500/30 rounded-2xl p-4 sm:p-6 max-w-md w-full text-white shadow-2xl flex flex-col items-center gap-3 sm:gap-4 max-h-[94dvh] overflow-y-auto">
+          <div className="bg-stone-900 border border-amber-500/30 rounded-2xl p-4 sm:p-6 max-w-lg w-full text-white shadow-2xl flex flex-col items-center gap-3.5 sm:gap-4 max-h-[94dvh] overflow-y-auto">
             <div className="w-full flex items-center justify-between pb-2.5 sm:pb-3 border-b border-stone-800">
               <div className="flex items-center gap-2.5">
                 <img
@@ -649,7 +589,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
             </div>
 
             {/* Render card front */}
-            <div className="w-full aspect-[1.586/1] min-h-[190px]">{cardFront}</div>
+            <div className="w-full min-h-[235px] sm:aspect-[1.586/1] sm:min-h-[270px]">{cardFront}</div>
 
             {/* High-Contrast Turnstile QR Code with Rolling Token & SVG Countdown Ring */}
             <div className="bg-white p-3.5 sm:p-4 rounded-2xl flex flex-col items-center gap-3 text-stone-900 w-full shadow-lg border border-stone-200">
@@ -718,26 +658,6 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 w-full pt-1">
-              <button
-                type="button"
-                onClick={handleDownloadPng}
-                disabled={isExportingPng}
-                className="py-2.5 bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-md disabled:opacity-50"
-              >
-                <Download className="w-4 h-4 shrink-0" />
-                <span>Save PNG Pass</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadPdf}
-                disabled={isExportingPdf}
-                className="py-2.5 bg-stone-800 hover:bg-stone-750 text-amber-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-amber-500/30 disabled:opacity-50"
-              >
-                <FileText className="w-4 h-4 shrink-0" />
-                <span>Export PDF</span>
-              </button>
-            </div>
           </div>
         </div>
       )}

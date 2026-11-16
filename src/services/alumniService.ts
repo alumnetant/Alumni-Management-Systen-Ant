@@ -239,6 +239,12 @@ export const alumniService = {
   async deleteAlumni(uid: string): Promise<void> {
     const docPath = `${FIRESTORE_COLLECTIONS.USERS}/${uid}`;
     try {
+      try {
+        const userSecRef = doc(db, FIRESTORE_COLLECTIONS.USERS, uid, 'security', 'vault');
+        await deleteDoc(userSecRef);
+      } catch {
+        // Security vault doc may not exist; continue deleting user record
+      }
       const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, uid);
       await deleteDoc(userRef);
     } catch (error) {

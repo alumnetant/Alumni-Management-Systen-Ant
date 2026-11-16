@@ -567,9 +567,9 @@ export const NetworkView: React.FC = () => {
                 Connecting graduates, industry leaders, and academic cohorts across batches.
               </p>
             </div>
-            <div className="flex items-center justify-end gap-3 flex-wrap">
+            <div className="relative w-full md:w-auto flex items-center justify-end gap-2.5 sm:gap-3 flex-wrap z-30">
               {/* Filter Navigation Icon & Dropdown Menu */}
-              <div className="relative" ref={filterDropdownRef}>
+              <div className="sm:relative" ref={filterDropdownRef}>
           <button
             type="button"
             id="network-filter-navigation-btn"
@@ -620,7 +620,7 @@ export const NetworkView: React.FC = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -4, scale: 0.98 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="absolute right-0 mt-2 w-72 sm:w-80 bg-white dark:bg-[#181615] rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_4px_24px_rgba(0,0,0,0.12)] p-2 z-50 text-stone-900 dark:text-stone-100 antialiased"
+                className="absolute left-0 right-0 sm:left-auto sm:right-0 mt-2 sm:w-80 bg-white dark:bg-[#181615] rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_12px_36px_rgba(0,0,0,0.16)] p-2 z-50 text-stone-900 dark:text-stone-100 antialiased"
               >
                 <div className="px-3 py-2 border-b border-stone-100 dark:border-stone-800/80 flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400 dark:text-stone-500">

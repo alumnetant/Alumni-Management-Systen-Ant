@@ -233,48 +233,49 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
     >
       {/* Floating Card Container */}
       <div
-        className="relative bg-white rounded-2xl max-w-5xl w-full p-5 sm:p-8 max-h-[88vh] overflow-y-auto shadow-[0_25px_70px_rgba(0,0,0,0.35)] border border-stone-200/90 flex flex-col my-auto animate-in zoom-in-95 duration-200"
+        className="relative bg-white dark:bg-stone-900 rounded-2xl max-w-5xl w-full p-4 sm:p-8 max-h-[88vh] overflow-y-auto shadow-[0_25px_70px_rgba(0,0,0,0.35)] border border-stone-200/90 dark:border-stone-800 flex flex-col my-auto animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-stone-200 pb-4 mb-6 gap-3">
-          <div>
-            <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between border-b border-stone-200 dark:border-stone-800 pb-4 mb-5 gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5">
               <span className="editorial-kicker">
                 ST. CECILIA'S COLLEGE · CEBU
               </span>
-              <span className="text-stone-300">·</span>
-              <span className="text-[10px] font-medium text-stone-500 uppercase tracking-widest font-mono">
+              <span className="text-stone-300 dark:text-stone-700 hidden sm:inline">·</span>
+              <span className="text-[10px] font-medium text-stone-500 dark:text-stone-400 uppercase tracking-widest font-mono">
                 ARCHIVAL COLLECTION
               </span>
             </div>
-            <h3 id="campus-gallery-title" className="editorial-title text-2xl sm:text-3xl mt-0.5">
+            <h3 id="campus-gallery-title" className="editorial-title text-xl sm:text-3xl leading-tight mt-1 text-stone-900 dark:text-stone-100">
               Campus <span className="editorial-accent italic">& Heritage Gallery</span>
             </h3>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {canUpload ? (
               <button
                 onClick={() => setShowUploadModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5" />
-                <span>Upload Photo</span>
-                <span className="ml-1 text-[10px] bg-white/20 px-1.5 py-0.5 rounded-md font-mono uppercase">
+                <span className="hidden sm:inline">Upload Photo</span>
+                <span className="sm:hidden">Upload</span>
+                <span className="hidden md:inline ml-1 text-[10px] bg-white/20 px-1.5 py-0.5 rounded-md font-mono uppercase">
                   {currentUser?.role}
                 </span>
               </button>
             ) : (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 text-stone-600 text-xs border border-stone-200">
-                <Shield className="w-3.5 h-3.5 text-[#8B181B]" />
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 text-xs border border-stone-200 dark:border-stone-700">
+                <Shield className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
                 <span>Uploads restricted to <strong>Admin</strong> & <strong>Registrar</strong></span>
               </div>
             )}
 
             <button
               onClick={onClose}
-              className="w-9 h-9 flex items-center justify-center rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-600 hover:text-stone-900 transition-colors cursor-pointer"
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white transition-colors cursor-pointer shrink-0"
               aria-label="Close Gallery"
               title="Close Gallery (Esc)"
             >
@@ -301,10 +302,10 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id as any)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     selectedCategory === cat.id
                       ? 'bg-[#991B1B] text-white shadow-xs'
-                      : 'bg-stone-100 text-stone-600 hover:text-stone-900 hover:bg-stone-200'
+                      : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white hover:bg-stone-200 dark:hover:bg-stone-700'
                   }`}
                 >
                   <span>{cat.label}</span>
@@ -312,7 +313,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                     className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                       selectedCategory === cat.id
                         ? 'bg-white/20 text-white'
-                        : 'bg-stone-200 text-stone-600'
+                        : 'bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-300'
                     }`}
                   >
                     {count}
@@ -322,16 +323,16 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
             })}
           </div>
 
-          <span className="text-xs text-stone-400">
+          <span className="text-xs text-stone-400 dark:text-stone-500">
             {filteredItems.length} {filteredItems.length === 1 ? 'record' : 'records'}
           </span>
         </div>
 
         {/* Gallery Grid */}
         {filteredItems.length === 0 ? (
-          <div className="text-center py-16 px-4 bg-stone-50 rounded-xl border border-dashed border-stone-300">
-            <ImageIcon className="w-12 h-12 text-stone-300 mx-auto mb-3" />
-            <p className="text-sm font-semibold text-stone-700">No photos in this collection yet</p>
+          <div className="text-center py-14 px-4 bg-stone-50 dark:bg-stone-800/50 rounded-xl border border-dashed border-stone-300 dark:border-stone-700">
+            <ImageIcon className="w-12 h-12 text-stone-300 dark:text-stone-600 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-stone-700 dark:text-stone-200">No photos in this collection yet</p>
             <p className="text-xs text-stone-400 mt-1">
               {canUpload
                 ? 'As an Administrator or Registrar, click "Upload Photo" above to contribute archival imagery.'
@@ -343,10 +344,10 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
             {filteredItems.map((item) => (
               <div
                 key={item.id}
-                className="group relative rounded-xl overflow-hidden border border-stone-200 bg-white hover:border-stone-300 hover:shadow-md transition-all flex flex-col"
+                className="group relative rounded-xl overflow-hidden border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 hover:border-stone-300 dark:hover:border-stone-700 hover:shadow-md transition-all flex flex-col"
               >
                 <div
-                  className="relative h-48 w-full overflow-hidden bg-stone-100 cursor-pointer"
+                  className="relative h-48 w-full overflow-hidden bg-stone-100 dark:bg-stone-800 cursor-pointer"
                   onClick={() => setInspectingItem(item)}
                 >
                   <img
@@ -379,20 +380,20 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                   <div>
                     <h4
                       onClick={() => setInspectingItem(item)}
-                      className="text-xs font-bold text-stone-900 line-clamp-1 hover:text-[#991B1B] cursor-pointer"
+                      className="text-xs font-bold text-stone-900 dark:text-stone-100 line-clamp-1 hover:text-[#991B1B] dark:hover:text-rose-400 cursor-pointer"
                     >
                       {item.title}
                     </h4>
                     {item.description && (
-                      <p className="text-[11px] text-stone-500 line-clamp-2 mt-1">
+                      <p className="text-[11px] text-stone-500 dark:text-stone-400 line-clamp-2 mt-1">
                         {item.description}
                       </p>
                     )}
                   </div>
 
-                  <div className="mt-3 pt-2.5 border-t border-stone-100 flex items-center justify-between text-[10px] text-stone-400">
+                  <div className="mt-3 pt-2.5 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between text-[10px] text-stone-400 dark:text-stone-500">
                     <div className="flex items-center gap-1.5 truncate">
-                      <Shield className="w-3 h-3 text-[#991B1B]" />
+                      <Shield className="w-3 h-3 text-[#991B1B] dark:text-rose-400" />
                       <span className="truncate">
                         By {item.uploadedByName || 'Institution'} ({item.uploaderRole || 'admin'})
                       </span>
@@ -404,7 +405,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                           e.stopPropagation();
                           setItemToDelete(item);
                         }}
-                        className="p-1.5 text-stone-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+                        className="p-1.5 text-stone-400 hover:text-red-600 dark:hover:text-rose-400 rounded-lg hover:bg-red-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
                         title="Delete photo (Admin/Registrar)"
                         aria-label="Delete photo"
                       >
@@ -419,18 +420,18 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
         )}
 
         {/* Footer */}
-        <div className="mt-8 pt-4 border-t border-stone-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs text-stone-500 text-center sm:text-left">
+        <div className="mt-8 pt-4 border-t border-stone-200 dark:border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs text-stone-500 dark:text-stone-400 text-center sm:text-left">
             <span>Preserving St. Cecilia's legacy across generations.</span>
             {!canUpload && (
-              <span className="block sm:inline sm:ml-2 text-stone-400">
+              <span className="block sm:inline sm:ml-2 text-stone-400 dark:text-stone-500">
                 (Upload access restricted to Admin and Registrar)
               </span>
             )}
           </div>
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-lg transition-colors"
+            className="px-5 py-2 bg-stone-900 dark:bg-stone-800 hover:bg-black dark:hover:bg-stone-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
           >
             Close Gallery
           </button>
@@ -446,24 +447,24 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
           onClick={() => setShowUploadModal(false)}
         >
           <div
-            className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 my-auto animate-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-stone-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800 my-auto animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-stone-200 mb-4">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-stone-800 mb-4">
               <div className="flex items-center gap-2">
-                <div className="p-2 bg-red-50 text-[#8B181B] rounded-xl border border-red-100">
+                <div className="p-2 bg-red-50 dark:bg-rose-950/50 text-[#8B181B] dark:text-rose-400 rounded-xl border border-red-100 dark:border-rose-900/60">
                   <Upload className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-stone-900">Upload to Campus & Heritage Gallery</h4>
-                  <p className="text-[11px] text-stone-500">
-                    Authorized as <strong className="text-[#8B181B] uppercase">{currentUser?.role}</strong> ({currentUser?.name})
+                  <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100">Upload to Campus & Heritage Gallery</h4>
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                    Authorized as <strong className="text-[#8B181B] dark:text-rose-400 uppercase">{currentUser?.role}</strong> ({currentUser?.name})
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowUploadModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors cursor-pointer"
                 aria-label="Close upload modal"
               >
                 <X className="w-4 h-4" />
@@ -471,16 +472,16 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
             </div>
 
             {uploadError && (
-              <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-800 text-xs border border-red-200 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-rose-950/40 text-red-800 dark:text-rose-300 text-xs border border-red-200 dark:border-rose-900 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 dark:text-rose-400 shrink-0" />
                 <span>{uploadError}</span>
               </div>
             )}
 
             {/* One-Click Presets for Easy Demo/Testing */}
-            <div className="mb-4 p-3 bg-stone-50 rounded-xl border border-stone-200">
-              <div className="flex items-center justify-between text-xs font-bold text-stone-700 mb-2">
-                <span className="flex items-center gap-1 text-[11px] text-stone-700">
+            <div className="mb-4 p-3 bg-stone-50 dark:bg-stone-800/80 rounded-xl border border-stone-200 dark:border-stone-700">
+              <div className="flex items-center justify-between text-xs font-bold text-stone-700 dark:text-stone-200 mb-2">
+                <span className="flex items-center gap-1 text-[11px] text-stone-700 dark:text-stone-200">
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                   Quick Fill Archival Samples:
                 </span>
@@ -491,10 +492,10 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                     key={idx}
                     type="button"
                     onClick={() => handleSelectPreset(p)}
-                    className="p-2 text-left bg-white border border-stone-200 hover:border-[#8B181B] rounded-lg transition-colors truncate cursor-pointer"
+                    className="p-2 text-left bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 hover:border-[#8B181B] dark:hover:border-rose-500 rounded-lg transition-colors truncate cursor-pointer"
                   >
-                    <div className="font-semibold text-stone-900 text-[11px] truncate">{p.title}</div>
-                    <div className="text-[10px] text-stone-500 uppercase">{p.category} • {p.year}</div>
+                    <div className="font-semibold text-stone-900 dark:text-stone-100 text-[11px] truncate">{p.title}</div>
+                    <div className="text-[10px] text-stone-500 dark:text-stone-400 uppercase">{p.category} • {p.year}</div>
                   </button>
                 ))}
               </div>
@@ -502,7 +503,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
 
             <form onSubmit={handleSubmitUpload} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-bold text-stone-700 mb-1">
+                <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
                   Photo Title *
                 </label>
                 <input
@@ -511,19 +512,19 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g., St. Cecilia Quadrangle Dedication"
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl focus:outline-hidden focus:border-[#8B181B] text-xs"
+                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl focus:outline-hidden focus:border-[#8B181B] text-xs"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1">
+                  <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
                     Category *
                   </label>
                   <select
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl font-medium text-stone-800 focus:outline-hidden focus:border-[#8B181B]"
+                    className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 rounded-xl font-medium text-stone-800 dark:text-stone-100 focus:outline-hidden focus:border-[#8B181B]"
                   >
                     <option value="campus">Campus & Facilities</option>
                     <option value="commencement">Commencement & Honors</option>
@@ -533,7 +534,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1">
+                  <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
                     Year / Batch / Era *
                   </label>
                   <input
@@ -542,13 +543,13 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                     value={newYear}
                     onChange={(e) => setNewYear(e.target.value)}
                     placeholder="e.g. 2026 or 1998 Founding"
-                    className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl focus:outline-hidden focus:border-[#8B181B]"
+                    className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl focus:outline-hidden focus:border-[#8B181B]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-stone-700 mb-1">
+                <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
                   Image Source (Web URL or Upload) *
                 </label>
                 <input
@@ -556,11 +557,11 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                   value={newUrl}
                   onChange={(e) => setNewUrl(e.target.value)}
                   placeholder="https://images.unsplash.com/photo-..."
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl mb-2 focus:outline-hidden focus:border-[#8B181B]"
+                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl mb-2 focus:outline-hidden focus:border-[#8B181B]"
                 />
 
                 <div className="flex items-center gap-2">
-                  <label className="flex-1 px-3 py-2 bg-stone-100 hover:bg-stone-200 border border-dashed border-stone-300 rounded-xl cursor-pointer text-center text-stone-600 font-medium transition-colors">
+                  <label className="flex-1 px-3 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border border-dashed border-stone-300 dark:border-stone-700 rounded-xl cursor-pointer text-center text-stone-600 dark:text-stone-300 font-medium transition-colors">
                     <span className="truncate">Choose Local File (PNG / JPG)</span>
                     <input
                       type="file"
@@ -574,8 +575,8 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
 
               {/* Preview */}
               {newUrl && (
-                <div className="p-2 border border-stone-200 rounded-xl bg-stone-50">
-                  <p className="text-[10px] font-bold text-stone-500 uppercase mb-1">Preview:</p>
+                <div className="p-2 border border-stone-200 dark:border-stone-700 rounded-xl bg-stone-50 dark:bg-stone-800">
+                  <p className="text-[10px] font-bold text-stone-500 dark:text-stone-400 uppercase mb-1">Preview:</p>
                   <img
                     src={newUrl}
                     alt="Preview"
@@ -586,7 +587,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
               )}
 
               <div>
-                <label className="block font-bold text-stone-700 mb-1">
+                <label className="block font-bold text-stone-700 dark:text-stone-300 mb-1">
                   Historical Description / Archival Notes
                 </label>
                 <textarea
@@ -594,15 +595,15 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
                   placeholder="Notes on alumni honors, architectural heritage, ceremony details, or historical context..."
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-xl resize-none focus:outline-hidden focus:border-[#8B181B]"
+                  className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl resize-none focus:outline-hidden focus:border-[#8B181B]"
                 />
               </div>
 
-              <div className="pt-3 border-t border-stone-200 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-stone-200 dark:border-stone-800 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 border border-stone-300 text-stone-700 hover:bg-stone-100 rounded-xl font-medium cursor-pointer"
+                  className="px-4 py-2 border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -628,26 +629,26 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
           onClick={() => setInspectingItem(null)}
         >
           <div
-            className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 my-auto overflow-hidden animate-in zoom-in-95 duration-150"
+            className="bg-white dark:bg-stone-900 rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-stone-200 dark:border-stone-800 my-auto overflow-hidden animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-stone-200 mb-3">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-stone-800 mb-3">
               <div>
-                <span className="text-[10px] uppercase font-bold text-[#8B181B] tracking-wider">
+                <span className="text-[10px] uppercase font-bold text-[#8B181B] dark:text-rose-400 tracking-wider">
                   {inspectingItem.category} • {inspectingItem.year}
                 </span>
-                <h4 className="text-base font-bold text-stone-900">{inspectingItem.title}</h4>
+                <h4 className="text-base font-bold text-stone-900 dark:text-stone-100">{inspectingItem.title}</h4>
               </div>
               <button
                 onClick={() => setInspectingItem(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 text-stone-500 hover:text-stone-900 cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 cursor-pointer"
                 aria-label="Close photo preview"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="rounded-xl overflow-hidden border border-stone-200 mb-4 bg-black max-h-[60vh]">
+            <div className="rounded-xl overflow-hidden border border-stone-200 dark:border-stone-800 mb-4 bg-black max-h-[60vh]">
               <img
                 src={inspectingItem.url}
                 alt={inspectingItem.title}
@@ -656,22 +657,22 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
             </div>
 
             {inspectingItem.description && (
-              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs text-stone-700 mb-3">
-                <p className="font-semibold text-stone-900 mb-0.5">Archival Description:</p>
+              <div className="p-3 bg-stone-50 dark:bg-stone-800/80 rounded-xl border border-stone-200 dark:border-stone-700 text-xs text-stone-700 dark:text-stone-300 mb-3">
+                <p className="font-semibold text-stone-900 dark:text-stone-100 mb-0.5">Archival Description:</p>
                 <p>{inspectingItem.description}</p>
               </div>
             )}
 
-            <div className="flex items-center justify-between text-xs text-stone-500 pt-2 border-t border-stone-100">
+            <div className="flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 pt-2 border-t border-stone-100 dark:border-stone-800">
               <div className="flex items-center gap-1">
-                <Shield className="w-3.5 h-3.5 text-[#8B181B]" />
+                <Shield className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
                 <span>
-                  Archived by: <strong className="text-stone-800">{inspectingItem.uploadedByName || 'Institution'}</strong> ({inspectingItem.uploaderRole || 'admin'})
+                  Archived by: <strong className="text-stone-800 dark:text-stone-200">{inspectingItem.uploadedByName || 'Institution'}</strong> ({inspectingItem.uploaderRole || 'admin'})
                 </span>
               </div>
               <button
                 onClick={() => setInspectingItem(null)}
-                className="px-4 py-1.5 bg-stone-900 hover:bg-black text-white rounded-xl text-xs font-semibold cursor-pointer transition-colors"
+                className="px-4 py-1.5 bg-stone-900 dark:bg-stone-800 hover:bg-black dark:hover:bg-stone-700 text-white rounded-xl text-xs font-semibold cursor-pointer transition-colors"
               >
                 Done
               </button>
@@ -689,28 +690,28 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
           onClick={() => setItemToDelete(null)}
         >
           <div
-            className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-stone-200 animate-in zoom-in-95 duration-150 space-y-4"
+            className="bg-white dark:bg-stone-900 rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-stone-200 dark:border-stone-800 animate-in zoom-in-95 duration-150 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0 border border-red-100">
+              <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-rose-950/50 text-red-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-red-100 dark:border-rose-900/60">
                 <Trash2 className="w-5 h-5" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-stone-900">Remove Photo?</h4>
-                <p className="text-xs text-stone-500 line-clamp-1">{itemToDelete.title}</p>
+                <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100">Remove Photo?</h4>
+                <p className="text-xs text-stone-500 dark:text-stone-400 line-clamp-1">{itemToDelete.title}</p>
               </div>
             </div>
 
-            <p className="text-xs text-stone-600 leading-relaxed">
+            <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed">
               Are you sure you want to remove this photograph from the archival gallery? This action is recorded in the institutional logs.
             </p>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100 dark:border-stone-800">
               <button
                 type="button"
                 onClick={() => setItemToDelete(null)}
-                className="px-3.5 py-1.5 rounded-xl border border-stone-200 text-xs font-semibold text-stone-700 hover:bg-stone-50 transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
               >
                 Cancel
               </button>

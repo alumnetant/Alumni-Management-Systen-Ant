@@ -237,7 +237,7 @@ export const PublicProfileModal: React.FC = () => {
                       className="justify-center flex items-center gap-1.5 px-3.5 py-2.5 bg-stone-900 hover:bg-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer transition-colors min-h-[44px]"
                     >
                       <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                      <span>View Full Profile &amp; Timeline</span>
+                      <span>{targetUser.role === 'employer' ? 'View Full Profile' : 'View Full Profile & Timeline'}</span>
                     </button>
 
                     {isSelf && (
@@ -377,7 +377,7 @@ export const PublicProfileModal: React.FC = () => {
                 </div>
 
                 {/* Metrics Row */}
-                <div className="mt-4 p-3 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200/80 dark:border-stone-700/60 grid grid-cols-3 text-center">
+                <div className={`mt-4 p-3 bg-stone-50 dark:bg-stone-800/60 rounded-xl border border-stone-200/80 dark:border-stone-700/60 grid ${targetUser.role === 'employer' ? 'grid-cols-2' : 'grid-cols-3'} text-center`}>
                   <div>
                     <span className="text-base font-bold text-stone-900 dark:text-white block font-mono tabular-nums">
                       {targetUser.connectionsCount || 0}
@@ -388,14 +388,18 @@ export const PublicProfileModal: React.FC = () => {
                     <span className="text-base font-bold text-stone-900 dark:text-white block font-mono tabular-nums">
                       {targetUser.batch || '2024'}
                     </span>
-                    <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">Graduation Batch</span>
-                  </div>
-                  <div>
-                    <span className="text-base font-bold text-[#8B181B] dark:text-red-400 block font-mono tabular-nums">
-                      {targetUserPosts.length}
+                    <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">
+                      {targetUser.role === 'employer' ? 'Partner Cohort' : 'Graduation Batch'}
                     </span>
-                    <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">Timeline Posts</span>
                   </div>
+                  {targetUser.role !== 'employer' && (
+                    <div>
+                      <span className="text-base font-bold text-[#8B181B] dark:text-red-400 block font-mono tabular-nums">
+                        {targetUserPosts.length}
+                      </span>
+                      <span className="text-[11px] text-stone-500 dark:text-stone-400 font-medium">Timeline Posts</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* About Section */}
@@ -408,41 +412,43 @@ export const PublicProfileModal: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Personal Timeline Posts (Filtered via shared canUserViewPost) */}
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase flex items-center gap-1.5">
-                      <Megaphone className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
-                      <span>Timeline Posts ({targetUserPosts.length})</span>
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedUserIdForModal(null);
-                        openProfile(profileSlug);
-                      }}
-                      className="text-xs font-semibold text-[#8B181B] dark:text-red-400 hover:underline cursor-pointer"
-                    >
-                      Open Timeline Page
-                    </button>
-                  </div>
+                {/* Personal Timeline Posts (Hidden for Employer profiles) */}
+                {targetUser.role !== 'employer' && (
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-sans text-sm font-bold text-stone-900 dark:text-white tracking-tight uppercase flex items-center gap-1.5">
+                        <Megaphone className="w-3.5 h-3.5 text-[#8B181B] dark:text-red-400" />
+                        <span>Timeline Posts ({targetUserPosts.length})</span>
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedUserIdForModal(null);
+                          openProfile(profileSlug);
+                        }}
+                        className="text-xs font-semibold text-[#8B181B] dark:text-red-400 hover:underline cursor-pointer"
+                      >
+                        Open Timeline Page
+                      </button>
+                    </div>
 
-                  {targetUserPosts.length === 0 ? (
-                    <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-200 dark:border-stone-700 text-center text-xs text-stone-400">
-                      No posts yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {targetUserPosts.slice(0, 5).map((post) => (
-                        <PostCard
-                          key={post.id}
-                          post={post}
-                          onImageClick={(url, title) => setViewerImage({ url, title })}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    {targetUserPosts.length === 0 ? (
+                      <div className="p-4 bg-stone-50 dark:bg-stone-800/40 rounded-xl border border-dashed border-stone-200 dark:border-stone-700 text-center text-xs text-stone-400">
+                        No posts yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {targetUserPosts.slice(0, 5).map((post) => (
+                          <PostCard
+                            key={post.id}
+                            post={post}
+                            onImageClick={(url, title) => setViewerImage({ url, title })}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

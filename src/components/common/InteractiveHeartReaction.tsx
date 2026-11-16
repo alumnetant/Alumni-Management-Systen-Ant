@@ -240,13 +240,15 @@ export const InteractiveHeartReaction: React.FC<InteractiveHeartReactionProps> =
  */
 export const DoubleTapHeartOverlay: React.FC<{
   onTrigger: () => void;
+  disabled?: boolean;
   children: React.ReactNode;
   className?: string;
-}> = ({ onTrigger, children, className = '' }) => {
+}> = ({ onTrigger, disabled = false, children, className = '' }) => {
   const [showPopHeart, setShowPopHeart] = useState(false);
   const lastTapRef = React.useRef<number>(0);
 
   const handlePointerDown = () => {
+    if (disabled) return;
     const now = Date.now();
     const DOUBLE_TAP_DELAY = 320;
     if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {

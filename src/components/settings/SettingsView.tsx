@@ -511,7 +511,6 @@ export const SettingsView: React.FC = () => {
       return;
     }
 
-    showToast(`Password updated successfully! Security confirmation sent to ${currentUser?.email}.`, 'success');
     setShowPasswordOtpModal(false);
     setShowPasswordModal(false);
     setOldPassword('');
@@ -553,19 +552,19 @@ export const SettingsView: React.FC = () => {
   const activeChannelsCount = [pushEnabled, emailEnabled, messagesEnabled, eventsEnabled, jobsEnabled].filter(Boolean).length;
 
   return (
-    <div className="w-full space-y-6 antialiased pb-12">
+    <div className="w-full space-y-6 antialiased pb-28 lg:pb-12">
       {/* ========================================================================= */}
       {/* HEADER: CLEAN INSTITUTIONAL SETTINGS HEADER                              */}
       {/* ========================================================================= */}
-      <div className="pb-5 border-b border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="pb-5 border-b border-stone-200/80 dark:border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5 mb-1 flex-wrap">
-            <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 tracking-tight font-sans">
+            <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight font-sans">
               Settings
             </h1>
             <UserRoleBadge role={currentUser.role} size="sm" />
           </div>
-          <p className="text-xs text-stone-500 font-medium">
+          <p className="text-xs text-stone-500 dark:text-stone-400 font-medium">
             Manage your credentials, security preferences, and system alerts
           </p>
         </div>
@@ -574,9 +573,9 @@ export const SettingsView: React.FC = () => {
           <button
             type="button"
             onClick={() => setActiveTab('profile')}
-            className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer active:scale-95 shrink-0"
+            className="px-4 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-200/80 dark:border-stone-700 rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer active:scale-95 shrink-0"
           >
-            <User className="w-3.5 h-3.5 text-stone-500" />
+            <User className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
             <span>View Profile</span>
           </button>
         </div>
@@ -590,7 +589,7 @@ export const SettingsView: React.FC = () => {
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
             activeFilterPill === 'all'
               ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-              : 'bg-stone-100 hover:bg-stone-200/80 text-stone-700'
+              : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200/80 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
           }`}
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -603,7 +602,7 @@ export const SettingsView: React.FC = () => {
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
             activeFilterPill === 'security'
               ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-              : 'bg-stone-100 hover:bg-stone-200/80 text-stone-700'
+              : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200/80 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
           }`}
         >
           <ShieldCheck className="w-3.5 h-3.5" />
@@ -616,13 +615,13 @@ export const SettingsView: React.FC = () => {
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
             activeFilterPill === 'notifications'
               ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-              : 'bg-stone-100 hover:bg-stone-200/80 text-stone-700'
+              : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200/80 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
           }`}
         >
           <Bell className="w-3.5 h-3.5" />
           <span>Notifications</span>
           <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-            activeFilterPill === 'notifications' ? 'bg-white/20 text-white' : 'bg-stone-200 text-stone-700'
+            activeFilterPill === 'notifications' ? 'bg-white/20 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-200'
           }`}>
             {activeChannelsCount}
           </span>
@@ -634,7 +633,7 @@ export const SettingsView: React.FC = () => {
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
             activeFilterPill === 'appearance'
               ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-              : 'bg-stone-100 hover:bg-stone-200/80 text-stone-700'
+              : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200/80 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
           }`}
         >
           <Palette className="w-3.5 h-3.5" />
@@ -647,7 +646,7 @@ export const SettingsView: React.FC = () => {
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
             activeFilterPill === 'compliance'
               ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-              : 'bg-stone-100 hover:bg-stone-200/80 text-stone-700'
+              : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200/80 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
           }`}
         >
           <HelpCircle className="w-3.5 h-3.5" />
@@ -659,14 +658,14 @@ export const SettingsView: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* DESKTOP SIDEBAR NAVIGATION (lg:col-span-4 xl:col-span-3) */}
         <aside className="hidden lg:block lg:col-span-4 xl:col-span-3 sticky top-6 space-y-4">
-          <div className="bg-white rounded-2xl border border-stone-200/90 p-2 shadow-2xs space-y-1">
+          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-2 shadow-2xs space-y-1">
             <button
               type="button"
               onClick={() => setActiveFilterPill('all')}
               className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 activeFilterPill === 'all'
                   ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
+                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -682,7 +681,7 @@ export const SettingsView: React.FC = () => {
               className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 activeFilterPill === 'security'
                   ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
+                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -698,7 +697,7 @@ export const SettingsView: React.FC = () => {
               className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 activeFilterPill === 'notifications'
                   ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
+                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -706,7 +705,7 @@ export const SettingsView: React.FC = () => {
                 <span>Notifications</span>
               </div>
               <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
-                activeFilterPill === 'notifications' ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-600'
+                activeFilterPill === 'notifications' ? 'bg-white/20 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
               }`}>
                 {activeChannelsCount}
               </span>
@@ -718,7 +717,7 @@ export const SettingsView: React.FC = () => {
               className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 activeFilterPill === 'appearance'
                   ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
+                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -734,7 +733,7 @@ export const SettingsView: React.FC = () => {
               className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
                 activeFilterPill === 'compliance'
                   ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-700 hover:bg-stone-100 hover:text-stone-900'
+                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -746,33 +745,33 @@ export const SettingsView: React.FC = () => {
           </div>
 
           {/* Institutional Account Overview Card */}
-          <div className="p-4 rounded-2xl bg-stone-50/90 border border-stone-200/80 space-y-3">
+          <div className="p-4 rounded-2xl bg-stone-50/90 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 space-y-3">
             <div className="flex items-center gap-3">
               <img
                 src={getUserAvatar(currentUser.avatar)}
                 alt={currentUser.name || 'User'}
                 onError={handleUserAvatarError}
-                className="w-10 h-10 rounded-full object-cover border border-stone-300"
+                className="w-10 h-10 rounded-full object-cover border border-stone-300 dark:border-stone-700"
               />
               <div className="min-w-0">
-                <p className="text-xs font-bold text-stone-900 truncate">
+                <p className="text-xs font-bold text-stone-900 dark:text-stone-100 truncate">
                   {currentUser.name || 'Alumnus'}
                 </p>
-                <p className="text-[11px] text-stone-500 font-mono truncate">
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 font-mono truncate">
                   {currentUser.email}
                 </p>
               </div>
             </div>
-            <div className="pt-2.5 border-t border-stone-200/80 flex items-center justify-between text-[11px]">
-              <span className="text-stone-500">Clearance Tier</span>
+            <div className="pt-2.5 border-t border-stone-200/80 dark:border-stone-800 flex items-center justify-between text-[11px]">
+              <span className="text-stone-500 dark:text-stone-400">Clearance Tier</span>
               <UserRoleBadge role={currentUser.role} size="sm" />
             </div>
             <button
               type="button"
               onClick={() => setActiveTab('profile')}
-              className="w-full py-2 bg-white hover:bg-stone-100 border border-stone-200 text-stone-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs active:scale-95"
+              className="w-full py-2 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs active:scale-95"
             >
-              <User className="w-3.5 h-3.5 text-stone-500" />
+              <User className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
               <span>Open Profile Desk</span>
             </button>
           </div>
@@ -783,30 +782,30 @@ export const SettingsView: React.FC = () => {
       
       {/* SECTION: AUTHORITY ROLE & ACCESS GOVERNANCE */}
       {(activeFilterPill === 'all' || activeFilterPill === 'security' || activeFilterPill === 'compliance') && (
-        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-5">
-          <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+        <div className="bg-white dark:bg-stone-900 rounded-[32px] p-6 sm:p-7 border border-stone-200/90 dark:border-stone-800 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between gap-3 border-b border-stone-100 dark:border-stone-800 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-red-50 text-[#8B181B] flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-red-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 flex items-center justify-center shrink-0">
                 <ShieldCheck className="w-4 h-4 stroke-[2]" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-stone-900">Authority Role & Privilege Governance</h3>
-                <p className="text-xs text-stone-500">Institutional clearance tier, permission boundaries, and Firestore synchronization</p>
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Authority Role & Privilege Governance</h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400">Institutional clearance tier, permission boundaries, and Firestore synchronization</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold border border-stone-200">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold border border-stone-200 dark:border-stone-700 shrink-0">
               Synchronized DB
             </span>
           </div>
 
           <div className="space-y-3">
-            <div className="p-4 rounded-2xl bg-stone-50/80 border border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-4 rounded-2xl bg-stone-50/80 dark:bg-stone-800/70 border border-stone-200/80 dark:border-stone-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-stone-900">Active Institutional Clearance:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold text-stone-900 dark:text-stone-100">Active Institutional Clearance:</span>
                   <UserRoleBadge role={currentUser.role} size="sm" />
                 </div>
-                <p className="text-[11px] text-stone-500 max-w-xl">
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 max-w-xl">
                   {currentUser.role === 'superadmin' && 'Full system root access: Architecture configurations, all role delegations, and security auditing.'}
                   {currentUser.role === 'admin' && 'Administrative privileges: Manage alumni accounts, directory moderation, opportunity reviews, and announcements.'}
                   {((currentUser.role as string) === 'moderator' || (currentUser.role as string) === 'registrar' || (currentUser.role as string) === 'staff') && 'Institutional moderation clearance: Validate student credentials, review submissions, and manage notices.'}
@@ -829,29 +828,29 @@ export const SettingsView: React.FC = () => {
                   <span>Modify Authority Role</span>
                 </button>
               ) : (
-                <span className="text-[11px] text-stone-400 italic">
+                <span className="text-[11px] text-stone-400 dark:text-stone-500 italic">
                   Role managed by Administration
                 </span>
               )}
             </div>
 
             {/* Account UID Verification Chip */}
-            <div className="p-3.5 rounded-2xl bg-stone-50/80 border border-stone-200/80 flex items-center justify-between gap-3">
+            <div className="p-3.5 rounded-2xl bg-stone-50/80 dark:bg-stone-800/70 border border-stone-200/80 dark:border-stone-700/80 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <span className="text-[11px] font-bold text-stone-800 block">
+                <span className="text-[11px] font-bold text-stone-800 dark:text-stone-200 block">
                   Institutional Account UID
                 </span>
-                <span className="text-[10px] text-stone-500 font-mono truncate block">
+                <span className="text-[10px] text-stone-500 dark:text-stone-400 font-mono truncate block">
                   {currentUser.uid}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={handleCopyId}
-                className="px-3 py-1.5 bg-white hover:bg-stone-100 border border-stone-200 text-stone-700 rounded-xl text-[10px] font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0 active:scale-95"
+                className="px-3 py-1.5 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 rounded-xl text-[10px] font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0 active:scale-95"
               >
-                {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
-                <span className={copiedId ? 'text-emerald-700 font-bold' : 'text-stone-700'}>
+                {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-stone-400" />}
+                <span className={copiedId ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-stone-700 dark:text-stone-200'}>
                   {copiedId ? 'Copied' : 'Copy UID'}
                 </span>
               </button>
@@ -862,36 +861,36 @@ export const SettingsView: React.FC = () => {
 
       {/* SECTION 1: SECURITY & CREDENTIALS ACCESS */}
       {(activeFilterPill === 'all' || activeFilterPill === 'security') && (
-        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-5">
-          <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+        <div className="bg-white dark:bg-stone-900 rounded-[32px] p-6 sm:p-7 border border-stone-200/90 dark:border-stone-800 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between gap-3 border-b border-stone-100 dark:border-stone-800 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-red-50 text-[#8B181B] flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-red-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 flex items-center justify-center shrink-0">
                 <Lock className="w-4 h-4 stroke-[2]" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-stone-900">Security Credentials & Access</h3>
-                <p className="text-xs text-stone-500">Manage account authentication, institutional email, and encryption</p>
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Security Credentials & Access</h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400">Manage account authentication, institutional email, and encryption</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-200 dark:border-emerald-800/60 shrink-0">
               Active Protection
             </span>
           </div>
 
-          <div className="divide-y divide-stone-100 text-xs">
+          <div className="divide-y divide-stone-100 dark:divide-stone-800 text-xs">
             {/* Email Setting */}
             <div className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-stone-400 shrink-0" />
                 <div>
-                  <p className="font-bold text-stone-900 text-xs">Institutional Email Address</p>
-                  <p className="text-stone-500 text-[11px]">{currentUser.email}</p>
+                  <p className="font-bold text-stone-900 dark:text-stone-100 text-xs">Institutional Email Address</p>
+                  <p className="text-stone-500 dark:text-stone-400 text-[11px]">{currentUser.email}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowEmailModal(true)}
-                className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl font-semibold transition-colors cursor-pointer self-start sm:self-auto"
+                className="px-3.5 py-1.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 border border-stone-200/70 dark:border-stone-700 rounded-xl font-semibold transition-colors cursor-pointer self-start sm:self-auto"
               >
                 Change Email
               </button>
@@ -902,8 +901,8 @@ export const SettingsView: React.FC = () => {
               <div className="flex items-center gap-3">
                 <KeyRound className="w-4 h-4 text-stone-400 shrink-0" />
                 <div>
-                  <p className="font-bold text-stone-900 text-xs">Access Password</p>
-                  <p className="text-stone-500 text-[11px]">Protected via authenticated password hash</p>
+                  <p className="font-bold text-stone-900 dark:text-stone-100 text-xs">Access Password</p>
+                  <p className="text-stone-500 dark:text-stone-400 text-[11px]">Protected via authenticated password hash</p>
                 </div>
               </div>
               <button
@@ -918,27 +917,27 @@ export const SettingsView: React.FC = () => {
             {/* ========================================================================= */}
             {/* SUB-SECTION: BIOMETRIC PREFERENCES & SECONDARY APP LOCK (MOBILE ONLY)     */}
             {/* ========================================================================= */}
-            <div className="mt-6 pt-5 border-t border-stone-100">
-              <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-stone-100">
+            <div className="mt-6 pt-5 border-t border-stone-100 dark:border-stone-800">
+              <div className="flex items-center justify-between gap-3 pb-3.5 mb-3 border-b border-stone-100 dark:border-stone-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-red-50 text-[#8B181B] flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 flex items-center justify-center shrink-0">
                     <ScanFace className="w-4 h-4 stroke-[2]" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2 flex-wrap">
                       <span>Multi-Modal Biometrics & Access Gate</span>
-                      <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-700">
+                      <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
                         {biometricAvail.label}
                       </span>
                     </h4>
-                    <p className="text-[11px] text-stone-500">
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">
                       Configure Face Detection, hardware Fingerprint / Touch ID sensors, and Emergency PIN fallback
                     </p>
                   </div>
                 </div>
 
-                <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-stone-500 font-mono">
-                  <span className={`w-2 h-2 rounded-full ${biometricAvail.isAvailable ? 'bg-emerald-500 animate-pulse' : 'bg-stone-300'}`} />
+                <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-stone-500 dark:text-stone-400 font-mono shrink-0">
+                  <span className={`w-2 h-2 rounded-full ${biometricAvail.isAvailable ? 'bg-emerald-500 animate-pulse' : 'bg-stone-300 dark:bg-stone-600'}`} />
                   <span>{biometricAvail.isAvailable ? 'Biometric Enclave Ready' : 'Sensors Standby'}</span>
                 </div>
               </div>
@@ -1026,18 +1025,18 @@ export const SettingsView: React.FC = () => {
                 </div>
 
                 {/* 2. Primary Biometric Quick Sign-In */}
-                <div className="p-4 rounded-2xl bg-white border border-stone-200/80 space-y-3 shadow-2xs">
+                <div className="p-4 rounded-2xl bg-white dark:bg-stone-800/70 border border-stone-200/80 dark:border-stone-700/80 space-y-3 shadow-2xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="min-w-0 pr-2">
                       <div className="flex items-center gap-2">
-                        <p className="font-bold text-stone-900 text-xs">Biometric Quick Sign-In</p>
+                        <p className="font-bold text-stone-900 dark:text-stone-100 text-xs">Biometric Quick Sign-In</p>
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                          biometricEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-100 text-stone-600'
+                          biometricEnabled ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
                         }`}>
                           {biometricEnabled ? 'ACTIVE' : 'DISABLED'}
                         </span>
                       </div>
-                      <p className="text-stone-500 text-[11px] mt-0.5">
+                      <p className="text-stone-500 dark:text-stone-400 text-[11px] mt-0.5">
                         Store credentials in native Keychain / Keystore to sign in with your face or fingerprint from the login screen
                       </p>
                     </div>
@@ -1050,13 +1049,13 @@ export const SettingsView: React.FC = () => {
                           onChange={(e) => handleToggleBiometrics(e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
+                        <div className="w-11 h-6 bg-stone-200 dark:bg-stone-700 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
                       </label>
                     </div>
                   </div>
 
                   {biometricEnabled && (
-                    <div className="pt-2 border-t border-stone-100 flex items-center gap-2 flex-wrap text-xs">
+                    <div className="pt-2 border-t border-stone-100 dark:border-stone-700/70 flex items-center gap-2 flex-wrap text-xs">
                       <button
                         type="button"
                         onClick={async () => {
@@ -1068,7 +1067,7 @@ export const SettingsView: React.FC = () => {
                             showToast('Could not re-enroll biometric credentials.', 'error');
                           }
                         }}
-                        className="px-2.5 py-1 text-[11px] font-semibold text-[#8B181B] bg-red-50 hover:bg-red-100 rounded-lg cursor-pointer transition-colors"
+                        className="px-2.5 py-1 text-[11px] font-semibold text-[#8B181B] dark:text-rose-300 bg-red-50 dark:bg-rose-950/60 hover:bg-red-100 dark:hover:bg-rose-900/60 rounded-lg cursor-pointer transition-colors"
                       >
                         Re-enroll Biometrics
                       </button>
@@ -1080,7 +1079,7 @@ export const SettingsView: React.FC = () => {
                           setBiometricEnabled(false);
                           showToast('Biometric credentials revoked from hardware vault.', 'info');
                         }}
-                        className="px-2.5 py-1 text-[11px] font-medium text-stone-600 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-lg cursor-pointer transition-colors"
+                        className="px-2.5 py-1 text-[11px] font-medium text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 rounded-lg cursor-pointer transition-colors"
                       >
                         Revoke Vault
                       </button>
@@ -1089,18 +1088,18 @@ export const SettingsView: React.FC = () => {
                 </div>
 
                 {/* 3. Emergency PIN Fallback Configuration */}
-                <div className="p-4 rounded-2xl bg-white border border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="p-4 rounded-2xl bg-white dark:bg-stone-800/70 border border-stone-200/80 dark:border-stone-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
                   <div className="min-w-0 pr-2">
                     <div className="flex items-center gap-2">
-                      <p className="font-bold text-stone-900 text-xs flex items-center gap-1.5">
-                        <KeyRound className="w-3.5 h-3.5 text-[#8B181B]" />
+                      <p className="font-bold text-stone-900 dark:text-stone-100 text-xs flex items-center gap-1.5">
+                        <KeyRound className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
                         <span>Emergency PIN</span>
                       </p>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                        {getCampusPinConfig(currentUser.uid).isConfigured ? 'CUSTOM CONFIGURED' : 'DEFAULT 1973'}
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
+                        {getCampusPinConfig(currentUser.uid).isConfigured ? 'CUSTOM CONFIGURED' : 'DEFAULT PIN'}
                       </span>
                     </div>
-                    <p className="text-stone-500 text-[11px] mt-0.5">
+                    <p className="text-stone-500 dark:text-stone-400 text-[11px] mt-0.5">
                       4-6 digit numeric passcode used if camera is inaccessible or hardware biometric sensors fail
                     </p>
                   </div>
@@ -1126,47 +1125,47 @@ export const SettingsView: React.FC = () => {
 
       {/* SECTION 2: DISPATCH CHANNELS & NOTIFICATION MATRIX */}
       {(activeFilterPill === 'all' || activeFilterPill === 'notifications') && (
-        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-5">
-          <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+        <div className="bg-white dark:bg-stone-900 rounded-[32px] p-6 sm:p-7 border border-stone-200/90 dark:border-stone-800 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between gap-3 border-b border-stone-100 dark:border-stone-800 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
                 <Bell className="w-4 h-4 stroke-[2]" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-stone-900">Dispatch Channels & Notification Matrix</h3>
-                <p className="text-xs text-stone-500">Configure real-time event reminders, direct dispatches, and career notices</p>
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Dispatch Channels & Notification Matrix</h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400">Configure real-time event reminders, direct dispatches, and career notices</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold shrink-0">
               {activeChannelsCount} Enabled
             </span>
           </div>
 
           <div className="space-y-4">
             {/* 24-Hour Push Notification Safeguard & Audio Chime Banner */}
-            <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-[#8B181B]" />
-                  <span className="text-xs font-bold text-stone-900">24h Event Reminder & Chime Safeguard</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Clock className="w-4 h-4 text-[#8B181B] dark:text-rose-400" />
+                  <span className="text-xs font-bold text-stone-900 dark:text-stone-100">24h Event Reminder & Chime Safeguard</span>
                   <span
                     className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
                       pushPermissionStatus === 'granted'
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
                         : pushPermissionStatus === 'denied'
-                        ? 'bg-rose-50 text-rose-800 border-rose-200'
-                        : 'bg-amber-50 text-amber-800 border-amber-200'
+                        ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800/60'
+                        : 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/60'
                     }`}
                   >
                     {pushPermissionStatus === 'granted' ? 'Push Active' : pushPermissionStatus === 'denied' ? 'Blocked' : 'Default'}
                   </span>
                 </div>
-                <p className="text-[11px] text-stone-600">
+                <p className="text-[11px] text-stone-600 dark:text-stone-300">
                   Campus event kick-off chime & 24-hour advance high-attendance reminder alerts
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
                 {pushPermissionStatus !== 'granted' && (
                   <button
                     type="button"
@@ -1180,7 +1179,7 @@ export const SettingsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => sendTest24HourAlert()}
-                  className="py-1.5 px-3 bg-stone-900 hover:bg-black text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95"
+                  className="py-1.5 px-3 bg-stone-900 dark:bg-stone-800 hover:bg-black dark:hover:bg-stone-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer active:scale-95 border border-transparent dark:border-stone-700"
                 >
                   <Volume2 className="w-3.5 h-3.5 text-amber-300" />
                   <span>Test Audio Chime & Push</span>
@@ -1190,16 +1189,16 @@ export const SettingsView: React.FC = () => {
 
             {/* Toggle 1: Push (Mobile Only) */}
             <PlatformOnly client="mobile">
-              <div className="p-3.5 rounded-2xl bg-stone-50/70 border border-stone-200/70 space-y-3">
+              <div className="p-3.5 rounded-2xl bg-stone-50/70 dark:bg-stone-800/70 border border-stone-200/70 dark:border-stone-700/80 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="min-w-0 pr-4">
                     <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-stone-900">Phone Notifications</p>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                      <p className="text-xs font-bold text-stone-900 dark:text-stone-100">Phone Notifications</p>
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
                         Live Push
                       </span>
                     </div>
-                    <p className="text-[11px] text-stone-500 mt-0.5">
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
                       Receive instant alerts on your phone for direct messages, campus events, and announcements even when the app is closed.
                     </p>
                   </div>
@@ -1222,14 +1221,14 @@ export const SettingsView: React.FC = () => {
                       }}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
+                    <div className="w-11 h-6 bg-stone-200 dark:bg-stone-700 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
                   </label>
                 </div>
 
                 {pushEnabled && (
-                  <div className="pt-2.5 border-t border-stone-200/60 space-y-2 text-[11px]">
+                  <div className="pt-2.5 border-t border-stone-200/60 dark:border-stone-700 space-y-2 text-[11px]">
                     <div className="flex items-center justify-between flex-wrap gap-2">
-                      <span className="text-stone-600 font-medium">Test Real Notifications:</span>
+                      <span className="text-stone-600 dark:text-stone-300 font-medium">Test Real Notifications:</span>
                       <button
                         type="button"
                         onClick={async () => {
@@ -1252,21 +1251,21 @@ export const SettingsView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleSendTestPush('event')}
-                        className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
+                        className="px-2 py-0.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-[#8B181B] text-stone-700 dark:text-stone-200 font-semibold transition-colors cursor-pointer text-[10px]"
                       >
                         Event Reminder
                       </button>
                       <button
                         type="button"
                         onClick={() => handleSendTestPush('message')}
-                        className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
+                        className="px-2 py-0.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-[#8B181B] text-stone-700 dark:text-stone-200 font-semibold transition-colors cursor-pointer text-[10px]"
                       >
                         Chat Message
                       </button>
                       <button
                         type="button"
                         onClick={() => handleSendTestPush('announcement')}
-                        className="px-2 py-0.5 rounded-lg bg-white border border-stone-200 hover:border-[#8B181B] text-stone-700 font-semibold transition-colors cursor-pointer text-[10px]"
+                        className="px-2 py-0.5 rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 hover:border-[#8B181B] text-stone-700 dark:text-stone-200 font-semibold transition-colors cursor-pointer text-[10px]"
                       >
                         Announcement
                       </button>
@@ -1278,10 +1277,10 @@ export const SettingsView: React.FC = () => {
 
 
             {/* Toggle 2: Email */}
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 border border-stone-200/70">
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 dark:bg-stone-800/70 border border-stone-200/70 dark:border-stone-700/80">
               <div className="min-w-0 pr-4">
-                <p className="text-xs font-bold text-stone-900">Email Digest & Institutional Broadcasts</p>
-                <p className="text-[11px] text-stone-500 mt-0.5">Monthly alumni circulars, reunion invitations, and career opportunities</p>
+                <p className="text-xs font-bold text-stone-900 dark:text-stone-100">Email Digest & Institutional Broadcasts</p>
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">Monthly alumni circulars, reunion invitations, and career opportunities</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
@@ -1290,15 +1289,15 @@ export const SettingsView: React.FC = () => {
                   onChange={(e) => handleToggle('email', e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
+                <div className="w-11 h-6 bg-stone-200 dark:bg-stone-700 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
               </label>
             </div>
 
             {/* Toggle 3: Messages */}
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 border border-stone-200/70">
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 dark:bg-stone-800/70 border border-stone-200/70 dark:border-stone-700/80">
               <div className="min-w-0 pr-4">
-                <p className="text-xs font-bold text-stone-900">Direct Messages</p>
-                <p className="text-[11px] text-stone-500 mt-0.5">Notify when another alumnus or staff member sends you a message</p>
+                <p className="text-xs font-bold text-stone-900 dark:text-stone-100">Direct Messages</p>
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">Notify when another alumnus or staff member sends you a message</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
@@ -1307,15 +1306,15 @@ export const SettingsView: React.FC = () => {
                   onChange={(e) => handleToggle('messages', e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
+                <div className="w-11 h-6 bg-stone-200 dark:bg-stone-700 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
               </label>
             </div>
 
             {/* Toggle 4: Events */}
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 border border-stone-200/70">
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 dark:bg-stone-800/70 border border-stone-200/70 dark:border-stone-700/80">
               <div className="min-w-0 pr-4">
-                <p className="text-xs font-bold text-stone-900">Campus Events & Reunions</p>
-                <p className="text-[11px] text-stone-500 mt-0.5">Reminders for events you marked "Going" or "Interested"</p>
+                <p className="text-xs font-bold text-stone-900 dark:text-stone-100">Campus Events & Reunions</p>
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">Reminders for events you marked "Going" or "Interested"</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
@@ -1324,15 +1323,15 @@ export const SettingsView: React.FC = () => {
                   onChange={(e) => handleToggle('events', e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
+                <div className="w-11 h-6 bg-stone-200 dark:bg-stone-700 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
               </label>
             </div>
 
             {/* Toggle 5: Jobs */}
-            <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 border border-stone-200/70">
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50/70 dark:bg-stone-800/70 border border-stone-200/70 dark:border-stone-700/80">
               <div className="min-w-0 pr-4">
-                <p className="text-xs font-bold text-stone-900">Job Postings & Career Opportunities</p>
-                <p className="text-[11px] text-stone-500 mt-0.5">Instant alerts when vacancies matching your academic program are published</p>
+                <p className="text-xs font-bold text-stone-900 dark:text-stone-100">Job Postings & Career Opportunities</p>
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">Instant alerts when vacancies matching your academic program are published</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0">
                 <input
@@ -1341,7 +1340,7 @@ export const SettingsView: React.FC = () => {
                   onChange={(e) => handleToggle('jobs', e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-stone-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
+                <div className="w-11 h-6 bg-stone-200 dark:bg-stone-700 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B]" />
               </label>
             </div>
           </div>
@@ -1350,18 +1349,18 @@ export const SettingsView: React.FC = () => {
 
       {/* SECTION: APPEARANCE & THEME STUDIO */}
       {(activeFilterPill === 'all' || activeFilterPill === 'appearance') && (
-        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-5">
-          <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+        <div className="bg-white dark:bg-stone-900 rounded-[32px] p-6 sm:p-7 border border-stone-200/90 dark:border-stone-800 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between gap-3 border-b border-stone-100 dark:border-stone-800 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
                 <Palette className="w-4 h-4 stroke-[2]" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-stone-900">Appearance & Theme Studio</h3>
-                <p className="text-xs text-stone-500">Interface mode, visual contrast, and system theme preferences</p>
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Appearance & Theme Studio</h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400">Interface mode, visual contrast, and system theme preferences</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold uppercase border border-stone-200">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold uppercase border border-stone-200 dark:border-stone-700 shrink-0">
               {themeMode}
             </span>
           </div>
@@ -1372,11 +1371,11 @@ export const SettingsView: React.FC = () => {
               onClick={() => handleThemeChange('light')}
               className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all cursor-pointer border ${
                 themeMode === 'light'
-                  ? 'bg-amber-50/80 border-amber-400 text-amber-950 font-bold shadow-2xs ring-1 ring-amber-400/40'
-                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
+                  ? 'bg-amber-50/80 dark:bg-amber-950/40 border-amber-400 dark:border-amber-600/60 text-amber-950 dark:text-amber-200 font-bold shadow-2xs ring-1 ring-amber-400/40'
+                  : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200'
               }`}
             >
-              <Sun className="w-5 h-5 text-amber-600" />
+              <Sun className="w-5 h-5 text-amber-600 dark:text-amber-400" />
               <div className="text-center">
                 <span className="text-xs font-bold block">Light Theme</span>
                 <span className="text-[10px] text-stone-400 font-medium">Warm collegiate stone</span>
@@ -1388,8 +1387,8 @@ export const SettingsView: React.FC = () => {
               onClick={() => handleThemeChange('dark')}
               className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all cursor-pointer border ${
                 themeMode === 'dark'
-                  ? 'bg-stone-900 border-stone-700 text-white font-bold shadow-2xs ring-1 ring-stone-600'
-                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
+                  ? 'bg-stone-900 dark:bg-stone-800 border-stone-700 dark:border-amber-500/60 text-white font-bold shadow-2xs ring-1 ring-stone-600 dark:ring-amber-500/30'
+                  : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200'
               }`}
             >
               <Moon className="w-5 h-5 text-amber-400" />
@@ -1404,11 +1403,11 @@ export const SettingsView: React.FC = () => {
               onClick={() => handleThemeChange('system')}
               className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all cursor-pointer border ${
                 themeMode === 'system'
-                  ? 'bg-blue-50/80 border-blue-400 text-blue-950 font-bold shadow-2xs ring-1 ring-blue-400/40'
-                  : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-700'
+                  ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-400 dark:border-blue-500/60 text-blue-950 dark:text-blue-200 font-bold shadow-2xs ring-1 ring-blue-400/40'
+                  : 'bg-stone-50 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200'
               }`}
             >
-              <Monitor className="w-5 h-5 text-blue-600" />
+              <Monitor className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               <div className="text-center">
                 <span className="text-xs font-bold block">System Default</span>
                 <span className="text-[10px] text-stone-400 font-medium">Sync with OS appearance</span>
@@ -1416,11 +1415,11 @@ export const SettingsView: React.FC = () => {
             </button>
           </div>
 
-          <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
-            <span className="text-stone-500 text-[10px] font-medium">
+          <div className="pt-2 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between text-xs">
+            <span className="text-stone-500 dark:text-stone-400 text-[10px] font-medium">
               Applied automatically across all Cecilian tabs and sessions
             </span>
-            <span className="text-[11px] font-bold text-[#8B181B]">
+            <span className="text-[11px] font-bold text-[#8B181B] dark:text-rose-400">
               Active Configuration
             </span>
           </div>
@@ -1429,18 +1428,18 @@ export const SettingsView: React.FC = () => {
 
       {/* SECTION: INSTITUTIONAL GOVERNANCE, SUPPORT & POLICIES */}
       {(activeFilterPill === 'all' || activeFilterPill === 'compliance') && (
-        <div className="bg-white rounded-[32px] p-6 sm:p-7 border border-stone-200/90 shadow-2xs space-y-5">
-          <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+        <div className="bg-white dark:bg-stone-900 rounded-[32px] p-6 sm:p-7 border border-stone-200/90 dark:border-stone-800 shadow-2xs space-y-5">
+          <div className="flex items-center justify-between gap-3 border-b border-stone-100 dark:border-stone-800 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-red-50 text-[#8B181B] flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-red-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 flex items-center justify-center shrink-0">
                 <HelpCircle className="w-4 h-4 stroke-[2]" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-stone-900">Institutional Governance & Support</h3>
-                <p className="text-xs text-stone-500">Alumni network charters, directory policies, FAQ, and registrar support</p>
+                <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">Institutional Governance & Support</h3>
+                <p className="text-xs text-stone-500 dark:text-stone-400">Alumni network charters, directory policies, FAQ, and registrar support</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 text-stone-700 font-bold border border-stone-200">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 font-bold border border-stone-200 dark:border-stone-700 shrink-0">
               v2.4.0
             </span>
           </div>
@@ -1450,13 +1449,13 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={handleShareApp}
-              className="p-4 bg-red-50/70 hover:bg-red-100/80 text-[#8B181B] rounded-2xl font-bold flex items-center justify-between transition-colors cursor-pointer group shadow-2xs border border-red-200/60"
+              className="p-4 bg-red-50/70 dark:bg-rose-950/40 hover:bg-red-100/80 dark:hover:bg-rose-900/50 text-[#8B181B] dark:text-rose-300 rounded-2xl font-bold flex items-center justify-between transition-colors cursor-pointer group shadow-2xs border border-red-200/60 dark:border-rose-800/60"
             >
               <div className="flex items-center gap-2.5">
                 <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
                 <span>Share App with Alumni</span>
               </div>
-              <span className="text-[10px] bg-white px-2 py-0.5 rounded-full border border-red-200 font-semibold text-stone-700">
+              <span className="text-[10px] bg-white dark:bg-stone-800 px-2.5 py-0.5 rounded-full border border-red-200 dark:border-rose-800/60 font-semibold text-stone-700 dark:text-stone-200">
                 Invite
               </span>
             </button>
@@ -1465,7 +1464,7 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={() => openExternalUrl('https://stcecilia.edu.ph')}
-              className="p-4 bg-stone-50 hover:bg-stone-100 text-stone-800 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80"
+              className="p-4 bg-stone-50 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700"
             >
               <span className="flex items-center gap-2">
                 <Globe className="w-4 h-4 text-stone-400" />
@@ -1478,7 +1477,7 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowFaqModal(true)}
-              className="p-4 bg-stone-50 hover:bg-stone-100 text-stone-800 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80"
+              className="p-4 bg-stone-50 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700"
             >
               <span className="flex items-center gap-2">
                 <HelpCircle className="w-4 h-4 text-stone-400" />
@@ -1491,7 +1490,7 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowPrivacyModal(true)}
-              className="p-4 bg-stone-50 hover:bg-stone-100 text-stone-800 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80"
+              className="p-4 bg-stone-50 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700"
             >
               <span className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-stone-400" />
@@ -1504,7 +1503,7 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowAboutModal(true)}
-              className="p-4 bg-stone-50 hover:bg-stone-100 text-stone-800 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80"
+              className="p-4 bg-stone-50 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-800 dark:text-stone-200 rounded-2xl font-semibold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700"
             >
               <span className="flex items-center gap-2">
                 <Info className="w-4 h-4 text-stone-400" />
@@ -1516,10 +1515,10 @@ export const SettingsView: React.FC = () => {
             {/* Contact Registrar Support */}
             <a
               href="mailto:support@scc.edu.ph"
-              className="p-4 bg-stone-50 hover:bg-stone-100 text-[#8B181B] rounded-2xl font-bold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80"
+              className="p-4 bg-stone-50 dark:bg-stone-800/80 hover:bg-stone-100 dark:hover:bg-stone-800 text-[#8B181B] dark:text-rose-400 rounded-2xl font-bold flex items-center justify-between transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700"
             >
               <span className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-[#8B181B]" />
+                <Mail className="w-4 h-4 text-[#8B181B] dark:text-rose-400" />
                 <span>Contact IT Registrar Support</span>
               </span>
               <ExternalLink className="w-3.5 h-3.5 text-stone-400" />
@@ -1530,35 +1529,35 @@ export const SettingsView: React.FC = () => {
 
       {/* SECTION 3: SESSION TERMINATION & DANGER DESK */}
       {(activeFilterPill === 'all' || activeFilterPill === 'security') && (
-        <div className="bg-red-50/40 rounded-[32px] p-6 sm:p-7 border border-red-200/80 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between border-b border-red-100 pb-3">
+        <div className="bg-red-50/40 dark:bg-rose-950/25 rounded-[32px] p-6 sm:p-7 border border-red-200/80 dark:border-rose-900/60 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between gap-3 border-b border-red-100 dark:border-rose-900/40 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-red-100 text-red-800 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-rose-900/60 text-red-800 dark:text-rose-300 flex items-center justify-center shrink-0">
                 <LogOut className="w-4 h-4 stroke-[2]" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-red-950">Session & Account Lifecycle</h3>
-                <p className="text-xs text-red-700/80">Manage active authenticated token or remove alumni record</p>
+                <h3 className="text-base font-bold text-red-950 dark:text-stone-100">Session & Account Lifecycle</h3>
+                <p className="text-xs text-red-700/80 dark:text-rose-300/80">Manage active authenticated token or remove alumni record</p>
               </div>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold border border-red-200">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-100 dark:bg-rose-900/50 text-red-800 dark:text-rose-200 font-bold border border-red-200 dark:border-rose-800/60 shrink-0">
               Authorized Actions
             </span>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
             <div>
-              <p className="text-xs font-bold text-stone-900">Active Console Session</p>
-              <p className="text-[11px] text-stone-500">End your active authenticated session on this device</p>
+              <p className="text-xs font-bold text-stone-900 dark:text-stone-100">Active Console Session</p>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400">End your active authenticated session on this device</p>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => setShowLogoutConfirm(true)}
-                className="w-full sm:w-auto px-4 py-2 bg-white hover:bg-stone-100 border border-stone-300 text-stone-800 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-colors"
+                className="w-full sm:w-auto px-4 py-2.5 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 border border-stone-300 dark:border-stone-700 text-stone-800 dark:text-stone-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-colors"
               >
-                <LogOut className="w-3.5 h-3.5 text-stone-600" />
+                <LogOut className="w-3.5 h-3.5 text-stone-600 dark:text-stone-300" />
                 <span>Log Out of Console</span>
               </button>
 
@@ -1566,7 +1565,7 @@ export const SettingsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-colors"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer shadow-xs transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Delete Account</span>
@@ -1590,42 +1589,42 @@ export const SettingsView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-stone-200 text-xs space-y-4"
+              className="bg-white dark:bg-stone-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-stone-200 dark:border-stone-800 text-xs space-y-4"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 flex items-center justify-center">
                     <Mail className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900">Change Account Email</h3>
-                    <p className="text-[11px] text-stone-500">Update your verified address for circulars</p>
+                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Change Account Email</h3>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">Update your verified address for circulars</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowEmailModal(false)}
-                  className="p-1 rounded-lg text-stone-400 hover:bg-stone-100 cursor-pointer"
+                  className="p-1 rounded-lg text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <form onSubmit={handleInitiateEmailChange} className="space-y-3.5">
-                <div className="p-3 bg-stone-50 rounded-xl border border-stone-200">
-                  <span className="text-stone-500 block text-[11px]">Current Address</span>
-                  <span className="font-bold text-stone-900 text-xs">{currentUser?.email}</span>
+                <div className="p-3 bg-stone-50 dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700">
+                  <span className="text-stone-500 dark:text-stone-400 block text-[11px]">Current Address</span>
+                  <span className="font-bold text-stone-900 dark:text-stone-100 text-xs">{currentUser?.email}</span>
                 </div>
 
                 {emailValidationError && (
-                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+                  <div className="p-3 bg-red-50 dark:bg-rose-950/50 border border-red-200 dark:border-rose-800 text-red-700 dark:text-rose-300 rounded-xl text-xs flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
                     <span>{emailValidationError}</span>
                   </div>
                 )}
 
                 <div>
-                  <label className="font-bold text-stone-700 block mb-1">New Email Address *</label>
+                  <label className="font-bold text-stone-700 dark:text-stone-300 block mb-1">New Email Address *</label>
                   <input
                     type="email"
                     required
@@ -1635,7 +1634,7 @@ export const SettingsView: React.FC = () => {
                       setEmailValidationError(null);
                     }}
                     placeholder="e.g. cecilian.alumni@domain.com"
-                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:border-[#8B181B]"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B]"
                   />
                 </div>
 
@@ -1643,7 +1642,7 @@ export const SettingsView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowEmailModal(false)}
-                    className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-medium cursor-pointer"
+                    className="px-3.5 py-1.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 rounded-xl font-medium cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -1670,39 +1669,39 @@ export const SettingsView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl border border-stone-200 text-xs space-y-4"
+              className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl border border-stone-200 dark:border-stone-800 text-xs space-y-4"
             >
-              <div className="flex items-center justify-between pb-3.5 border-b border-stone-200">
+              <div className="flex items-center justify-between pb-3.5 border-b border-stone-200 dark:border-stone-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#8B181B]/10 flex items-center justify-center text-[#8B181B]">
+                  <div className="w-8 h-8 rounded-xl bg-[#8B181B]/10 dark:bg-rose-950/60 flex items-center justify-center text-[#8B181B] dark:text-rose-400">
                     <KeyRound className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900">Change Account Password</h3>
-                    <p className="text-[11px] text-stone-500">Verify current password and set your new credential</p>
+                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Change Account Password</h3>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">Verify current password and set your new credential</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowPasswordModal(false)}
-                  className="text-stone-400 hover:text-stone-600 p-1 rounded-lg cursor-pointer"
+                  className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 p-1 rounded-lg cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {passwordSuccess ? (
-                <div className="my-5 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="my-5 p-4 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-emerald-800 dark:text-emerald-300 flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold text-xs">Password Updated</p>
-                    <p className="text-[11px] text-emerald-700 mt-0.5">{passwordSuccess}</p>
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300/90 mt-0.5">{passwordSuccess}</p>
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleInitiatePasswordChange} className="space-y-3.5">
                   {passwordError && (
-                    <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+                    <div className="p-3 bg-red-50 dark:bg-rose-950/50 border border-red-200 dark:border-rose-800 text-red-700 dark:text-rose-300 rounded-xl text-xs flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
                       <span>{passwordError}</span>
                     </div>
@@ -1710,7 +1709,7 @@ export const SettingsView: React.FC = () => {
 
                   {/* Old Password */}
                   <div>
-                    <label className="text-xs font-semibold text-stone-700 block mb-1">
+                    <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
                       Current (Old) Password *
                     </label>
                     <div className="relative">
@@ -1720,12 +1719,12 @@ export const SettingsView: React.FC = () => {
                         value={oldPassword}
                         onChange={(e) => setOldPassword(e.target.value)}
                         placeholder="Enter your current password"
-                        className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs pr-10 focus:bg-white focus:outline-hidden focus:border-[#8B181B]"
+                        className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs pr-10 focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B]"
                       />
                       <button
                         type="button"
                         onClick={() => setShowOldPass(!showOldPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
                       >
                         {showOldPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
@@ -1734,7 +1733,7 @@ export const SettingsView: React.FC = () => {
 
                   {/* New Password */}
                   <div>
-                    <label className="text-xs font-semibold text-stone-700 block mb-1">
+                    <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
                       New Password *
                     </label>
                     <div className="relative">
@@ -1744,12 +1743,12 @@ export const SettingsView: React.FC = () => {
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="At least 8 characters"
-                        className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs pr-10 focus:bg-white focus:outline-hidden focus:border-[#8B181B]"
+                        className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs pr-10 focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B]"
                       />
                       <button
                         type="button"
                         onClick={() => setShowNewPass(!showNewPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
                         aria-label={showNewPass ? 'Hide password' : 'Show password'}
                       >
                         {showNewPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -1772,7 +1771,7 @@ export const SettingsView: React.FC = () => {
 
                   {/* Confirm New Password */}
                   <div>
-                    <label className="text-xs font-semibold text-stone-700 block mb-1">
+                    <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
                       Confirm New Password *
                     </label>
                     <div className="relative">
@@ -1784,68 +1783,71 @@ export const SettingsView: React.FC = () => {
                         placeholder="Re-type new password"
                         className={`w-full px-3.5 py-2.5 rounded-xl text-xs pr-10 focus:outline-hidden transition-all ${
                           confirmPassword && confirmPassword === newPassword
-                            ? 'bg-emerald-50/30 border border-emerald-500 text-emerald-950 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500'
+                            ? 'bg-emerald-50/30 dark:bg-emerald-950/30 border border-emerald-500 text-emerald-950 dark:text-emerald-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500'
                             : confirmPassword && confirmPassword !== newPassword
-                            ? 'bg-red-50/30 border border-red-400 text-red-950 focus:border-red-500 focus:ring-1 focus:ring-red-500'
-                            : 'bg-stone-50 border border-stone-200 focus:bg-white focus:border-[#8B181B]'
+                            ? 'bg-red-50/30 dark:bg-rose-950/30 border border-red-400 text-red-950 dark:text-rose-200 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                            : 'bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 focus:bg-white dark:focus:bg-stone-800 focus:border-[#8B181B]'
                         }`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPass(!showConfirmPass)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
                         aria-label={showConfirmPass ? 'Hide password' : 'Show password'}
                       >
                         {showConfirmPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                     {confirmPassword && confirmPassword === newPassword && (
-                      <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-emerald-600">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                         <span>Passwords match</span>
                       </div>
                     )}
                     {confirmPassword && confirmPassword !== newPassword && (
-                      <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-red-500">
-                        <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                      <div className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-red-500 dark:text-rose-400">
+                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 dark:text-rose-400" />
                         <span>Passwords do not match</span>
                       </div>
                     )}
                   </div>
 
                   {resetEmailStatus && (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       <span>{resetEmailStatus}</span>
                     </div>
                   )}
 
                   {/* Send Password Reset Link by Email Option */}
-                  <div className="p-3 rounded-xl bg-stone-50 border border-stone-200/80 text-[11px] text-stone-600 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 text-stone-700">
-                      <Mail className="w-3.5 h-3.5 text-[#8B181B] shrink-0" />
+                  <div className="p-3 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200/80 dark:border-stone-700 text-[11px] text-stone-600 dark:text-stone-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-stone-700 dark:text-stone-200">
+                      <Mail className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400 shrink-0" />
                       <span>Prefer to change via email instructions?</span>
                     </div>
                     <button
                       type="button"
                       onClick={handleSendResetEmail}
                       disabled={isSendingResetEmail}
-                      className="text-xs font-bold text-[#8B181B] hover:text-[#721316] hover:underline cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
+                      className="text-xs font-bold text-[#8B181B] dark:text-rose-400 hover:text-[#721316] hover:underline cursor-pointer flex items-center gap-1 shrink-0 disabled:opacity-50"
                     >
                       {isSendingResetEmail ? 'Sending...' : 'Email Reset Link'}
                     </button>
                   </div>
 
                   {/* Security Policy Reminder */}
-                  <p className="text-[10px] text-stone-500 leading-relaxed">
-                    🔒 Institutional Security Protocol: Changing your password automatically dispatches a verified security confirmation email to <strong className="text-stone-700">{currentUser.email}</strong>.
+                  <p className="text-[10px] text-stone-500 dark:text-stone-400 leading-relaxed flex items-start gap-1.5">
+                    <Lock className="w-3 h-3 shrink-0 mt-0.5 text-stone-400" />
+                    <span>
+                      Institutional Security Protocol: Changing your password automatically dispatches a verified security confirmation email to <strong className="text-stone-700 dark:text-stone-200">{currentUser.email}</strong>.
+                    </span>
                   </p>
 
-                  <div className="pt-3 border-t border-stone-100 flex items-center justify-end gap-2">
+                  <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setShowPasswordModal(false)}
-                      className="px-3.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-medium cursor-pointer"
+                      className="px-3.5 py-1.5 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 rounded-xl font-medium cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -1873,40 +1875,40 @@ export const SettingsView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl border border-stone-200 text-xs space-y-4"
+              className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl border border-stone-200 dark:border-stone-800 text-xs space-y-4"
             >
-              <div className="flex items-center justify-between pb-3.5 border-b border-stone-200">
+              <div className="flex items-center justify-between pb-3.5 border-b border-stone-200 dark:border-stone-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center text-[#8B181B]">
+                  <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-rose-950/60 flex items-center justify-center text-[#8B181B] dark:text-rose-400">
                     <ShieldCheck className="w-4 h-4 stroke-[2]" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900">Modify Authority Role</h3>
-                    <p className="text-[11px] text-stone-500">Update clearance tier and persist to Firestore database</p>
+                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Modify Authority Role</h3>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">Update clearance tier and persist to Firestore database</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowRoleModal(false)}
                   disabled={isSavingRole}
-                  className="text-stone-400 hover:text-stone-600 p-1 rounded-lg cursor-pointer"
+                  className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 p-1 rounded-lg cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {roleSuccess ? (
-                <div className="my-5 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="my-5 p-4 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-emerald-800 dark:text-emerald-300 flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                   <div>
                     <p className="font-bold text-xs">Role Committed</p>
-                    <p className="text-[11px] text-emerald-700 mt-0.5">{roleSuccess}</p>
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-300/90 mt-0.5">{roleSuccess}</p>
                   </div>
                 </div>
               ) : (
                 <form onSubmit={handleUpdateRole} className="space-y-4">
                   {roleError && (
-                    <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+                    <div className="p-3 bg-red-50 dark:bg-rose-950/50 border border-red-200 dark:border-rose-800 text-red-700 dark:text-rose-300 rounded-xl text-xs flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
                       <span>{roleError}</span>
                     </div>
@@ -1914,7 +1916,7 @@ export const SettingsView: React.FC = () => {
 
                   {/* Target User Selector */}
                   <div>
-                    <label className="text-xs font-semibold text-stone-700 block mb-1">
+                    <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
                       Target User Account *
                     </label>
                     <select
@@ -1928,7 +1930,7 @@ export const SettingsView: React.FC = () => {
                         }
                       }}
                       disabled={isSavingRole}
-                      className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs focus:bg-white focus:outline-hidden focus:border-[#8B181B] cursor-pointer"
+                      className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B] cursor-pointer"
                     >
                       <option value={currentUser.uid}>
                         {currentUser.name} ({currentUser.email}) - Current User [Self]
@@ -1945,14 +1947,14 @@ export const SettingsView: React.FC = () => {
 
                   {/* New Role Selector */}
                   <div>
-                    <label className="text-xs font-semibold text-stone-700 block mb-1">
+                    <label className="text-xs font-semibold text-stone-700 dark:text-stone-300 block mb-1">
                       Assigned Role Tier *
                     </label>
                     <select
                       value={selectedRoleValue}
                       onChange={(e) => setSelectedRoleValue(e.target.value as UserRole)}
                       disabled={isSavingRole}
-                      className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-hidden focus:border-[#8B181B] cursor-pointer"
+                      className="w-full px-3.5 py-2.5 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-xs font-semibold focus:bg-white dark:focus:bg-stone-800 focus:outline-hidden focus:border-[#8B181B] cursor-pointer"
                     >
                       <option value="alumni">Alumni (Standard Portal Access)</option>
                       <option value="moderator">Institutional Moderator (Academic & Community Governance)</option>
@@ -1964,12 +1966,12 @@ export const SettingsView: React.FC = () => {
                     </select>
                   </div>
 
-                  <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-[11px] text-stone-600 space-y-1">
-                    <p className="font-semibold text-stone-800 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <div className="p-3 bg-stone-50 dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 text-[11px] text-stone-600 dark:text-stone-300 space-y-1">
+                    <p className="font-semibold text-stone-800 dark:text-stone-200 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       <span>Persistence Guarantee:</span>
                     </p>
-                    <p className="text-stone-500">
+                    <p className="text-stone-500 dark:text-stone-400">
                       Changes commit directly to the Firestore collection and update credentials across all client and backend sessions.
                     </p>
                   </div>
@@ -1979,7 +1981,7 @@ export const SettingsView: React.FC = () => {
                       type="button"
                       onClick={() => setShowRoleModal(false)}
                       disabled={isSavingRole}
-                      className="px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-medium cursor-pointer"
+                      className="px-3.5 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 rounded-xl font-medium cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -2009,51 +2011,51 @@ export const SettingsView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-lg shadow-2xl border border-stone-200 max-h-[85vh] overflow-y-auto space-y-4"
+              className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-7 w-full max-w-lg shadow-2xl border border-stone-200 dark:border-stone-800 max-h-[85vh] overflow-y-auto space-y-4"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 flex items-center justify-center">
                     <HelpCircle className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900">Frequently Asked Questions</h3>
-                    <p className="text-[11px] text-stone-500">St. Cecilia's College Alumni Network</p>
+                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Frequently Asked Questions</h3>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">St. Cecilia's College Alumni Network</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowFaqModal(false)}
-                  className="p-1 rounded-lg text-stone-400 hover:bg-stone-100 cursor-pointer"
+                  className="p-1 rounded-lg text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="space-y-4 text-xs text-stone-700 leading-relaxed">
-                <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80">
-                  <h4 className="font-bold text-stone-900">Who can connect with who?</h4>
+              <div className="space-y-4 text-xs text-stone-700 dark:text-stone-300 leading-relaxed">
+                <div className="p-3 bg-stone-50 dark:bg-stone-800/80 rounded-2xl border border-stone-200/80 dark:border-stone-700">
+                  <h4 className="font-bold text-stone-900 dark:text-stone-100">Who can connect with who?</h4>
                   <p className="mt-1">
                     Peer dispatches are open across verified alumni, staff officers, and authorized university administrators. Unverified accounts cannot message directory members.
                   </p>
                 </div>
 
-                <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80">
-                  <h4 className="font-bold text-stone-900">How do I verify my degree and graduation records?</h4>
+                <div className="p-3 bg-stone-50 dark:bg-stone-800/80 rounded-2xl border border-stone-200/80 dark:border-stone-700">
+                  <h4 className="font-bold text-stone-900 dark:text-stone-100">How do I verify my degree and graduation records?</h4>
                   <p className="mt-1">
                     University Registrars cross-match graduation masterlists. You can also submit student verification via the Registrar Matcher in your profile.
                   </p>
                 </div>
 
-                <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80">
-                  <h4 className="font-bold text-stone-900">Who can create events and circulars?</h4>
+                <div className="p-3 bg-stone-50 dark:bg-stone-800/80 rounded-2xl border border-stone-200/80 dark:border-stone-700">
+                  <h4 className="font-bold text-stone-900 dark:text-stone-100">Who can create events and circulars?</h4>
                   <p className="mt-1">
                     Admins, Registrars, and Staff members have publishing privileges for official campus events and announcements.
                   </p>
                 </div>
 
-                <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200/80">
-                  <h4 className="font-bold text-stone-900">How can I post jobs on the Alumni Board?</h4>
+                <div className="p-3 bg-stone-50 dark:bg-stone-800/80 rounded-2xl border border-stone-200/80 dark:border-stone-700">
+                  <h4 className="font-bold text-stone-900 dark:text-stone-100">How can I post jobs on the Alumni Board?</h4>
                   <p className="mt-1">
                     Any verified alumnus or corporate partner can post career openings directly from the Career Opportunities hub.
                   </p>
@@ -2064,7 +2066,7 @@ export const SettingsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowFaqModal(false)}
-                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-stone-900 dark:bg-stone-800 hover:bg-stone-800 dark:hover:bg-stone-700 text-white rounded-xl font-semibold cursor-pointer"
                 >
                   Close FAQ
                 </button>
@@ -2084,28 +2086,28 @@ export const SettingsView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-lg shadow-2xl border border-stone-200 max-h-[85vh] overflow-y-auto space-y-4"
+              className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-7 w-full max-w-lg shadow-2xl border border-stone-200 dark:border-stone-800 max-h-[85vh] overflow-y-auto space-y-4"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 flex items-center justify-center">
                     <Shield className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900">Privacy Policy & Directory Governance</h3>
-                    <p className="text-[11px] text-stone-500">St. Cecilia's College - Cebu, Inc.</p>
+                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Privacy Policy & Directory Governance</h3>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">St. Cecilia's College - Cebu, Inc.</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowPrivacyModal(false)}
-                  className="p-1 rounded-lg text-stone-400 hover:bg-stone-100 cursor-pointer"
+                  className="p-1 rounded-lg text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="space-y-3 text-xs text-stone-700 leading-relaxed">
+              <div className="space-y-3 text-xs text-stone-700 dark:text-stone-300 leading-relaxed">
                 <p>
                   The Cecilian Alumni Portal complies strictly with Republic Act No. 10173 (Data Privacy Act of 2012). Personal contact details, phone numbers, and private emails are never exposed to public internet search crawlers.
                 </p>
@@ -2121,7 +2123,7 @@ export const SettingsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowPrivacyModal(false)}
-                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-semibold cursor-pointer"
+                  className="px-4 py-2 bg-stone-900 dark:bg-stone-800 hover:bg-stone-800 dark:hover:bg-stone-700 text-white rounded-xl font-semibold cursor-pointer"
                 >
                   Acknowledge & Close
                 </button>
@@ -2141,7 +2143,7 @@ export const SettingsView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl border border-stone-200 text-center text-xs space-y-4"
+              className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-7 w-full max-w-md shadow-2xl border border-stone-200 dark:border-stone-800 text-center text-xs space-y-4"
             >
               <img
                 src="/assets/cecilians-seal.jpg"
@@ -2150,25 +2152,25 @@ export const SettingsView: React.FC = () => {
               />
               <div>
                 <h3 className="text-base font-bold text-stone-900 dark:text-stone-100 font-sans tracking-tight">St. Cecilia's College Alumni Network</h3>
-                <p className="text-[11px] text-stone-400 mt-0.5">Version 2.4.0 (Production Release)</p>
+                <p className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">Version 2.4.0 (Production Release)</p>
               </div>
-              <p className="text-stone-600 leading-relaxed text-xs">
+              <p className="text-stone-600 dark:text-stone-300 leading-relaxed text-xs">
                 Empowering graduates of St. Cecilia's College - Cebu, Inc. across disciplines with lifelong mentorship, institutional verification, and career mobility.
               </p>
               <div className="pt-2 flex flex-col gap-2">
                 <button
                   type="button"
                   onClick={() => openExternalUrl('https://stcecilia.edu.ph')}
-                  className="w-full py-2.5 px-3 bg-red-50 hover:bg-red-100/80 text-[#8B181B] rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-xs"
+                  className="w-full py-2.5 px-3 bg-red-50 dark:bg-rose-950/40 hover:bg-red-100/80 dark:hover:bg-rose-950/60 text-[#8B181B] dark:text-rose-300 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer text-xs"
                 >
                   <Globe className="w-3.5 h-3.5" />
                   <span>Visit Official College Website</span>
-                  <ExternalLink className="w-3.5 h-3.5 text-[#8B181B]" />
+                  <ExternalLink className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-300" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAboutModal(false)}
-                  className="px-5 py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl font-semibold cursor-pointer"
+                  className="px-5 py-2 bg-stone-900 dark:bg-stone-800 hover:bg-stone-800 dark:hover:bg-stone-700 text-white rounded-xl font-semibold cursor-pointer"
                 >
                   Close
                 </button>
@@ -2188,23 +2190,23 @@ export const SettingsView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-stone-200 text-xs text-center space-y-3"
+              className="bg-white dark:bg-stone-900 rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-stone-200 dark:border-stone-800 text-xs text-center space-y-3"
             >
-              <div className="w-12 h-12 rounded-2xl bg-red-50 text-[#8B181B] flex items-center justify-center mx-auto shadow-2xs">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-rose-950/50 text-[#8B181B] dark:text-rose-400 flex items-center justify-center mx-auto shadow-2xs">
                 <LogOut className="w-6 h-6 stroke-[2]" />
               </div>
-              <h3 className="text-base font-bold text-stone-900">End Active Session?</h3>
-              <p className="text-stone-500 leading-relaxed">
+              <h3 className="text-base font-bold text-stone-900 dark:text-stone-100">End Active Session?</h3>
+              <p className="text-stone-500 dark:text-stone-400 leading-relaxed">
                 Are you sure you want to end your authenticated session on this workstation?
               </p>
 
               {biometricEnabled && (
-                <label className="flex items-center gap-2 justify-center text-[11px] text-stone-600 cursor-pointer pt-1 select-none">
+                <label className="flex items-center gap-2 justify-center text-[11px] text-stone-600 dark:text-stone-300 cursor-pointer pt-1 select-none">
                   <input
                     type="checkbox"
                     checked={revokeBiometricsOnLogout}
                     onChange={(e) => setRevokeBiometricsOnLogout(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-stone-300 text-[#8B181B] focus:ring-[#8B181B]"
+                    className="w-3.5 h-3.5 rounded border-stone-300 dark:border-stone-700 text-[#8B181B] focus:ring-[#8B181B]"
                   />
                   <span>Also revoke biometric quick unlock on this device</span>
                 </label>
@@ -2214,7 +2216,7 @@ export const SettingsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowLogoutConfirm(false)}
-                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 rounded-xl font-medium text-stone-700 cursor-pointer"
+                  className="px-4 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-xl font-medium text-stone-700 dark:text-stone-200 cursor-pointer"
                 >
                   Stay Connected
                 </button>
@@ -2244,22 +2246,22 @@ export const SettingsView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-red-200 text-xs space-y-3"
+              className="bg-white dark:bg-stone-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-red-200 dark:border-rose-900 text-xs space-y-3"
             >
-              <div className="flex items-center gap-2.5 text-red-600">
-                <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center">
+              <div className="flex items-center gap-2.5 text-red-600 dark:text-rose-400">
+                <div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-rose-950/60 flex items-center justify-center">
                   <AlertTriangle className="w-4 h-4" />
                 </div>
-                <h3 className="text-sm font-bold text-red-950">Permanently Remove Account?</h3>
+                <h3 className="text-sm font-bold text-red-950 dark:text-stone-100">Permanently Remove Account?</h3>
               </div>
-              <p className="text-stone-600 leading-relaxed">
+              <p className="text-stone-600 dark:text-stone-300 leading-relaxed">
                 This action is permanent and irreversible. Your alumni registry verification, direct message history, and career postings will be permanently expunged.
               </p>
               <div className="pt-3 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 rounded-xl text-stone-700 font-medium cursor-pointer"
+                  className="px-4 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-xl text-stone-700 dark:text-stone-200 font-medium cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -2289,37 +2291,37 @@ export const SettingsView: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-stone-200 text-xs space-y-4"
+              className="bg-white dark:bg-stone-900 rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-stone-200 dark:border-stone-800 text-xs space-y-4"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-red-50 text-[#8B181B] flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-xl bg-red-50 dark:bg-rose-950/50 text-[#8B181B] dark:text-rose-400 flex items-center justify-center">
                     <KeyRound className="w-4 h-4 stroke-[2]" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-stone-900">Emergency PIN</h3>
-                    <p className="text-[11px] text-stone-500">4 to 6 digit backup passcode</p>
+                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Emergency PIN</h3>
+                    <p className="text-[11px] text-stone-500 dark:text-stone-400">4 to 6 digit backup passcode</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowPinModal(false)}
-                  className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
+                  className="p-1 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {pinDialogError && (
-                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px] flex items-center gap-2">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-600" />
+                <div className="p-2.5 rounded-xl bg-red-50 dark:bg-rose-950/40 border border-red-200 dark:border-rose-900 text-red-800 dark:text-rose-300 text-[11px] flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-600 dark:text-rose-400" />
                   <span>{pinDialogError}</span>
                 </div>
               )}
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                  <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
                     New 4-6 Digit PIN
                   </label>
                   <input
@@ -2332,12 +2334,12 @@ export const SettingsView: React.FC = () => {
                       setNewCampusPin(val);
                     }}
                     placeholder="Enter 4-6 digits"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B] text-center tracking-widest text-base font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B] text-center tracking-widest text-base font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                  <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
                     Confirm PIN
                   </label>
                   <input
@@ -2350,12 +2352,12 @@ export const SettingsView: React.FC = () => {
                       setConfirmCampusPin(val);
                     }}
                     placeholder="Re-enter PIN"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B] text-center tracking-widest text-base font-mono"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B] text-center tracking-widest text-base font-mono"
                   />
                 </div>
 
-                <p className="text-[10px] text-stone-400 leading-relaxed">
-                  Default collegiate founding year PIN is <strong>1973</strong>. Customizing this Emergency PIN protects your account if cameras or fingerprint sensors are unavailable.
+                <p className="text-[10px] text-stone-400 dark:text-stone-500 leading-relaxed">
+                  Customizing this Emergency PIN protects your account if cameras or fingerprint sensors are unavailable.
                 </p>
               </div>
 
@@ -2363,7 +2365,7 @@ export const SettingsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowPinModal(false)}
-                  className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl font-semibold transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 rounded-xl font-semibold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>

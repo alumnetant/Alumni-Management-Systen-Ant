@@ -330,28 +330,7 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
       updater(payload);
     }
 
-    apiFetchWithCsrf('/api/profiles/me', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: payload.name,
-        username: sanitizedUsername,
-        headline: payload.headline,
-        about: payload.about,
-        location: payload.location,
-        company: payload.company,
-        currentPosition: payload.currentPosition,
-        profilePictureUrl: payload.profilePictureUrl,
-        coverPhotoUrl: payload.coverPhotoUrl,
-        phone: payload.phone,
-        show_email: showEmail,
-        show_phone: showPhone,
-        show_current_employer: showCurrentEmployer
-      })
-    }).catch(() => {});
-
     triggerHaptic('success');
-    showToast('Alumni profile updated successfully!', 'success');
     onClose();
   };
 

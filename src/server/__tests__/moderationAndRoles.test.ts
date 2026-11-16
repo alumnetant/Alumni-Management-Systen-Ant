@@ -173,5 +173,155 @@ describe('PostModerationEngine moderation queue, legacy post normalization, and 
 
     const peerReact = engine.togglePostReaction('post_legacy_1', peer, 'heart');
     expect(peerReact.post.hearts).toContain(peer.uid);
+
+    const peerUnreact = engine.togglePostReaction('post_legacy_1', peer, 'heart');
+    expect(peerUnreact.post.hearts).not.toContain(peer.uid);
+  });
+
+  it('prevents self-reaction across update, gallery, and announcement posts', () => {
+    const engine = new PostModerationEngine({ persistToDisk: false, emailEnabled: false });
+    const adminAuthor = { uid: 'u_admin', name: 'Dean Reyes', email: 'dean@stcecilia.edu.ph', role: 'admin' };
+    const peer = { uid: 'u_peer2', name: 'Carlos Lim', email: 'carlos@stcecilia.edu.ph', role: 'alumni' };
+
+    engine.upsertProfileRecord({ ...adminAuthor, role: 'admin' }, false);
+    engine.upsertProfileRecord({ ...peer, role: 'alumni' }, false);
+
+    for (const postType of ['update', 'gallery', 'announcement'] as const) {
+      const postId = `post_${postType}_self`;
+      engine.upsertPost(
+        {
+          id: postId,
+          authorId: adminAuthor.uid,
+          authorName: adminAuthor.name,
+          authorRole: 'admin',
+          authorAvatar: '',
+          postType,
+          title: `Title ${postType}`,
+          content: `Content ${postType}`,
+          likes: [],
+          hearts: [],
+          comments: [],
+          sharesCount: 0,
+          createdAt: new Date().toISOString()
+        },
+        adminAuthor
+      );
+
+      expect(() => engine.togglePostReaction(postId, adminAuthor, 'heart')).toThrow(
+        /cannot congratulate or react to your own post/i
+      );
+
+      const peerOn = engine.togglePostReaction(postId, peer, 'heart');
+      expect(peerOn.post.hearts).toContain(peer.uid);
+      const peerOff = engine.togglePostReaction(postId, peer, 'heart');
+      expect(peerOff.post.hearts).not.toContain(peer.uid);
+    }
+  });
+
+  it('blocks employer posting/sharing, lets non-employer authors edit/delete own posts, and calls deleteUserAccount', () => {
+    const deletedUids: string[] = [];
+    const usersMap = new Map<string, any>();
+    const engine = new PostModerationEngine({
+      persistToDisk: false,
+      emailEnabled: false
+    });
+    engine.setUserAccountAdapter({
+      getUserByUid: (uid) => usersMap.get(uid) || null,
+      updateUserSuspension: () => {},
+      getModeratorsAndAdmins: () => [],
+      deleteUserAccount: (uid) => {
+        deletedUids.push(uid);
+        usersMap.delete(uid);
+      }
+    });
+
+    const roles = ['alumni', 'moderator', 'admin', 'superadmin'] as const;
+    for (const role of roles) {
+      const actor = { uid: `u_${role}`, name: `User ${role}`, email: `${role}@stcecilia.edu.ph`, role };
+      usersMap.set(actor.uid, { ...actor });
+      engine.upsertProfileRecord({ ...actor, role }, false);
+
+      const postId = `post_by_${role}`;
+      const created = engine.upsertPost(
+        {
+          id: postId,
+          authorId: actor.uid,
+          authorName: actor.name,
+          authorRole: role,
+          authorAvatar: '',
+          postType: 'update',
+          title: 'Initial Title',
+          content: 'Initial Content',
+          likes: [],
+          hearts: [],
+          comments: [],
+          sharesCount: 0,
+          createdAt: new Date().toISOString()
+        },
+        actor
+      );
+      expect(created.id).toBe(postId);
+
+      const edited = engine.editPostByAuthor(postId, actor, {
+        title: 'Updated Title',
+        content: 'Updated Content'
+      });
+      expect(edited.title).toBe('Updated Title');
+      expect(edited.content).toBe('Updated Content');
+
+      const deleted = engine.deletePostByUser(postId, actor);
+      expect(deleted.success).toBe(true);
+    }
+
+    const employerActor = { uid: 'u_emp', name: 'Partner Corp', email: 'hr@partner.com', role: 'employer' };
+    engine.upsertProfileRecord({ ...employerActor, role: 'employer' }, false);
+    expect(() =>
+      engine.upsertPost(
+        {
+          id: 'post_emp_blocked',
+          authorId: employerActor.uid,
+          authorName: employerActor.name,
+          authorRole: 'employer',
+          authorAvatar: '',
+          postType: 'update',
+          title: 'Blocked Employer Post',
+          content: 'Should not succeed',
+          likes: [],
+          hearts: [],
+          comments: [],
+          sharesCount: 0,
+          createdAt: new Date().toISOString()
+        },
+        employerActor
+      )
+    ).toThrow(/employer accounts cannot publish feed posts/i);
+
+    const alumniOwner = { uid: 'u_alumni', name: 'User alumni', email: 'alumni@stcecilia.edu.ph', role: 'alumni' };
+    engine.upsertPost(
+      {
+        id: 'post_shareable',
+        authorId: alumniOwner.uid,
+        authorName: alumniOwner.name,
+        authorRole: 'alumni',
+        authorAvatar: '',
+        postType: 'update',
+        title: 'Shareable Update',
+        content: 'Visible update',
+        likes: [],
+        hearts: [],
+        comments: [],
+        sharesCount: 0,
+        createdAt: new Date().toISOString()
+      },
+      alumniOwner
+    );
+    expect(() => engine.sharePost(employerActor, 'post_shareable', 'Repost attempt')).toThrow(
+      /employer accounts cannot share or publish feed posts/i
+    );
+
+    const accDel = engine.deleteAndAnonymizeAccount('u_alumni', alumniOwner);
+    expect(accDel.success).toBe(true);
+    expect(deletedUids).toContain('u_alumni');
+    expect(usersMap.has('u_alumni')).toBe(false);
   });
 });

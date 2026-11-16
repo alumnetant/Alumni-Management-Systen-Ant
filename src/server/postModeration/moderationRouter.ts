@@ -260,6 +260,9 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
   router.post('/posts', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
     try {
       const actor = toActor(req);
+      if (String(actor.role || '').toLowerCase().trim() === 'employer') {
+        return res.status(403).json({ error: 'Employer accounts cannot publish feed posts.' });
+      }
       const body = req.body || {};
       const actorIsAdmin = isAdminRole(actor.role);
       const normalizedPostType =
@@ -305,6 +308,9 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
   router.post('/posts/:postId/share', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
     try {
       const actor = toActor(req);
+      if (String(actor.role || '').toLowerCase().trim() === 'employer') {
+        return res.status(403).json({ error: 'Employer accounts cannot share or publish feed posts.' });
+      }
       const shared = engine.sharePost(actor, req.params.postId, req.body?.commentary);
       res.status(201).json({ post: shared });
     } catch (err) {

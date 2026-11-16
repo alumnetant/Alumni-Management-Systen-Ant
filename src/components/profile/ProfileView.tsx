@@ -164,11 +164,18 @@ export const ProfileView: React.FC = () => {
   }, [deepLinkTarget, clearDeepLinkTarget]);
 
   useEffect(() => {
+    if (currentUser?.role === 'employer' && profileViewTab === 'posts') {
+      setProfileViewTab('overview');
+    }
+  }, [currentUser?.role, profileViewTab]);
+
+  useEffect(() => {
     if (!highlightedItemId || deepLinkTarget) return;
     if (highlightedItemId === 'verification-status') {
       setProfileViewTab('overview');
       return;
     }
+    if (currentUser?.role === 'employer') return;
     const matchesWarning = myWarnings.some(
       (w) => w.id === highlightedItemId || w.postId === highlightedItemId
     );
@@ -258,7 +265,6 @@ export const ProfileView: React.FC = () => {
         updater({ profilePictureUrl: dataUrl });
       }
       setIsUploadingPhoto(false);
-      showToast('Profile photo updated successfully!', 'success');
     } catch {
       setIsUploadingPhoto(false);
       showToast('Failed to process image. Please try again.', 'error');
@@ -286,7 +292,6 @@ export const ProfileView: React.FC = () => {
         updater({ coverPhotoUrl: dataUrl });
       }
       setIsUploadingCover(false);
-      showToast('Cover photo uploaded and saved successfully!', 'success');
     } catch {
       setIsUploadingCover(false);
       showToast('Failed to process cover image. Please try again.', 'error');
@@ -782,28 +787,30 @@ export const ProfileView: React.FC = () => {
               <span>Overview & Credentials</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setProfileViewTab('posts')}
-              className={`pb-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
-                profileViewTab === 'posts'
-                  ? 'border-[#8B181B] text-[#8B181B] dark:border-red-400 dark:text-red-400'
-                  : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200'
-              }`}
-            >
-              <Megaphone className="w-4 h-4" />
-              <span>Posts &amp; Timeline</span>
-              <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-bold tabular-nums ${
-                profileViewTab === 'posts'
-                  ? 'bg-red-100 text-[#8B181B] dark:bg-red-950/60 dark:text-red-300'
-                  : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400'
-              }`}>
-                {myTimelineOrdered.length}
-              </span>
-            </button>
+            {currentUser.role !== 'employer' && (
+              <button
+                type="button"
+                onClick={() => setProfileViewTab('posts')}
+                className={`pb-3.5 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+                  profileViewTab === 'posts'
+                    ? 'border-[#8B181B] text-[#8B181B] dark:border-red-400 dark:text-red-400'
+                    : 'border-transparent text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200'
+                }`}
+              >
+                <Megaphone className="w-4 h-4" />
+                <span>Posts &amp; Timeline</span>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-bold tabular-nums ${
+                  profileViewTab === 'posts'
+                    ? 'bg-red-100 text-[#8B181B] dark:bg-red-950/60 dark:text-red-300'
+                    : 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400'
+                }`}>
+                  {myTimelineOrdered.length}
+                </span>
+              </button>
+            )}
           </div>
 
-          {profileViewTab === 'overview' ? (
+          {profileViewTab === 'overview' || currentUser.role === 'employer' ? (
             <>
               {/* ========================================================
                   OFFICIAL ALUMNI DIGITAL PASS
@@ -813,7 +820,7 @@ export const ProfileView: React.FC = () => {
           {currentUser.role !== 'employer' && (
             <div
               id="digital-id-section"
-              className="mt-8 p-6 bg-gradient-to-br from-stone-900 via-stone-950 to-stone-900 dark:from-stone-950 dark:via-black dark:to-stone-950 rounded-2xl border border-stone-800 dark:border-stone-800/90 text-white shadow-xl scroll-mt-20 transition-colors"
+              className="mt-8 p-4 sm:p-6 bg-gradient-to-br from-stone-900 via-stone-950 to-stone-900 dark:from-stone-950 dark:via-black dark:to-stone-950 rounded-2xl border border-stone-800 dark:border-stone-800/90 text-white shadow-xl scroll-mt-20 transition-colors"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-6 border-b border-stone-800">
                 <div>
@@ -824,7 +831,7 @@ export const ProfileView: React.FC = () => {
                     </h2>
                   </div>
                   <p className="text-xs text-amber-200/70 mt-1">
-                    Official black and gold digital credential with profile photo integration, QR verification, and PDF/PNG export.
+                    Official crimson and gold digital credential with profile photo integration and live QR turnstile verification.
                   </p>
                 </div>
 
@@ -910,15 +917,15 @@ export const ProfileView: React.FC = () => {
               
               {/* Professional Experience Section */}
               <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
-                    <Briefcase className="w-5 h-5 text-[#8B181B] dark:text-red-400" />
+                <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+                  <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B181B] dark:text-red-400 shrink-0" />
                     <span>Career Experience ({(currentUser.experience || []).length})</span>
                   </h2>
                   <button
                     type="button"
                     onClick={() => openEditProfile()}
-                    className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer"
+                    className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer shrink-0"
                   >
                     + Add / Edit
                   </button>
@@ -956,15 +963,15 @@ export const ProfileView: React.FC = () => {
 
               {/* Education Section */}
               <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
-                    <GraduationCap className="w-5 h-5 text-[#8B181B] dark:text-red-400" />
+                <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+                  <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B181B] dark:text-red-400 shrink-0" />
                     <span>Education & Degrees ({(currentUser.education || []).length})</span>
                   </h2>
                   <button
                     type="button"
                     onClick={() => openEditProfile()}
-                    className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer"
+                    className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer shrink-0"
                   >
                     + Add / Edit
                   </button>
@@ -1003,52 +1010,54 @@ export const ProfileView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Recent Timeline Preview in Overview */}
-              <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
-                    <Megaphone className="w-5 h-5 text-[#8B181B] dark:text-red-400" />
-                    <span>Personal Timeline ({myTimelineOrdered.length})</span>
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={() => setProfileViewTab('posts')}
-                    className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer"
-                  >
-                    Open Full Timeline
-                  </button>
-                </div>
+              {/* Recent Timeline Preview in Overview (Hidden for Employer accounts) */}
+              {currentUser.role !== 'employer' && (
+                <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
+                  <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+                    <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
+                      <Megaphone className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B181B] dark:text-red-400 shrink-0" />
+                      <span>Personal Timeline ({myTimelineOrdered.length})</span>
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => setProfileViewTab('posts')}
+                      className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer shrink-0"
+                    >
+                      Open Full Timeline
+                    </button>
+                  </div>
 
-                <div className="space-y-3">
-                  {myTimelineOrdered.length === 0 ? (
-                    <div className="p-6 bg-white dark:bg-stone-900/60 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 text-center space-y-2.5 text-xs text-stone-500 dark:text-stone-400">
-                      <Megaphone className="w-6 h-6 mx-auto text-stone-400 dark:text-stone-500 opacity-60" />
-                      <p className="font-semibold text-stone-700 dark:text-stone-300">No posts yet</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProfileViewTab('posts');
-                          setTimeout(() => composerTitleRef.current?.focus(), 60);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#8B181B] text-white rounded-xl text-xs font-bold cursor-pointer"
-                      >
-                        <span>Share your first post</span>
-                      </button>
-                    </div>
-                  ) : (
-                    myTimelineOrdered.slice(0, 3).map((post) => (
-                      <PostCard
-                        key={post.id}
-                        post={post}
-                        showPinControl={true}
-                        isPinnedOnProfile={currentUser.pinnedPostId === post.id}
-                        highlighted={isHighlighted(post.id)}
-                        onImageClick={(url, title) => setViewerImage({ url, title })}
-                      />
-                    ))
-                  )}
+                  <div className="space-y-3">
+                    {myTimelineOrdered.length === 0 ? (
+                      <div className="p-6 bg-white dark:bg-stone-900/60 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 text-center space-y-2.5 text-xs text-stone-500 dark:text-stone-400">
+                        <Megaphone className="w-6 h-6 mx-auto text-stone-400 dark:text-stone-500 opacity-60" />
+                        <p className="font-semibold text-stone-700 dark:text-stone-300">No posts yet</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfileViewTab('posts');
+                            setTimeout(() => composerTitleRef.current?.focus(), 60);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#8B181B] text-white rounded-xl text-xs font-bold cursor-pointer"
+                        >
+                          <span>Share your first post</span>
+                        </button>
+                      </div>
+                    ) : (
+                      myTimelineOrdered.slice(0, 3).map((post) => (
+                        <PostCard
+                          key={post.id}
+                          post={post}
+                          showPinControl={true}
+                          isPinnedOnProfile={currentUser.pinnedPostId === post.id}
+                          highlighted={isHighlighted(post.id)}
+                          onImageClick={(url, title) => setViewerImage({ url, title })}
+                        />
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
           </div>

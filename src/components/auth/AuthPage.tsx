@@ -59,7 +59,6 @@ import { useTheme } from '../../lib/theme';
 import { UserRole, UserProfile, StudentVerificationRecord, OFFICIAL_DEGREE_PROGRAMS } from '../../types';
 import { getStoredFormLock, setStoredFormLock, clearStoredFormLock } from '../../lib/employerValidation';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
-import { TwoFactorVerificationModal } from './TwoFactorVerificationModal';
 import { AccountSuspendedNoticeModal } from './AccountSuspendedNoticeModal';
 import {
   verifyStudentRecord,
@@ -143,14 +142,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [staySignedIn, setStaySignedIn] = useState(true);
   const [loginError, setLoginError] = useState('');
-
-  // Two-Step Verification State
-  const [showTwoFactorModal, setShowTwoFactorModal] = useState(false);
-  const [pendingTwoFactorUser, setPendingTwoFactorUser] = useState<{
-    email: string;
-    name: string;
-    role: string;
-  } | null>(null);
 
   // Post-Login Biometric Opt-In Interactive Modal State
   const [showBiometricOptInModal, setShowBiometricOptInModal] = useState(false);
@@ -1052,15 +1043,36 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
       const userRole = matchedUser?.role || 'alumni';
       const userEmail = matchedUser?.email || (trimmed.includes('@') ? trimmed : `${trimmed}@alumni.stcecilia.edu`);
-      const userName = matchedUser?.name || 'Cecilian Member';
+      const isNative = Capacitor.isNativePlatform();
+      const userId = matchedUser?.uid || '';
+      const latestRefreshToken =
+        sessionStorage.getItem('alumni_latest_refresh_token') ||
+        sessionStorage.getItem('alumni_refresh_token') ||
+        localStorage.getItem('alumni_refresh_token') ||
+        '';
 
-      // Enhanced Account Security: Trigger Two-Step Verification before establishing session
-      setPendingTwoFactorUser({
-        email: userEmail,
-        name: userName,
-        role: userRole
-      });
-      setShowTwoFactorModal(true);
+      if (
+        isNative &&
+        biometricAvail.isAvailable &&
+        userId &&
+        !isBiometricLoginEnabled(userId) &&
+        latestRefreshToken
+      ) {
+        setPendingOptInUser({
+          uid: userId,
+          email: userEmail,
+          role: userRole,
+          refreshToken: latestRefreshToken
+        });
+        setShowBiometricOptInModal(true);
+        return;
+      }
+
+      if (onLoginSuccess) {
+        onLoginSuccess(userRole);
+      } else if (onBackToApp) {
+        onBackToApp();
+      }
     } else {
       // Check if user is an administrative/staff account attempting to log in on mobile APK
       const trimmed = loginIdentifier.trim().toLowerCase();
@@ -4059,61 +4071,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             )}
           </div>
         </div>
-      )}
-
-      {/* Two-Step Verification Security Modal */}
-      {showTwoFactorModal && pendingTwoFactorUser && (
-        <TwoFactorVerificationModal
-          isOpen={showTwoFactorModal}
-          userEmail={pendingTwoFactorUser.email}
-          userName={pendingTwoFactorUser.name}
-          onVerifySuccess={() => {
-            const role = pendingTwoFactorUser.role || 'alumni';
-            setShowTwoFactorModal(false);
-
-            // Check if native mobile device & biometrics available & user has not yet opted in
-            const isNative = Capacitor.isNativePlatform();
-            const matchedUser = users.find(
-              (u) => u.email.toLowerCase() === pendingTwoFactorUser.email.toLowerCase()
-            );
-            const userId = matchedUser?.uid || '';
-            const latestRefreshToken =
-              sessionStorage.getItem('alumni_latest_refresh_token') ||
-              sessionStorage.getItem('alumni_refresh_token') ||
-              localStorage.getItem('alumni_refresh_token') ||
-              '';
-
-            if (
-              isNative &&
-              biometricAvail.isAvailable &&
-              userId &&
-              !isBiometricLoginEnabled(userId) &&
-              latestRefreshToken
-            ) {
-              setPendingOptInUser({
-                uid: userId,
-                email: pendingTwoFactorUser.email,
-                role,
-                refreshToken: latestRefreshToken
-              });
-              setShowBiometricOptInModal(true);
-              setPendingTwoFactorUser(null);
-              return;
-            }
-
-            setPendingTwoFactorUser(null);
-            showToast('Two-step verification completed successfully!', 'success');
-            if (onLoginSuccess) {
-              onLoginSuccess(role);
-            } else if (onBackToApp) {
-              onBackToApp();
-            }
-          }}
-          onCancel={() => {
-            setShowTwoFactorModal(false);
-            setPendingTwoFactorUser(null);
-          }}
-        />
       )}
 
       {/* Post-Login Biometric Opt-In Interactive Modal (Android Keystore Vaulting) */}

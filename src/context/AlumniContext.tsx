@@ -298,7 +298,7 @@ interface AlumniContextType {
   switchUser: (uid: string) => void;
   resetPassword: (email: string) => boolean;
   resetUserPasswordByEmail: (email: string, newPass: string) => boolean;
-  deleteAccount: () => boolean;
+  deleteAccount: () => Promise<boolean> | boolean;
   changeEmail: (newEmail: string) => boolean;
   changePassword: (
     oldOrNewPass: string,
@@ -597,6 +597,30 @@ export function saveCredentialToVault(entry: StoredCredentialEntry) {
     if (entry.uid && entry.password) {
       saveAuthCredentialToFirestore(entry).catch(() => {});
     }
+  } catch {}
+}
+
+export function removeCredentialFromVault(identifier: {
+  uid?: string;
+  email?: string;
+  studentId?: string;
+  alumniId?: string;
+  employeeId?: string;
+}) {
+  try {
+    const vault = getStoredCredentialsVault();
+    const targetUid = identifier.uid;
+    const targetEmail = identifier.email?.toLowerCase().trim();
+    for (const key of Object.keys(vault)) {
+      const entry = vault[key];
+      if (
+        (targetUid && entry?.uid === targetUid) ||
+        (targetEmail && entry?.email?.toLowerCase().trim() === targetEmail)
+      ) {
+        delete vault[key];
+      }
+    }
+    localStorage.setItem(CREDENTIALS_VAULT_KEY, JSON.stringify(vault));
   } catch {}
 }
 
@@ -1634,7 +1658,15 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const lastToastRef = useRef<{ msg: string; time: number } | null>(null);
+
   const showToast = useCallback((msg: string, type: ToastType = 'info') => {
+    const now = Date.now();
+    if (lastToastRef.current && lastToastRef.current.msg === msg && now - lastToastRef.current.time < 900) {
+      return;
+    }
+    lastToastRef.current = { msg, time: now };
+
     const id = generateSecureId('toast');
     const newToast: ToastNotification = { id, message: msg, type };
 
@@ -4397,26 +4429,32 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           })
         });
         const data = await res.json().catch(() => null);
-        if (!res.ok) {
+        if (res.ok) {
+          const savedPost: InstitutionalFeedPost = {
+            ...(data?.post || optimisticPost),
+            authorId: currentUser.uid
+          };
+          setFeedPosts((prev) => [savedPost, ...prev.filter((p) => p.id !== savedPost.id)]);
+          saveFeedPostToFirestore(savedPost).catch(() => {});
+          showToast('Post published to feed and profile timeline!', 'success');
+          return { success: true, post: savedPost };
+        }
+        if (res.status === 403 || res.status === 400) {
           const msg = data?.error || 'Could not publish post.';
           showToast(msg, 'error');
           return { success: false, error: msg };
         }
-        const savedPost: InstitutionalFeedPost = data?.post || optimisticPost;
-        setFeedPosts((prev) => [savedPost, ...prev.filter((p) => p.id !== savedPost.id)]);
-        saveFeedPostToFirestore({ ...savedPost, authorId: currentUser.uid }).catch(() => {});
-        showToast('Post published to feed and profile timeline!', 'success');
-        return { success: true, post: savedPost };
+        // For 401 stale/in-memory server token or transient 5xx, continue with Firestore + local state fallback
       } catch {
         // Fallback to local + Firestore persistence if offline
       }
     }
 
-    setFeedPosts((prev) => [optimisticPost, ...prev]);
+    setFeedPosts((prev) => [optimisticPost, ...prev.filter((p) => p.id !== optimisticPost.id)]);
     saveFeedPostToFirestore(optimisticPost).catch((err) => {
       console.warn('Failed to persist feed post in Firestore:', err);
     });
-    showToast('Feed post published successfully!', 'success');
+    showToast('Post published to feed and profile timeline!', 'success');
     return { success: true, post: optimisticPost };
   }, [currentUser, showToast]);
 
@@ -4451,15 +4489,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return;
     }
     const targetPost = feedPosts.find((p) => p.id === postId);
-    const isSelfAchievementUpdate = Boolean(
-      targetPost && targetPost.postType === 'update'
-    );
-    if (
-      targetPost &&
-      targetPost.authorId === currentUser.uid &&
-      !targetPost.isAnonymous &&
-      isSelfAchievementUpdate
-    ) {
+    if (targetPost && targetPost.authorId === currentUser.uid && !targetPost.isAnonymous) {
       showToast('You cannot congratulate or react to your own post.', 'info');
       return;
     }
@@ -4835,21 +4865,62 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return true;
   };
 
-  const deleteAccount = (): boolean => {
+  const performFullAccountDeletion = useCallback(async (uidToDelete: string): Promise<boolean> => {
+    const target = users.find((u) => u.uid === uidToDelete);
+    if (getAuthToken()) {
+      const res = await apiFetchWithCsrf('/api/profiles/me', { method: 'DELETE' }).catch(() => null);
+      if (res && !res.ok && res.status !== 401 && res.status !== 404) {
+        const d = await res.json().catch(() => null);
+        showToast(d?.error || 'Failed to delete account on server.', 'error');
+        return false;
+      }
+    }
+    try {
+      await alumniService.deleteAlumni(uidToDelete);
+    } catch (err) {
+      console.warn('Error deleting user account from Firestore:', err);
+    }
+    removeCredentialFromVault({
+      uid: uidToDelete,
+      email: target?.email,
+      studentId: target?.studentId,
+      alumniId: target?.alumniId,
+      employeeId: target?.employeeId
+    });
+    setFeedPosts((prev) =>
+      prev.map((p) => {
+        if (p.authorId !== uidToDelete) return p;
+        const anonymized: InstitutionalFeedPost = {
+          ...p,
+          authorName: 'Former alumni',
+          authorAvatar: '',
+          authorUsername: undefined,
+          authorDeleted: true
+        };
+        saveFeedPostToFirestore(anonymized).catch(() => {});
+        return anonymized;
+      })
+    );
+    setUsers((prev) => {
+      const next = prev.filter((u) => u.uid !== uidToDelete);
+      try {
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    logout({ revokeBiometrics: true });
+    showToast('Account permanently deleted from the database.', 'info');
+    return true;
+  }, [users, logout, showToast]);
+
+  const deleteAccount = async (): Promise<boolean> => {
     if (!currentUserId) return false;
     const target = users.find((u) => u.uid === currentUserId);
     if (target && ['admin', 'superadmin', 'moderator'].includes(target.role)) {
       showToast('Administrative accounts cannot be deleted from settings. Contact institutional governance.', 'error');
       return false;
     }
-    const uidToDelete = currentUserId;
-    setUsers((prev) => prev.filter((u) => u.uid !== uidToDelete));
-    alumniService.deleteAlumni(uidToDelete).catch((err) => {
-      console.warn('Error deleting user account from Firestore:', err);
-    });
-    setCurrentUserId(null);
-    showToast('Account permanently deleted.');
-    return true;
+    return performFullAccountDeletion(currentUserId);
   };
 
   const changeEmail = (newEmail: string): boolean => {
@@ -5072,30 +5143,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const deleteMyAccount = useCallback(async (): Promise<boolean> => {
     if (!currentUserId) return false;
-    if (getAuthToken()) {
-      const res = await apiFetchWithCsrf('/api/profiles/me', { method: 'DELETE' }).catch(() => null);
-      if (res && !res.ok) {
-        showToast('Failed to delete account on server.', 'error');
-        return false;
-      }
-    }
-    setFeedPosts((prev) =>
-      prev.map((p) =>
-        p.authorId === currentUserId
-          ? { ...p, authorName: 'Former alumni', authorAvatar: '', authorUsername: undefined, authorDeleted: true }
-          : p
-      )
-    );
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.uid === currentUserId
-          ? { ...u, name: 'Former alumni', isDeleted: true, accountStatus: 'DELETED' }
-          : u
-      )
-    );
-    showToast('Account deleted and past posts anonymized as Former alumni.', 'info');
-    return true;
-  }, [currentUserId, showToast]);
+    return performFullAccountDeletion(currentUserId);
+  }, [currentUserId, performFullAccountDeletion]);
 
   const addExperience = (exp: Omit<Experience, 'id'>) => {
     if (!currentUserId) return;

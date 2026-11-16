@@ -130,15 +130,15 @@ export const CollegiateGreetingBanner: React.FC<CollegiateGreetingBannerProps> =
             </div>
 
             {/* Salutation with Profile Avatar */}
-            <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-              <div className="relative shrink-0">
+            <div className="flex items-start sm:items-center gap-3 sm:gap-3.5 min-w-0">
+              <div className="relative shrink-0 mt-0.5 sm:mt-0">
                 <img
                   src={
                     currentUser?.profilePictureUrl ||
                     'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'
                   }
                   alt={currentUser?.name || 'Alumni'}
-                  className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl object-cover ring-1 ring-stone-200 shadow-2xs border border-stone-100"
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl object-cover ring-1 ring-stone-200 shadow-2xs border border-stone-100"
                 />
                 <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-white ring-2 ring-white">
                   <span
@@ -150,8 +150,12 @@ export const CollegiateGreetingBanner: React.FC<CollegiateGreetingBannerProps> =
               </div>
 
               <div className="min-w-0 flex-1">
-                <h1 className="text-sm sm:text-lg md:text-xl lg:text-2xl text-stone-900 font-bold tracking-tight leading-snug break-words">
-                  {salutation}, <span className="text-[#8B181B] font-bold">{currentUser?.name || 'Cecilian'}</span>.
+                <h1 className="text-[15px] sm:text-lg md:text-xl lg:text-2xl text-stone-900 dark:text-stone-100 font-bold tracking-tight leading-snug break-words">
+                  {salutation},{' '}
+                  <span className="text-[#8B181B] dark:text-rose-400 font-bold">
+                    {currentUser?.name || 'Cecilian'}
+                  </span>
+                  .
                 </h1>
               </div>
             </div>

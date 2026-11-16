@@ -110,6 +110,7 @@ export interface UserAccountAdapter {
   ) => void;
   getModeratorsAndAdmins: () => Array<{ uid: string; name: string; email: string; role: string }>;
   getAllUsers?: () => any[];
+  deleteUserAccount?: (uid: string) => void;
 }
 
 export class ModerationError extends Error {
@@ -681,6 +682,9 @@ export class PostModerationEngine {
     }
 
     const existing = this.state.posts[post.id];
+    if (actor && normalizeSystemRole(actor.role) === 'employer') {
+      throw new ModerationError(403, 'EMPLOYER_POST_FORBIDDEN', 'Employer accounts cannot publish feed posts.');
+    }
     if (!existing && actor) {
       const blockCheck = this.checkUserBlockedFromPostingOrReporting(actor.uid);
       if (blockCheck.blocked && !blockCheck.reason?.includes('report')) {
@@ -1285,7 +1289,7 @@ export class PostModerationEngine {
       throw new ModerationError(403, 'FORBIDDEN', 'You do not have permission to interact with this post.');
     }
 
-    if (post.authorId === actor.uid && !post.isAnonymous && post.postType === 'update') {
+    if (post.authorId === actor.uid && !post.isAnonymous) {
       throw new ModerationError(
         400,
         'SELF_CONGRATULATION_NOT_ALLOWED',
@@ -1886,6 +1890,7 @@ export class PostModerationEngine {
       actorName: actor.name,
       actorRole: actor.role
     });
+    this.accountAdapter?.deleteUserAccount?.(targetUid);
 
     this.invalidateCaches();
     this.persist();
@@ -1893,6 +1898,9 @@ export class PostModerationEngine {
   }
 
   public sharePost(actor: ModerationActor, sourcePostId: string, commentary?: string): InstitutionalFeedPost {
+    if (normalizeSystemRole(actor.role) === 'employer') {
+      throw new ModerationError(403, 'EMPLOYER_POST_FORBIDDEN', 'Employer accounts cannot share or publish feed posts.');
+    }
     const blockCheck = this.checkUserBlockedFromPostingOrReporting(actor.uid);
     if (blockCheck.blocked && !blockCheck.reason?.includes('report')) {
       throw new ModerationError(403, 'USER_SUSPENDED', blockCheck.reason || 'Suspended users cannot share posts.');
