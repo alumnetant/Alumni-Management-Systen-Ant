@@ -127,6 +127,7 @@ import {
   getCoverPhoto,
   getEventImage
 } from '../lib/defaultImages';
+import { dedupePostsById } from '../lib/postVisibility';
 import { alumniService } from '../services/alumniService';
 import { calculateProfileCompletion } from '../services/automationService';
 import { analyzeUserRegistryIntegrity } from '../services/governanceLogicService';
@@ -1232,14 +1233,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const saved = localStorage.getItem(STORAGE_KEYS.FEED_POSTS);
       const parsed = saved ? JSON.parse(saved) : [];
       const list = Array.isArray(parsed) ? parsed.filter((p: InstitutionalFeedPost) => !isSeedId(p.id)) : INITIAL_FEED_POSTS;
-      return list.map((p: InstitutionalFeedPost) => ({
-        ...p,
-        likes: Array.isArray(p.likes) ? p.likes : [],
-        hearts: Array.isArray(p.hearts) ? p.hearts : (Array.isArray(p.likes) ? p.likes : []),
-        comments: Array.isArray(p.comments) ? p.comments : []
-      }));
+      return dedupePostsById(
+        list.map((p: InstitutionalFeedPost) => ({
+          ...p,
+          likes: Array.isArray(p.likes) ? p.likes : [],
+          hearts: Array.isArray(p.hearts) ? p.hearts : (Array.isArray(p.likes) ? p.likes : []),
+          comments: Array.isArray(p.comments) ? p.comments : []
+        }))
+      );
     } catch {
-      return INITIAL_FEED_POSTS;
+      return dedupePostsById(INITIAL_FEED_POSTS);
     }
   });
 
@@ -1804,7 +1807,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         try {
           const livePosts = await getFeedPostsFromFirestore();
           if (livePosts && livePosts.length > 0) {
-            const cleanPosts = livePosts.filter((p) => !isSeedId(p.id));
+            const cleanPosts = dedupePostsById(livePosts.filter((p) => !isSeedId(p.id)));
             setFeedPosts(cleanPosts);
             try {
               localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(cleanPosts));
@@ -2523,7 +2526,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const unsubFeed = subscribeToFeedPosts((firestorePosts) => {
       if (isSubscribed) {
-        setFeedPosts((firestorePosts || []).filter((p) => !isSeedId(p.id)));
+        setFeedPosts(dedupePostsById((firestorePosts || []).filter((p) => !isSeedId(p.id))));
       }
     });
 
@@ -4271,7 +4274,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       createdAt: new Date().toISOString(),
       tags: ['Campus Gallery', newItem.category, newItem.year]
     };
-    setFeedPosts((prev) => [feedCrossPost, ...prev]);
+    setFeedPosts((prev) => dedupePostsById([feedCrossPost, ...prev.filter((p) => p.id !== feedCrossPost.id)]));
     saveFeedPostToFirestore(feedCrossPost).catch(() => {});
 
     const galNotif: AppNotification = {
@@ -4434,7 +4437,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             ...(data?.post || optimisticPost),
             authorId: currentUser.uid
           };
-          setFeedPosts((prev) => [savedPost, ...prev.filter((p) => p.id !== savedPost.id)]);
+          setFeedPosts((prev) => dedupePostsById([savedPost, ...prev.filter((p) => p.id !== savedPost.id)]));
           saveFeedPostToFirestore(savedPost).catch(() => {});
           showToast('Post published to feed and profile timeline!', 'success');
           return { success: true, post: savedPost };
@@ -4450,7 +4453,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
     }
 
-    setFeedPosts((prev) => [optimisticPost, ...prev.filter((p) => p.id !== optimisticPost.id)]);
+    setFeedPosts((prev) => dedupePostsById([optimisticPost, ...prev.filter((p) => p.id !== optimisticPost.id)]));
     saveFeedPostToFirestore(optimisticPost).catch((err) => {
       console.warn('Failed to persist feed post in Firestore:', err);
     });
@@ -4616,12 +4619,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           showToast(msg, 'error');
           return { success: false, error: msg };
         }
-        const sharedPost: InstitutionalFeedPost | undefined = data?.sharedPost;
+        const sharedPost: InstitutionalFeedPost | undefined = data?.sharedPost || data?.post;
         if (sharedPost) {
-          setFeedPosts((prev) => [
-            sharedPost,
-            ...prev.map((p) => (p.id === postId ? { ...p, sharesCount: (p.sharesCount || 0) + 1 } : p))
-          ]);
+          setFeedPosts((prev) =>
+            dedupePostsById([
+              sharedPost,
+              ...prev
+                .filter((p) => p.id !== sharedPost.id)
+                .map((p) => (p.id === postId ? { ...p, sharesCount: (p.sharesCount || 0) + 1 } : p))
+            ])
+          );
           saveFeedPostToFirestore(sharedPost).catch(() => {});
         }
         showToast('Shared to your timeline and the main feed!', 'success');
@@ -4653,10 +4660,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       sharesCount: 0,
       createdAt: new Date().toISOString()
     };
-    setFeedPosts((prev) => [
-      sharedPost,
-      ...prev.map((p) => (p.id === postId ? { ...p, sharesCount: (p.sharesCount || 0) + 1 } : p))
-    ]);
+    setFeedPosts((prev) =>
+      dedupePostsById([
+        sharedPost,
+        ...prev
+          .filter((p) => p.id !== sharedPost.id)
+          .map((p) => (p.id === postId ? { ...p, sharesCount: (p.sharesCount || 0) + 1 } : p))
+      ])
+    );
     saveFeedPostToFirestore(sharedPost).catch(() => {});
     showToast('Shared to your timeline!', 'success');
     return { success: true, sharedPost };

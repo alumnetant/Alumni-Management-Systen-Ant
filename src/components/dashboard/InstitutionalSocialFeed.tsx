@@ -35,6 +35,7 @@ import { useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 import {
   canUserViewPost,
   comparePostsCreatedDesc,
+  dedupePostsById,
   hydratePostWithLiveAuthor,
   isPinActive,
   paginatePostsWithCursor
@@ -100,6 +101,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
+  const deletedIdsRef = useRef<Set<string>>(new Set());
 
   const isAdminOrSuperAdmin =
     currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
@@ -204,9 +206,10 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
           const data: FeedPageResponse = await res.json();
 
           if (!append) {
-            const pinned = data.pinnedPosts || [];
-            const regular = (data.posts || []).filter(
-              (p) => !pinned.some((pin) => pin.id === p.id)
+            const pinned = dedupePostsById(data.pinnedPosts || []);
+            const pinnedSet = new Set(pinned.map((p) => p.id));
+            const regular = dedupePostsById(
+              (data.posts || []).filter((p) => !pinnedSet.has(p.id))
             );
             pinned.forEach((p) => seenIdsRef.current.add(p.id));
             regular.forEach((p) => seenIdsRef.current.add(p.id));
@@ -217,9 +220,14 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
             setLatestPostAt(data.latestPostAt || regular[0]?.createdAt || null);
             setNewPostsAvailableCount(0);
           } else {
-            const incoming = (data.posts || []).filter((p) => !seenIdsRef.current.has(p.id));
+            const incoming = dedupePostsById(
+              (data.posts || []).filter((p) => !seenIdsRef.current.has(p.id))
+            );
             incoming.forEach((p) => seenIdsRef.current.add(p.id));
-            setStreamPosts((prev) => [...prev, ...incoming]);
+            setStreamPosts((prev) => {
+              const existingIds = new Set(prev.map((p) => p.id));
+              return dedupePostsById([...prev, ...incoming.filter((p) => !existingIds.has(p.id))]);
+            });
           }
 
           setNextCursor(data.nextCursor || null);
@@ -240,8 +248,11 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
       // Offline / local fallback using shared visibility rule
       const localPage = buildLocalFeedPage(cursorStr);
       if (!append) {
-        const pinned = localPage.pinnedPosts || [];
-        const regular = localPage.posts || [];
+        const pinned = dedupePostsById(localPage.pinnedPosts || []);
+        const pinnedSet = new Set(pinned.map((p) => p.id));
+        const regular = dedupePostsById(
+          (localPage.posts || []).filter((p) => !pinnedSet.has(p.id))
+        );
         pinned.forEach((p) => seenIdsRef.current.add(p.id));
         regular.forEach((p) => seenIdsRef.current.add(p.id));
         setPinnedPosts(pinned);
@@ -250,9 +261,14 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
         setLatestPostAt(localPage.latestPostAt || null);
         setNewPostsAvailableCount(0);
       } else {
-        const incoming = (localPage.posts || []).filter((p) => !seenIdsRef.current.has(p.id));
+        const incoming = dedupePostsById(
+          (localPage.posts || []).filter((p) => !seenIdsRef.current.has(p.id))
+        );
         incoming.forEach((p) => seenIdsRef.current.add(p.id));
-        setStreamPosts((prev) => [...prev, ...incoming]);
+        setStreamPosts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          return dedupePostsById([...prev, ...incoming.filter((p) => !existingIds.has(p.id))]);
+        });
       }
       setNextCursor(localPage.nextCursor);
       setHasMore(localPage.hasMore);
@@ -270,7 +286,8 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
   // Synchronize optimistic context mutations (creations, reactions, comments, edits, deletes) into stream
   useEffect(() => {
     if (!feedPosts) return;
-    const contextMap = new Map(feedPosts.map((p) => [p.id, p]));
+    const dedupedContext = dedupePostsById(feedPosts);
+    const contextMap = new Map(dedupedContext.map((p) => [p.id, p]));
     const usersMap = new Map(users.map((u) => [u.uid, u]));
     const viewerCtx = currentUser
       ? {
@@ -299,24 +316,26 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
       });
     };
 
-    const hydratedContext = feedPosts
+    const hydratedContext = dedupedContext
       .filter(matchesFilter)
       .map((p) => hydratePostWithLiveAuthor(p, usersMap.get(p.authorId), viewerCtx));
 
-    const pinnedList = hydratedContext
+    const contextPinned = hydratedContext
       .filter((p) => (p.authorRole === 'admin' || p.authorRole === 'superadmin') && isPinActive(p))
-      .sort(comparePostsCreatedDesc)
-      .slice(0, 3);
-    const pinnedSet = new Set(pinnedList.map((p) => p.id));
+      .sort(comparePostsCreatedDesc);
+    const contextPinnedIds = new Set(contextPinned.map((p) => p.id));
 
-    setPinnedPosts(pinnedList);
-    setStreamPosts((prev) => {
-      const updatedExisting = prev
+    setPinnedPosts((prevPinned) => {
+      const updatedPrevPinned = prevPinned
         .filter((item) => {
-          if (pinnedSet.has(item.id)) return false;
+          if (deletedIdsRef.current.has(item.id)) return false;
           const ctxItem = contextMap.get(item.id);
-          if (!ctxItem) return feedPosts.length === 0;
-          return matchesFilter(ctxItem);
+          if (!ctxItem) return isPinActive(item);
+          return (
+            matchesFilter(ctxItem) &&
+            (ctxItem.authorRole === 'admin' || ctxItem.authorRole === 'superadmin') &&
+            isPinActive(ctxItem)
+          );
         })
         .map((item) => {
           const ctxItem = contextMap.get(item.id);
@@ -331,13 +350,50 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
             viewerCtx
           );
         });
+      const mergedPinned = dedupePostsById([...contextPinned, ...updatedPrevPinned])
+        .sort(comparePostsCreatedDesc)
+        .slice(0, 3);
+      mergedPinned.forEach((p) => seenIdsRef.current.add(p.id));
+      return mergedPinned;
+    });
+
+    setStreamPosts((prev) => {
+      const updatedExisting = dedupePostsById(
+        prev
+          .filter((item) => {
+            if (deletedIdsRef.current.has(item.id)) return false;
+            if (contextPinnedIds.has(item.id)) return false;
+            const ctxItem = contextMap.get(item.id);
+            if (!ctxItem) return true;
+            return matchesFilter(ctxItem);
+          })
+          .map((item) => {
+            const ctxItem = contextMap.get(item.id);
+            if (!ctxItem) return item;
+            return hydratePostWithLiveAuthor(
+              {
+                ...item,
+                ...ctxItem,
+                viewerHasReported: item.viewerHasReported || ctxItem.viewerHasReported
+              },
+              usersMap.get(ctxItem.authorId),
+              viewerCtx
+            );
+          })
+      );
 
       const existingIds = new Set(updatedExisting.map((p) => p.id));
-      const newAdditions = hydratedContext
-        .filter((p) => !pinnedSet.has(p.id) && !existingIds.has(p.id))
-        .sort(comparePostsCreatedDesc);
+      const newAdditions = dedupePostsById(
+        hydratedContext.filter(
+          (p) =>
+            !deletedIdsRef.current.has(p.id) &&
+            !contextPinnedIds.has(p.id) &&
+            !existingIds.has(p.id)
+        )
+      ).sort(comparePostsCreatedDesc);
 
-      return [...newAdditions, ...updatedExisting];
+      newAdditions.forEach((p) => seenIdsRef.current.add(p.id));
+      return dedupePostsById([...newAdditions, ...updatedExisting]);
     });
   }, [feedPosts, users, currentUser, alumniOnly, activeFilter, searchQuery]);
 
@@ -391,12 +447,47 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
   }, [clearHighlightedItem]);
 
   const combinedVisibleIds = useMemo(() => {
-    const pinnedSet = new Set(pinnedPosts.map((p) => p.id));
+    const pinned = dedupePostsById(pinnedPosts);
+    const pinnedSet = new Set(pinned.map((p) => p.id));
+    const regular = dedupePostsById(streamPosts.filter((p) => !pinnedSet.has(p.id)));
     return {
-      pinned: pinnedPosts,
-      regular: streamPosts.filter((p) => !pinnedSet.has(p.id))
+      pinned,
+      regular
     };
   }, [pinnedPosts, streamPosts]);
+
+  const handlePostUpdated = useCallback((updated: InstitutionalFeedPost) => {
+    if (!updated?.id) return;
+    setPinnedPosts((prev) =>
+      dedupePostsById(prev.map((item) => (item.id === updated.id ? updated : item)))
+    );
+    setStreamPosts((prev) =>
+      dedupePostsById(prev.map((item) => (item.id === updated.id ? updated : item)))
+    );
+  }, []);
+
+  const handlePostDeleted = useCallback((pid: string) => {
+    deletedIdsRef.current.add(pid);
+    setPinnedPosts((prev) => prev.filter((item) => item.id !== pid));
+    setStreamPosts((prev) => prev.filter((item) => item.id !== pid));
+  }, []);
+
+  const handlePostShared = useCallback((shared: InstitutionalFeedPost) => {
+    if (!shared?.id) return;
+    seenIdsRef.current.add(shared.id);
+    setStreamPosts((prev) =>
+      dedupePostsById([shared, ...prev.filter((p) => p.id !== shared.id)])
+    );
+  }, []);
+
+  const handlePostReported = useCallback((pid: string) => {
+    setPinnedPosts((prev) =>
+      prev.map((item) => (item.id === pid ? { ...item, viewerHasReported: true } : item))
+    );
+    setStreamPosts((prev) =>
+      prev.map((item) => (item.id === pid ? { ...item, viewerHasReported: true } : item))
+    );
+  }, []);
 
   const renderedPostIds = useMemo(
     () => [
@@ -561,9 +652,13 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
       if (created) {
         seenIdsRef.current.add(created.id);
         if (created.isPinned && isPinActive(created)) {
-          setPinnedPosts((prev) => [created, ...prev.filter((p) => p.id !== created.id)].slice(0, 3));
+          setPinnedPosts((prev) =>
+            dedupePostsById([created, ...prev.filter((p) => p.id !== created.id)]).slice(0, 3)
+          );
         } else {
-          setStreamPosts((prev) => [created, ...prev.filter((p) => p.id !== created.id)]);
+          setStreamPosts((prev) =>
+            dedupePostsById([created, ...prev.filter((p) => p.id !== created.id)])
+          );
         }
         setLatestPostAt(created.createdAt);
         setPostTitle('');
@@ -917,18 +1012,10 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
               post={post}
               highlighted={isHighlighted(post.id)}
               onImageClick={(url, title) => setViewerImage({ url, title })}
-              onPostDeleted={(pid) =>
-                setPinnedPosts((prev) => prev.filter((item) => item.id !== pid))
-              }
-              onPostShared={(shared) => {
-                seenIdsRef.current.add(shared.id);
-                setStreamPosts((prev) => [shared, ...prev]);
-              }}
-              onPostReported={(pid) =>
-                setPinnedPosts((prev) =>
-                  prev.map((item) => (item.id === pid ? { ...item, viewerHasReported: true } : item))
-                )
-              }
+              onPostUpdated={handlePostUpdated}
+              onPostDeleted={handlePostDeleted}
+              onPostShared={handlePostShared}
+              onPostReported={handlePostReported}
             />
           ))}
 
@@ -939,18 +1026,10 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
               post={post}
               highlighted={isHighlighted(post.id)}
               onImageClick={(url, title) => setViewerImage({ url, title })}
-              onPostDeleted={(pid) =>
-                setStreamPosts((prev) => prev.filter((item) => item.id !== pid))
-              }
-              onPostShared={(shared) => {
-                seenIdsRef.current.add(shared.id);
-                setStreamPosts((prev) => [shared, ...prev]);
-              }}
-              onPostReported={(pid) =>
-                setStreamPosts((prev) =>
-                  prev.map((item) => (item.id === pid ? { ...item, viewerHasReported: true } : item))
-                )
-              }
+              onPostUpdated={handlePostUpdated}
+              onPostDeleted={handlePostDeleted}
+              onPostShared={handlePostShared}
+              onPostReported={handlePostReported}
             />
           ))}
 

@@ -249,7 +249,12 @@ export function useAlumniFeed() {
       });
     });
 
-    return items;
+    const seenIds = new Set<string>();
+    return items.filter((item) => {
+      if (seenIds.has(item.id)) return false;
+      seenIds.add(item.id);
+      return true;
+    });
   }, [announcements, events, opportunities, currentUser, localSocial]);
 
   // Compute Personalized Relevance Score for "For You" (FYP) Algorithm

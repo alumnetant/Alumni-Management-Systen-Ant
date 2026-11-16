@@ -45,6 +45,7 @@ import {
   areUsersBlocked,
   canUserViewPost,
   comparePostsCreatedDesc,
+  dedupePostsById,
   hydratePostWithLiveAuthor,
   isAccountDeleted,
   isAccountUnavailable,
@@ -335,17 +336,19 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
           }
         : null;
 
-      let visible = (feedPosts || [])
-        .filter((p) =>
-          canUserViewPost(p, {
-            surface: 'profile',
-            viewer: viewerCtx,
-            targetProfileUid: targetUid,
-            authorAccount: targetUser
-          })
-        )
-        .map((p) => hydratePostWithLiveAuthor(p, targetUser, viewerCtx))
-        .sort(comparePostsCreatedDesc);
+      let visible = dedupePostsById(
+        (feedPosts || [])
+          .filter((p) =>
+            canUserViewPost(p, {
+              surface: 'profile',
+              viewer: viewerCtx,
+              targetProfileUid: targetUid,
+              authorAccount: targetUser
+            })
+          )
+          .map((p) => hydratePostWithLiveAuthor(p, targetUser, viewerCtx))
+          .sort(comparePostsCreatedDesc)
+      );
 
       const countAll = visible.length;
 
@@ -1292,14 +1295,21 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
                   }}
                   onPostPinned={(newPinnedId) => {
                     if (!newPinnedId) {
-                      setTimelinePosts((prev) => [pinnedPost, ...prev].sort(comparePostsCreatedDesc));
+                      const unpinned = { ...pinnedPost, isPinned: false };
+                      setTimelinePosts((prev) =>
+                        dedupePostsById([unpinned, ...prev.filter((p) => p.id !== unpinned.id)]).sort(
+                          comparePostsCreatedDesc
+                        )
+                      );
                       setPinnedPost(null);
                     }
                   }}
                 />
               )}
 
-              {timelinePosts.map((post) => (
+              {dedupePostsById(
+                timelinePosts.filter((p) => !pinnedPost || p.id !== pinnedPost.id)
+              ).map((post) => (
                 <PostCard
                   key={post.id}
                   post={post}
@@ -1315,11 +1325,16 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
                   }}
                   onPostPinned={(newPinnedId) => {
                     if (newPinnedId === post.id) {
-                      const prevPinned = pinnedPost;
+                      const prevPinned = pinnedPost ? { ...pinnedPost, isPinned: false } : null;
                       setPinnedPost({ ...post, isPinned: true });
                       setTimelinePosts((prev) => {
                         const withoutNew = prev.filter((p) => p.id !== post.id);
-                        return prevPinned ? [prevPinned, ...withoutNew].sort(comparePostsCreatedDesc) : withoutNew;
+                        return prevPinned
+                          ? dedupePostsById([
+                              prevPinned,
+                              ...withoutNew.filter((p) => p.id !== prevPinned.id)
+                            ]).sort(comparePostsCreatedDesc)
+                          : dedupePostsById(withoutNew);
                       });
                     }
                   }}

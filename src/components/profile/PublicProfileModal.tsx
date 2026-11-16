@@ -37,6 +37,7 @@ import {
   areUsersBlocked,
   canUserViewPost,
   comparePostsCreatedDesc,
+  dedupePostsById,
   hydratePostWithLiveAuthor,
   isAccountDeleted,
   isAccountUnavailable,
@@ -94,17 +95,19 @@ export const PublicProfileModal: React.FC = () => {
 
   const targetUserPosts = useMemo(() => {
     if (!targetUser || !viewerContext) return [];
-    return (feedPosts || [])
-      .filter((p) =>
-        canUserViewPost(p, {
-          surface: 'profile',
-          viewer: viewerContext,
-          targetProfileUid: targetUser.uid,
-          authorAccount: targetUser
-        })
-      )
-      .map((p) => hydratePostWithLiveAuthor(p, targetUser, viewerContext))
-      .sort(comparePostsCreatedDesc);
+    return dedupePostsById(
+      (feedPosts || [])
+        .filter((p) =>
+          canUserViewPost(p, {
+            surface: 'profile',
+            viewer: viewerContext,
+            targetProfileUid: targetUser.uid,
+            authorAccount: targetUser
+          })
+        )
+        .map((p) => hydratePostWithLiveAuthor(p, targetUser, viewerContext))
+        .sort(comparePostsCreatedDesc)
+    );
   }, [feedPosts, targetUser, viewerContext]);
 
   if (!selectedUserIdForModal || !currentUser || !targetUser) return null;

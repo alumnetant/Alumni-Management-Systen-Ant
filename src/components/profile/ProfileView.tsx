@@ -49,6 +49,7 @@ import {
 import {
   canUserViewPost,
   comparePostsCreatedDesc,
+  dedupePostsById,
   hydratePostWithLiveAuthor,
   paginatePostsWithCursor,
   slugifyUsername
@@ -206,23 +207,25 @@ export const ProfileView: React.FC = () => {
   // Apply the single shared visibility rule on profile surface (automatically excludes anonymous, drafts, deleted)
   const myTimelineOrdered = useMemo(() => {
     if (!currentUser || !viewerContext) return [];
-    const visible = (feedPosts || [])
-      .filter((post) =>
-        canUserViewPost(post, {
-          surface: 'profile',
-          viewer: viewerContext,
-          targetProfileUid: currentUser.uid,
-          authorAccount: currentUser
-        })
-      )
-      .map((post) => hydratePostWithLiveAuthor(post, currentUser, viewerContext))
-      .sort(comparePostsCreatedDesc);
+    const visible = dedupePostsById(
+      (feedPosts || [])
+        .filter((post) =>
+          canUserViewPost(post, {
+            surface: 'profile',
+            viewer: viewerContext,
+            targetProfileUid: currentUser.uid,
+            authorAccount: currentUser
+          })
+        )
+        .map((post) => hydratePostWithLiveAuthor(post, currentUser, viewerContext))
+        .sort(comparePostsCreatedDesc)
+    );
 
     if (currentUser.pinnedPostId) {
       const pinnedIdx = visible.findIndex((p) => p.id === currentUser.pinnedPostId);
       if (pinnedIdx >= 0) {
         const pinned = { ...visible[pinnedIdx], isPinned: true };
-        return [pinned, ...visible.slice(0, pinnedIdx), ...visible.slice(pinnedIdx + 1)];
+        return dedupePostsById([pinned, ...visible.slice(0, pinnedIdx), ...visible.slice(pinnedIdx + 1)]);
       }
     }
     return visible;

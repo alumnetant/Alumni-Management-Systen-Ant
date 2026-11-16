@@ -388,3 +388,15 @@ export function paginatePostsWithCursor(
 
   return { items: pageItems, nextCursor, hasMore };
 }
+
+export function dedupePostsById(posts: InstitutionalFeedPost[]): InstitutionalFeedPost[] {
+  const seen = new Set<string>();
+  const result: InstitutionalFeedPost[] = [];
+  for (const post of posts) {
+    if (!post || !post.id || seen.has(post.id)) continue;
+    seen.add(post.id);
+    result.push(post);
+  }
+  return result;
+}
+

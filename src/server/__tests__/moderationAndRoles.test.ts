@@ -16,6 +16,7 @@ import {
   parsePortalUrlPath,
   resolveNotificationDeepLink
 } from '../../lib/notificationDeepLink';
+import { dedupePostsById } from '../../lib/postVisibility';
 
 describe('Role normalization and platform access helpers', () => {
   it('normalizes canonical and legacy staff/admin roles cleanly', () => {
@@ -323,5 +324,77 @@ describe('PostModerationEngine moderation queue, legacy post normalization, and 
     expect(accDel.success).toBe(true);
     expect(deletedUids).toContain('u_alumni');
     expect(usersMap.has('u_alumni')).toBe(false);
+  });
+
+  it('never produces duplicate post IDs across heart, comment, edit, share, or client dedupe', () => {
+    const engine = new PostModerationEngine({ persistToDisk: false });
+    const author = { uid: 'u_author', name: 'Author One', email: 'a1@stcecilia.edu.ph', role: 'alumni' };
+    const peer = { uid: 'u_peer', name: 'Peer Two', email: 'p2@stcecilia.edu.ph', role: 'alumni' };
+    const admin = { uid: 'u_admin', name: 'Admin', email: 'admin@stcecilia.edu.ph', role: 'admin' };
+
+    engine.upsertProfileRecord({ ...author, role: 'alumni' }, false);
+    engine.upsertProfileRecord({ ...peer, role: 'alumni' }, false);
+    engine.upsertProfileRecord({ ...admin, role: 'admin' }, false);
+
+    const pinnedAdminPost = engine.upsertPost(
+      {
+        id: 'post_pinned_1',
+        authorId: admin.uid,
+        authorName: admin.name,
+        authorRole: 'admin',
+        authorAvatar: '',
+        postType: 'announcement',
+        title: 'Official Notice',
+        content: 'Pinned update',
+        likes: [],
+        hearts: [],
+        comments: [],
+        sharesCount: 0,
+        isPinned: true,
+        visibility: 'alumni',
+        createdAt: new Date(Date.now() - 2000).toISOString()
+      },
+      admin
+    );
+
+    const regularPost = engine.upsertPost(
+      {
+        id: 'post_regular_1',
+        authorId: author.uid,
+        authorName: author.name,
+        authorRole: 'alumni',
+        authorAvatar: '',
+        postType: 'update',
+        title: 'Milestone Update',
+        content: 'Passed the licensure exam!',
+        likes: [],
+        hearts: [],
+        comments: [],
+        sharesCount: 0,
+        visibility: 'alumni',
+        createdAt: new Date().toISOString()
+      },
+      author
+    );
+
+    // Interact: peer hearts, comments, shares; author edits
+    engine.togglePostReaction(regularPost.id, peer, 'heart');
+    engine.addPostComment(regularPost.id, peer, 'Congrats!');
+    engine.editPostByAuthor(regularPost.id, author, {
+      title: 'Milestone Update (Edited)',
+      content: 'Passed the licensure exam with honors!'
+    });
+    const shared = engine.sharePost(peer, regularPost.id, 'Proud of you!');
+
+    const feed = engine.getMainFeed(peer, { limit: 20 });
+    const allIds = [...feed.pinnedPosts.map((p) => p.id), ...feed.posts.map((p) => p.id)];
+    expect(new Set(allIds).size).toBe(allIds.length);
+    expect(feed.pinnedPosts.map((p) => p.id)).toContain(pinnedAdminPost.id);
+    expect(feed.posts.map((p) => p.id)).toContain(regularPost.id);
+    expect(feed.posts.map((p) => p.id)).toContain(shared.id);
+
+    // Also verify client dedupe helper strips duplicate occurrences cleanly
+    const deduped = dedupePostsById([shared, regularPost, shared, regularPost, pinnedAdminPost]);
+    expect(deduped.map((p) => p.id)).toEqual([shared.id, regularPost.id, pinnedAdminPost.id]);
   });
 });

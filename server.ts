@@ -5924,28 +5924,31 @@ const postModerationRouter = createPostModerationRouter({
 app.use('/api', postModerationRouter);
 
 // ============================================================================
-// 7. PRODUCTION ERROR SHIELDING (No stack traces or server paths leaked)
-// ============================================================================
-app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[UNHANDLED ERROR]', err?.message || err);
-
-  // Never leak internal stack traces or database schema in production responses
-  res.status(500).json({
-    error: 'An internal server error occurred. The incident has been recorded securely.',
-    code: 'SECURE_ERR_500'
-  });
-});
-
-// ============================================================================
-// 8. VITE MIDDLEWARE & SERVER BOOT
+// 7. VITE MIDDLEWARE & SERVER BOOT + PRODUCTION ERROR SHIELDING
 // ============================================================================
 async function startServer() {
   if (!IS_PROD) {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
+    process.env.DISABLE_HMR = 'true';
+    const vitePromise = createViteServer({
+      server: {
+        middlewareMode: true,
+        hmr: false,
+        watch: null
+      },
       appType: 'spa'
     });
-    app.use(vite.middlewares);
+    vitePromise.catch((err) => {
+      console.error('[VITE INIT ERROR]', err?.message || err);
+    });
+
+    app.use(async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const vite = await vitePromise;
+        vite.middlewares(req, res, next);
+      } catch (err) {
+        next(err);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
@@ -5954,8 +5957,22 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  // Never leak internal stack traces or database schema in production responses
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('[UNHANDLED ERROR]', err?.message || err);
+    if (res.headersSent) return;
+    res.status(500).json({
+      error: 'An internal server error occurred. The incident has been recorded securely.',
+      code: 'SECURE_ERR_500'
+    });
+  });
+
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[INSTITUTIONAL PORTAL] Server running securely at http://localhost:${PORT}`);
+  });
+
+  server.on('error', (err: any) => {
+    console.error('[SERVER LISTEN ERROR]', err?.message || err);
   });
 }
 
