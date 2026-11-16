@@ -11,7 +11,6 @@ import {
   Opportunity,
   JobApplication,
   ApplicationStatus,
-  CareerMilestone,
   UserNotificationSettings,
   Experience,
   Education,
@@ -45,7 +44,6 @@ import {
   INITIAL_ANNOUNCEMENTS,
   INITIAL_OPPORTUNITIES,
   INITIAL_JOB_APPLICATIONS,
-  INITIAL_MILESTONES,
   INITIAL_GALLERY_ITEMS,
   INITIAL_AUDIT_LOGS,
   INITIAL_AUTOMATION_JOBS,
@@ -219,7 +217,6 @@ interface AlumniContextType {
   events: AlumniEvent[];
   announcements: Announcement[];
   opportunities: Opportunity[];
-  milestones: CareerMilestone[];
   notificationSettings: UserNotificationSettings;
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -430,11 +427,10 @@ interface AlumniContextType {
   // Institutional Social Feed (Alumni, Admin, Moderator posts synced with /api/feed & /api/posts)
   feedPosts: InstitutionalFeedPost[];
   addFeedPost: (post: {
-    postType: 'milestone' | 'gallery' | 'announcement';
+    postType: 'update' | 'gallery' | 'announcement';
     title: string;
     content: string;
     imageUrl?: string;
-    milestoneBadge?: string;
     isPinned?: boolean;
     pinExpiresAt?: string;
     tags?: string[];
@@ -447,11 +443,10 @@ interface AlumniContextType {
     status?: 'published' | 'draft' | 'scheduled' | 'pending_approval';
   }) => boolean;
   createSocialPost: (post: {
-    postType: 'milestone' | 'gallery' | 'announcement';
+    postType: 'update' | 'gallery' | 'announcement';
     title: string;
     content: string;
     imageUrl?: string;
-    milestoneBadge?: string;
     isPinned?: boolean;
     pinExpiresAt?: string;
     tags?: string[];
@@ -484,9 +479,6 @@ interface AlumniContextType {
   updateUserRole: (uid: string, newRole: UserRole) => Promise<{ success: boolean; message?: string }>;
   setUserRole: (uid: string, newRole: UserRole) => Promise<{ success: boolean; message?: string }>;
   deleteAlumni: (uid: string) => Promise<boolean>;
-  createMilestone: (m: Omit<CareerMilestone, 'id'>) => void;
-  toggleLikeMilestone: (milestoneId: string) => void;
-  deleteMilestone: (milestoneId: string) => void;
   isEmployerExpired: (user?: UserProfile | null) => boolean;
   requestEmployerRenewal: (notes: string) => void;
   renewEmployerAccount: (uid: string, extensionMonths?: number) => void;
@@ -531,7 +523,6 @@ export const STORAGE_KEYS = {
   ANNOUNCEMENTS: 'alumni_announcements_v5',
   OPPORTUNITIES: 'alumni_opportunities_v5',
   APPLICATIONS: 'alumni_job_applications_v5',
-  MILESTONES: 'alumni_milestones_v5',
   FOLLOWING: 'alumni_following_v5',
   CONNECTIONS: 'alumni_connections_v5',
   SETTINGS: 'alumni_settings_v5',
@@ -714,13 +705,32 @@ export function getStoredSessionToken(): string | null {
   }
 }
 
+export function isSignedHmacToken(token?: string | null): boolean {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.trim().split('.');
+  return parts.length === 3 && parts.every((part) => part.length > 0);
+}
+
 /**
- * Persist active session tokens and identifiers to both localStorage and sessionStorage
+ * Persist active session tokens and identifiers to both localStorage and sessionStorage.
+ * Preserves an existing valid signed HMAC server token when a caller omits `token`.
  */
 export function saveActiveSession(user: UserProfile, token?: string) {
   try {
     const canonicalUid = normalizeUid(user.uid) || user.uid;
-    const sessionToken = token || createSessionToken({ ...user, uid: canonicalUid });
+    let sessionToken = token;
+    if (!sessionToken) {
+      const existingToken = getStoredSessionToken();
+      if (isSignedHmacToken(existingToken)) {
+        const parsed = parseAndValidateSessionToken(existingToken!);
+        if (parsed.valid && parsed.payload?.uid === canonicalUid) {
+          sessionToken = existingToken!;
+        }
+      }
+    }
+    if (!sessionToken) {
+      sessionToken = createSessionToken({ ...user, uid: canonicalUid });
+    }
     localStorage.setItem(STORAGE_KEYS.USER_ID, canonicalUid);
     localStorage.setItem('alumni_auth_session_real_v1', canonicalUid);
     localStorage.setItem('alumni_server_auth_token', sessionToken);
@@ -761,7 +771,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           STORAGE_KEYS.NOTIFICATIONS,
           'st_cecilia_chapters_v1',
           STORAGE_KEYS.GALLERY,
-          STORAGE_KEYS.MILESTONES,
+          'alumni_milestones_v5',
           STORAGE_KEYS.REQUESTS,
           STORAGE_KEYS.APPLICATIONS,
           'st_cecilia_accredited_registry_records',
@@ -1176,16 +1186,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       localStorage.setItem(STORAGE_KEYS.APPLICATIONS, JSON.stringify(jobApplications));
     } catch {}
   }, [jobApplications]);
-
-  const [milestones, setMilestones] = useState<CareerMilestone[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.MILESTONES);
-      const parsed = saved ? JSON.parse(saved) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
 
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>(() => {
     try {
@@ -2024,10 +2024,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [jobApplications]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.MILESTONES, JSON.stringify(milestones));
-  }, [milestones]);
-
-  useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.CONNECTIONS, JSON.stringify(connectionsMap));
   }, [connectionsMap]);
 
@@ -2314,7 +2310,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
         if (matched) {
           if (isKnownAdmin) {
-            matched.role = 'admin';
+            matched.role = normalizeSystemRole(matched.role) === 'superadmin' ? 'superadmin' : 'admin';
             matched.isVerified = true;
             matched.verified = true;
           }
@@ -2628,8 +2624,20 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   useEffect(() => {
     if (currentUser) {
       try {
+        const canonicalUid = normalizeUid(currentUser.uid) || currentUser.uid;
+        const existingToken = getStoredSessionToken();
+        if (isSignedHmacToken(existingToken)) {
+          const parsed = parseAndValidateSessionToken(existingToken!);
+          if (parsed.valid && parsed.payload?.uid === canonicalUid) {
+            sessionStorage.setItem('alumni_server_auth_token', existingToken!);
+            sessionStorage.setItem('alumni_auth_token', existingToken!);
+            localStorage.setItem('alumni_server_auth_token', existingToken!);
+            localStorage.setItem('alumni_auth_token', existingToken!);
+            return;
+          }
+        }
         const tokenPayload = {
-          uid: currentUser.uid,
+          uid: canonicalUid,
           email: currentUser.email,
           role: currentUser.role || 'alumni',
           emailVerified: !!currentUser.isVerified,
@@ -2705,7 +2713,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return () => unsub();
   }, [activeChatId]);
 
-  // Automated milestone greetings & profile completion check on session start
+  // Automated profile completion check on session start
   useEffect(() => {
     if (!currentUser) return;
     const sessionKey = `greeted_${currentUser.uid}_${new Date().toISOString().split('T')[0]}`;
@@ -2858,7 +2866,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (matched) {
         // If user is a verified institution administrator
         if (isKnownAdmin) {
-          matched.role = 'admin';
+          matched.role = normalizeSystemRole(matched.role) === 'superadmin' ? 'superadmin' : 'admin';
           matched.isVerified = true;
           matched.verified = true;
         }
@@ -3057,6 +3065,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     // 2. Server-side validation via backend /api/auth/login (authoritative single active session provider)
+    let serverAuthToken: string | undefined;
     try {
       const serverRes = await fetch('/api/auth/login', {
         method: 'POST',
@@ -3195,8 +3204,20 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (retryRes.ok) {
             const authData = await retryRes.json();
             if (authData.token) {
-              sessionStorage.setItem('alumni_server_auth_token', authData.token);
-              localStorage.setItem('alumni_server_auth_token', authData.token);
+              serverAuthToken = authData.token;
+              try {
+                sessionStorage.setItem('alumni_server_auth_token', authData.token);
+                sessionStorage.setItem('alumni_auth_token', authData.token);
+                localStorage.setItem('alumni_server_auth_token', authData.token);
+                localStorage.setItem('alumni_auth_token', authData.token);
+              } catch {}
+            }
+            if (authData.refreshToken) {
+              try {
+                sessionStorage.setItem('alumni_refresh_token', authData.refreshToken);
+                localStorage.setItem('alumni_refresh_token', authData.refreshToken);
+                sessionStorage.setItem('alumni_latest_refresh_token', authData.refreshToken);
+              } catch {}
             }
             setActiveSessionConflict(null);
             setLoginPlatformError(null);
@@ -3217,8 +3238,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (serverRes.ok) {
         const authData = await serverRes.json();
         if (authData.token) {
+          serverAuthToken = authData.token;
           try {
             sessionStorage.setItem('alumni_server_auth_token', authData.token);
+            sessionStorage.setItem('alumni_auth_token', authData.token);
             localStorage.setItem('alumni_server_auth_token', authData.token);
             localStorage.setItem('alumni_auth_token', authData.token);
           } catch {}
@@ -3633,7 +3656,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
 
     // 6. Complete login & persist session securely
-    saveActiveSession(userToSave);
+    saveActiveSession(userToSave, serverAuthToken);
     setCurrentUserId(userToSave.uid);
     setAuthReady(true);
     saveUserToFirestore(userToSave).catch(() => {});
@@ -3718,7 +3741,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
 
         if (user) {
-          saveActiveSession(user);
+          saveActiveSession(user, authData.token);
           setCurrentUserId(user.uid);
           setAuthReady(true);
 
@@ -3822,7 +3845,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
 
       if (user) {
-        saveActiveSession(user);
+        saveActiveSession(user, authData.token);
         setCurrentUserId(user.uid);
         setAuthReady(true);
         setActiveTab('dashboard');
@@ -4300,11 +4323,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   // Institutional Social Feed methods
   const createSocialPost = useCallback(async (postData: {
-    postType: 'milestone' | 'gallery' | 'announcement';
+    postType: 'update' | 'gallery' | 'announcement';
     title: string;
     content: string;
     imageUrl?: string;
-    milestoneBadge?: string;
     isPinned?: boolean;
     pinExpiresAt?: string;
     tags?: string[];
@@ -4335,7 +4357,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       title: postData.title,
       content: postData.content,
       imageUrl: postData.imageUrl,
-      milestoneBadge: postData.milestoneBadge,
       likes: [],
       hearts: [],
       comments: [],
@@ -4364,7 +4385,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             title: postData.title,
             content: postData.content,
             imageUrl: postData.imageUrl,
-            milestoneBadge: postData.milestoneBadge,
             isPinned: Boolean(postData.isPinned && canPin),
             pinExpiresAt: postData.isPinned && canPin ? postData.pinExpiresAt : undefined,
             tags: postData.tags || [],
@@ -4401,11 +4421,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [currentUser, showToast]);
 
   const addFeedPost = (postData: {
-    postType: 'milestone' | 'gallery' | 'announcement';
+    postType: 'update' | 'gallery' | 'announcement';
     title: string;
     content: string;
     imageUrl?: string;
-    milestoneBadge?: string;
     isPinned?: boolean;
     pinExpiresAt?: string;
     tags?: string[];
@@ -4432,16 +4451,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return;
     }
     const targetPost = feedPosts.find((p) => p.id === postId);
-    const isMilestoneOrAchievement = Boolean(
-      targetPost && (targetPost.postType === 'milestone' || Boolean(targetPost.milestoneBadge))
+    const isSelfAchievementUpdate = Boolean(
+      targetPost && targetPost.postType === 'update'
     );
     if (
       targetPost &&
       targetPost.authorId === currentUser.uid &&
       !targetPost.isAnonymous &&
-      isMilestoneOrAchievement
+      isSelfAchievementUpdate
     ) {
-      showToast('You cannot congratulate or react to your own milestone post.', 'info');
+      showToast('You cannot congratulate or react to your own post.', 'info');
       return;
     }
     let addedReaction = false;
@@ -5134,7 +5153,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     alumniService.updateAlumni(currentUserId, { education: updatedEducation }).catch((err) => {
       console.warn('Error saving education to Firestore:', err);
     });
-    showToast('Education milestone added!');
+    showToast('Education record added!');
   };
 
   const removeEducation = (id: string) => {
@@ -7444,7 +7463,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
 
     // Sync to backend opportunity registry
-    const authToken = sessionStorage.getItem('alumni_server_auth_token') || 'dev-admin-session-token';
+    const authToken = getStoredSessionToken() || 'dev-admin-session-token';
     fetch('/api/opportunities/sync', {
       method: 'POST',
       headers: {
@@ -7502,7 +7521,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (o.id === id) {
           const updated = { ...o, ...data };
           saveOpportunityToFirestore(updated).catch(() => {});
-          const authToken = sessionStorage.getItem('alumni_server_auth_token') || 'dev-admin-session-token';
+          const authToken = getStoredSessionToken() || 'dev-admin-session-token';
           fetch('/api/opportunities/sync', {
             method: 'POST',
             headers: {
@@ -7526,7 +7545,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
     setOpportunities((prev) => prev.filter((o) => o.id !== id));
     deleteOpportunityFromFirestore(id).catch(() => {});
-    const authToken = sessionStorage.getItem('alumni_server_auth_token') || 'dev-admin-session-token';
+    const authToken = getStoredSessionToken() || 'dev-admin-session-token';
     fetch(`/api/opportunities/${id}`, {
       method: 'DELETE',
       headers: {
@@ -7654,7 +7673,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
 
     // Also sync to backend application store
-    const authToken = sessionStorage.getItem('alumni_server_auth_token') || 'dev-admin-session-token';
+    const authToken = getStoredSessionToken() || 'dev-admin-session-token';
     fetch('/api/applications/apply', {
       method: 'POST',
       headers: {
@@ -7737,7 +7756,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     });
 
     // Authoritative backend status sync with ownership validation
-    const authToken = sessionStorage.getItem('alumni_server_auth_token') || 'dev-admin-session-token';
+    const authToken = getStoredSessionToken() || 'dev-admin-session-token';
     fetch(`/api/employer/applications/${applicationId}/status`, {
       method: 'PATCH',
       headers: {
@@ -8498,116 +8517,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('Error updating alumni profile in Firestore.');
       return undefined;
     }
-  };
-
-  const createMilestone = (m: Omit<CareerMilestone, 'id'>) => {
-    const isAuthorized = permissions.canAccessAdminPanel || currentUser?.role === 'alumni' || currentUser?.role === 'moderator';
-    if (!isAuthorized) {
-      showToast('Permission denied to publish milestones.');
-      return;
-    }
-    const newM: CareerMilestone = {
-      id: `m_${Date.now()}`,
-      authorId: currentUser?.uid,
-      authorName: currentUser?.name || 'Administrator',
-      authorRole: currentUser?.role,
-      createdAt: new Date().toISOString(),
-      likes: [],
-      ...m
-    };
-    setMilestones((prev) => [newM, ...prev]);
-
-    // If published by administration, registrar, or staff, cross-post to Alumni Dashboard Institutional Social Feed
-    if (newM.authorRole !== 'employer' && newM.authorRole !== 'alumni') {
-      const feedPost: InstitutionalFeedPost = {
-        id: `post_ms_${newM.id}`,
-        authorId: newM.authorId || currentUser?.uid || 'usr_admin_cecilia',
-        authorName: newM.authorName,
-        authorRole: (newM.authorRole as any) || 'admin',
-        authorAvatar: currentUser?.profilePictureUrl || '/assets/cecilians-seal.jpg',
-        postType: 'milestone',
-        milestoneBadge: newM.company || newM.category,
-        title: newM.title,
-        content: newM.description || `${newM.authorName} achieved an outstanding milestone in ${newM.category}!`,
-        imageUrl: (newM.images && newM.images[0]) || '/assets/cecilians-seal.jpg',
-        likes: [],
-        comments: [],
-        sharesCount: 0,
-        createdAt: new Date().toISOString(),
-        tags: ['Milestone', newM.category],
-        status: 'published',
-        visibility: 'alumni',
-        isAnonymous: false
-      };
-      setFeedPosts((prev) => [feedPost, ...prev]);
-    }
-
-    // Broadcast notification to all users
-    const feedPostTargetId =
-      newM.authorRole !== 'employer' && newM.authorRole !== 'alumni' ? `post_ms_${newM.id}` : newM.id;
-    const notif: AppNotification = {
-      id: `notif_m_${Date.now()}`,
-      toUid: 'all',
-      type: 'milestone',
-      title: `New Milestone Spotlight: ${newM.title}`,
-      body: `${newM.authorName} published a spotlight in ${newM.category}: "${newM.title}". Check it out on the dashboard!`,
-      refId: feedPostTargetId,
-      targetPath: `/portal/feed/${encodeURIComponent(feedPostTargetId)}`,
-      targetRoute: `/portal/feed/${encodeURIComponent(feedPostTargetId)}`,
-      metadata: { milestoneId: newM.id, postId: feedPostTargetId },
-      read: false,
-      createdAt: new Date().toISOString()
-    };
-    setNotifications((prev) => [notif, ...prev]);
-
-    // Broadcast push notification to devices with the APK or web app
-    sendPushBroadcast({
-      title: notif.title,
-      body: `${newM.authorName} achieved: "${newM.title}" (${newM.category || 'Career'}). View on dashboard!`,
-      category: 'milestone',
-      data: {
-        milestoneId: newM.id,
-        postId: feedPostTargetId,
-        category: 'milestone',
-        targetPath: `/portal/feed/${encodeURIComponent(feedPostTargetId)}`,
-        targetRoute: `/portal/feed/${encodeURIComponent(feedPostTargetId)}`,
-        url: `/portal/feed/${encodeURIComponent(feedPostTargetId)}`
-      }
-    }).catch(() => {});
-
-    showToast('Milestone & gallery post published to dashboard feed!');
-  };
-
-  const toggleLikeMilestone = (milestoneId: string) => {
-    if (!currentUser) return;
-    const targetMilestone = milestones.find((m) => m.id === milestoneId);
-    const ownerUid = targetMilestone?.alumnusId || targetMilestone?.uid;
-    if (ownerUid && ownerUid === currentUser.uid) {
-      showToast('You cannot congratulate yourself on your own milestone.', 'info');
-      return;
-    }
-    setMilestones((prev) =>
-      prev.map((m) => {
-        if (m.id === milestoneId) {
-          const currentLikes = m.likes || [];
-          const isLiked = currentLikes.includes(currentUser.uid);
-          const updatedLikes = isLiked
-            ? currentLikes.filter((uid) => uid !== currentUser.uid)
-            : [...currentLikes, currentUser.uid];
-          return { ...m, likes: updatedLikes };
-        }
-        return m;
-      })
-    );
-  };
-
-  const deleteMilestone = (milestoneId: string) => {
-    if (!permissions.canAccessAdminPanel && currentUser?.role !== 'admin') {
-      showToast('Permission denied to remove milestone post.');
-      return;
-    }
-    setMilestones((prev) => prev.filter((m) => m.id !== milestoneId));
-    showToast('Milestone post removed from feed.');
   };
 
   const isEmployerExpired = useCallback((user?: UserProfile | null): boolean => {
@@ -9665,7 +9574,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setReservations([]);
       setFeedPosts([]);
       setGalleryItems([]);
-      setMilestones([]);
       setFriendRequests([]);
       setChats([]);
       setMessages({});
@@ -9689,7 +9597,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           STORAGE_KEYS.ANNOUNCEMENTS,
           STORAGE_KEYS.OPPORTUNITIES,
           STORAGE_KEYS.APPLICATIONS,
-          STORAGE_KEYS.MILESTONES,
+          'alumni_milestones_v5',
           STORAGE_KEYS.FOLLOWING,
           STORAGE_KEYS.CONNECTIONS,
           STORAGE_KEYS.GALLERY,
@@ -9780,7 +9688,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         events,
         announcements,
         opportunities,
-        milestones,
         notificationSettings,
         activeTab,
         setActiveTab,
@@ -9943,9 +9850,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         updateUserRole,
         setUserRole: updateUserRole,
         deleteAlumni,
-        createMilestone,
-        toggleLikeMilestone,
-        deleteMilestone,
         isEmployerExpired,
         requestEmployerRenewal,
         renewEmployerAccount,

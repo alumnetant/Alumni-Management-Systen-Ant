@@ -4,6 +4,8 @@ import {
   ModerationActor,
   ModerationError,
   PostModerationEngine,
+  isAdminRole,
+  isSuperAdminRole,
   postModerationEngine
 } from './moderationEngine';
 
@@ -84,7 +86,7 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     deps.requireSuperAdmin ||
     ((req: Request, res: Response, next: NextFunction) => {
       const actor = toActor(req);
-      if ((actor.role || '').toLowerCase().trim() !== 'superadmin') {
+      if (!isSuperAdminRole(actor.role)) {
         if (deps.onUnauthorizedSuperAdmin) {
           deps.onUnauthorizedSuperAdmin(req, 'SUPERADMIN_ROUTE_FORBIDDEN', {
             attemptedPath: req.originalUrl || req.path,
@@ -259,7 +261,9 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     try {
       const actor = toActor(req);
       const body = req.body || {};
-      const actorIsAdmin = ['admin', 'superadmin'].includes((actor.role || '').toLowerCase().trim());
+      const actorIsAdmin = isAdminRole(actor.role);
+      const normalizedPostType =
+        body.postType === 'gallery' || body.postType === 'announcement' ? body.postType : 'update';
       const post = engine.upsertPost(
         {
           id: body.id || `post_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
@@ -267,12 +271,11 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
           authorName: body.authorName || actor.name,
           authorRole: (actor.role as any) || 'alumni',
           authorAvatar: body.authorAvatar || '',
-          postType: body.postType || 'milestone',
+          postType: normalizedPostType,
           title: body.title || 'Community Post',
           content: body.content || '',
           imageUrl: body.imageUrl,
           mediaUrl: body.mediaUrl,
-          milestoneBadge: body.milestoneBadge,
           likes: Array.isArray(body.likes) ? body.likes : [],
           hearts: Array.isArray(body.hearts) ? body.hearts : [],
           comments: Array.isArray(body.comments) ? body.comments : [],

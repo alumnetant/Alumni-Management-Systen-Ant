@@ -5,7 +5,7 @@
  * Normalized Feed Types for Alumni Social Timeline (FYP)
  */
 
-export type FeedItemType = 'announcement' | 'event' | 'milestone' | 'opportunity';
+export type FeedItemType = 'announcement' | 'event' | 'opportunity';
 
 export type FeedReactionType = 'like' | 'love' | 'celebrate' | 'insightful';
 
@@ -59,8 +59,6 @@ export interface FeedItem {
     opportunityLocation?: string;
     opportunityType?: string;
     matchScore?: number;
-    milestoneCompany?: string;
-    milestoneCategory?: string;
     isUrgent?: boolean;
     isPinned?: boolean;
     attachmentsCount?: number;

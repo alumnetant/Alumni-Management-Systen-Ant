@@ -51,6 +51,7 @@ import {
   Database
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
+import { normalizeSystemRole } from '../../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getRegistrationConflicts, resolveConflictRecord } from '../../services/studentVerificationService';
 import { exportAlumniRosterCsv, exportAlumniRosterExcel } from '../../services/adminExportService';
@@ -78,7 +79,6 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
     events,
     announcements,
     opportunities,
-    milestones,
     auditLogs,
     setUserVerified,
     approveOpportunity,
@@ -96,7 +96,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
     reservations
   } = useAlumni();
 
-  const isSuperAdmin = (currentUser?.role || '').toLowerCase().trim() === 'superadmin';
+  const isSuperAdmin = normalizeSystemRole(currentUser?.role) === 'superadmin';
 
   const [activeFilterPill, setActiveFilterPill] = useState<'all' | 'activity' | 'verification' | 'careers' | 'announcements' | 'events'>(
     isSuperAdmin ? 'activity' : 'all'

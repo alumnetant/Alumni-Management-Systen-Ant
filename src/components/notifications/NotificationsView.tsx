@@ -20,7 +20,6 @@ import {
   ArrowRight,
   Newspaper,
   Users,
-  Award,
   Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,7 +69,7 @@ export const NotificationsView: React.FC = () => {
     return userNotifications.filter((n) => {
       // Filter by category
       if (activeFilter === 'unread' && n.read) return false;
-      if (activeFilter === 'feed' && !['feed_post', 'post_comment', 'post_reaction', 'post_share', 'milestone'].includes(n.type)) return false;
+      if (activeFilter === 'feed' && !['feed_post', 'post_comment', 'post_reaction', 'post_share'].includes(n.type)) return false;
       if (activeFilter === 'job' && n.type !== 'job') return false;
       if (activeFilter === 'event' && n.type !== 'event' && n.type !== 'event_broadcast') return false;
       if (activeFilter === 'message' && n.type !== 'message') return false;
@@ -115,8 +114,6 @@ export const NotificationsView: React.FC = () => {
         return <Newspaper className="w-4 h-4 text-[#8B181B] dark:text-rose-400 stroke-[1.75]" />;
       case 'post_reaction':
         return <Heart className="w-4 h-4 text-rose-600 dark:text-rose-400 stroke-[1.75]" />;
-      case 'milestone':
-        return <Award className="w-4 h-4 text-amber-600 dark:text-amber-400 stroke-[1.75]" />;
       case 'friend_request':
       case 'friend_accepted':
         return <Users className="w-4 h-4 text-sky-600 dark:text-sky-400 stroke-[1.75]" />;
@@ -148,7 +145,6 @@ export const NotificationsView: React.FC = () => {
         return 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/60';
       case 'announcement':
       case 'announcement_broadcast':
-      case 'milestone':
         return 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-900/60';
       case 'friend_request':
       case 'friend_accepted':

@@ -304,8 +304,8 @@ export function initPushNotificationListeners(
             onNavigateTab(buildPortalUrlForTab('messages', undefined, data.chatId), data.chatId);
           } else if (category === 'announcement' || category === 'announcements' || data.announcementId) {
             onNavigateTab(buildPortalUrlForTab('announcements', undefined, data.announcementId), data.announcementId);
-          } else if (category === 'milestone' || data.postId || data.milestoneId) {
-            onNavigateTab(buildPortalUrlForTab('dashboard', undefined, data.postId || data.milestoneId), data.postId || data.milestoneId);
+          } else if (data.postId) {
+            onNavigateTab(buildPortalUrlForTab('dashboard', undefined, data.postId), data.postId);
           } else if (category === 'job' || data.jobId) {
             onNavigateTab(buildPortalUrlForTab('opportunities', undefined, data.jobId), data.jobId);
           } else {
@@ -345,8 +345,8 @@ export function initPushNotificationListeners(
           onNavigateTab(buildPortalUrlForTab('events', undefined, clickData.eventId), clickData.eventId);
         } else if (category === 'announcement' || clickData.announcementId) {
           onNavigateTab(buildPortalUrlForTab('announcements', undefined, clickData.announcementId), clickData.announcementId);
-        } else if (category === 'milestone' || clickData.postId || clickData.milestoneId) {
-          onNavigateTab(buildPortalUrlForTab('dashboard', undefined, clickData.postId || clickData.milestoneId), clickData.postId || clickData.milestoneId);
+        } else if (clickData.postId) {
+          onNavigateTab(buildPortalUrlForTab('dashboard', undefined, clickData.postId), clickData.postId);
         } else if (category === 'job' || clickData.jobId) {
           onNavigateTab(buildPortalUrlForTab('opportunities', undefined, clickData.jobId), clickData.jobId);
         } else {
@@ -372,7 +372,7 @@ let activeLiveStream: EventSource | null = null;
 
 /**
  * Connects to the server-sent events stream for real-time foreground pop-ups
- * Whenever an admin posts an announcement, event, or milestone, this receives it instantly.
+ * Whenever an admin posts an announcement or event, this receives it instantly.
  */
 export function startLivePushStream(
   userId?: string,
@@ -436,7 +436,7 @@ export function startLivePushStream(
 export async function sendPushBroadcast(payload: {
   title: string;
   body: string;
-  category: 'announcement' | 'event' | 'milestone' | 'message' | 'general';
+  category: 'announcement' | 'event' | 'message' | 'general';
   data?: Record<string, any>;
 }): Promise<boolean> {
   try {

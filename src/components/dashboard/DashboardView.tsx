@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * 
  * Alumni Home Page — Centered Timeline & "For You Page" (FYP)
- * Aggregates Announcements, Events, Milestones, and Opportunities
+ * Aggregates Announcements, Events, and Opportunities
  * into an engaging single-column social timeline with infinite scrolling.
  */
 
@@ -26,7 +26,6 @@ import { triggerHaptic } from '../../services/hapticsService';
 import { FeedFilters } from './feed/FeedFilters';
 import { FeedAnnouncementCard } from './feed/FeedAnnouncementCard';
 import { FeedEventCard } from './feed/FeedEventCard';
-import { FeedMilestoneCard } from './feed/FeedMilestoneCard';
 import { FeedOpportunityCard } from './feed/FeedOpportunityCard';
 import { FeedPostComposer } from './feed/FeedPostComposer';
 import { FeedSkeletonLoader } from './feed/FeedSkeletonLoader';
@@ -281,28 +280,6 @@ export const DashboardView: React.FC = () => {
                         onAddComment={(txt) => addComment(item.id, txt)}
                         onShare={() => shareFeedItem(item)}
                         onRsvp={rsvpEvent}
-                      />
-                    </motion.div>
-                  );
-                }
-
-                if (item.type === 'milestone') {
-                  return (
-                    <motion.div
-                      key={item.id}
-                      layout
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -12, scale: 0.98 }}
-                      transition={{ duration: 0.22 }}
-                    >
-                      <FeedMilestoneCard
-                        item={item}
-                        isBookmarked={isBookmarked(item.id)}
-                        onToggleBookmark={() => toggleBookmark(item.id)}
-                        onReact={(r) => toggleReaction(item.id, r)}
-                        onAddComment={(txt) => addComment(item.id, txt)}
-                        onShare={() => shareFeedItem(item)}
                       />
                     </motion.div>
                   );

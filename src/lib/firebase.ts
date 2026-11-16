@@ -1482,7 +1482,6 @@ export async function purgeAllFirestoreSampleData(): Promise<{ success: boolean;
     FIRESTORE_COLLECTIONS.NOTIFICATIONS,
     FIRESTORE_COLLECTIONS.POST_REPORTS,
     'gallery',
-    'milestones',
     'audit_logs',
     'activity_logs',
     'user_blocks',

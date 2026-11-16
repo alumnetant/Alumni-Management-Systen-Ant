@@ -205,17 +205,17 @@ export function sanitizeModerationText(input: unknown, maxLength = 500): string 
 }
 
 export function isModeratorRole(role?: string): boolean {
-  const norm = (role || '').toLowerCase().trim();
+  const norm = normalizeSystemRole(role);
   return norm === 'moderator' || norm === 'admin' || norm === 'superadmin';
 }
 
 export function isAdminRole(role?: string): boolean {
-  const norm = (role || '').toLowerCase().trim();
+  const norm = normalizeSystemRole(role);
   return norm === 'admin' || norm === 'superadmin';
 }
 
 export function isSuperAdminRole(role?: string): boolean {
-  return (role || '').toLowerCase().trim() === 'superadmin';
+  return normalizeSystemRole(role) === 'superadmin';
 }
 
 function createInitialState(): ModerationStateSnapshot {
@@ -656,6 +656,10 @@ export class PostModerationEngine {
       if (res.hadInvalidAuthor) {
         normalizedCount++;
       }
+      if ((res.post.postType as string) === 'milestone') {
+        res.post.postType = 'update';
+        normalizedCount++;
+      }
       this.state.posts[id] = res.post;
     }
 
@@ -696,9 +700,14 @@ export class PostModerationEngine {
         ? (post.pinExpiresAt && !Number.isNaN(new Date(post.pinExpiresAt).getTime()) ? new Date(post.pinExpiresAt).toISOString() : undefined)
         : existing?.pinExpiresAt;
 
+    const rawPostType = (post.postType as string) || existing?.postType || 'update';
+    const normalizedPostType: InstitutionalFeedPost['postType'] =
+      rawPostType === 'gallery' || rawPostType === 'announcement' ? rawPostType : 'update';
+
     const candidate: InstitutionalFeedPost = {
       ...existing,
       ...post,
+      postType: normalizedPostType,
       title: sanitizeModerationText(post.title || '', 200),
       content: sanitizeModerationText(post.content || '', 5000),
       status: post.status ?? existing?.status ?? 'published',
@@ -1276,12 +1285,11 @@ export class PostModerationEngine {
       throw new ModerationError(403, 'FORBIDDEN', 'You do not have permission to interact with this post.');
     }
 
-    const isMilestonePost = post.postType === 'milestone' || Boolean(post.milestoneBadge);
-    if (post.authorId === actor.uid && !post.isAnonymous && isMilestonePost) {
+    if (post.authorId === actor.uid && !post.isAnonymous && post.postType === 'update') {
       throw new ModerationError(
         400,
         'SELF_CONGRATULATION_NOT_ALLOWED',
-        'You cannot congratulate or react to your own milestone post.'
+        'You cannot congratulate or react to your own post.'
       );
     }
 
@@ -1914,11 +1922,10 @@ export class PostModerationEngine {
       authorName: actor.name,
       authorRole: normalizeSystemRole(actor.role),
       authorAvatar: this.resolveAuthorProfile(actor.uid)?.profilePictureUrl || '',
-      postType: source.postType || 'milestone',
+      postType: (source.postType as string) === 'milestone' ? 'update' : (source.postType || 'update'),
       title: hydratedSource.title,
       content: cleanComment ? `${cleanComment}\n\n— Shared from ${hydratedSource.authorName}: ${hydratedSource.content}` : hydratedSource.content,
       imageUrl: hydratedSource.imageUrl,
-      milestoneBadge: hydratedSource.milestoneBadge,
       likes: [],
       hearts: [],
       comments: [],

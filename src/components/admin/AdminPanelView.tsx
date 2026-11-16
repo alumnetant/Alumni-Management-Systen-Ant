@@ -12,7 +12,6 @@ import {
   FileText,
   Bot,
   BarChart3,
-  Award,
   ImageIcon,
   ShieldCheck,
   ShieldAlert,
@@ -27,7 +26,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
-import { UserRole } from '../../types';
+import { UserRole, normalizeSystemRole } from '../../types';
 import { AdminDashboardOverview } from './AdminDashboardOverview';
 import { AdminUsersTable } from './AdminUsersTable';
 import { RegistrarRegistryMatcher } from './RegistrarRegistryMatcher';
@@ -59,18 +58,16 @@ export type AdminTab =
   | 'attendance'
   | 'jobs'
   | 'employers'
+  | 'moderation'
   | 'audit'
   | 'automations'
   | 'metrics'
-  | 'milestones'
   | 'gallery';
 
 export const AdminPanelView: React.FC = () => {
   const {
     currentUser,
     users,
-    milestones,
-    createMilestone,
     permissions,
     createUserByAdmin,
     galleryItems,
@@ -88,7 +85,9 @@ export const AdminPanelView: React.FC = () => {
     reportUnauthorizedSuperAdminAccess
   } = useAlumni();
 
-  const isSuperAdmin = (currentUser?.role || '').toLowerCase().trim() === 'superadmin';
+  const normalizedRole = normalizeSystemRole(currentUser?.role);
+  const isSuperAdmin = normalizedRole === 'superadmin';
+  const hasModerationAccess = ['moderator', 'admin', 'superadmin'].includes(normalizedRole);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
 
   useEffect(() => {
@@ -112,7 +111,11 @@ export const AdminPanelView: React.FC = () => {
 
   const pendingEmployersCount = useMemo(() => {
     return (users || []).filter(
-      (u) => u.role === 'employer' && u.employerVerificationStatus === 'pending_verification'
+      (u) =>
+        normalizeSystemRole(u.role) === 'employer' &&
+        (u.employerVerificationStatus === 'pending_verification' ||
+          (u.employerVerificationStatus as string) === 'pending_review' ||
+          u.employerStatus === 'pending')
     ).length;
   }, [users]);
 
@@ -167,13 +170,6 @@ export const AdminPanelView: React.FC = () => {
     }
   };
 
-  const [showMilestoneModal, setShowMilestoneModal] = useState(false);
-  const [mAlumnusId, setMAlumnusId] = useState('');
-  const [mTitle, setMTitle] = useState('');
-  const [mCategory, setMCategory] = useState<'promotion' | 'startup' | 'award' | 'publication' | 'honor'>('promotion');
-  const [mDescription, setMDescription] = useState('');
-  const [mCompany, setMCompany] = useState('');
-
   // Modules configuration with permissions, badges, groups, and responsive metadata
   const modulesList = useMemo(() => {
     return [
@@ -215,7 +211,7 @@ export const AdminPanelView: React.FC = () => {
         icon: ShieldCheck,
         badge: totalRequestsCount > 0 ? totalRequestsCount : null,
         badgeColor: 'bg-amber-100 text-amber-900 border border-amber-300',
-        visible: currentUser?.role === 'admin' || currentUser?.role === 'superadmin'
+        visible: normalizedRole === 'admin' || isSuperAdmin
       },
       {
         id: 'jobs' as AdminTab,
@@ -226,6 +222,16 @@ export const AdminPanelView: React.FC = () => {
         badge: (pendingJobsCount + pendingEmployersCount) > 0 ? (pendingJobsCount + pendingEmployersCount) : null,
         badgeColor: 'bg-amber-100 text-amber-900 border border-amber-300',
         visible: permissions.canManageJobModeration || permissions.canAccessEmployerAccreditation
+      },
+      {
+        id: 'moderation' as AdminTab,
+        label: 'Post & Content Moderation',
+        shortLabel: 'Moderation',
+        group: 'Verification & Compliance',
+        icon: ShieldAlert,
+        badge: null,
+        badgeColor: '',
+        visible: hasModerationAccess
       },
       {
         id: 'audit' as AdminTab,
@@ -258,16 +264,6 @@ export const AdminPanelView: React.FC = () => {
         visible: true
       },
       {
-        id: 'milestones' as AdminTab,
-        label: 'Alumni Milestones',
-        shortLabel: 'Milestones',
-        group: 'Alumni Engagement',
-        icon: Award,
-        badge: null,
-        badgeColor: '',
-        visible: true
-      },
-      {
         id: 'gallery' as AdminTab,
         label: 'Campus Gallery',
         shortLabel: 'Gallery',
@@ -286,11 +282,11 @@ export const AdminPanelView: React.FC = () => {
     totalRequestsCount,
     pendingJobsCount,
     pendingEmployersCount,
-    currentUser?.role,
+    normalizedRole,
+    hasModerationAccess,
     isSuperAdmin,
     announcements.length,
     events.length,
-    milestones.length,
     galleryItems.length
   ]);
 
@@ -317,27 +313,6 @@ export const AdminPanelView: React.FC = () => {
       </div>
     );
   }
-
-  const handleCreateMilestone = (e: React.FormEvent) => {
-    e.preventDefault();
-    const alumnus = users.find((u) => u.uid === mAlumnusId) || users[0];
-    if (!alumnus || !mTitle || !mDescription) return;
-
-    createMilestone({
-      alumnusId: alumnus.uid,
-      alumnusName: alumnus.name,
-      alumnusAvatar: alumnus.profilePictureUrl,
-      title: mTitle,
-      category: mCategory,
-      description: mDescription,
-      companyOrOrg: mCompany || undefined
-    });
-
-    setMTitle('');
-    setMDescription('');
-    setMCompany('');
-    setShowMilestoneModal(false);
-  };
 
   const handleExportCsv = () => {
     exportAlumniRosterCsv(users, 'st_cecilia_official_alumni_roster');
@@ -654,24 +629,35 @@ export const AdminPanelView: React.FC = () => {
 
           {/* TAB: EMPLOYER ACCREDITATION (MODERATOR DESK) */}
           {activeTab === 'employers' && (
-            (permissions.canAccessEmployerAccreditation || currentUser?.role === 'moderator' || currentUser?.role === 'admin' || currentUser?.role === 'superadmin') ? (
-              <ModeratorPanelView />
+            (permissions.canAccessEmployerAccreditation || hasModerationAccess) ? (
+              <ModeratorPanelView initialSubTab="employers" />
             ) : (
-              <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center max-w-lg mx-auto shadow-2xs space-y-3 my-8">
-                <div className="w-12 h-12 rounded-full bg-stone-100 text-stone-700 flex items-center justify-center mx-auto border border-stone-200">
-                  <ShieldAlert className="w-6 h-6 text-amber-600" />
-                </div>
-                <h3 className="text-base font-bold text-stone-900 font-sans">Access Restricted</h3>
-                <p className="text-xs text-stone-600 leading-relaxed">
-                  Employer accreditation management is routed exclusively to authorized moderators.
-                </p>
-              </div>
+              <ForbiddenAccessView
+                attemptedPath="/portal/moderation"
+                attemptedModule="Employer Accreditation"
+                userRole={currentUser?.role}
+                onReturnToOverview={() => setActiveTab('overview')}
+              />
+            )
+          )}
+
+          {/* TAB: POST & CONTENT MODERATION */}
+          {activeTab === 'moderation' && (
+            hasModerationAccess ? (
+              <ModeratorPanelView initialSubTab="cases" />
+            ) : (
+              <ForbiddenAccessView
+                attemptedPath="/portal/moderation"
+                attemptedModule="Post & Content Moderation"
+                userRole={currentUser?.role}
+                onReturnToOverview={() => setActiveTab('overview')}
+              />
             )
           )}
 
           {/* TAB: JOBS & CAREERS */}
           {activeTab === 'jobs' && (
-            (permissions.canManageJobModeration || currentUser?.role === 'admin' || currentUser?.role === 'superadmin') ? (
+            (permissions.canManageJobModeration || normalizedRole === 'admin' || isSuperAdmin) ? (
               <AdminEmployersAndJobsView initialSubTab="jobs" />
             ) : (
               <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center max-w-lg mx-auto shadow-2xs space-y-3 my-8">
@@ -698,132 +684,6 @@ export const AdminPanelView: React.FC = () => {
                 onReturnToOverview={() => setActiveTab('overview')}
               />
             ))}
-
-          {/* TAB: MILESTONES (BENTO GRID REDESIGN) */}
-          {activeTab === 'milestones' && (
-            <div className="space-y-6">
-              {/* Bento Hero Header - Strict Minimalist Bento */}
-              <div className="relative overflow-hidden bg-white p-6 sm:p-7 rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-                {/* Institutional St. Cecilia Crimson Architectural Top Trim */}
-                <div className="h-1 absolute top-0 left-0 right-0 bg-[#8B181B]" />
-
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-                  <div className="max-w-2xl space-y-2">
-                    <div className="flex items-center gap-2 flex-wrap text-[11px] font-semibold tracking-wider text-stone-500 uppercase">
-                      <span className="text-[#8B181B] font-bold">St. Cecilia's College</span>
-                      <span aria-hidden="true" className="text-stone-300">·</span>
-                      <span>Institutional Laureates & Honors</span>
-                      <span aria-hidden="true" className="text-stone-300">·</span>
-                      <span>Alumni Hall of Fame</span>
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-bold font-sans text-stone-900 tracking-tight leading-tight">
-                      Alumni Milestones & Honors Roster
-                    </h2>
-                    <p className="text-xs sm:text-sm text-stone-600 leading-relaxed">
-                      Commemorate distinguished Cecilians across industry advancements, civil recognitions, research patents, and leadership achievements.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="hidden sm:flex flex-col text-right">
-                      <span className="text-xs font-bold text-stone-900">{milestones.length} Records</span>
-                      <span className="text-[10px] text-stone-500">Official Accreditations</span>
-                    </div>
-                    <button
-                      onClick={() => setShowMilestoneModal(true)}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-[0_2px_8px_rgba(139,24,27,0.25)] cursor-pointer active:scale-95"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Publish Milestone</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick Metrics Strip */}
-                <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-stone-200/70">
-                  <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Total Honors</span>
-                    <span className="text-2xl font-bold text-stone-900 mt-1 block">{milestones.length}</span>
-                    <span className="text-[10px] text-stone-500 mt-0.5 block">Accredited laureates</span>
-                  </div>
-                  <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Career Advancements</span>
-                    <span className="text-2xl font-bold text-amber-800 mt-1 block">
-                      {milestones.filter(m => m.category?.toLowerCase().includes('career') || m.category?.toLowerCase().includes('promotion')).length}
-                    </span>
-                    <span className="text-[10px] text-stone-500 mt-0.5 block">Corporate & leadership</span>
-                  </div>
-                  <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Civic & Honors</span>
-                    <span className="text-2xl font-bold text-[#8B181B] mt-1 block">
-                      {milestones.filter(m => !m.category?.toLowerCase().includes('career')).length}
-                    </span>
-                    <span className="text-[10px] text-stone-500 mt-0.5 block">Community impact</span>
-                  </div>
-                  <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Active Laureates</span>
-                    <span className="text-2xl font-bold text-emerald-800 mt-1 block">
-                      {new Set(milestones.map(m => m.alumnusId || m.alumnusName)).size}
-                    </span>
-                    <span className="text-[10px] text-stone-500 mt-0.5 block">Unique honorees</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bento Milestones Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4.5">
-                {milestones.map((m, idx) => (
-                  <div
-                    key={m.id}
-                    className={`group relative overflow-hidden bg-white rounded-2xl border border-stone-200/80 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-amber-300/80 transition-all duration-200 flex flex-col justify-between ${
-                      idx === 0 ? 'md:col-span-2 lg:col-span-2 bg-gradient-to-br from-white via-amber-50/20 to-white' : ''
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={m.alumnusAvatar}
-                            alt={m.alumnusName}
-                            className="w-12 h-12 rounded-xl object-cover border border-stone-200 shadow-2xs"
-                          />
-                          <div>
-                            <h4 className="text-sm font-bold text-stone-900 tracking-tight group-hover:text-[#8B181B] transition-colors">
-                              {m.alumnusName}
-                            </h4>
-                            <p className="text-xs text-stone-500 font-medium">
-                              {m.companyOrOrg ? `${m.companyOrOrg}` : "St. Cecilia's Alumnus"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200 shrink-0">
-                          {m.category}
-                        </span>
-                      </div>
-
-                      <div className="mt-3.5">
-                        <h3 className="text-base font-bold text-stone-900 font-sans leading-snug">
-                          {m.title}
-                        </h3>
-                        <p className="text-xs text-stone-600 mt-2 leading-relaxed">
-                          {m.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-stone-100 flex items-center justify-between text-[11px] text-stone-400">
-                      <span className="inline-flex items-center gap-1.5 text-stone-600 font-medium">
-                        <Award className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Verified Achievement</span>
-                      </span>
-                      <span>{new Date(m.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* TAB: GALLERY (BENTO GRID REDESIGN) */}
           {activeTab === 'gallery' && (
@@ -880,7 +740,7 @@ export const AdminPanelView: React.FC = () => {
                     <span className="text-2xl font-bold text-amber-800 mt-1 block">
                       {new Set(galleryItems.map(g => g.year)).size} Years
                     </span>
-                    <span className="text-[10px] text-stone-500 mt-0.5 block">Documented milestones</span>
+                    <span className="text-[10px] text-stone-500 mt-0.5 block">Documented eras</span>
                   </div>
                   <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Resolution</span>
@@ -1090,104 +950,6 @@ export const AdminPanelView: React.FC = () => {
                   className="px-4 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white font-semibold rounded-lg shadow-xs"
                 >
                   Provision
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MILESTONE MODAL */}
-      {showMilestoneModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl border border-stone-200 w-full max-w-md p-5 text-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h3 className="text-sm font-bold font-sans text-stone-900">Publish Alumni Milestone</h3>
-              <button onClick={() => setShowMilestoneModal(false)} className="text-stone-400 hover:text-stone-600">
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateMilestone} className="mt-3 space-y-3">
-              <div>
-                <label className="font-semibold text-stone-700 block mb-1">Select Alumnus *</label>
-                <select
-                  value={mAlumnusId}
-                  onChange={(e) => setMAlumnusId(e.target.value)}
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-stone-700"
-                >
-                  <option value="">Choose alumnus...</option>
-                  {users.map((u) => (
-                    <option key={u.uid} value={u.uid}>
-                      {u.name} (Batch {u.batch})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="font-semibold text-stone-700 block mb-1">Category</label>
-                <select
-                  value={mCategory}
-                  onChange={(e) => setMCategory(e.target.value as any)}
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-stone-700"
-                >
-                  <option value="promotion">Executive Promotion</option>
-                  <option value="startup">Startup Founding & Funding</option>
-                  <option value="award">Industry / Civic Award</option>
-                  <option value="publication">Research Publication</option>
-                  <option value="honor">Institutional Honor</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-semibold text-stone-700 block mb-1">Headline *</label>
-                <input
-                  type="text"
-                  required
-                  value={mTitle}
-                  onChange={(e) => setMTitle(e.target.value)}
-                  placeholder="e.g. Appointed Chief Technology Officer"
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-stone-700 block mb-1">Company / Organization</label>
-                <input
-                  type="text"
-                  value={mCompany}
-                  onChange={(e) => setMCompany(e.target.value)}
-                  placeholder="e.g. Stripe, Stanford, Tesla"
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-stone-700 block mb-1">Description *</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={mDescription}
-                  onChange={(e) => setMDescription(e.target.value)}
-                  placeholder="Share details of the achievement..."
-                  className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowMilestoneModal(false)}
-                  className="px-3 py-1.5 bg-stone-100 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-[#8B181B] text-white font-semibold rounded-lg shadow-xs"
-                >
-                  Publish
                 </button>
               </div>
             </form>

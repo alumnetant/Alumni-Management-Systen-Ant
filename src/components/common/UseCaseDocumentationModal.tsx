@@ -159,7 +159,7 @@ UC04 <.. UC04a : <<include>>
 │                                                                                                        │
 │  Alumni Graduate ────────┬───► (UC-01: Authenticate via PBKDF2 / WebAuthn Biometrics)                 │
 │                          ├───► (UC-05: Generate & Present Signature Digital Alumni ID)                │
-│                          ├───► (UC-06: Publish & Manage Milestone Updates on Campus Feed)             │
+│                          ├───► (UC-06: Publish & Manage Community Updates on Campus Feed)             │
 │                          ├───► (UC-07: Search Verified Alumni Directory & Connect)                    │
 │                          ├───► (UC-08: Initiate Gated Peer-to-Peer Chat)                              │
 │                          └───► (UC-10: Apply for Jobs & Export Certified PDF Resume)                  │

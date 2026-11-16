@@ -193,14 +193,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 12. MILESTONES
-    // =========================================================================
-    match /milestones/{milestoneId} {
-      allow read, write: if true;
-    }
-
-    // =========================================================================
-    // 13. SYSTEM HEALTH & DIAGNOSTICS (Superadmin Only)
+    // 12. SYSTEM HEALTH & DIAGNOSTICS (Superadmin Only)
     // =========================================================================
     match /system_health/{docId} {
       allow read, write: if isSuperAdmin();

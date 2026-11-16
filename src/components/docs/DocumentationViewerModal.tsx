@@ -383,7 +383,7 @@ export const DocumentationViewerModal: React.FC<DocumentationViewerModalProps> =
       actor: 'Alumni / Moderator / Administrator',
       scope: 'Community Social Feed Subsystem',
       preconditions: 'User has an active account.',
-      trigger: 'User publishes milestone or interacts on Campus Feed.',
+      trigger: 'User publishes community update or interacts on Campus Feed.',
       normalFlow: [
         'User publishes post title, description, and optional photo.',
         'Post broadcasts to real-time feed and syncs to author profile view.',
@@ -1086,7 +1086,7 @@ export const DocumentationViewerModal: React.FC<DocumentationViewerModalProps> =
                       • 3D Flippable Digital Alumni Card with QR<br/>
                       • Verified Alumni Directory search & peer networking<br/>
                       • Gated peer-to-peer messaging with sticky header<br/>
-                      • Publish milestones, heart posts, edit/delete own posts<br/>
+                      • Publish community updates, heart posts, edit/delete own posts<br/>
                       • Apply for jobs & generate certified collegiate PDF resume
                     </td>
                     <td className="py-3.5 px-4 text-stone-600 dark:text-stone-400">

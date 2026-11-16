@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
   Calendar,
-  Award,
-  Sparkles,
   ArrowRight,
   X,
   Megaphone
@@ -16,7 +14,7 @@ export interface CollegiatePopupPayload {
   id?: string;
   title: string;
   body: string;
-  category?: 'announcement' | 'event' | 'milestone' | 'message' | 'general' | string;
+  category?: 'announcement' | 'event' | 'message' | 'general' | string;
   targetPath?: string;
   targetRoute?: string;
   data?: Record<string, any>;
@@ -107,15 +105,15 @@ export const CollegiatePushBanner: React.FC<CollegiatePushBannerProps> = ({ onNa
 
     if (onNavigateTab) {
       if (explicitPath) {
-        onNavigateTab(explicitPath, data.eventId || data.announcementId || data.postId || data.chatId || data.milestoneId);
+        onNavigateTab(explicitPath, data.eventId || data.announcementId || data.postId || data.chatId);
       } else if (category.includes('event') || data.eventId) {
         onNavigateTab(buildPortalUrlForTab('events', undefined, data.eventId), data.eventId);
       } else if (category.includes('announcement') || data.announcementId) {
         onNavigateTab(buildPortalUrlForTab('announcements', undefined, data.announcementId), data.announcementId);
       } else if (category.includes('message') || data.chatId) {
         onNavigateTab(buildPortalUrlForTab('messages', undefined, data.chatId), data.chatId);
-      } else if (category.includes('milestone') || data.postId || data.milestoneId) {
-        onNavigateTab(buildPortalUrlForTab('dashboard', undefined, data.postId || data.milestoneId), data.postId || data.milestoneId);
+      } else if (data.postId) {
+        onNavigateTab(buildPortalUrlForTab('dashboard', undefined, data.postId), data.postId);
       } else if (category.includes('job') || data.jobId) {
         onNavigateTab(buildPortalUrlForTab('opportunities', undefined, data.jobId), data.jobId);
       } else {
@@ -150,14 +148,6 @@ export const CollegiatePushBanner: React.FC<CollegiatePushBannerProps> = ({ onNa
         badgeBg: 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/20',
         icon: Calendar,
         accentColor: '#D97706'
-      };
-    }
-    if (category.includes('milestone')) {
-      return {
-        label: 'Alumni Milestone Spotlight',
-        badgeBg: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/20',
-        icon: Award,
-        accentColor: '#059669'
       };
     }
     return {

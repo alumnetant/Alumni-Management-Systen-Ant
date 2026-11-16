@@ -9,7 +9,6 @@ import {
   Megaphone,
   Briefcase,
   FileText,
-  Award,
   ImageIcon,
   CheckCircle,
   Plus,
@@ -24,7 +23,7 @@ import {
   Database
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
-import { UserProfile } from '../../types';
+import { UserProfile, normalizeSystemRole } from '../../types';
 
 interface AdminCommandBarProps {
   onNavigateTab: (tab: string) => void;
@@ -56,7 +55,7 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
     showToast
   } = useAlumni();
 
-  const isSuperAdmin = (currentUser?.role || '').toLowerCase().trim() === 'superadmin';
+  const isSuperAdmin = normalizeSystemRole(currentUser?.role) === 'superadmin';
 
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -274,15 +273,6 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
             }
           ]
         : []),
-      {
-        id: 'mod-milestones',
-        title: 'Alumni Milestones & Hall of Fame',
-        subtitle: 'Honor notable Cecilian achievements and promotions',
-        category: 'Admin Modules',
-        icon: Award,
-        tab: 'milestones',
-        keywords: 'milestones honors achievements hall of fame awards laureates'
-      },
       {
         id: 'mod-gallery',
         title: 'Campus & Heritage Photo Gallery',

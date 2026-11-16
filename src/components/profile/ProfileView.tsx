@@ -86,7 +86,7 @@ export const ProfileView: React.FC = () => {
   // Timeline composer, pagination & private warnings state
   const [composerTitle, setComposerTitle] = useState('');
   const [composerContent, setComposerContent] = useState('');
-  const [composerCategory, setComposerCategory] = useState<'milestone' | 'gallery' | 'announcement'>('milestone');
+  const [composerCategory, setComposerCategory] = useState<'update' | 'gallery' | 'announcement'>('update');
   const [composerVisibility, setComposerVisibility] = useState<PostVisibility>('alumni');
   const [composerBatch, setComposerBatch] = useState('');
   const [composerDepartment, setComposerDepartment] = useState('');
@@ -1124,7 +1124,7 @@ export const ProfileView: React.FC = () => {
                   type="text"
                   value={composerTitle}
                   onChange={(e) => setComposerTitle(e.target.value)}
-                  placeholder="Headline or milestone title (optional)"
+                  placeholder="Headline or post title (optional)"
                   className="w-full px-3.5 py-2.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-semibold text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-[#8B181B]"
                 />
 
@@ -1153,10 +1153,10 @@ export const ProfileView: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2.5">
                   <select
                     value={composerCategory}
-                    onChange={(e) => setComposerCategory(e.target.value as 'milestone' | 'gallery' | 'announcement')}
+                    onChange={(e) => setComposerCategory(e.target.value as 'update' | 'gallery' | 'announcement')}
                     className="px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 min-h-[44px]"
                   >
-                    <option value="milestone">Milestone / Update</option>
+                    <option value="update">Community Update</option>
                     <option value="gallery">Campus Gallery</option>
                     <option value="announcement">Announcement</option>
                   </select>

@@ -6,6 +6,7 @@ import { createServer as createViteServer } from 'vite';
 
 const __dirname = path.resolve();
 import type { Opportunity, JobApplication, ApplicationStatus, ChatThread, ChatMessage } from './src/types';
+import { normalizeSystemRole } from './src/types';
 import { INITIAL_USERS, INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
 import webpush from 'web-push';
 import { getEmployerAuthStatus, isEmployerApproved } from './src/lib/employerAuthStatus';
@@ -859,9 +860,10 @@ function requireServerAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 function requireRole(allowedRoles: string[]) {
+  const normalizedAllowed = new Set(allowedRoles.map((r) => normalizeSystemRole(r)));
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req as any).user;
-    if (!user || !allowedRoles.includes(user.role)) {
+    if (!user || !normalizedAllowed.has(normalizeSystemRole(user.role))) {
       return res.status(403).json({
         error: 'Forbidden: You do not possess the required institutional permissions for this action.'
       });
@@ -876,7 +878,8 @@ function requireRole(allowedRoles: string[]) {
  */
 function requireStepUpAdmin(req: Request, res: Response, next: NextFunction) {
   const user = (req as any).user;
-  if (!user || !['superadmin', 'admin'].includes(user.role)) {
+  const canonicalRole = user ? normalizeSystemRole(user.role) : null;
+  if (!user || !canonicalRole || !['superadmin', 'admin'].includes(canonicalRole)) {
     return res.status(403).json({
       error: 'Forbidden: High-privilege action requires administrative clearance.',
       code: 'INSUFFICIENT_PRIVILEGES'
@@ -3402,7 +3405,7 @@ app.get('/api/alumni/directory', requireServerAuth, (req: Request, res: Response
 });
 
 // 6.6.2 Admin / Registrar Route: Student Verification Enforcement
-app.post('/api/admin/verify-student', requireServerAuth, requireRole(['admin', 'registrar']), (req: Request, res: Response) => {
+app.post('/api/admin/verify-student', requireServerAuth, requireRole(['admin', 'superadmin', 'moderator']), (req: Request, res: Response) => {
   const actor = (req as any).user;
   const { studentId, batchYear, course } = req.body;
 
@@ -3732,7 +3735,7 @@ app.post(
 app.post(
   '/api/registrar/bulk-import',
   requireServerAuth,
-  requireRole(['admin', 'registrar', 'staff']),
+  requireRole(['admin', 'superadmin', 'moderator']),
   (req: Request, res: Response) => {
     const actor = (req as any).user;
     const { batchName, records = [] } = req.body;
@@ -3847,8 +3850,8 @@ app.post('/api/admin/audit-logs', requireServerAuth, requireSuperAdmin, (req: Re
   res.status(201).json({ success: true, logId: entry.id });
 });
 
-// 6.6.4.1 Admin Governance Routes: Merged Requests & Conflicts (Strictly Admins Only)
-app.get('/api/admin/governance/requests', requireServerAuth, requireRole(['admin']), (_req: Request, res: Response) => {
+// 6.6.4.1 Admin Governance Routes: Merged Requests & Conflicts (Admins & Superadmins)
+app.get('/api/admin/governance/requests', requireServerAuth, requireRole(['admin', 'superadmin']), (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     authorized: true,
@@ -3856,7 +3859,7 @@ app.get('/api/admin/governance/requests', requireServerAuth, requireRole(['admin
   });
 });
 
-app.get('/api/admin/governance/conflicts', requireServerAuth, requireRole(['admin']), (_req: Request, res: Response) => {
+app.get('/api/admin/governance/conflicts', requireServerAuth, requireRole(['admin', 'superadmin']), (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     authorized: true,
@@ -3864,7 +3867,7 @@ app.get('/api/admin/governance/conflicts', requireServerAuth, requireRole(['admi
   });
 });
 
-app.post('/api/admin/governance/resolve-conflict', requireServerAuth, requireRole(['admin']), (req: Request, res: Response) => {
+app.post('/api/admin/governance/resolve-conflict', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
   const actor = (req as any).user;
   const { conflictId, resolution } = req.body;
 
@@ -3885,7 +3888,7 @@ app.post('/api/admin/governance/resolve-conflict', requireServerAuth, requireRol
   res.json({ success: true, message: `Conflict ${conflictId} resolved successfully.` });
 });
 
-app.post('/api/admin/governance/approve-request', requireServerAuth, requireRole(['admin']), (req: Request, res: Response) => {
+app.post('/api/admin/governance/approve-request', requireServerAuth, requireRole(['admin', 'superadmin']), (req: Request, res: Response) => {
   const actor = (req as any).user;
   const { requestId, type, action = 'approve' } = req.body;
 
@@ -5552,32 +5555,66 @@ app.get('/api/employer/verify-email', async (req: Request, res: Response) => {
   }
 });
 
-// 3. Admin & Moderator Review Queue Endpoint (NEEDS_REVIEW companies)
+// 3. Admin & Moderator Review Queue Endpoint (All employer accreditation statuses, deduplicated by UID)
 app.get('/api/employer/review-queue', requireServerAuth, requireRole(['admin', 'superadmin', 'moderator']), (_req: Request, res: Response) => {
-  const queue = Array.from(credentialsDb.values())
-    .filter((u: any) => u.role === 'employer' && (u.employerVerificationStatus === 'pending_review' || !u.isVerified && u.employerStatus !== 'rejected'))
-    .map((u: any) => ({
+  const seenUids = new Set<string>();
+  const queue: any[] = [];
+
+  for (const u of Array.from(credentialsDb.values()) as any[]) {
+    if (!u || normalizeSystemRole(u.role) !== 'employer' || !u.uid || seenUids.has(u.uid)) continue;
+    seenUids.add(u.uid);
+    queue.push({
       uid: u.uid,
-      companyLegalName: u.companyName || u.name,
+      name: u.name,
+      companyName: u.companyName || u.company || u.name,
+      companyLegalName: u.companyName || u.company || u.name,
+      companyIndustry: u.companyIndustry,
       websiteUrl: u.companyWebsite,
+      companyWebsite: u.companyWebsite,
       workEmail: u.email,
+      email: u.email,
       emailDomain: u.email?.split('@')[1] || '',
       verificationDecision: u.verificationDecision || null,
-      employerStatus: u.employerStatus,
+      employerStatus: u.employerStatus || (u.isVerified ? 'approved' : 'pending'),
+      employerVerificationStatus:
+        u.employerVerificationStatus ||
+        (u.employerStatus === 'rejected'
+          ? 'rejected'
+          : u.isVerified
+          ? 'verified'
+          : 'pending_review'),
+      isVerified: Boolean(u.isVerified),
+      verified: Boolean(u.verified ?? u.isVerified),
+      rejectionReason: u.rejectionReason,
+      docRequestNote: u.docRequestNote,
+      lastReviewedBy: u.lastReviewedBy || u.decidedBy,
+      lastReviewedAt: u.lastReviewedAt || u.decidedAt,
       createdAt: u.createdAt
-    }));
+    });
+  }
 
-  res.json({ success: true, count: queue.length, queue });
+  const pendingCount = queue.filter(
+    (emp) => !emp.isVerified && emp.employerStatus !== 'rejected' && emp.employerVerificationStatus !== 'rejected'
+  ).length;
+
+  res.json({ success: true, count: queue.length, pendingCount, queue });
 });
 
 // 4. One-Click Decision (Approve, Reject, Request Docs) with Audit Logging
 app.post('/api/employer/review-queue/:id/decision', requireServerAuth, requireRole(['admin', 'superadmin', 'moderator']), (req: Request, res: Response) => {
   const actor = (req as any).user;
   const { id } = req.params;
-  const { decision, reason = 'Administrative verification decision' } = req.body;
+  const { decision, reason = 'Administrative verification decision' } = req.body || {};
+
+  if (!['approve', 'reject', 'request_docs'].includes(String(decision))) {
+    return res.status(400).json({
+      error: 'Invalid decision. Must be one of: approve, reject, request_docs.',
+      code: 'INVALID_DECISION'
+    });
+  }
 
   const targetEmployer = credentialsDb.get(id);
-  if (!targetEmployer || targetEmployer.role !== 'employer') {
+  if (!targetEmployer || normalizeSystemRole(targetEmployer.role) !== 'employer') {
     return res.status(404).json({ error: 'Employer organization not found.', code: 'EMPLOYER_NOT_FOUND' });
   }
 
@@ -5590,6 +5627,8 @@ app.post('/api/employer/review-queue/:id/decision', requireServerAuth, requireRo
     targetEmployer.verified = true;
     targetEmployer.decidedBy = actor.uid || actor.email;
     targetEmployer.decidedAt = timestamp;
+    targetEmployer.lastReviewedBy = actor.uid || actor.email;
+    targetEmployer.lastReviewedAt = timestamp;
   } else if (decision === 'reject') {
     targetEmployer.employerStatus = 'rejected';
     targetEmployer.employerVerificationStatus = 'rejected';
@@ -5598,6 +5637,16 @@ app.post('/api/employer/review-queue/:id/decision', requireServerAuth, requireRo
     targetEmployer.rejectionReason = reason;
     targetEmployer.decidedBy = actor.uid || actor.email;
     targetEmployer.decidedAt = timestamp;
+    targetEmployer.lastReviewedBy = actor.uid || actor.email;
+    targetEmployer.lastReviewedAt = timestamp;
+  } else if (decision === 'request_docs') {
+    targetEmployer.employerStatus = 'pending';
+    targetEmployer.employerVerificationStatus = 'pending_review';
+    targetEmployer.isVerified = false;
+    targetEmployer.verified = false;
+    targetEmployer.docRequestNote = reason;
+    targetEmployer.lastReviewedBy = actor.uid || actor.email;
+    targetEmployer.lastReviewedAt = timestamp;
   }
 
   credentialsDb.set(targetEmployer.uid, targetEmployer);
@@ -5629,13 +5678,32 @@ app.post('/api/employer/review-queue/:id/decision', requireServerAuth, requireRo
     });
     sendRealEmail({
       to: targetEmployer.email,
-      subject: `St. Cecilia's College — Employer Status: ${decision.toUpperCase()}`,
+      subject: `St. Cecilia's College — Employer Status: ${String(decision).toUpperCase()}`,
       text,
       html
     }).catch((e) => console.error('[Decision Email Error]', e));
   }
 
-  res.json({ success: true, message: `Employer decision "${decision}" recorded successfully.`, employer: targetEmployer });
+  res.json({
+    success: true,
+    message: `Employer decision "${decision}" recorded successfully.`,
+    employer: {
+      uid: targetEmployer.uid,
+      name: targetEmployer.name,
+      email: targetEmployer.email,
+      companyName: targetEmployer.companyName || targetEmployer.name,
+      companyIndustry: targetEmployer.companyIndustry,
+      companyWebsite: targetEmployer.companyWebsite,
+      employerStatus: targetEmployer.employerStatus,
+      employerVerificationStatus: targetEmployer.employerVerificationStatus,
+      isVerified: targetEmployer.isVerified,
+      verified: targetEmployer.verified,
+      rejectionReason: targetEmployer.rejectionReason,
+      docRequestNote: targetEmployer.docRequestNote,
+      lastReviewedBy: targetEmployer.lastReviewedBy,
+      lastReviewedAt: targetEmployer.lastReviewedAt
+    }
+  });
 });
 
 // 5. Job Post Content Filter Safeguard

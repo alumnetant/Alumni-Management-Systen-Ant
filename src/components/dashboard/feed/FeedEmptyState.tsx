@@ -33,7 +33,7 @@ export const FeedEmptyState: React.FC<FeedEmptyStateProps> = ({
             ? `No updates matched "${searchQuery}". Try searching for another topic or reset the search.`
             : activeTab === 'official'
             ? 'There are no official circulars or administrative notices published recently.'
-            : 'Check back soon for new career milestones, campus gatherings, and batch announcements.'}
+            : 'Check back soon for new career updates, campus gatherings, and batch announcements.'}
         </p>
       </div>
 

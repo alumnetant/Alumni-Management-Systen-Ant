@@ -163,16 +163,7 @@ export function resolveNotificationDeepLink(
     );
   }
 
-  // 6. Milestones & Hall of Fame
-  if (notif.type === 'milestone') {
-    return buildTarget(
-      isUserAdminOrMod ? 'milestones' : 'dashboard',
-      'milestone',
-      notif.refId || meta.milestoneId
-    );
-  }
-
-  // 7. Network Connections & Friend Requests
+  // 6. Network Connections & Friend Requests
   if (notif.type === 'friend_request') {
     return buildTarget('network', 'network_request', notif.refId || notif.fromUid, 'requests');
   }
@@ -617,19 +608,6 @@ export function parsePortalUrlPath(pathname: string, userRole?: string): ParsedP
       targetRoute: cleanPath,
       requiresSuperAdmin: false,
       requestedSection: 'gallery'
-    };
-  }
-
-  if (section === 'milestones') {
-    return {
-      isPortalPath: true,
-      tab: isUserAdminOrMod ? 'milestones' : 'dashboard',
-      targetType: 'milestone',
-      targetId: seg2,
-      targetPath: cleanPath,
-      targetRoute: cleanPath,
-      requiresSuperAdmin: false,
-      requestedSection: 'milestones'
     };
   }
 

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * 
  * Unified Feed Aggregation Hook for Alumni Social Timeline (FYP)
- * Interleaves Announcements, Events, Milestones, and Career Opportunities
+ * Interleaves Announcements, Events, and Career Opportunities
  * with relevance scoring, multi-tab filtering, infinite scroll pagination,
  * and REAL-TIME BI-DIRECTIONAL SYNCHRONIZATION with core application entities.
  */
@@ -54,16 +54,13 @@ function readLocalSocial(uid?: string): LocalSocialMap {
 export function useAlumniFeed() {
   const {
     currentUser,
-    users,
     announcements,
     events,
-    milestones,
     opportunities,
     rsvpEvent,
     toggleLikeEvent,
     addCommentToEvent,
     toggleHeartAnnouncement,
-    toggleLikeMilestone,
     showToast
   } = useAlumni();
 
@@ -203,57 +200,7 @@ export function useAlumniFeed() {
       });
     });
 
-    // 3. Map Alumni Career Milestones & Laureates
-    (milestones || []).forEach((m) => {
-      const id = `milestone_${m.id}`;
-      const milestoneLikes = m.likes || [];
-      const hasLiked = currentUid ? milestoneLikes.includes(currentUid) : false;
-
-      const alumnus = (users || []).find((u) => u.uid === (m.alumnusId || m.uid));
-      const customComments = localSocial.customComments[id] || [];
-
-      items.push({
-        id,
-        type: 'milestone',
-        timestamp: m.awardDate || m.date || m.createdAt || new Date().toISOString(),
-        title: m.title,
-        body: m.description,
-        author: {
-          uid: alumnus?.uid || m.alumnusId,
-          name: alumnus?.name || m.alumnusName || m.authorName || 'Cecilian Graduate',
-          role: alumnus?.currentPosition || 'Alumnus',
-          avatarUrl: alumnus?.profilePictureUrl || m.alumnusAvatar,
-          batch: alumnus?.batch || m.batch,
-          course: alumnus?.course,
-          department: alumnus?.department,
-          isVerified: alumnus?.isVerified || true
-        },
-        mediaUrl: m.images?.[0],
-        mediaGallery: m.images,
-        categoryTag: m.category ? `Milestone · ${m.category}` : 'Career Milestone',
-        badgeLabel: m.awardLevel ? `${m.awardLevel} Honor` : 'Achievement',
-        reactions: {
-          count: milestoneLikes.length,
-          userReaction: hasLiked ? 'love' : undefined,
-          reactionCounts: {
-            like: 0,
-            love: milestoneLikes.length,
-            celebrate: milestoneLikes.length,
-            insightful: 0
-          }
-        },
-        comments: customComments,
-        commentsCount: customComments.length,
-        relevanceScore: 0,
-        metadata: {
-          milestoneCompany: m.company || m.issuingOrganization || m.companyOrOrg,
-          milestoneCategory: m.category
-        },
-        rawItem: m
-      });
-    });
-
-    // 4. Map Curated Job Opportunities
+    // 3. Map Curated Job Opportunities
     (opportunities || []).slice(0, 12).forEach((o) => {
       if (o.status === 'closed' || (o.approvalStatus && o.approvalStatus !== 'approved')) return;
 
@@ -303,7 +250,7 @@ export function useAlumniFeed() {
     });
 
     return items;
-  }, [announcements, events, milestones, opportunities, users, currentUser, localSocial]);
+  }, [announcements, events, opportunities, currentUser, localSocial]);
 
   // Compute Personalized Relevance Score for "For You" (FYP) Algorithm
   const scoredFeedItems = useMemo(() => {
@@ -341,11 +288,6 @@ export function useAlumniFeed() {
         }
       }
 
-      // Milestone Celebration Boost
-      if (item.type === 'milestone') {
-        score += 30;
-      }
-
       // Job Match Score
       if (item.type === 'opportunity' && item.metadata?.matchScore) {
         score += item.metadata.matchScore * 0.4;
@@ -380,7 +322,6 @@ export function useAlumniFeed() {
           item.body.toLowerCase().includes(q) ||
           item.author.name.toLowerCase().includes(q) ||
           item.categoryTag.toLowerCase().includes(q) ||
-          (item.metadata?.milestoneCompany || '').toLowerCase().includes(q) ||
           (item.metadata?.opportunityCompany || '').toLowerCase().includes(q)
       );
     }
@@ -456,20 +397,7 @@ export function useAlumniFeed() {
       return;
     }
 
-    // 3. Milestones -> prevent self-congratulation, otherwise invoke toggleLikeMilestone
-    if (itemId.startsWith('milestone_')) {
-      const rawMilestoneId = itemId.replace('milestone_', '');
-      const targetMilestone = (milestones || []).find((m) => m.id === rawMilestoneId);
-      const ownerUid = targetMilestone?.alumnusId || targetMilestone?.uid;
-      if (currentUser?.uid && ownerUid && ownerUid === currentUser.uid) {
-        showToast('You cannot congratulate yourself on your own milestone.', 'info');
-        return;
-      }
-      toggleLikeMilestone(rawMilestoneId);
-      return;
-    }
-
-    // 4. Opportunities fallback in local storage
+    // 3. Opportunities fallback in local storage
     if (itemId.startsWith('opportunity_')) {
       setLocalSocial((prev) => {
         const current = prev.opportunityReactions[itemId] || { counts: { like: 0, love: 0, celebrate: 0, insightful: 0 } };
@@ -490,7 +418,7 @@ export function useAlumniFeed() {
         };
       });
     }
-  }, [toggleLikeEvent, toggleHeartAnnouncement, toggleLikeMilestone, markEventInteracted, milestones, currentUser?.uid, showToast]);
+  }, [toggleLikeEvent, toggleHeartAnnouncement, markEventInteracted]);
 
   // Social Interaction: DIRECT REAL-TIME COMMENT SYNC
   const addComment = useCallback((itemId: string, text: string) => {
@@ -506,7 +434,7 @@ export function useAlumniFeed() {
       return;
     }
 
-    // 2. Announcements & Milestones
+    // 2. Announcements & Social Updates
     const newComment: FeedComment = {
       id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       authorUid: currentUser.uid,

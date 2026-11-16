@@ -9,7 +9,6 @@ import {
   Announcement,
   Opportunity,
   JobApplication,
-  CareerMilestone,
   GalleryItem,
   AuditLogEntry,
   AutomationJob,
@@ -58,7 +57,6 @@ export const INITIAL_RESERVATIONS: EventReservation[] = [];
 export const INITIAL_ANNOUNCEMENTS: Announcement[] = [];
 export const INITIAL_OPPORTUNITIES: Opportunity[] = [];
 export const INITIAL_JOB_APPLICATIONS: JobApplication[] = [];
-export const INITIAL_MILESTONES: CareerMilestone[] = [];
 export const INITIAL_GALLERY_ITEMS: GalleryItem[] = [];
 export const INITIAL_AUDIT_LOGS: AuditLogEntry[] = [];
 export const INITIAL_AUTOMATION_JOBS: AutomationJob[] = [];

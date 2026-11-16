@@ -74,7 +74,6 @@ export const InAppPushToast: React.FC = () => {
       data.postId ||
       data.chatId ||
       data.jobId ||
-      data.milestoneId ||
       data.targetId ||
       data.refId;
 
@@ -90,8 +89,8 @@ export const InAppPushToast: React.FC = () => {
       navigateToPortalPath(buildPortalUrlForTab('network', undefined, targetId));
     } else if (rawRoute.includes('employer') || rawRoute.includes('accreditation') || rawRoute.includes('profile')) {
       navigateToPortalPath(buildPortalUrlForTab('profile', undefined, targetId));
-    } else if (data.postId || data.milestoneId) {
-      navigateToPortalPath(buildPortalUrlForTab('dashboard', undefined, data.postId || data.milestoneId));
+    } else if (data.postId) {
+      navigateToPortalPath(buildPortalUrlForTab('dashboard', undefined, data.postId));
     } else {
       navigateToPortalPath('/portal/dashboard');
     }

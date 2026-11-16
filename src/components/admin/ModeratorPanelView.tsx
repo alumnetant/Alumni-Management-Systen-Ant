@@ -45,11 +45,13 @@ import {
   ModerationWarning,
   POST_REPORT_REASONS,
   PostReport,
-  UserProfile
+  UserProfile,
+  normalizeSystemRole
 } from '../../types';
 import { apiFetch, apiFetchWithCsrf } from '../../services/apiClient';
 import { formatFullLocalDateTime, formatRelativeTime } from '../../lib/dateUtils';
 import { ConfirmationModal } from '../common/ConfirmationModal';
+import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
 import { PaginationControl } from '../common/PaginationControl';
 import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
@@ -103,10 +105,12 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     clearDeepLinkTarget,
     openProfile,
     refreshData,
-    highlightedItemId
+    highlightedItemId,
+    setActiveTab
   } = useAlumni();
 
-  const normalizedRole = (currentUser?.role || '').toLowerCase().trim();
+  const normalizedRole = normalizeSystemRole(currentUser?.role);
+  const hasModerationAccess = ['moderator', 'admin', 'superadmin'].includes(normalizedRole);
   const isAdmin = normalizedRole === 'admin' || normalizedRole === 'superadmin';
 
   const [activeSubTab, setActiveSubTab] = useState<ModeratorSubTab>(initialSubTab);
@@ -150,6 +154,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   const [isMutatingCase, setIsMutatingCase] = useState(false);
 
   const fetchCasesAndAbuse = useCallback(async () => {
+    if (!hasModerationAccess) return;
     setCasesLoading(true);
     setCasesError(null);
     try {
@@ -175,6 +180,9 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
 
       if (!casesRes.ok) {
         const errBody = await casesRes.json().catch(() => null);
+        if (casesRes.status === 401 || casesRes.status === 403) {
+          throw new Error(errBody?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
+        }
         throw new Error(errBody?.error || 'Failed to load moderation cases.');
       }
 
@@ -186,17 +194,21 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       if (reportersRes.ok) {
         const repData = await reportersRes.json();
         setReporters(Array.isArray(repData.reporters) ? repData.reporters : []);
+      } else {
+        setReporters([]);
       }
       if (banFlagsRes && banFlagsRes.ok) {
         const banData = await banFlagsRes.json();
         setBanFlags(Array.isArray(banData.banFlags) ? banData.banFlags : []);
+      } else if (!isAdmin) {
+        setBanFlags([]);
       }
     } catch (err: any) {
       setCasesError(err?.message || 'Failed to load moderation queue.');
     } finally {
       setCasesLoading(false);
     }
-  }, [casesPage, casesStatus, casesPriority, casesReason, casesSort, casesSearch, isAdmin]);
+  }, [hasModerationAccess, casesPage, casesStatus, casesPriority, casesReason, casesSort, casesSearch, isAdmin]);
 
   const loadCaseDetail = useCallback(async (caseId: string) => {
     setSelectedCaseId(caseId);
@@ -236,12 +248,16 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   const [resolvingAppealId, setResolvingAppealId] = useState<string | null>(null);
 
   const fetchAppeals = useCallback(async () => {
+    if (!hasModerationAccess) return;
     setAppealsLoading(true);
     setAppealsError(null);
     try {
       const res = await apiFetch('/api/appeals', { method: 'GET' }, 6000);
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(errBody?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
+        }
         throw new Error(errBody?.error || 'Failed to load appeals.');
       }
       const data = await res.json();
@@ -251,7 +267,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     } finally {
       setAppealsLoading(false);
     }
-  }, []);
+  }, [hasModerationAccess]);
 
   // ---------------------------------------------------------------------------
   // TAB 3: FEED & POLICY SETTINGS
@@ -264,6 +280,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   const [savingModConfig, setSavingModConfig] = useState(false);
 
   const fetchSettings = useCallback(async () => {
+    if (!hasModerationAccess) return;
     setSettingsLoading(true);
     setSettingsError(null);
     try {
@@ -272,7 +289,12 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
         apiFetch('/api/moderation/config', { method: 'GET' }, 5000)
       ]);
       if (!feedRes.ok || !modRes.ok) {
-        throw new Error('Failed to load feed and moderation policy settings.');
+        const feedErr = !feedRes.ok ? await feedRes.json().catch(() => null) : null;
+        const modErr = !modRes.ok ? await modRes.json().catch(() => null) : null;
+        if (feedRes.status === 401 || feedRes.status === 403 || modRes.status === 401 || modRes.status === 403) {
+          throw new Error(modErr?.error || feedErr?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
+        }
+        throw new Error(modErr?.error || feedErr?.error || 'Failed to load feed and moderation policy settings.');
       }
       const feedData = await feedRes.json();
       const modData = await modRes.json();
@@ -283,18 +305,48 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     } finally {
       setSettingsLoading(false);
     }
-  }, []);
+  }, [hasModerationAccess]);
+
+  const [employerQueue, setEmployerQueue] = useState<UserProfile[]>([]);
+  const [employersLoading, setEmployersLoading] = useState(false);
+  const [employersError, setEmployersError] = useState<string | null>(null);
+  const [isMutatingEmployer, setIsMutatingEmployer] = useState(false);
+
+  const fetchEmployerQueue = useCallback(async () => {
+    if (!hasModerationAccess) return;
+    setEmployersLoading(true);
+    setEmployersError(null);
+    try {
+      const res = await apiFetch('/api/employer/review-queue', { method: 'GET' }, 6000);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        if (res.status === 401 || res.status === 403) {
+          throw new Error(errBody?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
+        }
+        throw new Error(errBody?.error || 'Failed to load employer accreditation queue.');
+      }
+      const data = await res.json();
+      setEmployerQueue(Array.isArray(data.queue) ? data.queue : []);
+    } catch (err: any) {
+      setEmployersError(err?.message || 'Failed to load employer accreditation queue.');
+    } finally {
+      setEmployersLoading(false);
+    }
+  }, [hasModerationAccess]);
 
   // Load data for active sub-tab
   useEffect(() => {
+    if (!hasModerationAccess) return;
     if (activeSubTab === 'cases') {
       void fetchCasesAndAbuse();
     } else if (activeSubTab === 'appeals') {
       void fetchAppeals();
     } else if (activeSubTab === 'settings') {
       void fetchSettings();
+    } else if (activeSubTab === 'employers') {
+      void fetchEmployerQueue();
     }
-  }, [activeSubTab, fetchCasesAndAbuse, fetchAppeals, fetchSettings]);
+  }, [hasModerationAccess, activeSubTab, fetchCasesAndAbuse, fetchAppeals, fetchSettings, fetchEmployerQueue]);
 
   const missingTargetNotifiedRef = React.useRef<string | null>(null);
 
@@ -615,7 +667,17 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     'Please upload your current SEC Certificate of Incorporation or DTI Business Name Certificate.'
   );
 
-  const employers = useMemo(() => users.filter((u) => u.role === 'employer'), [users]);
+  const employers = useMemo(() => {
+    const byUid = new Map<string, UserProfile>();
+    users
+      .filter((u) => normalizeSystemRole(u.role) === 'employer')
+      .forEach((u) => byUid.set(u.uid, u));
+    employerQueue.forEach((srvEmp) => {
+      const existing = byUid.get(srvEmp.uid);
+      byUid.set(srvEmp.uid, existing ? { ...existing, ...srvEmp } : srvEmp);
+    });
+    return Array.from(byUid.values());
+  }, [users, employerQueue]);
 
   const filteredEmployers = useMemo(() => {
     return employers.filter((emp) => {
@@ -627,13 +689,20 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
         email.includes(searchQuery.toLowerCase()) ||
         website.includes(searchQuery.toLowerCase());
 
+      const isRejected =
+        emp.employerStatus === 'rejected' || emp.employerVerificationStatus === 'rejected';
+      const isApproved =
+        !isRejected &&
+        (emp.employerStatus === 'approved' ||
+          (emp.employerVerificationStatus as string) === 'approved' ||
+          emp.isVerified);
       const isPending =
-        emp.employerStatus === 'pending' ||
-        emp.employerVerificationStatus === 'pending_verification' ||
-        (!emp.isVerified && emp.employerStatus !== 'rejected');
-
-      const isApproved = emp.employerStatus === 'approved' || emp.isVerified;
-      const isRejected = emp.employerStatus === 'rejected';
+        !isApproved &&
+        !isRejected &&
+        (emp.employerStatus === 'pending' ||
+          (emp.employerVerificationStatus as string) === 'pending_review' ||
+          emp.employerVerificationStatus === 'pending_verification' ||
+          !emp.isVerified);
 
       if (!matchesSearch) return false;
       if (statusFilter === 'needs_review') return isPending;
@@ -712,7 +781,45 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     appealsLoading
   ]);
 
-  const handleApproveEmployer = (emp: UserProfile) => {
+  const submitEmployerDecision = async (
+    emp: UserProfile,
+    decision: 'approve' | 'reject' | 'request_docs',
+    reason?: string
+  ): Promise<UserProfile | null> => {
+    setIsMutatingEmployer(true);
+    try {
+      const res = await apiFetchWithCsrf(
+        `/api/employer/review-queue/${encodeURIComponent(emp.uid)}/decision`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision, reason })
+        },
+        6000
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to record employer accreditation decision.');
+      }
+      if (data?.employer) {
+        setEmployerQueue((prev) => {
+          const exists = prev.some((item) => item.uid === emp.uid);
+          if (!exists) return [data.employer, ...prev];
+          return prev.map((item) => (item.uid === emp.uid ? { ...item, ...data.employer } : item));
+        });
+      }
+      return data?.employer || null;
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to update employer status.', 'error');
+      return null;
+    } finally {
+      setIsMutatingEmployer(false);
+    }
+  };
+
+  const handleApproveEmployer = async (emp: UserProfile) => {
+    const updated = await submitEmployerDecision(emp, 'approve');
+    if (!updated) return;
     verifyEmployer(emp.uid, 'verified');
     addAuditLog({
       action: 'APPROVE_EMPLOYER',
@@ -727,7 +834,9 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setActionModal(null);
   };
 
-  const handleRejectEmployer = (emp: UserProfile) => {
+  const handleRejectEmployer = async (emp: UserProfile) => {
+    const updated = await submitEmployerDecision(emp, 'reject', presetRejectReason);
+    if (!updated) return;
     verifyEmployer(emp.uid, 'rejected', presetRejectReason);
     addAuditLog({
       action: 'REJECT_EMPLOYER',
@@ -742,7 +851,9 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setActionModal(null);
   };
 
-  const handleRequestDocs = (emp: UserProfile) => {
+  const handleRequestDocs = async (emp: UserProfile) => {
+    const updated = await submitEmployerDecision(emp, 'request_docs', docRequestNote);
+    if (!updated) return;
     addAuditLog({
       action: 'REQUEST_EMPLOYER_DOCUMENTS',
       actorId: currentUser?.uid || 'moderator',
@@ -813,6 +924,17 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     );
   };
 
+  if (!hasModerationAccess) {
+    return (
+      <ForbiddenAccessView
+        attemptedPath="/portal/moderation"
+        attemptedModule="Post & Content Moderation"
+        userRole={currentUser?.role}
+        onReturnToOverview={() => setActiveTab('dashboard')}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Top Workspace Header + Segmented Navigation */}
@@ -839,7 +961,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                 if (activeSubTab === 'cases') void fetchCasesAndAbuse();
                 else if (activeSubTab === 'appeals') void fetchAppeals();
                 else if (activeSubTab === 'settings') void fetchSettings();
-                else showToast('Corporate registry feed refreshed.', 'success');
+                else void fetchEmployerQueue();
               }}
               className="inline-flex items-center justify-center gap-1.5 min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-200 border border-stone-200/80 dark:border-stone-700 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
@@ -1845,7 +1967,11 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                     : 'bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300'
                 }`}
               >
-                Needs Review ({employers.filter((e) => !e.isVerified && e.employerStatus !== 'rejected').length})
+                Needs Review ({employers.filter((e) => {
+                  const rej = e.employerStatus === 'rejected' || e.employerVerificationStatus === 'rejected';
+                  const app = !rej && (e.employerStatus === 'approved' || (e.employerVerificationStatus as string) === 'approved' || e.isVerified);
+                  return !rej && !app;
+                }).length})
               </button>
               <button
                 type="button"
@@ -1856,7 +1982,10 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                     : 'bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300'
                 }`}
               >
-                Accredited ({employers.filter((e) => e.isVerified || e.employerStatus === 'approved').length})
+                Accredited ({employers.filter((e) => {
+                  const rej = e.employerStatus === 'rejected' || e.employerVerificationStatus === 'rejected';
+                  return !rej && (e.isVerified || e.employerStatus === 'approved' || (e.employerVerificationStatus as string) === 'approved');
+                }).length})
               </button>
               <button
                 type="button"
@@ -1867,7 +1996,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                     : 'bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300'
                 }`}
               >
-                Rejected ({employers.filter((e) => e.employerStatus === 'rejected').length})
+                Rejected ({employers.filter((e) => e.employerStatus === 'rejected' || e.employerVerificationStatus === 'rejected').length})
               </button>
               <button
                 type="button"
@@ -1907,7 +2036,27 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
               </span>
             </div>
 
-            {paginatedEmployers.length === 0 ? (
+            {employersLoading ? (
+              <div className="p-6 space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-14 rounded-xl bg-stone-100 dark:bg-stone-800 animate-pulse" />
+                ))}
+              </div>
+            ) : employersError ? (
+              <div className="p-8 text-center space-y-3">
+                <p className="text-xs text-[#8B181B] dark:text-red-300 font-medium">
+                  Failed to load, retry — {employersError}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void fetchEmployerQueue()}
+                  className="inline-flex items-center gap-1.5 min-h-[38px] px-4 py-2 rounded-xl text-xs font-semibold bg-[#8B181B] hover:bg-[#721316] text-white cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            ) : paginatedEmployers.length === 0 ? (
               <div className="p-12 text-center text-xs text-stone-500 dark:text-stone-400">
                 <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500 opacity-60" />
                 No employer applications matching the selected filter.
@@ -1926,8 +2075,13 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                   </thead>
                   <tbody className="divide-y divide-stone-100 dark:divide-stone-800">
                     {paginatedEmployers.map((emp) => {
-                      const isApproved = emp.employerStatus === 'approved' || emp.isVerified;
-                      const isRejected = emp.employerStatus === 'rejected';
+                      const isRejected =
+                        emp.employerStatus === 'rejected' || emp.employerVerificationStatus === 'rejected';
+                      const isApproved =
+                        !isRejected &&
+                        (emp.employerStatus === 'approved' ||
+                          (emp.employerVerificationStatus as string) === 'approved' ||
+                          emp.isVerified);
                       const domain = (emp.companyWebsite || '').replace(/^[a-z]+:\/\//, '').split('/')[0];
                       const emailDomain = (emp.email || '').split('@')[1] || '';
                       const domainMatches =
@@ -2405,11 +2559,11 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       {actionModal?.type === 'approve' && (
         <ConfirmationModal
           isOpen={true}
-          onClose={() => setActionModal(null)}
-          onConfirm={() => handleApproveEmployer(actionModal.employer)}
+          onClose={() => !isMutatingEmployer && setActionModal(null)}
+          onConfirm={() => void handleApproveEmployer(actionModal.employer)}
           title="Accredit Corporate Partner"
           message={`Are you sure you want to approve "${actionModal.employer.companyName || actionModal.employer.name}"? This activates their employer posting tier and dispatches an official institutional accreditation email.`}
-          confirmLabel="Accredit & Dispatch Email"
+          confirmLabel={isMutatingEmployer ? 'Accrediting...' : 'Accredit & Dispatch Email'}
           cancelLabel="Cancel"
           variant="info"
         />
@@ -2451,17 +2605,19 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isMutatingEmployer}
                 onClick={() => setActionModal(null)}
-                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 cursor-pointer"
+                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => handleRejectEmployer(actionModal.employer)}
-                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-[#8B181B] hover:bg-[#721316] text-white cursor-pointer"
+                disabled={isMutatingEmployer}
+                onClick={() => void handleRejectEmployer(actionModal.employer)}
+                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-[#8B181B] hover:bg-[#721316] text-white cursor-pointer disabled:opacity-50"
               >
-                Confirm Rejection
+                {isMutatingEmployer ? 'Submitting...' : 'Confirm Rejection'}
               </button>
             </div>
           </div>
@@ -2486,17 +2642,19 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isMutatingEmployer}
                 onClick={() => setActionModal(null)}
-                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 cursor-pointer"
+                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => handleRequestDocs(actionModal.employer)}
-                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
+                disabled={isMutatingEmployer}
+                onClick={() => void handleRequestDocs(actionModal.employer)}
+                className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 text-white cursor-pointer disabled:opacity-50"
               >
-                Send Document Request
+                {isMutatingEmployer ? 'Sending...' : 'Send Document Request'}
               </button>
             </div>
           </div>

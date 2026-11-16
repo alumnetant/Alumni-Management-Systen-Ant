@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
-  Award,
   Camera,
   EyeOff,
   Globe,
@@ -69,7 +68,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
     clearHighlightedItem
   } = useAlumni();
 
-  const [activeFilter, setActiveFilter] = useState<'all' | 'milestone' | 'gallery' | 'announcement'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'update' | 'gallery' | 'announcement'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [pinnedPosts, setPinnedPosts] = useState<InstitutionalFeedPost[]>([]);
   const [streamPosts, setStreamPosts] = useState<InstitutionalFeedPost[]>([]);
@@ -88,11 +87,10 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
 
   // Inline Composer States
   const [composerExpanded, setComposerExpanded] = useState(false);
-  const [composerType, setComposerType] = useState<'milestone' | 'gallery' | 'announcement'>('milestone');
+  const [composerType, setComposerType] = useState<'update' | 'gallery' | 'announcement'>('update');
   const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
   const [postImageUrl, setPostImageUrl] = useState('');
-  const [postMilestoneBadge, setPostMilestoneBadge] = useState('');
   const [postTags, setPostTags] = useState('');
   const [visibility, setVisibility] = useState<'alumni' | 'public' | 'batch' | 'department' | 'private'>('alumni');
   const [isAnonymous, setIsAnonymous] = useState(false);
@@ -525,10 +523,10 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
             .map((t) => t.trim().replace(/^#/, ''))
             .filter(Boolean)
         : [
-            composerType === 'milestone'
-              ? 'Milestone'
-              : composerType === 'gallery'
+            composerType === 'gallery'
               ? 'CampusGallery'
+              : composerType === 'announcement'
+              ? 'Announcement'
               : 'Update'
           ];
 
@@ -537,8 +535,6 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
         title: postTitle.trim() || (composerType === 'announcement' ? 'Community Announcement' : ''),
         content: postContent.trim(),
         imageUrl: postImageUrl.trim() || undefined,
-        milestoneBadge:
-          composerType === 'milestone' ? postMilestoneBadge.trim() || 'Milestone' : undefined,
         visibility,
         targetBatch: visibility === 'batch' ? currentUser?.batch : undefined,
         targetDepartment: visibility === 'department' ? (currentUser?.department || currentUser?.course) : undefined,
@@ -560,7 +556,6 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
         setPostTitle('');
         setPostContent('');
         setPostImageUrl('');
-        setPostMilestoneBadge('');
         setPostTags('');
         setVisibility('alumni');
         setIsAnonymous(false);
@@ -590,7 +585,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
               </span>
             </div>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-              Community milestones, campus gallery photos, and official announcements
+              Community updates, campus gallery photos, and official announcements
             </p>
           </div>
 
@@ -611,7 +606,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
           {[
             { id: 'all', label: 'All Posts', icon: Sparkles },
-            { id: 'milestone', label: 'Milestones', icon: Award },
+            { id: 'update', label: 'Updates', icon: Sparkles },
             { id: 'gallery', label: 'Campus Gallery', icon: Camera },
             { id: 'announcement', label: 'Announcements', icon: Megaphone }
           ].map((tab) => {
@@ -660,7 +655,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
                   value={postContent}
                   onFocus={() => setComposerExpanded(true)}
                   onChange={(e) => setPostContent(e.target.value)}
-                  placeholder={`Share an update, milestone, or campus photo, ${currentUser?.name?.split(' ')[0] || 'Cecilian'}...`}
+                  placeholder={`Share a career update, achievement, or campus photo, ${currentUser?.name?.split(' ')[0] || 'Cecilian'}...`}
                   className="w-full px-3.5 py-2.5 text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] resize-none leading-relaxed"
                 />
               </div>
@@ -676,7 +671,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
                     className="px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 font-semibold min-h-[38px]"
                     aria-label="Post Category"
                   >
-                    <option value="milestone">Milestone / Story</option>
+                    <option value="update">Community Update</option>
                     <option value="gallery">Campus Photo</option>
                     <option value="announcement">Announcement</option>
                   </select>
@@ -739,16 +734,6 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
                       className="px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200"
                     />
                   </div>
-                )}
-
-                {composerType === 'milestone' && (
-                  <input
-                    type="text"
-                    value={postMilestoneBadge}
-                    onChange={(e) => setPostMilestoneBadge(e.target.value)}
-                    placeholder="Milestone badge (e.g. Board Topnotcher, Promotion, Research Award)"
-                    className="w-full px-3.5 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white"
-                  />
                 )}
 
                 {/* Media Attachment Row */}
@@ -907,7 +892,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
             Nothing to show yet, be the first to post
           </p>
           <p className="text-xs text-stone-400 dark:text-stone-500">
-            Share a career update, milestone, or campus photo above to start the timeline.
+            Share a career update or campus photo above to start the timeline.
           </p>
         </div>
       ) : (

@@ -19,7 +19,7 @@ import {
   X
 } from 'lucide-react';
 
-interface HistoryMilestone {
+interface HistoryEvent {
   year: string;
   title: string;
   badge: string;
@@ -37,7 +37,7 @@ interface HistoryEra {
   theme: string;
   badge: string;
   summary: string;
-  milestones: HistoryMilestone[];
+  events: HistoryEvent[];
   transcriptPage: number;
 }
 
@@ -51,7 +51,7 @@ const HISTORY_ERAS: HistoryEra[] = [
     summary:
       'In January 1999, the visionary seed was planted in Poblacion Ward II, Minglanilla, Cebu. With just ten pioneer pupils and one determined educator, the cornerstone of St. Cecilia’s College was laid upon moral virtue and personal care.',
     transcriptPage: 4,
-    milestones: [
+    events: [
       {
         year: 'January 1999',
         title: 'Establishment in Minglanilla, Cebu',
@@ -90,7 +90,7 @@ const HISTORY_ERAS: HistoryEra[] = [
     summary:
       'The school transitioned into a broader collegiate destiny under the guidance of Mrs. Rosalina N. Go and the Board of Trustees, formally incorporating as St. Cecilia’s College - Cebu, Inc. and launching complete primary and high school curricula.',
     transcriptPage: 5,
-    milestones: [
+    events: [
       {
         year: '2004',
         title: 'Stewardship Under Mrs. Rosalina N. Go & Board of Trustees',
@@ -130,7 +130,7 @@ const HISTORY_ERAS: HistoryEra[] = [
     summary:
       'St. Cecilia’s College advanced into higher education, establishing undergraduate degree programs to meet southern Cebu’s urgent demand for IT specialists, educators, business managers, and maritime professionals.',
     transcriptPage: 6,
-    milestones: [
+    events: [
       {
         year: '2008 – 2009',
         title: 'Inauguration of Higher Education Degree Programs',
@@ -170,7 +170,7 @@ const HISTORY_ERAS: HistoryEra[] = [
     summary:
       'A decade of sustained physical and academic elevation. St. Cecilia’s College constructed its iconic Modern Academic Tower, expanded PACUCOA quality accreditations, and integrated Senior High School tracks under K-12.',
     transcriptPage: 7,
-    milestones: [
+    events: [
       {
         year: '2014 – 2016',
         title: 'Erection of the Modern Multi-Story Academic Tower',
@@ -208,7 +208,7 @@ const HISTORY_ERAS: HistoryEra[] = [
     summary:
       'Entering a bold new era of national prominence. St. Cecilia’s graduates ranked at the very top of national board licensure examinations, while campus engineering teams achieved the historic launch of the Philippines’ first high-powered hybrid rocket.',
     transcriptPage: 8,
-    milestones: [
+    events: [
       {
         year: '2020 – 2021',
         title: 'Criminology Government Recognition (BSCRIM)',
@@ -247,7 +247,7 @@ const HISTORY_ERAS: HistoryEra[] = [
           'Put St. Cecilia’s College at the forefront of aerospace innovation and STEM leadership.',
           'Network expanded to 5,000+ active alumni across 28 countries worldwide.'
         ],
-        recognition: 'Philippine Space Science & Aerospace Milestone',
+        recognition: 'Philippine Space Science & Aerospace Achievement',
         iconName: 'rocket'
       }
     ]
@@ -261,7 +261,7 @@ export const CollegeHistorySection: React.FC = () => {
 
   const activeEra = HISTORY_ERAS[selectedEraIndex];
 
-  const getMilestoneIcon = (iconName: HistoryMilestone['iconName']) => {
+  const getHistoryEventIcon = (iconName: HistoryEvent['iconName']) => {
     switch (iconName) {
       case 'landmark':
         return <Landmark className="w-5 h-5" />;
@@ -411,9 +411,9 @@ export const CollegeHistorySection: React.FC = () => {
               </div>
             </div>
 
-            {/* Right Milestones Cards (Spans across 8 columns with 2-grid layout) */}
+            {/* Right Historical Event Cards (Spans across 8 columns with 2-grid layout) */}
             <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-              {activeEra.milestones.map((milestone, idx) => (
+              {activeEra.events.map((histEvent, idx) => (
                 <div
                   key={idx}
                   className="bg-white border border-stone-200 rounded-3xl p-7 sm:p-8 flex flex-col justify-between shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] hover:border-stone-300 transition-all"
@@ -422,28 +422,28 @@ export const CollegeHistorySection: React.FC = () => {
                     {/* Icon + Year Badge */}
                     <div className="flex items-center justify-between gap-3 mb-5">
                       <div className="w-12 h-12 rounded-2xl bg-red-50 text-[#8B181B] border border-red-100 flex items-center justify-center shrink-0 shadow-2xs">
-                        {getMilestoneIcon(milestone.iconName)}
+                        {getHistoryEventIcon(histEvent.iconName)}
                       </div>
                       <span className="px-3 py-1 rounded-full bg-stone-100 text-stone-800 text-xs font-mono font-bold">
-                        {milestone.year}
+                        {histEvent.year}
                       </span>
                     </div>
 
                     <div className="mb-2">
                       <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#8B181B]">
-                        {milestone.badge}
+                        {histEvent.badge}
                       </span>
                       <h4 className="text-lg font-bold text-stone-900 mt-0.5">
-                        {milestone.title}
+                        {histEvent.title}
                       </h4>
                     </div>
 
                     <p className="text-xs sm:text-sm text-stone-600 leading-relaxed mb-4">
-                      {milestone.summary}
+                      {histEvent.summary}
                     </p>
 
                     <div className="space-y-2 mt-4 pt-4 border-t border-stone-100">
-                      {milestone.details.map((point, pIdx) => (
+                      {histEvent.details.map((point, pIdx) => (
                         <div key={pIdx} className="flex items-start gap-2 text-xs text-stone-600">
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                           <span>{point}</span>
@@ -453,14 +453,14 @@ export const CollegeHistorySection: React.FC = () => {
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-stone-100 text-[11px] text-stone-500">
-                    {milestone.keyFigures && (
+                    {histEvent.keyFigures && (
                       <div className="font-medium text-stone-700">
-                        Leadership: <span className="font-normal text-stone-600">{milestone.keyFigures}</span>
+                        Leadership: <span className="font-normal text-stone-600">{histEvent.keyFigures}</span>
                       </div>
                     )}
-                    {milestone.recognition && (
+                    {histEvent.recognition && (
                       <div className="text-amber-800 font-medium mt-1">
-                        Accreditation: <span className="text-stone-600">{milestone.recognition}</span>
+                        Accreditation: <span className="text-stone-600">{histEvent.recognition}</span>
                       </div>
                     )}
                   </div>
@@ -545,7 +545,7 @@ export const CollegeHistorySection: React.FC = () => {
                       {HISTORY_ERAS[activeTranscriptTab].summary}
                     </p>
                     
-                    {HISTORY_ERAS[activeTranscriptTab].milestones.map((m, mIdx) => (
+                    {HISTORY_ERAS[activeTranscriptTab].events.map((m, mIdx) => (
                       <div key={mIdx} className="pt-4 border-t border-stone-200/60 font-sans">
                         <div className="flex items-center gap-2 text-sm font-bold text-stone-900 mb-1">
                           <span className="text-[#8B181B] font-mono">{m.year}</span>

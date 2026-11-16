@@ -4,13 +4,13 @@
  */
 
 import React, { useState } from 'react';
-import { Award, Image as ImageIcon, Send, X, Sparkles, Building2 } from 'lucide-react';
+import { FileText, Image as ImageIcon, X, Sparkles } from 'lucide-react';
 import { useAlumni } from '../../../context/AlumniContext';
 import { getUserAvatar, handleUserAvatarError } from '../../../lib/defaultImages';
 import { compressImage } from '../../../lib/utils';
 
 export const FeedPostComposer: React.FC = () => {
-  const { currentUser, createMilestone, showToast } = useAlumni();
+  const { currentUser, createSocialPost, showToast } = useAlumni();
   const [isOpen, setIsOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -39,32 +39,38 @@ export const FeedPostComposer: React.FC = () => {
     }
   };
 
-  const handlePublish = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) {
       showToast('Please provide both a title and description.', 'error');
       return;
     }
 
-    createMilestone({
-      title: title.trim(),
-      description: description.trim(),
-      category,
-      company: company.trim() || undefined,
-      images: imageUrl ? [imageUrl] : [],
-      batch: currentUser?.batch,
-      alumnusId: currentUser?.uid,
-      alumnusName: currentUser?.name,
-      alumnusAvatar: currentUser?.profilePictureUrl,
-      awardDate: new Date().toISOString()
-    });
-
-    showToast('Your milestone was shared to the alumni timeline!', 'success');
-    setTitle('');
-    setDescription('');
-    setCompany('');
-    setImageUrl('');
-    setIsOpen(false);
+    setIsSubmitting(true);
+    try {
+      const fullContent = company.trim()
+        ? `${description.trim()}\n\nOrganization: ${company.trim()}`
+        : description.trim();
+      const result = await createSocialPost({
+        postType: imageUrl ? 'gallery' : 'update',
+        title: title.trim(),
+        content: fullContent,
+        imageUrl: imageUrl || undefined,
+        visibility: 'alumni',
+        tags: [category]
+      });
+      if (result?.success) {
+        setTitle('');
+        setDescription('');
+        setCompany('');
+        setImageUrl('');
+        setIsOpen(false);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -98,8 +104,8 @@ export const FeedPostComposer: React.FC = () => {
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 font-semibold cursor-pointer transition-colors"
             >
-              <Award className="w-4 h-4 text-amber-600" />
-              <span>Milestone</span>
+              <FileText className="w-4 h-4 text-[#8B181B]" />
+              <span>Update</span>
             </button>
 
             <button
@@ -235,10 +241,10 @@ export const FeedPostComposer: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={isCompressing}
-                  className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                  disabled={isCompressing || isSubmitting}
+                  className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] disabled:opacity-60 text-white rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
                 >
-                  Publish to Feed
+                  {isSubmitting ? 'Publishing...' : 'Publish to Feed'}
                 </button>
               </div>
             </form>

@@ -5,7 +5,6 @@ import {
   Briefcase,
   Megaphone,
   GraduationCap,
-  Trophy,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
@@ -873,7 +872,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     transition={{ duration: 0.7, delay: 0.85, ease: [0.22, 1, 0.36, 1] }}
                     className="text-stone-200 text-base sm:text-lg lg:text-xl leading-relaxed font-light"
                   >
-                    The official digital bridge for graduates of St. Cecilia's College – Cebu, Inc. Reconnect with batchmates, verify alumni credentials, access career milestones, and honor our enduring heritage of excellence.
+                    The official digital bridge for graduates of St. Cecilia's College – Cebu, Inc. Reconnect with batchmates, verify alumni credentials, access career opportunities, and honor our enduring heritage of excellence.
                   </motion.p>
                   <AnimatePresence mode="wait">
                     <motion.p
@@ -1275,13 +1274,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </motion.div>
 
-          {/* 6-Grid Feature Cards (3 columns x 2 rows) with generous wide padding */}
+          {/* 4-Grid Feature Cards (2 columns x 2 rows) with generous wide padding */}
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true, margin: '-40px' }}
             transition={{ duration: 0.6 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8"
+            className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8"
           >
             {/* Card 1: Alumni Network */}
             <TiltCard className="p-8 sm:p-10 lg:p-12 flex flex-col justify-between bg-stone-50/60 hover:bg-white border border-stone-200/90 rounded-3xl transition-all shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] group cursor-default">
@@ -1375,28 +1374,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
             </TiltCard>
 
-            {/* Card 5: Career Milestones */}
-            <TiltCard className="p-8 sm:p-10 lg:p-12 flex flex-col justify-between bg-stone-50/60 hover:bg-white border border-stone-200/90 rounded-3xl transition-all shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] group cursor-default">
-              <div>
-                <div className="mb-8 w-14 h-14 rounded-2xl bg-amber-50 text-[#B45309] border border-amber-100 flex items-center justify-center group-hover:scale-110 transition-transform origin-left shadow-2xs">
-                  <Trophy className="w-7 h-7 stroke-[1.75]" />
-                </div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#B45309]">
-                    05 • ACHIEVEMENTS
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-[#111827] mb-3">
-                  Milestones & Honors
-                </h3>
-                <p className="text-sm text-[#6B7280] leading-relaxed">
-                  Celebrate licensure board topnotchers, promotions, startup foundings, and distinguished alumni award recipients.
-                </p>
-              </div>
-              <div className="mt-8 pt-6 border-t border-stone-200/60 flex items-center justify-between text-xs font-semibold text-stone-500">
-                <span>Cecilian Pride</span>
-              </div>
-            </TiltCard>
           </motion.div>
 
           {/* Panoramic Collegiate Batch Locator Banner */}

@@ -29,7 +29,7 @@ export interface CentenaryTimeCapsule {
 }
 
 export interface CentenaryJubilee {
-  milestoneName: string;
+  jubileeName: string;
   anniversaryYears: number;
   reunionYear: number;
   status: 'past' | 'current' | 'upcoming';
@@ -73,7 +73,7 @@ export function getCentenaryBatchYears(foundingYear = 1968, futureSpanYears = 50
  */
 export function calculateCentenaryJubilees(batchYear: number): CentenaryJubilee[] {
   const currentYear = new Date().getFullYear();
-  const milestones = [
+  const jubilees = [
     { name: '1st Homecoming Reunion', years: 1, theme: 'First Gathering' },
     { name: '5th Wooden Reunion', years: 5, theme: 'Foundations & Early Careers' },
     { name: '10th Tin Decennial Reunion', years: 10, theme: 'Decade of Impact' },
@@ -87,7 +87,7 @@ export function calculateCentenaryJubilees(batchYear: number): CentenaryJubilee[
     { name: '100th Centennial Homecoming', years: 100, theme: 'Centennial Immortality' }
   ];
 
-  return milestones.map((m) => {
+  return jubilees.map((m) => {
     const reunionYear = batchYear + m.years;
     const yearsUntil = reunionYear - currentYear;
     let status: 'past' | 'current' | 'upcoming' = 'upcoming';
@@ -101,7 +101,7 @@ export function calculateCentenaryJubilees(batchYear: number): CentenaryJubilee[
     }
 
     return {
-      milestoneName: m.name,
+      jubileeName: m.name,
       anniversaryYears: m.years,
       reunionYear,
       status,
@@ -210,7 +210,6 @@ export async function generateCentenaryArchivalPackage(data: {
   users: UserProfile[];
   registryRecords: StudentVerificationRecord[];
   auditLogs: any[];
-  milestones: any[];
   events: any[];
   announcements: any[];
 }) {
@@ -229,7 +228,6 @@ export async function generateCentenaryArchivalPackage(data: {
       totalAlumniUsers: data.users.length,
       accreditedRegistryRecords: data.registryRecords.length,
       historicalAuditLogs: data.auditLogs.length,
-      alumniMilestones: data.milestones.length,
       eventsAndReunions: data.events.length,
       announcements: data.announcements.length,
       timeCapsules: getTimeCapsules().length
@@ -243,7 +241,6 @@ export async function generateCentenaryArchivalPackage(data: {
     timeCapsules: getTimeCapsules(),
     alumniDirectory: data.users,
     registrarMasterlist: data.registryRecords,
-    alumniMilestones: data.milestones,
     institutionalEvents: data.events,
     auditTrail: data.auditLogs
   };
@@ -286,7 +283,6 @@ export async function downloadCentenaryVault(data: {
   users: UserProfile[];
   registryRecords: StudentVerificationRecord[];
   auditLogs: any[];
-  milestones: any[];
   events: any[];
   announcements: any[];
 }) {

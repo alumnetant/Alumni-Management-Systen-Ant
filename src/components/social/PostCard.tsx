@@ -128,13 +128,11 @@ export const PostCard: React.FC<PostCardProps> = ({
   const isHeartedByMe = Boolean(currentUser?.uid && reactorUids.includes(currentUser.uid));
   const comments = Array.isArray(post.comments) ? post.comments : [];
 
-  const isSelfMilestone = Boolean(
-    isOwner && (post.postType === 'milestone' || Boolean(post.milestoneBadge))
-  );
+  const isSelfUpdate = Boolean(isOwner && post.postType === 'update');
 
   const handleToggleHeart = () => {
-    if (isSelfMilestone) {
-      showToast('You cannot congratulate or react to your own milestone post.', 'info');
+    if (isSelfUpdate) {
+      showToast('You cannot congratulate or react to your own post.', 'info');
       return;
     }
     toggleHeartFeedPost(post.id);
@@ -299,7 +297,7 @@ export const PostCard: React.FC<PostCardProps> = ({
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200/70 dark:border-amber-900/50">
         <Award className="w-3 h-3" />
-        <span>{post.milestoneBadge || 'Milestone'}</span>
+        <span>Community Update</span>
       </span>
     );
   };
@@ -544,10 +542,10 @@ export const PostCard: React.FC<PostCardProps> = ({
         {mediaUrl && (
           <DoubleTapHeartOverlay
             onTrigger={() => {
-              if (!isSelfMilestone) {
+              if (!isSelfUpdate) {
                 handleToggleHeart();
               } else {
-                showToast('You cannot congratulate or react to your own milestone post.', 'info');
+                showToast('You cannot congratulate or react to your own post.', 'info');
               }
             }}
           >
@@ -606,10 +604,10 @@ export const PostCard: React.FC<PostCardProps> = ({
             onToggle={handleToggleHeart}
             reactorUids={reactorUids}
             allUsers={users}
-            disabled={isSelfMilestone}
+            disabled={isSelfUpdate}
             variant="button"
-            label={isSelfMilestone ? 'Own Milestone' : isHeartedByMe ? 'Hearted' : 'Heart'}
-            className={`w-full ${isSelfMilestone ? 'opacity-50 cursor-not-allowed' : ''}`}
+            label={isSelfUpdate ? 'Own Post' : isHeartedByMe ? 'Hearted' : 'Heart'}
+            className={`w-full ${isSelfUpdate ? 'opacity-50 cursor-not-allowed' : ''}`}
           />
 
           <button

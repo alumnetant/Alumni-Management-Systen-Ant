@@ -128,7 +128,7 @@ export const LandingHeritage3D: React.FC = () => {
                 <span className="text-sm sm:text-base font-bold text-white mt-0.5 block">{selectedEra.stats}</span>
               </div>
               <div className="p-3.5 rounded-xl bg-white/5 border border-white/10">
-                <span className="text-[10px] text-stone-400 uppercase font-mono block">Key Milestone</span>
+                <span className="text-[10px] text-stone-400 uppercase font-mono block">Key Highlight</span>
                 <span className="text-sm sm:text-base font-bold text-amber-300 mt-0.5 block">{selectedEra.highlight}</span>
               </div>
             </div>

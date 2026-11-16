@@ -44,6 +44,7 @@ import {
 } from '../../lib/firebase';
 import { collection, getDocs, limit, query, getDocFromServer, doc } from 'firebase/firestore';
 import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
+import { normalizeSystemRole } from '../../types';
 import { apiFetch, getAuthToken } from '../../services/apiClient';
 
 interface IndexDefinition {
@@ -187,7 +188,6 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
     opportunities,
     announcements,
     galleryItems,
-    milestones,
     chats,
     notifications,
     setActiveTab: setPortalTab,
@@ -197,7 +197,7 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
     isFirestoreSyncing
   } = useAlumni();
 
-  const isSuperAdmin = (currentUser?.role || '').toLowerCase().trim() === 'superadmin';
+  const isSuperAdmin = normalizeSystemRole(currentUser?.role) === 'superadmin';
 
   const [activeTab, setActiveTab] = useState<'collections' | 'indexes' | 'rules' | 'maintenance'>(initialSection);
   const [confirmPurge, setConfirmPurge] = useState(false);
@@ -370,7 +370,6 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
         opportunities: opportunities.length,
         announcements: announcements.length,
         gallery: galleryItems.length,
-        milestones: milestones.length,
         chats: chats.length,
         notifications: notifications.length
       },
@@ -467,16 +466,8 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
       accessPolicy: 'Public Read / Admin Upload',
       primaryKeys: 'itemId',
       indexesActive: 1
-    },
-    {
-      id: 'milestones',
-      name: 'Alumni Hall of Fame & Honors',
-      count: milestones.length,
-      accessPolicy: 'Public Read / Admin Accredit',
-      primaryKeys: 'milestoneId',
-      indexesActive: 1
     }
-  ], [users.length, events.length, opportunities.length, announcements.length, galleryItems.length, milestones.length, chats.length]);
+  ], [users.length, events.length, opportunities.length, announcements.length, galleryItems.length, chats.length]);
 
   if (!isSuperAdmin) {
     return (

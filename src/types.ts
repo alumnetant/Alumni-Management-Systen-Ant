@@ -333,7 +333,6 @@ export type NotificationType =
   | 'post_comment'
   | 'post_reaction'
   | 'post_share'
-  | 'milestone'
   | 'moderation_warning'
   | 'moderation_deletion'
   | 'moderation_report_resolved'
@@ -358,7 +357,6 @@ export interface DeepLinkTarget {
     | 'moderation_appeal'
     | 'profile_moderation'
     | 'gallery'
-    | 'milestone'
     | 'security'
     | 'audit'
     | 'database'
@@ -631,33 +629,6 @@ export interface TaggedAlumnus {
   avatar?: string;
 }
 
-export interface CareerMilestone {
-  id: string;
-  uid?: string;
-  alumnusId?: string;
-  alumniName?: string;
-  alumnusName?: string;
-  alumnusAvatar?: string;
-  companyOrOrg?: string;
-  batch?: string;
-  title: string;
-  company?: string;
-  category: 'Promotion' | 'Startup' | 'Award' | 'Publication' | 'Leadership' | 'Campus Gallery' | 'Achievement' | string;
-  awardLevel?: 'National' | 'Regional' | 'Collegiate' | 'Corporate' | string;
-  issuingOrganization?: string;
-  awardDate?: string;
-  date?: string;
-  description: string;
-  images?: string[];
-  taggedAlumniIds?: string[];
-  taggedAlumni?: TaggedAlumnus[];
-  likes?: string[];
-  authorId?: string;
-  authorName?: string;
-  authorRole?: UserRole;
-  createdAt?: string;
-}
-
 export interface UserNotificationSettings {
   pushNotifications: boolean;
   emailDigests: boolean;
@@ -695,11 +666,10 @@ export interface InstitutionalFeedPost {
   authorName: string;
   authorRole: UserRole;
   authorAvatar: string;
-  postType: 'milestone' | 'gallery' | 'announcement';
+  postType: 'update' | 'gallery' | 'announcement';
   title: string;
   content: string;
   imageUrl?: string;
-  milestoneBadge?: string;
   likes: string[]; // array of user UIDs who liked
   hearts?: string[]; // array of user UIDs who reacted with a heart
   comments: FeedComment[];
@@ -935,7 +905,7 @@ export interface CareerSurveyResponse {
   company: string;
   relevanceToDegree: 'Directly Related' | 'Somewhat Related' | 'Not Related';
   salaryRange: string;
-  milestoneAfterGraduation: '6 months' | '1 year' | '3 years' | '5 years';
+  careerStageAfterGraduation: '6 months' | '1 year' | '3 years' | '5 years';
   feedback: string;
   submittedAt: string;
 }

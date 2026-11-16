@@ -59,10 +59,10 @@ export const HelpAndInfoSection: React.FC<HelpAndInfoSectionProps> = ({ isLoadin
         'When you select "Going" to any event, the app automatically adds you to the Event Group Chat in your Messages tab. If you change your response, your group chat status updates right away.'
     },
     {
-      id: 'faq_milestones',
-      question: 'How can I post achievements or campus photos?',
+      id: 'faq_feed',
+      question: 'How can I post updates, achievements, or campus photos?',
       answer:
-        'Go to the Milestones tab in the portal. You can share photos, celebrate passing board exams or work promotions, tag classmates, and post directly to the campus feed.'
+        'Use the post composer on your Home Feed or Profile Timeline. You can share photos, celebrate career updates or board exam results, tag classmates, and control post visibility.'
     },
     {
       id: 'faq_security',

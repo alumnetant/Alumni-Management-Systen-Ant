@@ -172,7 +172,7 @@ export const FeedSideRail: React.FC<FeedSideRailProps> = ({
           </div>
           <div>
             <h4 className="text-xs font-bold text-stone-900 dark:text-white group-hover:text-[#8B181B]">Campus Heritage Gallery</h4>
-            <p className="text-[10px] text-stone-500">Explore historic photos & milestones</p>
+            <p className="text-[10px] text-stone-500">Explore historic photos &amp; campus moments</p>
           </div>
         </div>
         <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-stone-700 dark:group-hover:text-stone-200 transition-transform group-hover:translate-x-0.5" />

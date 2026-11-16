@@ -1148,7 +1148,7 @@ export const SettingsView: React.FC = () => {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#8B181B]" />
-                  <span className="text-xs font-bold text-stone-900">24h Event & Milestone Chime Safeguard</span>
+                  <span className="text-xs font-bold text-stone-900">24h Event Reminder & Chime Safeguard</span>
                   <span
                     className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
                       pushPermissionStatus === 'granted'

@@ -1,0 +1,177 @@
+import { describe, expect, it } from 'vitest';
+import {
+  normalizeSystemRole,
+  isRoleAllowedOnPlatform,
+  isAdministrativeOrStaffRole,
+  type AppNotification
+} from '../../types';
+import {
+  PostModerationEngine,
+  ModerationError,
+  isModeratorRole,
+  isAdminRole,
+  isSuperAdminRole
+} from '../postModeration/moderationEngine';
+import {
+  parsePortalUrlPath,
+  resolveNotificationDeepLink
+} from '../../lib/notificationDeepLink';
+
+describe('Role normalization and platform access helpers', () => {
+  it('normalizes canonical and legacy staff/admin roles cleanly', () => {
+    expect(normalizeSystemRole('moderator')).toBe('moderator');
+    expect(normalizeSystemRole('  MODERATOR  ')).toBe('moderator');
+    expect(normalizeSystemRole('registrar')).toBe('moderator');
+    expect(normalizeSystemRole('staff')).toBe('moderator');
+    expect(normalizeSystemRole('faculty')).toBe('moderator');
+    expect(normalizeSystemRole('admin')).toBe('admin');
+    expect(normalizeSystemRole('administrator')).toBe('admin');
+    expect(normalizeSystemRole('system_administrator')).toBe('admin');
+    expect(normalizeSystemRole('superadmin')).toBe('superadmin');
+    expect(normalizeSystemRole('employer')).toBe('employer');
+    expect(normalizeSystemRole('alumni')).toBe('alumni');
+    expect(normalizeSystemRole(undefined)).toBe('alumni');
+  });
+
+  it('evaluates moderator, admin, and superadmin clearance helpers accurately', () => {
+    expect(isModeratorRole('moderator')).toBe(true);
+    expect(isModeratorRole('admin')).toBe(true);
+    expect(isModeratorRole('superadmin')).toBe(true);
+    expect(isModeratorRole('staff')).toBe(true);
+    expect(isModeratorRole('alumni')).toBe(false);
+    expect(isModeratorRole('employer')).toBe(false);
+
+    expect(isAdminRole('admin')).toBe(true);
+    expect(isAdminRole('superadmin')).toBe(true);
+    expect(isAdminRole('moderator')).toBe(false);
+
+    expect(isSuperAdminRole('superadmin')).toBe(true);
+    expect(isSuperAdminRole('admin')).toBe(false);
+  });
+
+  it('enforces web vs mobile platform policy', () => {
+    expect(isRoleAllowedOnPlatform('alumni', 'mobile')).toBe(true);
+    expect(isRoleAllowedOnPlatform('moderator', 'mobile')).toBe(false);
+    expect(isRoleAllowedOnPlatform('admin', 'mobile')).toBe(false);
+    expect(isRoleAllowedOnPlatform('superadmin', 'mobile')).toBe(false);
+
+    expect(isRoleAllowedOnPlatform('moderator', 'web')).toBe(true);
+    expect(isRoleAllowedOnPlatform('admin', 'web')).toBe(true);
+    expect(isRoleAllowedOnPlatform('superadmin', 'web')).toBe(true);
+    expect(isAdministrativeOrStaffRole('moderator')).toBe(true);
+    expect(isAdministrativeOrStaffRole('alumni')).toBe(false);
+  });
+});
+
+describe('Moderation deep links and milestone removal', () => {
+  it('routes /portal/moderation and /portal/moderation/appeals based on role clearance', () => {
+    const modQueue = parsePortalUrlPath('/portal/moderation', 'moderator');
+    expect(modQueue.tab).toBe('moderation');
+    expect(modQueue.subTab).toBe('queue');
+
+    const adminAppeals = parsePortalUrlPath('/portal/moderation/appeals/apl_123', 'admin');
+    expect(adminAppeals.tab).toBe('moderation');
+    expect(adminAppeals.subTab).toBe('appeals');
+    expect(adminAppeals.targetId).toBe('apl_123');
+
+    const alumniAttempt = parsePortalUrlPath('/portal/moderation', 'alumni');
+    expect(alumniAttempt.tab).toBe('profile');
+  });
+
+  it('resolves moderation notifications for staff vs alumni and does not route milestones', () => {
+    const appealNotif: AppNotification = {
+      id: 'notif_1',
+      toUid: 'usr_mod',
+      fromUid: 'usr_alum',
+      type: 'moderation_appeal',
+      title: 'Appeal Submitted',
+      body: 'A post appeal requires review.',
+      refId: 'apl_99',
+      read: false,
+      createdAt: new Date().toISOString()
+    };
+
+    const staffTarget = resolveNotificationDeepLink(appealNotif, 'superadmin');
+    expect(staffTarget.tab).toBe('moderation');
+    expect(staffTarget.subTab).toBe('appeals');
+
+    const alumniTarget = resolveNotificationDeepLink(appealNotif, 'alumni');
+    expect(alumniTarget.tab).toBe('profile');
+    expect(alumniTarget.subTab).toBe('moderation');
+
+    const highPriorityNotif: AppNotification = {
+      ...appealNotif,
+      id: 'notif_2',
+      type: 'moderation_high_priority',
+      refId: 'case_12'
+    };
+    const modQueueTarget = resolveNotificationDeepLink(highPriorityNotif, 'moderator');
+    expect(modQueueTarget.tab).toBe('moderation');
+    expect(modQueueTarget.subTab).toBe('queue');
+
+    const unknownMilestonesPath = parsePortalUrlPath('/portal/milestones', 'alumni');
+    expect(unknownMilestonesPath.targetType).not.toBe('milestone');
+  });
+});
+
+describe('PostModerationEngine moderation queue, legacy post normalization, and self-reaction protection', () => {
+  it('authorizes moderator/admin/superadmin queue access and denies alumni/employer', () => {
+    const engine = new PostModerationEngine({ persistToDisk: false, emailEnabled: false });
+
+    const modActor = { uid: 'u_mod', name: 'Mod User', email: 'mod@stcecilia.edu.ph', role: 'moderator' };
+    const adminActor = { uid: 'u_adm', name: 'Admin User', email: 'admin@stcecilia.edu.ph', role: 'admin' };
+    const superActor = { uid: 'u_sup', name: 'Super Admin', email: 'superadmin@stcecilia.edu.ph', role: 'superadmin' };
+    const alumniActor = { uid: 'u_alu', name: 'Alumni User', email: 'alum@stcecilia.edu.ph', role: 'alumni' };
+    const employerActor = { uid: 'u_emp', name: 'Employer User', email: 'hr@partner.com', role: 'employer' };
+
+    expect(engine.getPendingCountForModerator(modActor)).toBe(0);
+    expect(engine.listModerationCases(adminActor, { status: 'pending' }).cases).toEqual([]);
+    expect(engine.listModerationCases(superActor, { status: 'all' }).total).toBe(0);
+
+    expect(() => engine.listModerationCases(alumniActor, {})).toThrow(ModerationError);
+    expect(() => engine.getPendingCountForModerator(employerActor)).toThrow(ModerationError);
+  });
+
+  it('normalizes legacy milestone posts to update and prevents self-congratulation on update posts', () => {
+    const engine = new PostModerationEngine({ persistToDisk: false, emailEnabled: false });
+    const author = { uid: 'u_author', name: 'Maria Santos', email: 'maria@stcecilia.edu.ph', role: 'alumni' };
+    const peer = { uid: 'u_peer', name: 'Juan Cruz', email: 'juan@stcecilia.edu.ph', role: 'alumni' };
+
+    engine.upsertProfileRecord({ ...author, role: 'alumni' }, false);
+    engine.upsertProfileRecord({ ...peer, role: 'alumni' }, false);
+
+    const created = engine.upsertPost(
+      {
+        id: 'post_legacy_1',
+        authorId: author.uid,
+        authorName: author.name,
+        authorRole: 'alumni',
+        authorAvatar: '',
+        postType: 'milestone' as any,
+        title: 'Passed Board Exam',
+        content: 'Grateful for the Cecilian community.',
+        likes: [],
+        hearts: [],
+        comments: [],
+        sharesCount: 0,
+        createdAt: new Date().toISOString()
+      },
+      author
+    );
+
+    expect(created.postType).toBe('update');
+
+    const auditResult = engine.auditAndNormalizeLegacyPosts();
+    expect(auditResult.totalChecked).toBeGreaterThanOrEqual(1);
+
+    const normalized = engine.getPostByIdForViewer('post_legacy_1', author);
+    expect(normalized?.postType).toBe('update');
+
+    expect(() => engine.togglePostReaction('post_legacy_1', author, 'heart')).toThrow(
+      /cannot congratulate or react to your own post/i
+    );
+
+    const peerReact = engine.togglePostReaction('post_legacy_1', peer, 'heart');
+    expect(peerReact.post.hearts).toContain(peer.uid);
+  });
+});
