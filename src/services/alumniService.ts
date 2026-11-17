@@ -20,6 +20,11 @@ import {
   softDeleteUserInFirestore
 } from '../lib/firebase';
 import { isAccountDeleted } from '../lib/postVisibility';
+import {
+  encryptUserPiiForStorage,
+  decryptUserPiiFromStorage,
+  stripPlaintextSecretsFromUser
+} from '../lib/clientCrypto';
 import { UserProfile, UserRole } from '../types';
 import { INITIAL_USERS } from '../data/initialData';
 
@@ -54,11 +59,12 @@ export function sanitizeAlumniProfile(data: Partial<UserProfile>): Partial<UserP
     sanitized.phone = String(sanitized.phone).trim().slice(0, 30);
   }
 
-  // CRITICAL SECURITY: Never persist passwords or auth credentials in public alumni directory documents
+  // CRITICAL SECURITY: Never persist passwords, PINs, or raw auth credentials in public alumni directory documents
   delete (sanitized as any).password;
+  delete (sanitized as any).pin;
 
   // Sanitize undefined fields to avoid Firestore serialization errors
-  return JSON.parse(JSON.stringify(sanitized));
+  return JSON.parse(JSON.stringify(stripPlaintextSecretsFromUser(sanitized)));
 }
 
 /**
@@ -73,8 +79,9 @@ export const alumniService = {
     const docPath = `${FIRESTORE_COLLECTIONS.USERS}/${profile.uid}`;
     try {
       const sanitized = sanitizeAlumniProfile(profile) as UserProfile;
+      const encrypted = await encryptUserPiiForStorage(sanitized);
       const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, profile.uid);
-      await setDoc(userRef, sanitized);
+      await setDoc(userRef, encrypted);
       return sanitized;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, docPath);
@@ -90,7 +97,7 @@ export const alumniService = {
       const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, uid);
       const docSnap = await getDoc(userRef);
       if (docSnap.exists()) {
-        return docSnap.data() as UserProfile;
+        return await decryptUserPiiFromStorage(docSnap.data() as UserProfile);
       }
       return null;
     } catch (error) {
@@ -110,7 +117,7 @@ export const alumniService = {
       snapshot.forEach((d) => {
         results.push(d.data() as UserProfile);
       });
-      return results;
+      return await Promise.all(results.map((u) => decryptUserPiiFromStorage(u)));
     } catch (error) {
       console.warn('Failed to fetch alumni directory from Firestore:', error);
       return [];
@@ -134,7 +141,9 @@ export const alumniService = {
         snapshot.forEach((d) => {
           list.push(d.data() as UserProfile);
         });
-        onUpdate(list);
+        Promise.all(list.map((u) => decryptUserPiiFromStorage(u)))
+          .then((decrypted) => onUpdate(decrypted))
+          .catch(() => onUpdate(list));
       },
       (error) => {
         console.warn('Alumni Directory Firestore subscription error:', error);
@@ -170,13 +179,14 @@ export const alumniService = {
         : collection(db, colPath);
 
       const snapshot = await getDocs(q);
-      let list: UserProfile[] = [];
+      const rawList: UserProfile[] = [];
       snapshot.forEach((d) => {
         const data = d.data() as UserProfile;
         if (!isAccountDeleted(data)) {
-          list.push(data);
+          rawList.push(data);
         }
       });
+      let list = await Promise.all(rawList.map((u) => decryptUserPiiFromStorage(u)));
 
       // Filter in-memory for course or text search if specified
       if (filters.course && filters.course !== 'all') {
@@ -217,9 +227,11 @@ export const alumniService = {
       return sanitized;
     }
 
+    const encrypted = await encryptUserPiiForStorage(sanitized);
+
     try {
       const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, uid);
-      await updateDoc(userRef, sanitized);
+      await updateDoc(userRef, encrypted);
       return sanitized;
     } catch (error) {
       // If document doesn't exist yet, attempt merge with setDoc using fallback profile if provided or from seed
@@ -228,8 +240,8 @@ export const alumniService = {
         const seedProfile = INITIAL_USERS.find((u) => u.uid === uid);
         const baseFallback = fullProfileFallback || seedProfile;
         const payload = baseFallback
-          ? sanitizeAlumniProfile({ ...baseFallback, ...sanitized })
-          : sanitized;
+          ? await encryptUserPiiForStorage(sanitizeAlumniProfile({ ...baseFallback, ...sanitized }))
+          : encrypted;
         await setDoc(userRef, payload, { merge: true });
         return sanitized;
       } catch (fallbackErr) {

@@ -502,9 +502,9 @@ export const SettingsView: React.FC = () => {
     setShowPasswordOtpModal(true);
   };
 
-  const handleConfirmPasswordOtp = () => {
+  const handleConfirmPasswordOtp = async () => {
     if (!pendingOldPassword || !pendingNewPassword) return;
-    const res = changePassword(pendingOldPassword, pendingNewPassword);
+    const res = await changePassword(pendingOldPassword, pendingNewPassword);
     if (typeof res === 'object' && res !== null && !res.success) {
       setPasswordError(res.message || 'Failed to update password.');
       setShowPasswordOtpModal(false);

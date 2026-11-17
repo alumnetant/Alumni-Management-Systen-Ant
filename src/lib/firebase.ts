@@ -50,8 +50,16 @@ import {
   StudentVerificationRecord,
   InstitutionalFeedPost,
   EventReservation,
-  RegistrationConflictRecord
+  RegistrationConflictRecord,
+  AnonymizedRejectedBlock
 } from '../types';
+import {
+  encryptUserPiiForStorage,
+  decryptUserPiiFromStorage,
+  stripPlaintextSecretsFromUser,
+  hashSecretClient,
+  isSaltedSecretHash
+} from './clientCrypto';
 
 // Authoritative Firestore Database ID (ai-studio-alumnetant-92fb5716-8d56-4cfe-a603-629c0a70bf1a)
 export const FIRESTORE_DATABASE_ID =
@@ -264,7 +272,8 @@ export const FIRESTORE_COLLECTIONS = {
   MODERATION_APPEALS: 'moderation_appeals',
   MODERATION_AUDIT_LOGS: 'moderation_audit_logs',
   ABUSE_REPORTER_TRACKING: 'abuse_reporter_tracking',
-  MODERATION_CONFIG: 'moderation_config'
+  MODERATION_CONFIG: 'moderation_config',
+  REJECTED_BLOCKS: 'rejected_blocks'
 };
 
 export interface FirestoreConnectionDoc {
@@ -302,9 +311,11 @@ export async function saveUserToFirestore(user: UserProfile): Promise<void> {
   }
   try {
     const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, user.uid);
-    // Sanitize undefined fields and strip sensitive credentials
-    const sanitized = JSON.parse(JSON.stringify(user));
+    // Encrypt PII at rest and strip any plaintext credentials
+    const encrypted = await encryptUserPiiForStorage(user);
+    const sanitized = JSON.parse(JSON.stringify(stripPlaintextSecretsFromUser(encrypted)));
     delete sanitized.password;
+    delete sanitized.pin;
     await setDoc(userRef, sanitized, { merge: true });
   } catch (err) {
     console.warn('Failed to save user to Firestore:', err);
@@ -438,7 +449,7 @@ export async function getUserFromFirestore(uid: string): Promise<UserProfile | n
     const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, uid);
     const snap = await getDoc(userRef);
     if (snap.exists()) {
-      return snap.data() as UserProfile;
+      return await decryptUserPiiFromStorage(snap.data() as UserProfile);
     }
     return null;
   } catch (err) {
@@ -458,7 +469,7 @@ export async function getAllUsersFromFirestore(): Promise<UserProfile[]> {
     snap.forEach((docSnap) => {
       list.push(docSnap.data() as UserProfile);
     });
-    return list;
+    return await Promise.all(list.map((u) => decryptUserPiiFromStorage(u)));
   } catch (err) {
     console.warn('Failed to fetch users from Firestore:', err);
     return [];
@@ -475,7 +486,9 @@ export function subscribeToUsers(onUpdate: (users: UserProfile[]) => void) {
     (snap) => {
       const list: UserProfile[] = [];
       snap.forEach((d) => list.push(d.data() as UserProfile));
-      onUpdate(list);
+      Promise.all(list.map((u) => decryptUserPiiFromStorage(u)))
+        .then((decrypted) => onUpdate(decrypted))
+        .catch(() => onUpdate(list));
     },
     (err) => console.warn('Firestore Users subscription notice:', err)
   );
@@ -1415,14 +1428,20 @@ export async function saveAuthCredentialToFirestore(entry: {
   uid: string;
   email: string;
   password?: string;
+  passwordHash?: string;
   studentId?: string;
   alumniId?: string;
   employeeId?: string;
   role: string;
   isVerified?: boolean;
+  verificationExpiresAt?: string;
 }): Promise<void> {
-  if (!entry.uid || !entry.password) return;
+  const rawSecret = entry.passwordHash || entry.password;
+  if (!entry.uid || !rawSecret) return;
   try {
+    const resolvedHash = isSaltedSecretHash(rawSecret)
+      ? rawSecret
+      : await hashSecretClient(rawSecret);
     const userSecRef = doc(db, 'users', entry.uid, 'security', 'vault');
     await setDoc(
       userSecRef,
@@ -1432,15 +1451,80 @@ export async function saveAuthCredentialToFirestore(entry: {
         studentId: entry.studentId || '',
         alumniId: entry.alumniId || '',
         employeeId: entry.employeeId || '',
-        password: entry.password,
+        passwordHash: resolvedHash,
+        password: deleteField(),
+        pin: deleteField(),
         role: entry.role,
         isVerified: !!entry.isVerified,
+        ...(entry.verificationExpiresAt ? { verificationExpiresAt: entry.verificationExpiresAt } : {}),
         updatedAt: new Date().toISOString()
       },
       { merge: true }
     );
   } catch (err) {
     console.warn('Failed to save auth credential record to Firestore:', err);
+  }
+}
+
+export async function deleteAuthCredentialInFirestore(uid: string): Promise<void> {
+  if (!uid) return;
+  try {
+    const userSecRef = doc(db, 'users', uid, 'security', 'vault');
+    await deleteDoc(userSecRef);
+  } catch (err) {
+    console.warn('Failed to delete auth credential record from Firestore:', err);
+  }
+}
+
+export async function saveRejectedBlockToFirestore(block: AnonymizedRejectedBlock): Promise<void> {
+  if (!block?.id) return;
+  try {
+    const blockRef = doc(db, FIRESTORE_COLLECTIONS.REJECTED_BLOCKS, block.id);
+    const sanitized = JSON.parse(JSON.stringify({ ...block, piiPurged: true }));
+    await setDoc(blockRef, sanitized, { merge: true });
+  } catch (err) {
+    console.warn('Failed to save anonymized rejected block to Firestore:', err);
+  }
+}
+
+export async function getRejectedBlocksFromFirestore(): Promise<AnonymizedRejectedBlock[]> {
+  try {
+    const colRef = collection(db, FIRESTORE_COLLECTIONS.REJECTED_BLOCKS);
+    const snap = await getDocs(colRef);
+    const list: AnonymizedRejectedBlock[] = [];
+    snap.forEach((d) => list.push(d.data() as AnonymizedRejectedBlock));
+    return list;
+  } catch (err) {
+    console.warn('Failed to fetch anonymized rejected blocks from Firestore:', err);
+    return [];
+  }
+}
+
+export async function purgeRejectedEmployerInFirestore(
+  uid: string,
+  block?: AnonymizedRejectedBlock
+): Promise<void> {
+  if (block) {
+    await saveRejectedBlockToFirestore(block);
+  }
+  if (!uid) return;
+  await deleteAuthCredentialInFirestore(uid);
+  try {
+    const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, uid);
+    await setDoc(userRef, {
+      uid,
+      name: 'Rejected Applicant (Purged)',
+      role: 'employer',
+      status: 'REJECTED',
+      accountStatus: 'DELETED',
+      employerStatus: 'rejected',
+      isDeleted: true,
+      piiPurged: true,
+      piiPurgedAt: new Date().toISOString(),
+      ...(block?.id ? { anonymizedBlockId: block.id } : {})
+    });
+  } catch (err) {
+    console.warn('Failed to purge rejected employer document in Firestore:', err);
   }
 }
 
@@ -1488,8 +1572,10 @@ export async function syncAllCollectionsToFirestore(payload: {
         if (user.isDeleted || user.accountStatus === 'DELETED' || user.status === 'DELETED') continue;
         try {
           const userRef = doc(db, FIRESTORE_COLLECTIONS.USERS, user.uid);
-          const sanitizedUser = JSON.parse(JSON.stringify(user));
+          const encrypted = await encryptUserPiiForStorage(user);
+          const sanitizedUser = JSON.parse(JSON.stringify(stripPlaintextSecretsFromUser(encrypted)));
           delete sanitizedUser.password;
+          delete sanitizedUser.pin;
           await setDoc(userRef, sanitizedUser, { merge: true });
           syncedCounts.users++;
         } catch (e: any) {

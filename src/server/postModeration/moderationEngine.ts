@@ -48,6 +48,7 @@ import {
   validateAndMergeFeedConfig
 } from '../../config/feedConfig';
 import { sendRealEmail } from '../emailService';
+import { decryptUserPiiFields, encryptUserPiiFields } from '../security/cryptoUtils';
 
 export interface ModerationActor {
   uid: string;
@@ -318,10 +319,14 @@ export class PostModerationEngine {
         const raw = fs.readFileSync(MODERATION_DB_FILE, 'utf-8');
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
+          const loadedProfiles: Record<string, StoredProfileRecord> = {};
+          for (const [uid, prof] of Object.entries(parsed.profiles || {})) {
+            loadedProfiles[uid] = decryptUserPiiFields(prof as StoredProfileRecord);
+          }
           this.state = {
             ...createInitialState(),
             ...parsed,
-            profiles: parsed.profiles || {},
+            profiles: loadedProfiles,
             slugRedirects: parsed.slugRedirects || {},
             postMedia: parsed.postMedia || {},
             config: { ...DEFAULT_MODERATION_CONFIG, ...(parsed.config || {}) },
@@ -344,7 +349,15 @@ export class PostModerationEngine {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      fs.writeFileSync(MODERATION_DB_FILE, JSON.stringify(this.state, null, 2), 'utf-8');
+      const encryptedProfiles: Record<string, StoredProfileRecord> = {};
+      for (const [uid, prof] of Object.entries(this.state.profiles || {})) {
+        encryptedProfiles[uid] = encryptUserPiiFields(prof);
+      }
+      const snapshotToPersist = {
+        ...this.state,
+        profiles: encryptedProfiles
+      };
+      fs.writeFileSync(MODERATION_DB_FILE, JSON.stringify(snapshotToPersist, null, 2), 'utf-8');
     } catch (err) {
       console.warn('[PostModeration] Failed to persist state:', err);
     }
@@ -1862,12 +1875,16 @@ export class PostModerationEngine {
     if (targetUid === 'usr_superadmin_cecilia') {
       throw new ModerationError(403, 'PROTECTED_ACCOUNT', 'The primary Super Administrator account cannot be deleted.');
     }
-    const existing = this.resolveAuthorProfile(targetUid) || this.upsertProfileRecord({
+    const resolved = this.resolveAuthorProfile(targetUid);
+    const existing: StoredProfileRecord = resolved || {
       uid: targetUid,
       name: 'Former Member (Deleted)',
       email: '',
-      role: 'alumni'
-    }, false);
+      role: 'alumni',
+      username: `deleted.${targetUid.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().slice(-8) || 'user'}`,
+      previousUsernames: [],
+      blockedUsers: []
+    };
     const targetRole = normalizeSystemRole(existing.role as string);
     if ((targetRole === 'admin' || targetRole === 'superadmin') && !isSuperAdminRole(actor.role)) {
       throw new ModerationError(403, 'FORBIDDEN', 'Only Super Administrators can delete administrative accounts.');

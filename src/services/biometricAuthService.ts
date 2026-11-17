@@ -13,6 +13,7 @@
 import { Capacitor } from '@capacitor/core';
 import { NativeBiometric, BiometryType } from '@capgo/capacitor-native-biometric';
 import { triggerHaptic } from './hapticsService';
+import { hashSecretClient, isSaltedSecretHash, verifySecretClient } from '../lib/clientCrypto';
 
 // Keystore Server Realm Identifier for St. Cecilia's College
 export const BIOMETRIC_SERVER_KEY = 'edu.stcecilia.alumni.auth';
@@ -525,33 +526,14 @@ export async function verifyCapacitorBiometrics(
 }
 
 /**
- * Simple SHA-256 hash generator for Emergency PIN comparison
+ * Salted PBKDF2-SHA256 hash generator for Emergency PIN storage
  */
 async function hashPin(pin: string): Promise<string> {
-  try {
-    if (typeof crypto !== 'undefined' && crypto?.subtle?.digest) {
-      const enc = new TextEncoder();
-      const data = enc.encode(`st_cecilia_alumni_pin_${pin}`);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-    }
-  } catch {
-    // Non-secure context or crypto error fallback
-  }
-
-  // Resilient fallback hash for non-secure webviews or test environments
-  let hash = 0;
-  const str = `st_cecilia_alumni_pin_${pin}`;
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return `pin_fallback_${Math.abs(hash)}`;
+  return hashSecretClient(pin);
 }
 
 /**
- * Sets or updates the alumnus Campus PIN
+ * Sets or updates the alumnus Campus PIN using a salted PBKDF2 hash
  */
 export async function setCampusPin(pin: string, userId?: string): Promise<boolean> {
   if (!pin || pin.length < 4 || pin.length > 6 || !/^\d+$/.test(pin)) {
@@ -615,7 +597,7 @@ export function resetPinLockout(userId?: string): void {
 }
 
 /**
- * Verifies the entered Campus PIN with brute-force rate limiting
+ * Verifies the entered Campus PIN with salted hash check and brute-force rate limiting
  */
 export async function verifyCampusPin(
   enteredPin: string,
@@ -632,13 +614,40 @@ export async function verifyCampusPin(
     };
   }
 
-  const enteredHash = await hashPin(enteredPin);
-  const defaultHash = await hashPin(DEFAULT_CAMPUS_PIN);
-
   const key = userId ? `${CAMPUS_PIN_STORAGE_KEY}_${userId}` : CAMPUS_PIN_STORAGE_KEY;
-  const storedHash = localStorage.getItem(key) || defaultHash;
+  const storedHash = localStorage.getItem(key);
 
-  if (enteredHash === storedHash || enteredPin === DEFAULT_CAMPUS_PIN) {
+  let isMatch = false;
+  if (storedHash) {
+    if (isSaltedSecretHash(storedHash)) {
+      isMatch = await verifySecretClient(enteredPin, storedHash);
+    } else {
+      // Legacy unsalted SHA-256 PIN check with transparent upgrade to salted PBKDF2
+      try {
+        if (typeof crypto !== 'undefined' && crypto?.subtle?.digest) {
+          const data = new TextEncoder().encode(`st_cecilia_alumni_pin_${enteredPin}`);
+          const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+          const legacyHex = Array.from(new Uint8Array(hashBuffer))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+          isMatch = legacyHex === storedHash;
+        }
+      } catch {}
+      if (isMatch) {
+        const upgraded = await hashPin(enteredPin);
+        localStorage.setItem(key, upgraded);
+      }
+    }
+  } else {
+    // First-time fallback against hashed institutional pin, then persist salted hash
+    const defaultSaltedHash = await hashPin(DEFAULT_CAMPUS_PIN);
+    isMatch = await verifySecretClient(enteredPin, defaultSaltedHash);
+    if (isMatch) {
+      localStorage.setItem(key, defaultSaltedHash);
+    }
+  }
+
+  if (isMatch) {
     resetPinLockout(userId);
     await triggerHaptic('success');
     return { success: true };

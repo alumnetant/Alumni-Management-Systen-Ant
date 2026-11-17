@@ -188,6 +188,7 @@ export interface UserProfile {
   employeeId?: string;
   department?: string;
   password?: string;
+  passwordHash?: string;
   authProvider?: 'password' | 'google' | 'firebase';
   accountType?: 'alumni' | 'employer';
   membershipType?: string; // e.g. "Alumni Council Fellow"
@@ -205,6 +206,11 @@ export interface UserProfile {
   verificationProofName?: string;
   verificationNotes?: string;
   verificationSubmittedAt?: string;
+  verificationExpiresAt?: string;
+  piiEncrypted?: boolean;
+  piiPurged?: boolean;
+  piiPurgedAt?: string;
+  anonymizedBlockId?: string;
   failedLoginAttempts?: number;
   isLocked?: boolean;
   lockedUntil?: string;
@@ -847,11 +853,28 @@ export interface RegistrationConflictRecord {
   severity: 'high' | 'medium' | 'low';
   confidenceScore: number;
   flaggedAt: string;
-  status: 'pending' | 'resolved_verified' | 'resolved_rejected' | 'dismissed';
+  verificationExpiresAt?: string;
+  status: 'pending' | 'resolved_verified' | 'resolved_rejected' | 'dismissed' | 'expired';
   notes: string;
   resolutionNote?: string;
   resolvedAt?: string;
   resolvedBy?: string;
+  piiPurged?: boolean;
+  piiPurgedAt?: string;
+  anonymizedBlockId?: string;
+}
+
+export interface AnonymizedRejectedBlock {
+  id: string;
+  emailHash?: string;
+  companyHash?: string;
+  identifierHash?: string;
+  category: 'employer' | 'alumni_verification' | 'conflict';
+  reason: string;
+  rejectedAt: string;
+  rejectedByRole: string;
+  status: 'REJECTED';
+  piiPurged: true;
 }
 
 // ==========================================

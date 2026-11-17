@@ -1,6 +1,6 @@
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { StudentVerificationRecord, RegistrationConflictRecord, AppNotification } from '../types';
+import { StudentVerificationRecord, RegistrationConflictRecord, AppNotification, AnonymizedRejectedBlock } from '../types';
 import {
   saveRegistryRecordsBatchToFirestore,
   getRegistryRecordsFromFirestore,
@@ -9,16 +9,20 @@ import {
   deleteRegistryRecordFromFirestore,
   saveConflictRecordToFirestore,
   getConflictRecordsFromFirestore,
-  saveNotificationToFirestore
+  saveNotificationToFirestore,
+  saveRejectedBlockToFirestore,
+  getRejectedBlocksFromFirestore
 } from '../lib/firebase';
 import { isAccountDeleted } from '../lib/postVisibility';
 import { generateSecureNumericCode, generateSecureId } from '../lib/secureId';
+import { hashIdentifierDigest, PENDING_VERIFICATION_TTL_MS } from '../lib/clientCrypto';
 
 /**
  * Storage Key for Registrar-uploaded masterlist
  */
 const REGISTRY_STORAGE_KEY = 'st_cecilia_accredited_registry_records';
 const REGISTRY_CONFLICTS_STORAGE_KEY = 'st_cecilia_registry_conflicts';
+const REJECTED_BLOCKS_STORAGE_KEY = 'st_cecilia_rejected_blocks_v1';
 
 /**
  * Official St. Cecilia's College Registrar Archive
@@ -1565,8 +1569,149 @@ export function exportRegistryRecordsToExcel(recordsToExport?: StudentVerificati
 
 export const INITIAL_REGISTRY_CONFLICTS: RegistrationConflictRecord[] = [];
 
+export function getLocalRejectedBlocks(): AnonymizedRejectedBlock[] {
+  try {
+    const raw = localStorage.getItem(REJECTED_BLOCKS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalRejectedBlocks(blocks: AnonymizedRejectedBlock[]): void {
+  try {
+    localStorage.setItem(REJECTED_BLOCKS_STORAGE_KEY, JSON.stringify(blocks));
+  } catch (err) {
+    console.warn('Failed to save anonymized rejected blocks:', err);
+  }
+}
+
+export async function recordLocalRejectedBlock(input: {
+  id?: string;
+  email?: string;
+  companyName?: string;
+  identifier?: string;
+  category: AnonymizedRejectedBlock['category'];
+  reason: string;
+  rejectedByRole?: string;
+}): Promise<AnonymizedRejectedBlock> {
+  const [emailHash, companyHash, identifierHash] = await Promise.all([
+    hashIdentifierDigest(input.email),
+    hashIdentifierDigest(input.companyName),
+    hashIdentifierDigest(input.identifier)
+  ]);
+
+  const block: AnonymizedRejectedBlock = {
+    id: input.id || generateSecureId('blk'),
+    ...(emailHash ? { emailHash } : {}),
+    ...(companyHash ? { companyHash } : {}),
+    ...(identifierHash ? { identifierHash } : {}),
+    category: input.category,
+    reason: String(input.reason || 'Application rejected by institutional administrator.').slice(0, 300),
+    rejectedAt: new Date().toISOString(),
+    rejectedByRole: String(input.rejectedByRole || 'admin'),
+    status: 'REJECTED',
+    piiPurged: true
+  };
+
+  const current = getLocalRejectedBlocks();
+  const updated = [block, ...current.filter((b) => b.id !== block.id)];
+  saveLocalRejectedBlocks(updated);
+  saveRejectedBlockToFirestore(block).catch(() => {});
+  return block;
+}
+
+export async function isBlockedByLocalRejectedRegistry(query: {
+  email?: string;
+  companyName?: string;
+  identifier?: string;
+}): Promise<AnonymizedRejectedBlock | null> {
+  const [qEmail, qCompany, qId] = await Promise.all([
+    hashIdentifierDigest(query.email),
+    hashIdentifierDigest(query.companyName),
+    hashIdentifierDigest(query.identifier)
+  ]);
+
+  let blocks = getLocalRejectedBlocks();
+  try {
+    const cloudBlocks = await getRejectedBlocksFromFirestore();
+    if (cloudBlocks.length > 0) {
+      const mergedMap = new Map<string, AnonymizedRejectedBlock>();
+      blocks.forEach((b) => b?.id && mergedMap.set(b.id, b));
+      cloudBlocks.forEach((b) => b?.id && mergedMap.set(b.id, b));
+      blocks = Array.from(mergedMap.values());
+      saveLocalRejectedBlocks(blocks);
+    }
+  } catch {
+    // Use local cache when offline
+  }
+
+  return (
+    blocks.find((b) => {
+      if (qEmail && b.emailHash && qEmail === b.emailHash) return true;
+      if (qCompany && b.companyHash && qCompany === b.companyHash) return true;
+      if (qId && b.identifierHash && qId === b.identifierHash) return true;
+      return false;
+    }) || null
+  );
+}
+
 /**
- * Retrieves all conflict records
+ * Auto-expires and purges PII from pending verification/conflict requests older than 30 days
+ */
+export function purgeExpiredPendingConflicts(
+  nowMs: number = Date.now(),
+  conflictsInput?: RegistrationConflictRecord[]
+): { conflicts: RegistrationConflictRecord[]; purgedCount: number } {
+  const source = conflictsInput ? [...conflictsInput] : getRegistrationConflicts();
+  let purgedCount = 0;
+  const changedRecords: RegistrationConflictRecord[] = [];
+
+  const updated = source.map((conflict) => {
+    if (!conflict || conflict.status !== 'pending') return conflict;
+    const flaggedTime = new Date(conflict.flaggedAt || 0).getTime();
+    const expiresAtMs = conflict.verificationExpiresAt
+      ? new Date(conflict.verificationExpiresAt).getTime()
+      : (Number.isFinite(flaggedTime) && flaggedTime > 0 ? flaggedTime + PENDING_VERIFICATION_TTL_MS : 0);
+
+    if (expiresAtMs > 0 && nowMs >= expiresAtMs) {
+      purgedCount++;
+      const expiredRecord: RegistrationConflictRecord = {
+        ...conflict,
+        status: 'expired',
+        applicantName: 'Expired Applicant (Purged)',
+        applicantEmail: '',
+        applicantStudentId: undefined,
+        applicantBatch: undefined,
+        applicantCourse: undefined,
+        registryRecord: undefined,
+        notes: 'Verification request expired after 30 days and personal data was automatically purged.',
+        resolutionNote: 'Auto-expired after 30 days without verification approval.',
+        resolvedAt: new Date(nowMs).toISOString(),
+        resolvedBy: 'Automated 30-Day Retention Policy',
+        piiPurged: true,
+        piiPurgedAt: new Date(nowMs).toISOString()
+      };
+      changedRecords.push(expiredRecord);
+      return expiredRecord;
+    }
+    return conflict;
+  });
+
+  if (purgedCount > 0) {
+    saveRegistrationConflicts(updated, true);
+    changedRecords.forEach((rec) => {
+      saveConflictRecordToFirestore(rec).catch(() => {});
+    });
+  }
+
+  return { conflicts: updated, purgedCount };
+}
+
+/**
+ * Retrieves all conflict records (enforcing 30-day pending expiry sweep)
  */
 export function getRegistrationConflicts(): RegistrationConflictRecord[] {
   try {
@@ -1576,8 +1721,9 @@ export function getRegistrationConflicts(): RegistrationConflictRecord[] {
     }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    // Sanitize out old mock conflict records if previously stored in browser
-    return parsed.filter((c) => c && !['conflict_01', 'conflict_02', 'conflict_03', 'conflict_04'].includes(c.id));
+    const cleaned = parsed.filter((c) => c && !['conflict_01', 'conflict_02', 'conflict_03', 'conflict_04'].includes(c.id));
+    const { conflicts } = purgeExpiredPendingConflicts(Date.now(), cleaned);
+    return conflicts;
   } catch (err) {
     console.warn('Error reading registry conflicts from storage:', err);
     return [];
@@ -1612,10 +1758,11 @@ export function mergeCloudConflictsWithLocal(cloudConflicts: RegistrationConflic
     if (c && c.id) map.set(c.id, c);
   });
 
-  const merged = Array.from(map.values()).sort(
+  const sorted = Array.from(map.values()).sort(
     (a, b) => new Date(b.flaggedAt || 0).getTime() - new Date(a.flaggedAt || 0).getTime()
   );
 
+  const { conflicts: merged } = purgeExpiredPendingConflicts(Date.now(), sorted);
   saveRegistrationConflicts(merged, true);
   return merged;
 }
@@ -1627,10 +1774,12 @@ export function addRegistrationConflict(
   data: Omit<RegistrationConflictRecord, 'id' | 'flaggedAt' | 'status'>
 ): RegistrationConflictRecord {
   const current = getRegistrationConflicts();
+  const nowMs = Date.now();
   const newConflict: RegistrationConflictRecord = {
     ...data,
     id: generateSecureId('conflict'),
-    flaggedAt: new Date().toISOString(),
+    flaggedAt: new Date(nowMs).toISOString(),
+    verificationExpiresAt: data.verificationExpiresAt || new Date(nowMs + PENDING_VERIFICATION_TTL_MS).toISOString(),
     status: 'pending'
   };
 
@@ -1658,7 +1807,7 @@ export function addRegistrationConflict(
       : `${newConflict.applicantName} (${newConflict.applicantEmail}) submitted an ownership dispute for Student ID ${newConflict.applicantStudentId || 'N/A'}.`,
     refId: newConflict.id,
     read: false,
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(nowMs).toISOString(),
     metadata: {
       targetRole: 'moderator',
       conflictId: newConflict.id,
@@ -1689,10 +1838,11 @@ export async function syncRegistrationConflictsWithFirestore(): Promise<Registra
       if (c && c.id) map.set(c.id, c);
     });
 
-    const merged = Array.from(map.values()).sort(
+    const sorted = Array.from(map.values()).sort(
       (a, b) => new Date(b.flaggedAt || 0).getTime() - new Date(a.flaggedAt || 0).getTime()
     );
 
+    const { conflicts: merged } = purgeExpiredPendingConflicts(Date.now(), sorted);
     saveRegistrationConflicts(merged);
     return merged;
   } catch (err) {
@@ -1702,7 +1852,8 @@ export async function syncRegistrationConflictsWithFirestore(): Promise<Registra
 }
 
 /**
- * Resolves a conflict entry
+ * Resolves a conflict entry.
+ * On rejection (`resolved_rejected`), immediately purges personal applicant PII and stores an anonymized block record.
  */
 export function resolveConflictRecord(
   conflictId: string,
@@ -1716,13 +1867,43 @@ export function resolveConflictRecord(
   const existing = index !== -1 ? current[index] : conflictFallback;
   if (!existing) return false;
 
-  const updatedConflict: RegistrationConflictRecord = {
+  const nowIso = new Date().toISOString();
+  let updatedConflict: RegistrationConflictRecord = {
     ...existing,
     status: decision,
-    resolvedAt: new Date().toISOString(),
+    resolvedAt: nowIso,
     resolvedBy,
     resolutionNote: resolutionNote || `Marked as ${decision} by ${resolvedBy}`
   };
+
+  if (decision === 'resolved_rejected') {
+    const blockId = generateSecureId('blk');
+    const blockCategory = existing.conflictType === 'manual_verification_request' || existing.conflictType === 'unlisted_record'
+      ? 'alumni_verification'
+      : 'conflict';
+    recordLocalRejectedBlock({
+      id: blockId,
+      email: existing.applicantEmail,
+      identifier: existing.applicantStudentId,
+      category: blockCategory,
+      reason: resolutionNote || `Verification rejected by ${resolvedBy}`,
+      rejectedByRole: resolvedBy
+    }).catch(() => {});
+
+    updatedConflict = {
+      ...updatedConflict,
+      applicantName: 'Rejected Applicant (Purged)',
+      applicantEmail: '',
+      applicantStudentId: undefined,
+      applicantBatch: undefined,
+      applicantCourse: undefined,
+      registryRecord: undefined,
+      notes: 'Personal applicant data purged upon rejection.',
+      piiPurged: true,
+      piiPurgedAt: nowIso,
+      anonymizedBlockId: blockId
+    };
+  }
 
   if (index !== -1) {
     current[index] = updatedConflict;

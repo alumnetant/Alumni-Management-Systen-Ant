@@ -477,7 +477,7 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     }
   });
 
-  router.delete('/profiles/me', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+  const handleDeleteSelf = (req: Request, res: Response) => {
     try {
       const actor = toActor(req);
       const result = engine.deleteAndAnonymizeAccount(actor.uid, actor);
@@ -485,22 +485,41 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     } catch (err) {
       handleError(err, res);
     }
-  });
+  };
+
+  const handleDeleteTarget = (req: Request, res: Response) => {
+    try {
+      const actor = toActor(req);
+      const result = engine.deleteAndAnonymizeAccount(req.params.targetUid, actor);
+      res.json(result);
+    } catch (err) {
+      handleError(err, res);
+    }
+  };
+
+  router.delete('/profiles/me', deps.requireServerAuth, requireCsrf, handleDeleteSelf);
+  router.post('/profiles/me/delete', deps.requireServerAuth, requireCsrf, handleDeleteSelf);
 
   router.delete(
     '/profiles/:targetUid',
     deps.requireServerAuth,
     deps.requireRole(['admin', 'superadmin']),
     requireCsrf,
-    (req: Request, res: Response) => {
-      try {
-        const actor = toActor(req);
-        const result = engine.deleteAndAnonymizeAccount(req.params.targetUid, actor);
-        res.json(result);
-      } catch (err) {
-        handleError(err, res);
-      }
-    }
+    handleDeleteTarget
+  );
+  router.post(
+    '/profiles/:targetUid/delete',
+    deps.requireServerAuth,
+    deps.requireRole(['admin', 'superadmin']),
+    requireCsrf,
+    handleDeleteTarget
+  );
+  router.post(
+    '/admin/users/:targetUid/delete',
+    deps.requireServerAuth,
+    deps.requireRole(['admin', 'superadmin']),
+    requireCsrf,
+    handleDeleteTarget
   );
 
   // -------------------------------------------------------------------------

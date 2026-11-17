@@ -105,6 +105,10 @@ import {
   subscribeToGalleryItems,
   saveAuthCredentialToFirestore,
   getAuthCredentialFromFirestore,
+  deleteAuthCredentialInFirestore,
+  saveRejectedBlockToFirestore,
+  getRejectedBlocksFromFirestore,
+  purgeRejectedEmployerInFirestore,
   purgeAllFirestoreSampleData,
   testFirestoreWriteSync,
   purgeUserPostsAndCommentsInFirestore,
@@ -118,8 +122,20 @@ import {
   normalizeStudentId,
   syncRegistrarRecordsWithFirestore,
   syncRegistrationConflictsWithFirestore,
-  generateAlumniId
+  generateAlumniId,
+  recordLocalRejectedBlock,
+  isBlockedByLocalRejectedRegistry,
+  purgeExpiredPendingConflicts
 } from '../services/studentVerificationService';
+import {
+  hashSecretClient,
+  verifySecretClient,
+  isSaltedSecretHash,
+  encryptUserPiiForStorage,
+  decryptUserPiiFromStorage,
+  stripPlaintextSecretsFromUser,
+  PENDING_VERIFICATION_TTL_MS
+} from '../lib/clientCrypto';
 import {
   DEFAULT_USER_AVATAR,
   DEFAULT_COVER_PHOTO,
@@ -306,7 +322,7 @@ interface AlumniContextType {
   changePassword: (
     oldOrNewPass: string,
     newPass?: string
-  ) => { success: boolean; message?: string } | boolean;
+  ) => Promise<{ success: boolean; message?: string } | boolean> | { success: boolean; message?: string } | boolean;
 
   // Profile
   updateProfile: (data: Partial<UserProfile>) => void;
@@ -598,10 +614,51 @@ export interface StoredCredentialEntry {
   alumniId?: string;
   employeeId?: string;
   password?: string;
+  passwordHash?: string;
   role: string;
   isVerified: boolean;
+  verificationExpiresAt?: string;
   profilePictureUrl?: string;
   coverPhotoUrl?: string;
+}
+
+const pendingVaultHashPromises = new Map<string, Promise<void>>();
+let usersStorageWriteSeq = 0;
+
+export function isPendingAccountExpired(u: Partial<UserProfile> | null | undefined, nowMs: number = Date.now()): boolean {
+  if (!u) return false;
+  if (u.isVerified || u.verified) return false;
+  const role = (u.role || 'alumni').toLowerCase().trim();
+  if (['admin', 'superadmin', 'moderator'].includes(role)) return false;
+  if (u.employerStatus === 'approved' || u.employerVerificationStatus === 'verified') return false;
+  const acctStatus = (u.accountStatus || u.status || '').toUpperCase().trim();
+  const isPending =
+    acctStatus === 'PENDING_VERIFICATION' ||
+    u.verificationStatus === 'pending_review' ||
+    (role === 'employer' && ['pending', 'pending_verification', ''].includes(u.employerStatus || ''));
+  if (!isPending) return false;
+
+  const createdMs = u.createdAt ? new Date(u.createdAt).getTime() : 0;
+  const expiresMs = u.verificationExpiresAt
+    ? new Date(u.verificationExpiresAt).getTime()
+    : (Number.isFinite(createdMs) && createdMs > 0 ? createdMs + PENDING_VERIFICATION_TTL_MS : 0);
+  return expiresMs > 0 && nowMs >= expiresMs;
+}
+
+export function persistUsersSafe(list: UserProfile[]): void {
+  const cleaned = (list || []).map((u) => stripPlaintextSecretsFromUser(u));
+  const seq = ++usersStorageWriteSeq;
+  try {
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(cleaned));
+  } catch {}
+  Promise.all(cleaned.map((u) => encryptUserPiiForStorage(u)))
+    .then((encrypted) => {
+      if (seq !== usersStorageWriteSeq) return;
+      try {
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(encrypted));
+      } catch {}
+    })
+    .catch(() => {});
 }
 
 export function getStoredCredentialsVault(): Record<string, StoredCredentialEntry> {
@@ -613,43 +670,86 @@ export function getStoredCredentialsVault(): Record<string, StoredCredentialEntr
   }
 }
 
+function writeVaultEntryToStorage(entry: StoredCredentialEntry): void {
+  const vault = getStoredCredentialsVault();
+  const safeEntry: StoredCredentialEntry = { ...entry };
+  delete safeEntry.password;
+  if (safeEntry.uid) vault[safeEntry.uid] = safeEntry;
+  if (safeEntry.email) vault[safeEntry.email.toLowerCase()] = safeEntry;
+  if (safeEntry.studentId) {
+    const sLower = safeEntry.studentId.toLowerCase();
+    const sNorm = sLower.replace(/[^a-zA-Z0-9]/g, '');
+    const sClean = sLower.replace(/^scc-?/i, '');
+    vault[sLower] = safeEntry;
+    vault[sNorm] = safeEntry;
+    vault[sClean] = safeEntry;
+    vault[`scc-${sClean}`] = safeEntry;
+    vault[`scc${sNorm}`] = safeEntry;
+  }
+  if (safeEntry.alumniId) {
+    const aLower = safeEntry.alumniId.toLowerCase();
+    const aNorm = aLower.replace(/[^a-zA-Z0-9]/g, '');
+    const aClean = aLower.replace(/^scc-alum-?/i, '').replace(/^scc-?/i, '');
+    vault[aLower] = safeEntry;
+    vault[aNorm] = safeEntry;
+    vault[aClean] = safeEntry;
+  }
+  if (safeEntry.employeeId) {
+    const eLower = safeEntry.employeeId.toLowerCase();
+    const eClean = eLower.replace(/^scc-?/i, '');
+    vault[eLower] = safeEntry;
+    vault[eClean] = safeEntry;
+    vault[`scc-${eClean}`] = safeEntry;
+  }
+  localStorage.setItem(CREDENTIALS_VAULT_KEY, JSON.stringify(vault));
+}
+
 export function saveCredentialToVault(entry: StoredCredentialEntry) {
   try {
     if (entry.uid && getDeletedAccountUids().has(entry.uid)) {
       return;
     }
-    const vault = getStoredCredentialsVault();
-    if (entry.uid) vault[entry.uid] = entry;
-    if (entry.email) vault[entry.email.toLowerCase()] = entry;
-    if (entry.studentId) {
-      const sLower = entry.studentId.toLowerCase();
-      const sNorm = sLower.replace(/[^a-zA-Z0-9]/g, '');
-      const sClean = sLower.replace(/^scc-?/i, '');
-      vault[sLower] = entry;
-      vault[sNorm] = entry;
-      vault[sClean] = entry;
-      vault[`scc-${sClean}`] = entry;
-      vault[`scc${sNorm}`] = entry;
-    }
-    if (entry.alumniId) {
-      const aLower = entry.alumniId.toLowerCase();
-      const aNorm = aLower.replace(/[^a-zA-Z0-9]/g, '');
-      const aClean = aLower.replace(/^scc-alum-?/i, '').replace(/^scc-?/i, '');
-      vault[aLower] = entry;
-      vault[aNorm] = entry;
-      vault[aClean] = entry;
-    }
-    if (entry.employeeId) {
-      const eLower = entry.employeeId.toLowerCase();
-      const eClean = eLower.replace(/^scc-?/i, '');
-      vault[eLower] = entry;
-      vault[eClean] = entry;
-      vault[`scc-${eClean}`] = entry;
-    }
-    localStorage.setItem(CREDENTIALS_VAULT_KEY, JSON.stringify(vault));
-    // Cross-environment synchronization: also persist credential record to shared Firestore database
-    if (entry.uid && entry.password) {
-      saveAuthCredentialToFirestore(entry).catch(() => {});
+    const existingVault = getStoredCredentialsVault();
+    const existingHash =
+      entry.passwordHash ||
+      (entry.uid ? existingVault[entry.uid]?.passwordHash : undefined) ||
+      (entry.email ? existingVault[entry.email.toLowerCase()]?.passwordHash : undefined);
+
+    const immediateEntry: StoredCredentialEntry = {
+      ...entry,
+      ...(existingHash ? { passwordHash: existingHash } : {})
+    };
+    delete immediateEntry.password;
+    writeVaultEntryToStorage(immediateEntry);
+
+    const rawSecret = entry.passwordHash || entry.password;
+    if (!rawSecret) return;
+
+    const hashPromise = (async () => {
+      try {
+        const resolvedHash = isSaltedSecretHash(rawSecret)
+          ? rawSecret
+          : await hashSecretClient(rawSecret);
+        if (entry.uid && getDeletedAccountUids().has(entry.uid)) return;
+        const finalizedEntry: StoredCredentialEntry = {
+          ...entry,
+          passwordHash: resolvedHash
+        };
+        delete finalizedEntry.password;
+        writeVaultEntryToStorage(finalizedEntry);
+        if (finalizedEntry.uid && finalizedEntry.passwordHash) {
+          saveAuthCredentialToFirestore(finalizedEntry).catch(() => {});
+        }
+      } catch {}
+    })();
+
+    if (entry.uid) {
+      pendingVaultHashPromises.set(entry.uid, hashPromise);
+      hashPromise.finally(() => {
+        if (pendingVaultHashPromises.get(entry.uid) === hashPromise) {
+          pendingVaultHashPromises.delete(entry.uid);
+        }
+      });
     }
   } catch {}
 }
@@ -935,7 +1035,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const deletedUids = getDeletedAccountUids();
       purgeDeletedUidsFromVaultAndStorage(deletedUids);
 
-      // Seed initial superadmin into vault
+      // Seed initial superadmin into vault (salted PBKDF2 hash only)
       INITIAL_USERS.forEach((seedUser) => {
         if (deletedUids.has(seedUser.uid)) return;
         saveCredentialToVault({
@@ -952,10 +1052,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       });
 
       const saved = localStorage.getItem(STORAGE_KEYS.USERS);
-      let list: UserProfile[] = saved ? JSON.parse(saved) : INITIAL_USERS;
-      if (!Array.isArray(list)) list = INITIAL_USERS;
+      let list: UserProfile[] = saved ? JSON.parse(saved) : INITIAL_USERS.map((u) => stripPlaintextSecretsFromUser(u));
+      if (!Array.isArray(list)) list = INITIAL_USERS.map((u) => stripPlaintextSecretsFromUser(u));
 
-      // Filter out all obsolete legacy mock accounts, previous accounts, and soft-deleted accounts
       const PREVIOUS_DEPRECATED_UIDS = [
         'usr_superadmin_01',
         'usr_admin_01',
@@ -974,64 +1073,82 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           !u.uid.startsWith('usr_canonigo') &&
           !PREVIOUS_DEPRECATED_UIDS.includes(u.uid) &&
           !deletedUids.has(u.uid) &&
-          !isAccountDeleted(u)
+          !isAccountDeleted(u) &&
+          !isPendingAccountExpired(u)
       );
 
-      // If list does not contain new official accounts, reset strictly to INITIAL_USERS
       if (list.length === 0 || !list.some(u => u.uid === 'usr_superadmin_cecilia')) {
-        list = [...INITIAL_USERS];
+        list = INITIAL_USERS.map((u) => stripPlaintextSecretsFromUser(u));
       }
 
-      // Always sanitize experience and education arrays, and normalize roles to official 5 roles
-      list = list.map((u) => ({
-        ...u,
-        role: normalizeSystemRole(u.role),
-        experience: Array.isArray(u.experience) ? u.experience : [],
-        education: Array.isArray(u.education) ? u.education : []
-      }));
+      // Sanitize arrays, normalize roles, and migrate any legacy plaintext password from cached users into vault hash
+      list = list.map((u) => {
+        if ((u as any).password && !u.passwordHash) {
+          saveCredentialToVault({
+            uid: u.uid,
+            name: u.name,
+            email: u.email,
+            studentId: u.studentId,
+            alumniId: u.alumniId,
+            employeeId: u.employeeId,
+            password: (u as any).password,
+            role: u.role,
+            isVerified: Boolean(u.isVerified)
+          });
+        }
+        return stripPlaintextSecretsFromUser({
+          ...u,
+          role: normalizeSystemRole(u.role),
+          experience: Array.isArray(u.experience) ? u.experience : [],
+          education: Array.isArray(u.education) ? u.education : []
+        });
+      });
 
-      // Synchronize/backfill official studentId, alumniId, and passwords from INITIAL_USERS and vault into cached profiles
       const vault = getStoredCredentialsVault();
       INITIAL_USERS.forEach((seedUser) => {
         if (deletedUids.has(seedUser.uid)) return;
+        const safeSeed = stripPlaintextSecretsFromUser(seedUser);
         const existingIdx = list.findIndex(
           (u) => u.uid === seedUser.uid || (seedUser.email && u.email?.toLowerCase() === seedUser.email.toLowerCase())
         );
         if (existingIdx >= 0) {
-          list[existingIdx] = {
-            ...seedUser,
+          list[existingIdx] = stripPlaintextSecretsFromUser({
+            ...safeSeed,
             ...list[existingIdx],
+            role: seedUser.role,
             studentId: list[existingIdx].studentId || seedUser.studentId,
             alumniId: list[existingIdx].alumniId || seedUser.alumniId,
-            password: list[existingIdx].password || seedUser.password || 'Password123!',
-            isVerified: list[existingIdx].isVerified ?? true,
-            verified: list[existingIdx].verified ?? true
-          };
+            isVerified: true,
+            verified: true
+          });
         } else {
-          list.push(seedUser);
+          list.push(safeSeed);
         }
       });
 
-      // Attach passwords and verification from vault to any user in list
+      // Attach passwordHash & verification from vault (never plaintext passwords)
       list = list.map((u) => {
         const cred = vault[u.uid] || (u.email ? vault[u.email.toLowerCase()] : null) || (u.studentId ? vault[u.studentId.toLowerCase()] : null);
-        return {
+        if (cred?.password && !cred.passwordHash) {
+          saveCredentialToVault(cred);
+        }
+        return stripPlaintextSecretsFromUser({
           ...u,
-          password: u.password || cred?.password || (INITIAL_USERS.find(iu => iu.uid === u.uid || iu.email?.toLowerCase() === u.email?.toLowerCase())?.password) || 'Password123!',
+          ...(u.passwordHash || cred?.passwordHash ? { passwordHash: u.passwordHash || cred?.passwordHash } : {}),
           isVerified: u.isVerified !== undefined ? u.isVerified : (u.role === 'alumni' ? true : false),
           verified: u.verified !== undefined ? u.verified : (u.role === 'alumni' ? true : false)
-        };
+        });
       });
 
-      // Restore any registered active users from credentials vault if they're not in list
+      // Restore any registered active users from credentials vault if missing from list
       Object.values(vault).forEach((entry) => {
         if (!entry?.uid || deletedUids.has(entry.uid)) return;
         if (!list.some(u => u.uid === entry.uid || (entry.email && u.email?.toLowerCase() === entry.email.toLowerCase()))) {
-          list.push({
+          list.push(stripPlaintextSecretsFromUser({
             uid: entry.uid,
             name: entry.name || 'Alumnus Member',
             email: entry.email,
-            password: entry.password || 'Password123!',
+            ...(entry.passwordHash ? { passwordHash: entry.passwordHash } : {}),
             role: (entry.role as UserRole) || 'alumni',
             studentId: entry.studentId,
             alumniId: entry.alumniId,
@@ -1040,9 +1157,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             coverPhotoUrl: entry.coverPhotoUrl || DEFAULT_COVER_PHOTO,
             about: 'Registered member of St. Cecilia’s College alumni network.',
             phone: '+63 917 123 4567',
-            isVerified: true,
-            verified: true,
-            verificationStatus: 'verified',
+            isVerified: entry.isVerified ?? true,
+            verified: entry.isVerified ?? true,
+            verificationStatus: entry.isVerified ? 'verified' : 'pending_review',
+            verificationExpiresAt: entry.verificationExpiresAt,
             batch: '2024',
             course: 'B.S. Information Technology',
             headline: 'Alumni Graduate • St. Cecilia’s College',
@@ -1053,37 +1171,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             experience: [],
             education: [],
             createdAt: new Date().toISOString()
-          });
+          }));
         }
       });
 
-      // Guarantee all official role accounts from INITIAL_USERS are actively present
-      INITIAL_USERS.forEach((seedUser) => {
-        if (deletedUids.has(seedUser.uid)) return;
-        const existingIdx = list.findIndex(
-          (u) => u.uid === seedUser.uid || (seedUser.email && u.email?.toLowerCase() === seedUser.email.toLowerCase())
-        );
-        if (existingIdx >= 0) {
-          list[existingIdx] = {
-            ...seedUser,
-            ...list[existingIdx],
-            role: seedUser.role,
-            password: seedUser.password || 'Password123!',
-            isVerified: true,
-            verified: true
-          };
-        } else {
-          list.push(seedUser);
-        }
-      });
-
-      const finalCleanList = list.filter((u) => !deletedUids.has(u.uid) && !isAccountDeleted(u));
-      try {
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(finalCleanList));
-      } catch {}
+      const finalCleanList = list
+        .filter((u) => !deletedUids.has(u.uid) && !isAccountDeleted(u) && !isPendingAccountExpired(u))
+        .map((u) => stripPlaintextSecretsFromUser(u));
+      persistUsersSafe(finalCleanList);
       return finalCleanList;
     } catch {
-      return INITIAL_USERS;
+      return INITIAL_USERS.map((u) => stripPlaintextSecretsFromUser(u));
     }
   });
 
@@ -1797,26 +1895,24 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               });
 
               (firestoreUsers || []).forEach((fUser) => {
-                if (allDeletedSet.has(fUser.uid) || isAccountDeleted(fUser)) {
+                if (allDeletedSet.has(fUser.uid) || isAccountDeleted(fUser) || isPendingAccountExpired(fUser)) {
                   userMap.delete(fUser.uid);
                   return;
                 }
                 const existing = userMap.get(fUser.uid);
                 const cred = vault[fUser.uid] || (fUser.email ? vault[fUser.email.toLowerCase()] : null);
-                const preservedPassword = existing?.password || fUser.password || cred?.password || 'Password123!';
-                userMap.set(fUser.uid, {
+                const preservedHash = existing?.passwordHash || fUser.passwordHash || cred?.passwordHash;
+                userMap.set(fUser.uid, stripPlaintextSecretsFromUser({
                   ...fUser,
                   role: normalizeSystemRole(fUser.role),
-                  password: preservedPassword,
+                  ...(preservedHash ? { passwordHash: preservedHash } : {}),
                   isVerified: fUser.isVerified !== undefined ? fUser.isVerified : (existing?.isVerified ?? (fUser.role === 'alumni')),
                   verified: fUser.verified !== undefined ? fUser.verified : (existing?.verified ?? (fUser.role === 'alumni'))
-                });
+                }));
               });
 
               const merged = Array.from(userMap.values());
-              try {
-                localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(merged));
-              } catch {}
+              persistUsersSafe(merged);
               return merged;
             });
           }
@@ -1934,10 +2030,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           ]);
           if (freshUser) {
             setUsers((prev) => {
-              const updated = prev.map((u) => (u.uid === currentUserId ? { ...u, ...freshUser } : u));
-              try {
-                localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
-              } catch {}
+              const updated = prev.map((u) => (u.uid === currentUserId ? stripPlaintextSecretsFromUser({ ...u, ...freshUser }) : u));
+              persistUsersSafe(updated);
               return updated;
             });
           }
@@ -2109,9 +2203,40 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   }, [triggerBackgroundSync]);
 
-  // Sync to localStorage
+  // Decrypt encrypted local PII on mount and enforce 30-day pending retention sweep
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+    let active = true;
+    (async () => {
+      try {
+        purgeExpiredPendingConflicts();
+        const decrypted = await Promise.all(users.map((u) => decryptUserPiiFromStorage(stripPlaintextSecretsFromUser(u))));
+        const expired = decrypted.filter((u) => isPendingAccountExpired(u));
+        if (expired.length > 0) {
+          const expUids = expired.map((u) => u.uid);
+          addDeletedAccountUids(expUids);
+          purgeDeletedUidsFromVaultAndStorage(expUids);
+          expUids.forEach((uid) => {
+            deleteAuthCredentialInFirestore(uid).catch(() => {});
+            alumniService.deleteAlumni(uid).catch(() => {});
+          });
+        }
+        const cleaned = decrypted.filter((u) => !isPendingAccountExpired(u));
+        if (active) {
+          const changed = JSON.stringify(cleaned) !== JSON.stringify(users);
+          if (changed) {
+            setUsers(cleaned);
+          }
+        }
+      } catch {}
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Sync to localStorage with PII encryption and zero plaintext secrets
+  useEffect(() => {
+    persistUsersSafe(users);
   }, [users]);
 
   useEffect(() => {
@@ -2282,9 +2407,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                 clearStoredSession();
                 setUsers((prev) => {
                   const cleaned = prev.filter((u) => !updatedDeleted.has(u.uid) && !isAccountDeleted(u));
-                  try {
-                    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(cleaned));
-                  } catch {}
+                  persistUsersSafe(cleaned);
                   return cleaned;
                 });
                 if (!isCancelled) {
@@ -2324,11 +2447,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const vault = getStoredCredentialsVault();
           const cred = vault[candidateUid] || (candidateEmail ? vault[candidateEmail] : null);
           if (cred && !getDeletedAccountUids().has(cred.uid)) {
-            resolvedUser = {
+            resolvedUser = stripPlaintextSecretsFromUser({
               uid: cred.uid,
               name: cred.name || 'Alumnus Member',
               email: cred.email,
-              password: cred.password || 'Password123!',
+              ...(cred.passwordHash ? { passwordHash: cred.passwordHash } : {}),
               role: (cred.role as UserRole) || 'alumni',
               studentId: cred.studentId,
               alumniId: cred.alumniId,
@@ -2339,7 +2462,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               phone: '+63 917 123 4567',
               isVerified: cred.isVerified ?? true,
               verified: cred.isVerified ?? true,
-              verificationStatus: 'verified',
+              verificationStatus: cred.isVerified ? 'verified' : 'pending_review',
+              verificationExpiresAt: cred.verificationExpiresAt,
               batch: '2024',
               course: 'B.S. Information Technology',
               headline: 'Alumni Graduate • St. Cecilia’s College',
@@ -2350,7 +2474,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               experience: [],
               education: [],
               createdAt: new Date().toISOString()
-            };
+            });
           }
         }
 
@@ -2360,7 +2484,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             (u) => u.uid === candidateUid || (candidateEmail && u.email?.toLowerCase() === candidateEmail)
           );
           if (seedMatch && !getDeletedAccountUids().has(seedMatch.uid)) {
-            resolvedUser = { ...seedMatch };
+            resolvedUser = stripPlaintextSecretsFromUser({ ...seedMatch });
           }
         }
 
@@ -2385,9 +2509,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
 
         // INSTANT ACTIVATION (Offline-First):
-        // If user was resolved locally from storage, vault, or seed, activate session IMMEDIATELY
         if (resolvedUser && !isAccountDeleted(resolvedUser) && !getDeletedAccountUids().has(resolvedUser.uid) && !isCancelled) {
-          const canonicalUser = { ...resolvedUser, uid: normalizeUid(resolvedUser.uid) || resolvedUser.uid };
+          const canonicalUser = stripPlaintextSecretsFromUser({ ...resolvedUser, uid: normalizeUid(resolvedUser.uid) || resolvedUser.uid });
 
           setUsers((prev) => {
             const deleted = getDeletedAccountUids();
@@ -2395,16 +2518,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             const idx = cleanedPrev.findIndex((u) => u.uid === canonicalUser.uid);
             if (idx >= 0) {
               const updated = [...cleanedPrev];
-              updated[idx] = { ...updated[idx], ...canonicalUser };
-              try {
-                localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
-              } catch {}
+              updated[idx] = stripPlaintextSecretsFromUser({ ...updated[idx], ...canonicalUser });
+              persistUsersSafe(updated);
               return updated;
             }
             const newList = [canonicalUser, ...cleanedPrev];
-            try {
-              localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(newList));
-            } catch {}
+            persistUsersSafe(newList);
             return newList;
           });
 
@@ -2412,7 +2531,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           saveActiveSession(canonicalUser, storedToken || undefined);
           setAuthReady(true);
 
-          // Non-blocking background sync with backend server with 3000ms safety timeout
           if (storedToken) {
             apiFetch('/api/auth/session', {
               headers: { Authorization: `Bearer ${storedToken}` }
@@ -2422,7 +2540,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                   const data = await res.json();
                   if (data?.user && !isCancelled) {
                     setUsers((prev) =>
-                      prev.map((u) => (u.uid === canonicalUser.uid ? { ...u, ...data.user } : u))
+                      prev.map((u) => (u.uid === canonicalUser.uid ? stripPlaintextSecretsFromUser({ ...u, ...data.user }) : u))
                     );
                   }
                 } else if (res.status === 401) {
@@ -2434,17 +2552,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                     setCurrentUserId(null);
                     setUsers((prev) => {
                       const next = prev.filter((u) => u.uid !== canonicalUser.uid);
-                      try {
-                        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
-                      } catch {}
+                      persistUsersSafe(next);
                       return next;
                     });
                   }
                 }
               })
-              .catch(() => {
-                // Server offline or APK cold-start: local verified session remains fully valid
-              });
+              .catch(() => {});
           }
           return;
         }
@@ -2580,7 +2694,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           alumniService.getAllAlumni()
         ]);
         const serverDeletedUids: string[] = Array.isArray(deletedRes?.deletedUids) ? deletedRes.deletedUids : [];
-        const firestoreDeletedUids = (firestoreUsers || []).filter((u) => isAccountDeleted(u)).map((u) => u.uid);
+        const firestoreDeletedUids = (firestoreUsers || []).filter((u) => isAccountDeleted(u) || isPendingAccountExpired(u)).map((u) => u.uid);
         const allDeletedSet = addDeletedAccountUids([...serverDeletedUids, ...firestoreDeletedUids]);
         purgeDeletedUidsFromVaultAndStorage(allDeletedSet);
 
@@ -2589,33 +2703,30 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             const vault = getStoredCredentialsVault();
             const userMap = new Map<string, UserProfile>();
             prevUsers.forEach((u) => {
-              if (!allDeletedSet.has(u.uid) && !isAccountDeleted(u)) {
-                userMap.set(u.uid, u);
+              if (!allDeletedSet.has(u.uid) && !isAccountDeleted(u) && !isPendingAccountExpired(u)) {
+                userMap.set(u.uid, stripPlaintextSecretsFromUser(u));
               }
             });
 
-            // Merge incoming non-deleted Firestore users preserving password & verified statuses
             (firestoreUsers || []).forEach((fUser) => {
-              if (allDeletedSet.has(fUser.uid) || isAccountDeleted(fUser)) {
+              if (allDeletedSet.has(fUser.uid) || isAccountDeleted(fUser) || isPendingAccountExpired(fUser)) {
                 userMap.delete(fUser.uid);
                 return;
               }
               const existing = userMap.get(fUser.uid);
               const cred = vault[fUser.uid] || (fUser.email ? vault[fUser.email.toLowerCase()] : null) || (fUser.studentId ? vault[fUser.studentId.toLowerCase()] : null);
-              const preservedPassword = existing?.password || fUser.password || cred?.password || (INITIAL_USERS.find(iu => iu.uid === fUser.uid || iu.email?.toLowerCase() === fUser.email?.toLowerCase())?.password) || 'Password123!';
+              const preservedHash = existing?.passwordHash || fUser.passwordHash || cred?.passwordHash;
 
-              userMap.set(fUser.uid, {
+              userMap.set(fUser.uid, stripPlaintextSecretsFromUser({
                 ...fUser,
-                password: preservedPassword,
+                ...(preservedHash ? { passwordHash: preservedHash } : {}),
                 isVerified: fUser.isVerified !== undefined ? fUser.isVerified : (existing?.isVerified ?? (fUser.role === 'alumni')),
                 verified: fUser.verified !== undefined ? fUser.verified : (existing?.verified ?? (fUser.role === 'alumni'))
-              });
+              }));
             });
 
             const merged = Array.from(userMap.values());
-            try {
-              localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(merged));
-            } catch {}
+            persistUsersSafe(merged);
             return merged;
           });
         }
@@ -2630,7 +2741,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const unsubUsers = alumniService.subscribeToAlumniDirectory(
       (firestoreUsers) => {
         if (isSubscribed && firestoreUsers && firestoreUsers.length > 0) {
-          const firestoreDeletedUids = firestoreUsers.filter((u) => isAccountDeleted(u)).map((u) => u.uid);
+          const firestoreDeletedUids = firestoreUsers.filter((u) => isAccountDeleted(u) || isPendingAccountExpired(u)).map((u) => u.uid);
           const allDeletedSet = addDeletedAccountUids(firestoreDeletedUids);
           purgeDeletedUidsFromVaultAndStorage(allDeletedSet);
 
@@ -2643,33 +2754,30 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             const vault = getStoredCredentialsVault();
             const userMap = new Map<string, UserProfile>();
             prevUsers.forEach((u) => {
-              if (!allDeletedSet.has(u.uid) && !isAccountDeleted(u)) {
-                userMap.set(u.uid, u);
+              if (!allDeletedSet.has(u.uid) && !isAccountDeleted(u) && !isPendingAccountExpired(u)) {
+                userMap.set(u.uid, stripPlaintextSecretsFromUser(u));
               }
             });
 
-            // Merge incoming non-deleted Firestore users preserving password & verified statuses
             firestoreUsers.forEach((fUser) => {
-              if (allDeletedSet.has(fUser.uid) || isAccountDeleted(fUser)) {
+              if (allDeletedSet.has(fUser.uid) || isAccountDeleted(fUser) || isPendingAccountExpired(fUser)) {
                 userMap.delete(fUser.uid);
                 return;
               }
               const existing = userMap.get(fUser.uid);
               const cred = vault[fUser.uid] || (fUser.email ? vault[fUser.email.toLowerCase()] : null) || (fUser.studentId ? vault[fUser.studentId.toLowerCase()] : null);
-              const preservedPassword = existing?.password || fUser.password || cred?.password || (INITIAL_USERS.find(iu => iu.uid === fUser.uid || iu.email?.toLowerCase() === fUser.email?.toLowerCase())?.password) || 'Password123!';
+              const preservedHash = existing?.passwordHash || fUser.passwordHash || cred?.passwordHash;
 
-              userMap.set(fUser.uid, {
+              userMap.set(fUser.uid, stripPlaintextSecretsFromUser({
                 ...fUser,
-                password: preservedPassword,
+                ...(preservedHash ? { passwordHash: preservedHash } : {}),
                 isVerified: fUser.isVerified !== undefined ? fUser.isVerified : (existing?.isVerified ?? (fUser.role === 'alumni')),
                 verified: fUser.verified !== undefined ? fUser.verified : (existing?.verified ?? (fUser.role === 'alumni'))
-              });
+              }));
             });
 
             const merged = Array.from(userMap.values());
-            try {
-              localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(merged));
-            } catch {}
+            persistUsersSafe(merged);
             return merged;
           });
         }
@@ -2769,11 +2877,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const vault = getStoredCredentialsVault();
       const cred = vault[currentUserId];
       if (cred && !deletedUids.has(cred.uid)) {
-        found = {
+        found = stripPlaintextSecretsFromUser({
           uid: cred.uid,
           name: cred.name || 'Alumnus Member',
           email: cred.email,
-          password: cred.password || 'Password123!',
+          ...(cred.passwordHash ? { passwordHash: cred.passwordHash } : {}),
           role: (cred.role as UserRole) || 'alumni',
           studentId: cred.studentId,
           alumniId: cred.alumniId,
@@ -2834,11 +2942,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (cred && !getDeletedAccountUids().has(cred.uid)) {
         setUsers((prev) => {
           if (prev.some((u) => u.uid === currentUserId)) return prev;
-          const recovered: UserProfile = {
+          const recovered: UserProfile = stripPlaintextSecretsFromUser({
             uid: cred.uid,
             name: cred.name || 'Alumnus Member',
             email: cred.email,
-            password: cred.password || 'Password123!',
+            ...(cred.passwordHash ? { passwordHash: cred.passwordHash } : {}),
             role: (cred.role as UserRole) || 'alumni',
             studentId: cred.studentId,
             alumniId: cred.alumniId,
@@ -3327,8 +3435,40 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         })
       });
 
+      if (serverRes.status === 410) {
+        const errorData = await serverRes.json().catch(() => ({}));
+        setUsers((prev) => {
+          const next = prev.filter(
+            (u) =>
+              !(
+                (u.email && u.email.toLowerCase() === trimmed) ||
+                (u.studentId && normalizeStudentId(u.studentId).toLowerCase() === normalizedInputId)
+              )
+          );
+          persistUsersSafe(next);
+          return next;
+        });
+        removeCredentialFromVault({ email: trimmed, studentId: trimmed });
+        showToast(
+          errorData?.error || 'Your pending verification expired after 30 days and your personal data was purged. Please submit a new registration.',
+          'error'
+        );
+        return false;
+      }
+
       if (serverRes.status === 403) {
         const errorData = await serverRes.json();
+
+        if (
+          errorData.code === 'EMPLOYER_REAPPLICATION_BLOCKED' ||
+          errorData.code === 'APPLICATION_PREVIOUSLY_REJECTED'
+        ) {
+          showToast(
+            errorData.error || 'This application was previously rejected and cannot be re-submitted.',
+            'error'
+          );
+          return false;
+        }
 
         if (errorData.code === 'ACCOUNT_SUSPENDED') {
           setLoginSuspensionNotice({
@@ -3422,6 +3562,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
 
       if (serverRes.status === 401) {
+        if (pendingVaultHashPromises.size > 0) {
+          await Promise.all(Array.from(pendingVaultHashPromises.values())).catch(() => {});
+        }
         let deletedUids = getDeletedAccountUids();
         try {
           const delRes = await fetch('/api/auth/deleted-uids');
@@ -3441,13 +3584,33 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             (u.email?.toLowerCase() === trimmed ||
               (u.studentId && normalizeStudentId(u.studentId).toLowerCase() === normalizedInputId))
         );
+        if (localUser && isPendingAccountExpired(localUser)) {
+          setUsers((prev) => {
+            const next = prev.filter((u) => u.uid !== localUser.uid);
+            persistUsersSafe(next);
+            return next;
+          });
+          removeCredentialFromVault({ uid: localUser.uid, email: localUser.email, studentId: localUser.studentId });
+          alumniService.deleteAlumni(localUser.uid).catch(() => {});
+          showToast('Your pending verification expired after 30 days and your personal data was purged. Please submit a new registration.', 'error');
+          return false;
+        }
         const localVault = findCredentialInVault(trimmed);
+        const seedForLocal = INITIAL_USERS.find(
+          (iu) => iu.uid === localUser?.uid || (iu.email && localUser?.email && iu.email.toLowerCase() === localUser.email.toLowerCase())
+        );
+        const candidateSecret =
+          localUser?.passwordHash ||
+          (localVault && !deletedUids.has(localVault.uid) ? localVault.passwordHash || localVault.password : undefined) ||
+          (localUser as any)?.password ||
+          seedForLocal?.password;
+        const localMatches = localUser && candidateSecret ? await verifySecretClient(pass, candidateSecret) : false;
 
-        if (localUser && (localUser.password === pass || (localVault && !deletedUids.has(localVault.uid) && localVault.password === pass))) {
+        if (localUser && localMatches) {
           await fetch('/api/auth/sync-credentials', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ users: [localUser] })
+            body: JSON.stringify({ users: [{ ...stripPlaintextSecretsFromUser(localUser), password: pass }] })
           }).catch(() => {});
 
           const retryRes = await fetch('/api/auth/login', {
@@ -3481,6 +3644,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             }
             setActiveSessionConflict(null);
             setLoginPlatformError(null);
+          } else if (retryRes.status === 410) {
+            const errData = await retryRes.json().catch(() => ({}));
+            setUsers((prev) => {
+              const next = prev.filter((u) => u.uid !== localUser.uid);
+              persistUsersSafe(next);
+              return next;
+            });
+            removeCredentialFromVault({ uid: localUser.uid, email: localUser.email, studentId: localUser.studentId });
+            showToast(errData.error || 'Pending verification expired after 30 days.', 'error');
+            return false;
           } else if (retryRes.status === 403) {
             const errData = await retryRes.json();
             showToast(errData.error || 'Access denied.', 'error');
@@ -3576,6 +3749,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return false;
     });
 
+    if (pendingVaultHashPromises.size > 0) {
+      await Promise.all(Array.from(pendingVaultHashPromises.values())).catch(() => {});
+    }
+
     const vaultCred = findCredentialInVault(trimmed);
     if (!user && vaultCred && !deletedUidsForLookup.has(vaultCred.uid)) {
       user = users.find(
@@ -3590,13 +3767,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (rawSaved) {
             const parsedList: UserProfile[] = JSON.parse(rawSaved);
             if (Array.isArray(parsedList)) {
-              user = parsedList.find(
+              const foundSaved = parsedList.find(
                 (u) =>
                   !isAccountDeleted(u) &&
                   !deletedUidsForLookup.has(u.uid) &&
                   (u.uid === vaultCred.uid || (u.email && u.email.toLowerCase() === vaultCred.email.toLowerCase()))
               );
-              if (user) {
+              if (foundSaved) {
+                user = await decryptUserPiiFromStorage(foundSaved);
                 setUsers((prev) => [user!, ...prev]);
               }
             }
@@ -3607,8 +3785,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     // 4. Strict Password Validation:
     // A correct User ID/email alone must NEVER allow login.
-    // The password must ALWAYS be validated. If the User ID/email is correct but the password
-    // is incorrect, authentication MUST fail. Do not bypass password validation under any circumstance.
+    // The password must ALWAYS be verified via salted PBKDF2 hash.
     if (!user) {
       attemptTracker.count = (attemptTracker.count || 0) + 1;
       failedLoginAttemptsRef.current.set(trimmed, attemptTracker);
@@ -3679,15 +3856,45 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return false;
     }
 
-    let expectedPassword = user.password || vaultCred?.password || (INITIAL_USERS.find(iu => iu.uid === user?.uid || iu.email?.toLowerCase() === user?.email?.toLowerCase())?.password);
-    
-    // Cross-environment database check: if password is not found in local browser memory/vault, check shared Firestore database security vault
-    if (!expectedPassword || pass !== expectedPassword) {
+    if (isPendingAccountExpired(user)) {
+      const expiredUid = user.uid;
+      setUsers((prev) => {
+        const next = prev.filter((u) => u.uid !== expiredUid);
+        persistUsersSafe(next);
+        return next;
+      });
+      removeCredentialFromVault({ uid: expiredUid, email: user.email, studentId: user.studentId });
+      alumniService.deleteAlumni(expiredUid).catch(() => {});
+      showToast('Your pending verification expired after 30 days and your personal data was purged. Please submit a new registration.', 'error');
+      return false;
+    }
+
+    const seedMatch = INITIAL_USERS.find(
+      (iu) => iu.uid === user?.uid || (iu.email && user?.email && iu.email.toLowerCase() === user.email.toLowerCase())
+    );
+    let expectedHashOrSecret: string | undefined =
+      user.passwordHash ||
+      vaultCred?.passwordHash ||
+      vaultCred?.password ||
+      (user as any).password ||
+      seedMatch?.password;
+
+    let passwordMatched = expectedHashOrSecret
+      ? await verifySecretClient(pass, expectedHashOrSecret)
+      : false;
+
+    // Cross-environment database check: check shared Firestore database security vault (salted passwordHash)
+    if (!passwordMatched) {
       try {
         const cloudCred = await getAuthCredentialFromFirestore(user.uid);
-        if (cloudCred && cloudCred.password) {
-          expectedPassword = cloudCred.password;
-          user.password = cloudCred.password;
+        const cloudSecret = cloudCred?.passwordHash || cloudCred?.password;
+        if (cloudSecret && (await verifySecretClient(pass, cloudSecret))) {
+          passwordMatched = true;
+          const resolvedHash = isSaltedSecretHash(cloudSecret)
+            ? cloudSecret
+            : await hashSecretClient(pass);
+          expectedHashOrSecret = resolvedHash;
+          user.passwordHash = resolvedHash;
           saveCredentialToVault({
             uid: user.uid,
             name: user.name,
@@ -3695,8 +3902,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             studentId: user.studentId,
             alumniId: user.alumniId,
             role: user.role,
-            isVerified: user.isVerified,
-            password: cloudCred.password
+            isVerified: Boolean(user.isVerified),
+            passwordHash: resolvedHash
           });
         }
       } catch (err) {
@@ -3704,11 +3911,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
     }
 
-    if (!expectedPassword) {
-      expectedPassword = 'Password123!';
-    }
-
-    if (pass !== expectedPassword) {
+    if (!passwordMatched) {
       attemptTracker.count = (attemptTracker.count || 0) + 1;
       failedLoginAttemptsRef.current.set(trimmed, attemptTracker);
       const attemptTimestamp = new Date().toISOString();
@@ -3918,16 +4121,42 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       user.status = 'ACTIVE';
     }
 
-    // Ensure user profile in memory has the valid password and verified flags
-    const userToSave: UserProfile = {
+    // Ensure user profile in memory holds salted passwordHash (never plaintext password) and verified flags
+    const resolvedPasswordHash =
+      user.passwordHash ||
+      vaultCred?.passwordHash ||
+      (expectedHashOrSecret && isSaltedSecretHash(expectedHashOrSecret) ? expectedHashOrSecret : undefined) ||
+      (await hashSecretClient(pass));
+
+    if (!vaultCred?.passwordHash || !user.passwordHash) {
+      saveCredentialToVault({
+        uid: user.uid,
+        name: user.name,
+        email: user.email,
+        studentId: user.studentId,
+        alumniId: user.alumniId,
+        employeeId: user.employeeId,
+        passwordHash: resolvedPasswordHash,
+        role: user.role,
+        isVerified: user.role === 'alumni' ? true : Boolean(user.isVerified)
+      });
+    }
+
+    const userToSave: UserProfile = stripPlaintextSecretsFromUser({
       ...user,
-      password: expectedPassword,
+      passwordHash: resolvedPasswordHash,
       isVerified: user.role === 'alumni' ? true : user.isVerified,
       verified: user.role === 'alumni' ? true : user.verified,
       verificationStatus: user.role === 'alumni' ? 'verified' : user.verificationStatus,
       lastActiveAt: new Date().toISOString(),
       isOnline: true
-    };
+    });
+
+    setUsers((prev) => {
+      const next = prev.map((u) => (u.uid === userToSave.uid ? userToSave : u));
+      persistUsersSafe(next);
+      return next;
+    });
 
     // 6. Complete login & persist session securely
     saveActiveSession(userToSave, serverAuthToken);
@@ -4001,17 +4230,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           }
         }
         if (!user && authData.user) {
-          user = {
+          user = stripPlaintextSecretsFromUser({
             uid: authData.user.uid,
             name: authData.user.name,
             email: authData.user.email,
             role: authData.user.role,
             isVerified: true,
             verified: true,
-            password: pass,
             studentId: authData.user.studentId,
             alumniId: authData.user.alumniId
-          } as UserProfile;
+          } as UserProfile);
         }
 
         if (user) {
@@ -4246,11 +4474,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const finalName = data.name || verifiedRegistrarRecord?.fullName || (role === 'employer' ? data.companyName || 'Corporate Partner' : 'Cecilian Member');
     const isAlumniVerified = role === 'alumni' ? !isAppealRegistration : Boolean(data.isVerified);
 
-    const newUser: UserProfile = {
+    const rawPassword = data.password || '';
+    const isPendingAccount = !isAlumniVerified || role === 'employer';
+    const verificationExpiresAt = isPendingAccount
+      ? new Date(Date.now() + PENDING_VERIFICATION_TTL_MS).toISOString()
+      : undefined;
+
+    const newUser: UserProfile = stripPlaintextSecretsFromUser({
       uid: newUid,
       name: finalName,
       email: data.email || `${role === 'employer' ? 'careers' : 'alumni'}_${Date.now()}@stcecilia.edu`,
-      password: data.password || 'Password123!',
       role,
       batch: finalBatch,
       course: finalCourse,
@@ -4281,6 +4514,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       verified: isAlumniVerified,
       verificationStatus: isAlumniVerified ? 'verified' : (data.verificationStatus || 'pending_review'),
       accountStatus: isAlumniVerified ? 'ACTIVE' : (data.accountStatus || 'PENDING_VERIFICATION'),
+      ...(verificationExpiresAt ? { verificationExpiresAt } : {}),
       followersCount: 0,
       followingCount: 0,
       connectionsCount: 0,
@@ -4296,37 +4530,97 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
       ],
       createdAt: new Date().toISOString()
+    });
+
+    const rollbackRejectedRegistration = (reasonMsg: string) => {
+      addDeletedAccountUids([newUid]);
+      removeCredentialFromVault({ uid: newUid, email: newUser.email, studentId: newUser.studentId });
+      setUsers((prev) => {
+        const next = prev.filter((u) => u.uid !== newUid);
+        persistUsersSafe(next);
+        return next;
+      });
+      alumniService.deleteAlumni(newUid).catch(() => {});
+      if (currentUserIdRef.current === newUid) {
+        clearStoredSession();
+        setCurrentUserId(null);
+      }
+      showToast(reasonMsg, 'error');
     };
 
-    // Save to credentials vault for resilient sign-in after logout
+    // Hash password with salted PBKDF2 in client vault + attach hash once ready
     saveCredentialToVault({
       uid: newUid,
       name: newUser.name,
       email: newUser.email,
       studentId: newUser.studentId,
       alumniId: newUser.alumniId,
-      password: newUser.password,
+      password: rawPassword,
       role: newUser.role,
-      isVerified: newUser.isVerified
+      isVerified: Boolean(newUser.isVerified),
+      verificationExpiresAt
     });
-
-    // Also register on backend server credentials store
-    fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: newUser.name,
-        email: newUser.email,
-        password: newUser.password,
-        schoolId: newUser.studentId,
-        alumniId: newUser.alumniId,
-        role: newUser.role,
-        companyName: newUser.companyName,
-        formLock: (data as any).formLock
+    hashSecretClient(rawPassword)
+      .then((passwordHash) => {
+        if (getDeletedAccountUids().has(newUid)) return;
+        setUsers((prev) => {
+          const next = prev.map((u) => (u.uid === newUid ? { ...u, passwordHash } : u));
+          persistUsersSafe(next);
+          return next;
+        });
       })
-    }).catch((err) => console.warn('Backend server register notice:', err));
+      .catch(() => {});
 
-    setUsers((prev) => [newUser, ...prev]);
+    // Enforce anonymized rejected-block registry & register on backend server credentials store
+    isBlockedByLocalRejectedRegistry({
+      email: newUser.email,
+      companyName: newUser.companyName,
+      identifier: newUser.studentId
+    })
+      .then((blockHit) => {
+        if (blockHit) {
+          rollbackRejectedRegistration(
+            'This registration matches a previously rejected application and cannot be re-submitted under institutional policy.'
+          );
+          return null;
+        }
+        return fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uid: newUid,
+            name: newUser.name,
+            email: newUser.email,
+            password: rawPassword,
+            schoolId: newUser.studentId,
+            alumniId: newUser.alumniId,
+            role: newUser.role,
+            companyName: newUser.companyName,
+            formLock: (data as any).formLock
+          })
+        });
+      })
+      .then(async (res) => {
+        if (res && res.status === 403) {
+          const errBody = await res.json().catch(() => ({}));
+          if (
+            errBody?.code === 'EMPLOYER_REAPPLICATION_BLOCKED' ||
+            errBody?.code === 'APPLICATION_PREVIOUSLY_REJECTED'
+          ) {
+            rollbackRejectedRegistration(
+              errBody.error ||
+                'This registration was previously rejected and cannot re-apply in accordance with institutional policy.'
+            );
+          }
+        }
+      })
+      .catch((err) => console.warn('Backend server register notice:', err));
+
+    setUsers((prev) => {
+      const next = [newUser, ...prev];
+      persistUsersSafe(next);
+      return next;
+    });
     // Log in immediately only if verified
     if (newUser.isVerified) {
       saveActiveSession(newUser);
@@ -4416,11 +4710,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     const newUid = `user_admin_${Date.now()}`;
-    const newUser: UserProfile = {
+    const rawAdminPassword = data.password || 'Password123!';
+    const newUser: UserProfile = stripPlaintextSecretsFromUser({
       uid: newUid,
       name: data.name || 'New University User',
       email: data.email || `account_${Date.now()}@stcecilia.edu`,
-      password: data.password || 'Password123!',
       role,
       batch: data.batch || (role === 'alumni' ? '2024' : 'N/A'),
       course: data.course || (role === 'alumni' ? 'B.S. Information Technology' : 'Campus Administration & Services'),
@@ -4440,38 +4734,53 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       experience: [],
       education: [],
       createdAt: new Date().toISOString()
-    };
+    });
 
-    setUsers((prev) => [newUser, ...prev]);
+    setUsers((prev) => {
+      const next = [newUser, ...prev];
+      persistUsersSafe(next);
+      return next;
+    });
 
-    // Save to credentials vault for instant login capability
+    // Save salted PBKDF2 hash to credentials vault for instant login capability
     saveCredentialToVault({
       uid: newUid,
       name: newUser.name,
       email: newUser.email,
       studentId: newUser.studentId,
       employeeId: newUser.employeeId,
-      password: newUser.password,
+      password: rawAdminPassword,
       role: newUser.role,
-      isVerified: newUser.isVerified
+      isVerified: Boolean(newUser.isVerified)
     });
+    hashSecretClient(rawAdminPassword)
+      .then((passwordHash) => {
+        if (getDeletedAccountUids().has(newUid)) return;
+        setUsers((prev) => {
+          const next = prev.map((u) => (u.uid === newUid ? { ...u, passwordHash } : u));
+          persistUsersSafe(next);
+          return next;
+        });
+      })
+      .catch(() => {});
 
     alumniService.createAlumni(newUser).catch((err) => {
       console.warn('Error saving admin-created alumni to Firestore:', err);
     });
 
     // Also register on backend server credentials database
-    const token = sessionStorage.getItem('alumni_server_auth_token') || 'dev-admin-session-token';
+    const token = getAuthToken() || (currentUser ? createSessionToken(currentUser) : '');
     fetch('/api/admin/create-user', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
       body: JSON.stringify({
+        uid: newUid,
         name: newUser.name,
         email: newUser.email,
-        password: data.password || 'Password123!',
+        password: rawAdminPassword,
         role: newUser.role,
         department: newUser.department,
         batch: newUser.batch,
@@ -5056,9 +5365,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             purgeDeletedUidsFromVaultAndStorage([currentUserId]);
             setUsers((prev) => {
               const next = prev.filter((u) => u.uid !== currentUserId);
-              try {
-                localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
-              } catch {}
+              persistUsersSafe(next);
               return next;
             });
             logout({ revokeBiometrics: true });
@@ -5113,9 +5420,30 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('No registered account found with that email address.');
       return false;
     }
-    setUsers((prev) =>
-      prev.map((u) => (u.email.toLowerCase() === trimmed ? { ...u, password: newPass } : u))
-    );
+    hashSecretClient(newPass)
+      .then((passwordHash) => {
+        setUsers((prev) => {
+          const next = prev.map((u) =>
+            u.email.toLowerCase() === trimmed
+              ? stripPlaintextSecretsFromUser({ ...u, passwordHash })
+              : u
+          );
+          persistUsersSafe(next);
+          return next;
+        });
+        saveCredentialToVault({
+          uid: targetUser.uid,
+          name: targetUser.name,
+          email: targetUser.email,
+          studentId: targetUser.studentId,
+          alumniId: targetUser.alumniId,
+          passwordHash,
+          role: targetUser.role,
+          isVerified: Boolean(targetUser.isVerified)
+        });
+      })
+      .catch(() => {});
+
     saveCredentialToVault({
       uid: targetUser.uid,
       name: targetUser.name,
@@ -5124,11 +5452,15 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       alumniId: targetUser.alumniId,
       password: newPass,
       role: targetUser.role,
-      isVerified: targetUser.isVerified
+      isVerified: Boolean(targetUser.isVerified)
     });
-    alumniService.updateAlumni(targetUser.uid, { password: newPass }).catch((err) => {
-      console.warn('Error updating password in Firestore:', err);
-    });
+    fetch('/api/auth/sync-credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        users: [{ ...stripPlaintextSecretsFromUser(targetUser), password: newPass }]
+      })
+    }).catch(() => {});
     showToast('Password updated securely. You can now sign in with your new password.');
     return true;
   };
@@ -5146,13 +5478,46 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
     }
 
-    if (getAuthToken()) {
-      const endpoint = mode === 'self' ? '/api/profiles/me' : `/api/profiles/${encodeURIComponent(uidToDelete)}`;
-      const res = await apiFetchWithCsrf(endpoint, { method: 'DELETE' }).catch(() => null);
-      if (res && !res.ok && res.status !== 401 && res.status !== 404) {
-        const d = await res.json().catch(() => null);
-        showToast(d?.error || 'Failed to delete account on server.', 'error');
-        return false;
+    const activeToken = getAuthToken();
+    if (activeToken && isSignedHmacToken(activeToken)) {
+      const deleteEndpoint =
+        mode === 'self'
+          ? '/api/profiles/me'
+          : `/api/profiles/${encodeURIComponent(uidToDelete)}`;
+      const postFallback =
+        mode === 'self'
+          ? '/api/profiles/me/delete'
+          : `/api/admin/users/${encodeURIComponent(uidToDelete)}/delete`;
+
+      let serverRes = await apiFetchWithCsrf(deleteEndpoint, { method: 'DELETE' }).catch(() => null);
+      if (serverRes && serverRes.status === 403) {
+        const d = await serverRes.json().catch(() => null);
+        if (
+          d?.code === 'SUPERADMIN_REQUIRED' ||
+          d?.code === 'CANNOT_DELETE_PRIMARY_SUPERADMIN' ||
+          d?.code === 'FORBIDDEN'
+        ) {
+          showToast(d.error || 'Permission denied to delete this account.', 'error');
+          return false;
+        }
+      }
+
+      if (!serverRes || !serverRes.ok) {
+        const postRes = await apiFetchWithCsrf(postFallback, {
+          method: 'POST',
+          body: JSON.stringify({ targetUid: uidToDelete })
+        }).catch(() => null);
+        if (postRes && postRes.status === 403) {
+          const d = await postRes.json().catch(() => null);
+          if (
+            d?.code === 'SUPERADMIN_REQUIRED' ||
+            d?.code === 'CANNOT_DELETE_PRIMARY_SUPERADMIN' ||
+            d?.code === 'FORBIDDEN'
+          ) {
+            showToast(d.error || 'Permission denied to delete this account.', 'error');
+            return false;
+          }
+        }
       }
     }
 
@@ -5166,9 +5531,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       employeeId: target?.employeeId
     });
 
-    // 2. Soft-delete user profile in Firestore (wipes personal fields & security vault, stores anonymized tombstone)
+    // 2. Soft-delete user profile & delete auth security vault in Firestore (retains anonymized tombstone)
     try {
-      await alumniService.deleteAlumni(uidToDelete);
+      await Promise.allSettled([
+        alumniService.deleteAlumni(uidToDelete),
+        deleteAuthCredentialInFirestore(uidToDelete)
+      ]);
     } catch (err) {
       console.warn('Error soft-deleting user account from Firestore:', err);
     }
@@ -5229,9 +5597,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     // 5. Remove from in-memory directory & localStorage users cache
     setUsers((prev) => {
       const next = prev.filter((u) => u.uid !== uidToDelete);
-      try {
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
-      } catch {}
+      persistUsersSafe(next);
       return next;
     });
 
@@ -5287,10 +5653,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return true;
   };
 
-  const changePassword = (
+  const changePassword = async (
     oldOrNewPass: string,
     newPass?: string
-  ): { success: boolean; message?: string } | boolean => {
+  ): Promise<{ success: boolean; message?: string }> => {
     if (!currentUserId) {
       showToast('No active session found.', 'error');
       return { success: false, message: 'No active session found.' };
@@ -5311,13 +5677,25 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       actualNewPass = oldOrNewPass;
     }
 
-    // Verify current (old) password if user provided old password
-    if (actualOldPass !== undefined) {
-      if (targetUser.password && targetUser.password.trim() !== '') {
-        if (actualOldPass !== targetUser.password) {
-          showToast('The old password you entered is incorrect.', 'error');
-          return { success: false, message: 'The old password you entered is incorrect.' };
-        }
+    if (pendingVaultHashPromises.size > 0) {
+      await Promise.all(Array.from(pendingVaultHashPromises.values())).catch(() => {});
+    }
+
+    const vaultCred = findCredentialInVault(targetUser.email || targetUser.uid);
+    const seedUser = INITIAL_USERS.find((iu) => iu.uid === targetUser.uid);
+    const storedSecret =
+      targetUser.passwordHash ||
+      vaultCred?.passwordHash ||
+      vaultCred?.password ||
+      (targetUser as any).password ||
+      seedUser?.password;
+
+    // Verify current (old) password using PBKDF2 hash comparison
+    if (actualOldPass !== undefined && storedSecret) {
+      const oldValid = await verifySecretClient(actualOldPass, storedSecret);
+      if (!oldValid) {
+        showToast('The old password you entered is incorrect.', 'error');
+        return { success: false, message: 'The old password you entered is incorrect.' };
       }
     }
 
@@ -5331,22 +5709,37 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return { success: false, message: 'New password must be different from your current password.' };
     }
 
-    setUsers((prev) =>
-      prev.map((u) => (u.uid === currentUserId ? { ...u, password: actualNewPass } : u))
-    );
+    const newPasswordHash = await hashSecretClient(actualNewPass);
+
+    setUsers((prev) => {
+      const next = prev.map((u) =>
+        u.uid === currentUserId ? stripPlaintextSecretsFromUser({ ...u, passwordHash: newPasswordHash }) : u
+      );
+      persistUsersSafe(next);
+      return next;
+    });
     saveCredentialToVault({
       uid: targetUser.uid,
       name: targetUser.name,
       email: targetUser.email,
       studentId: targetUser.studentId,
       alumniId: targetUser.alumniId,
-      password: actualNewPass,
+      employeeId: targetUser.employeeId,
+      passwordHash: newPasswordHash,
       role: targetUser.role,
-      isVerified: targetUser.isVerified
+      isVerified: Boolean(targetUser.isVerified)
     });
-    alumniService.updateAlumni(currentUserId, { password: actualNewPass }).catch((err) => {
-      console.warn('Notice updating password in Firestore:', err);
-    });
+
+    // Update backend credential store cleanly without leaving an invalidated token active
+    try {
+      await fetch('/api/auth/sync-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          users: [{ ...stripPlaintextSecretsFromUser(targetUser), password: actualNewPass }]
+        })
+      });
+    } catch {}
 
     // Also dispatch an institutional Security Notice to the user's email
     try {
@@ -8234,8 +8627,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const verifyEmployer = (employerUid: string, verified: boolean | 'verified' | 'rejected', notes?: string) => {
     const isApproved = typeof verified === 'boolean' ? verified : verified === 'verified';
-    
-    // Task 2: Mandatory rejection reason validation
+
+    // Mandatory rejection reason validation
     let validRejectionReason = '';
     if (!isApproved) {
       const validation = validateRejectionReason(notes);
@@ -8246,71 +8639,81 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       validRejectionReason = validation.trimmed;
     }
 
+    const targetEmployer = users.find((u) => u.uid === employerUid);
     let updatedEmployer: UserProfile | undefined;
-    setUsers((prev) => {
-      const nextUsers = prev.map((u) => {
-        if (u.uid === employerUid) {
-          updatedEmployer = {
-            ...u,
-            isVerified: isApproved,
-            verified: isApproved,
-            employerStatus: isApproved ? 'approved' : 'rejected',
-            employerVerificationStatus: isApproved ? 'verified' : 'rejected',
-            verificationStatus: isApproved ? 'verified' : 'rejected',
-            accountStatus: isApproved ? 'ACTIVE' : 'REJECTED',
-            status: isApproved ? 'ACTIVE' : 'REJECTED',
-            canPostJobs: isApproved,
-            employerVerificationNotes: isApproved ? (notes || 'Accredited by Alumni Office') : validRejectionReason,
-            rejectionReason: isApproved ? undefined : validRejectionReason,
-            rejectionDate: isApproved ? undefined : new Date().toISOString(),
-            rejectedBy: isApproved ? undefined : (currentUser?.uid || 'admin')
-          };
-          return updatedEmployer;
-        }
-        return u;
+
+    if (isApproved) {
+      setUsers((prev) => {
+        const nextUsers = prev.map((u) => {
+          if (u.uid === employerUid) {
+            updatedEmployer = stripPlaintextSecretsFromUser({
+              ...u,
+              isVerified: true,
+              verified: true,
+              employerStatus: 'approved',
+              employerVerificationStatus: 'verified',
+              verificationStatus: 'verified',
+              verificationExpiresAt: undefined,
+              accountStatus: 'ACTIVE',
+              status: 'ACTIVE',
+              canPostJobs: true,
+              employerVerificationNotes: notes || 'Accredited by Alumni Office',
+              rejectionReason: undefined,
+              rejectionDate: undefined,
+              rejectedBy: undefined
+            });
+            return updatedEmployer;
+          }
+          return u;
+        });
+        persistUsersSafe(nextUsers);
+        return nextUsers;
       });
 
-      try {
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
-      } catch {}
-
-      return nextUsers;
-    });
-
-    if (updatedEmployer) {
-      saveUserToFirestore(updatedEmployer).catch(() => {});
-      saveCredentialToVault({
-        uid: updatedEmployer.uid,
-        name: updatedEmployer.name,
-        email: updatedEmployer.email,
-        password: updatedEmployer.password || 'Password123!',
-        role: 'employer',
-        isVerified: isApproved
+      if (updatedEmployer) {
+        saveUserToFirestore(updatedEmployer).catch(() => {});
+        const vaultCred = findCredentialInVault(updatedEmployer.email || employerUid);
+        const existingHash = updatedEmployer.passwordHash || vaultCred?.passwordHash;
+        saveCredentialToVault({
+          uid: updatedEmployer.uid,
+          name: updatedEmployer.name,
+          email: updatedEmployer.email,
+          ...(existingHash ? { passwordHash: existingHash } : {}),
+          role: 'employer',
+          isVerified: true
+        });
+      }
+    } else {
+      // Rejection lifecycle: purge all personal data & credentials, keep only anonymized block record
+      addDeletedAccountUids([employerUid]);
+      removeCredentialFromVault({
+        uid: employerUid,
+        email: targetEmployer?.email
+      });
+      setUsers((prev) => {
+        const nextUsers = prev.filter((u) => u.uid !== employerUid);
+        persistUsersSafe(nextUsers);
+        return nextUsers;
       });
 
-      // Synchronize backend credentials store
-      fetch('/api/admin/verify-employer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionStorage.getItem('alumni_server_auth_token') || localStorage.getItem('alumni_server_auth_token') || ''}`
-        },
-        body: JSON.stringify({
-          employerUid,
-          status: isApproved ? 'approved' : 'rejected',
-          reason: isApproved ? undefined : validRejectionReason
-        })
-      }).catch((err) => console.warn('Backend employer verification sync notice:', err));
-    }
+      recordLocalRejectedBlock({
+        email: targetEmployer?.email,
+        companyName: targetEmployer?.companyName || targetEmployer?.company || targetEmployer?.name,
+        identifier: employerUid,
+        category: 'employer',
+        reason: validRejectionReason,
+        rejectedByRole: currentUser?.role || 'admin'
+      })
+        .then((block) => purgeRejectedEmployerInFirestore(employerUid, block))
+        .catch(() => purgeRejectedEmployerInFirestore(employerUid));
 
-    // When an employer is rejected, also reject and close all their jobs across the network
-    if (!isApproved) {
+      // When an employer is rejected, reject and close all their jobs across the network
       setOpportunities((prevOpps) => {
         const nextOpps = prevOpps.map((o) => {
           const isTargetJob =
             o.postedBy === employerUid ||
-            (updatedEmployer?.companyName && o.company?.toLowerCase() === updatedEmployer.companyName.toLowerCase()) ||
-            (updatedEmployer?.name && o.company?.toLowerCase() === updatedEmployer.name.toLowerCase());
+            (targetEmployer?.companyName && o.company?.toLowerCase() === targetEmployer.companyName.toLowerCase()) ||
+            (targetEmployer?.name && o.company?.toLowerCase() === targetEmployer.name.toLowerCase());
 
           if (isTargetJob) {
             const rejectedJob = {
@@ -8333,14 +8736,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       });
     }
 
-    // Synchronize to backend credentials DB
+    // Synchronize backend credentials & anonymized block store (single authoritative call)
     try {
-      const token = getStoredSessionToken() || (currentUser ? createSessionToken(currentUser) : 'dev-admin-session-token');
+      const token = getAuthToken() || (currentUser ? createSessionToken(currentUser) : '');
       fetch('/api/admin/verify-employer', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
           employerUid,
@@ -8357,30 +8760,32 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       title: isApproved ? '🏢 Employer Verification Approved!' : 'Employer Verification Status Update',
       body: isApproved
         ? 'Congratulations! Your company registration has been approved and accredited by St. Cecilia’s College Alumni Office. You may now post career opportunities.'
-        : `Employer verification update: Your partnership application was declined. Reason: ${validRejectionReason}`,
+        : `Employer verification update: Your partnership application was declined and your submitted data was purged. Reason: ${validRejectionReason}`,
       read: false,
       createdAt: new Date().toISOString()
     };
     setNotifications((prev) => [notif, ...prev]);
-    saveNotificationToFirestore(notif).catch(() => {});
+    if (isApproved) {
+      saveNotificationToFirestore(notif).catch(() => {});
+    }
 
-    // Save an audit record on rejection: admin ID, timestamp, reason
+    // Save an anonymized audit record
     addAuditLog({
-      action: isApproved ? 'Employer Registration Approved' : 'Employer Registration Rejected',
+      action: isApproved ? 'Employer Registration Approved' : 'Employer Registration Rejected & PII Purged',
       actorId: currentUser?.uid || 'admin',
       actorName: currentUser?.name || 'Administrator',
       actorRole: currentUser?.role || 'admin',
       category: 'admin',
       details: isApproved
         ? `Company ${employerUid} accredited by ${currentUser?.uid || 'admin'}. Status: approved.`
-        : `Employer ${employerUid} rejected by admin ${currentUser?.uid || 'admin'}. Timestamp: ${new Date().toISOString()}. Reason: "${validRejectionReason}"`,
+        : `Employer application rejected by ${currentUser?.role || 'admin'} and personal data purged. Anonymized block retained. Reason: "${validRejectionReason}"`,
       severity: isApproved ? 'success' : 'warning'
     });
 
     showToast(
       isApproved
         ? 'Employer partner approved & accredited. Job posting permissions activated!'
-        : 'Employer partner registration rejected.',
+        : 'Employer application rejected and personal data purged.',
       isApproved ? 'success' : 'info'
     );
     return { success: true };
@@ -8879,12 +9284,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       if (liveUsers && liveUsers.length > 0) {
         const normalized = liveUsers
-          .filter((u) => !allDeletedSet.has(u.uid) && !isAccountDeleted(u))
-          .map((u) => ({ ...u, role: normalizeSystemRole(u.role) }));
+          .filter((u) => !allDeletedSet.has(u.uid) && !isAccountDeleted(u) && !isPendingAccountExpired(u))
+          .map((u) => stripPlaintextSecretsFromUser({ ...u, role: normalizeSystemRole(u.role) }));
         setUsers(normalized);
-        try {
-          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(normalized));
-        } catch {}
+        persistUsersSafe(normalized);
         return normalized;
       }
       return [];
@@ -9232,9 +9635,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         });
 
         if (changed) {
-          try {
-            localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
-          } catch {}
+          persistUsersSafe(next);
         }
         return changed ? next : prevUsers;
       });
@@ -9277,9 +9678,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           });
 
           if (updated) {
-            try {
-              localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(next));
-            } catch {}
+            persistUsersSafe(next);
 
             setAutomationJobs((prevJobs) =>
               prevJobs.map((j) =>
@@ -10037,7 +10436,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         clearDispatchedEmails();
 
         if (retainedSuperadmin) {
-          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
+          persistUsersSafe(nextUsers);
           saveCredentialToVault({
             uid: retainedSuperadmin.uid,
             name: retainedSuperadmin.name,
@@ -10045,7 +10444,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             studentId: retainedSuperadmin.studentId,
             alumniId: retainedSuperadmin.alumniId,
             employeeId: retainedSuperadmin.employeeId,
-            password: retainedSuperadmin.password || 'Password123!',
+            ...(retainedSuperadmin.passwordHash ? { passwordHash: retainedSuperadmin.passwordHash } : {}),
             role: retainedSuperadmin.role,
             isVerified: true
           });

@@ -384,6 +384,7 @@ function getActiveModeratorCount(excludeUserId?: string): number {
 interface ActiveSession {
   sessionId: string;
   token: string;
+  refreshToken?: string;
   uid: string;
   email: string;
   name: string;
@@ -639,13 +640,10 @@ function deleteCredentialFromDb(uid: string, persist: boolean = true) {
   if (activeSess?.token) {
     revokedTokens.add(activeSess.token);
   }
-  activeSessions.delete(uid);
-  for (const [token, session] of Array.from(refreshTokenStore.entries())) {
-    if (session.uid === uid) {
-      revokedTokens.add(token);
-      refreshTokenStore.delete(token);
-    }
+  if (activeSess?.refreshToken) {
+    revokedTokens.add(activeSess.refreshToken);
   }
+  activeSessions.delete(uid);
   if (persist) {
     persistDeletedAccountsToDisk();
     persistCredentialsToDisk();
@@ -1562,6 +1560,7 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
   activeSessions.set(user.uid, {
     sessionId,
     token,
+    refreshToken,
     uid: user.uid,
     email: user.email,
     name: user.name,
@@ -2071,6 +2070,7 @@ app.post('/api/auth/refresh', authRateLimiter, (req: Request, res: Response) => 
   activeSessions.set(user.uid, {
     sessionId: newSessionId,
     token: newAccessToken,
+    refreshToken: newRefreshToken,
     uid: user.uid,
     email: user.email,
     name: user.name,

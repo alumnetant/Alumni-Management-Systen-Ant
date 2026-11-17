@@ -5,6 +5,7 @@
 
 import crypto from 'crypto';
 import configData from './config/verificationConfig.json';
+import { hashTokenHmac, verifyTokenHmac as verifyHmacDigest } from '../security/cryptoUtils';
 
 export interface EmailVerificationToken {
   token: string;
@@ -23,11 +24,11 @@ export function isFreeOrDisposableEmail(email: string): boolean {
   return blockedList.includes(domain);
 }
 
-export function generateVerificationToken(email: string): { token: string; hashedToken: string; expiresAt: Date } {
-  // 32-byte secure random token
+export function generateVerificationToken(_email: string): { token: string; hashedToken: string; expiresAt: Date } {
+  // 32-byte secure random token hashed with server HMAC secret
   const token = crypto.randomBytes(32).toString('hex');
-  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-  
+  const hashedToken = hashTokenHmac(token);
+
   // 24 hours expiration
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -46,6 +47,5 @@ export function verifyTokenHash(providedToken: string, storedHash: string, expir
     return false; // Expired
   }
 
-  const computedHash = crypto.createHash('sha256').update(providedToken).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(computedHash), Buffer.from(storedHash));
+  return verifyHmacDigest(providedToken, storedHash);
 }

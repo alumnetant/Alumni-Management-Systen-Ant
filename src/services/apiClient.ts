@@ -175,8 +175,14 @@ export async function getCsrfToken(forceRefresh = false): Promise<string | null>
     return cachedCsrfToken;
   }
   try {
-    const res = await apiFetch('/api/security/csrf-token', { method: 'GET' });
-    if (!res.ok) return null;
+    const res = await apiFetch('/api/security/csrf-token', { method: 'GET' }, 8000);
+    if (!res.ok) {
+      if (forceRefresh) {
+        cachedCsrfToken = null;
+        cachedCsrfForToken = null;
+      }
+      return null;
+    }
     const data = await res.json().catch(() => null);
     if (data?.csrfToken) {
       cachedCsrfToken = data.csrfToken;
@@ -190,9 +196,12 @@ export async function getCsrfToken(forceRefresh = false): Promise<string | null>
 export async function apiFetchWithCsrf(
   input: RequestInfo | URL,
   init?: RequestInit,
-  timeoutMs: number = 4000
+  timeoutMs: number = 10000
 ): Promise<Response> {
-  const csrf = await getCsrfToken();
+  let csrf = await getCsrfToken();
+  if (!csrf) {
+    csrf = await getCsrfToken(true);
+  }
   const headers = new Headers(init?.headers || {});
   if (csrf) {
     headers.set('x-csrf-token', csrf);
