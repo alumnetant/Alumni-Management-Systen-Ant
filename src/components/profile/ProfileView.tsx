@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Building,
   Calendar,
-  Sparkles,
   ExternalLink,
   ShieldCheck,
   CreditCard,
@@ -851,218 +850,208 @@ export const ProfileView: React.FC = () => {
           )}
 
           {/* ========================================================
-              BENTO GRID: ABOUT + ACADEMIC RECORD + EXPERIENCE + EDUCATION
+              SINGLE-COLUMN PROFILE OVERVIEW SECTIONS
               ======================================================== */}
-          <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
-            
-            {/* Left Column (5 Cols): About & Academic Record */}
-            <div className="lg:col-span-5 space-y-6">
-              
-              {/* About Section */}
-              <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
-                <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center justify-between mb-3">
-                  <span>Biography & About</span>
-                  <button
-                    type="button"
-                    onClick={() => openEditProfile()}
-                    className="text-xs text-[#8B181B] dark:text-red-400 font-sans font-semibold hover:underline"
-                  >
-                    Edit
-                  </button>
+          <div className="mt-8 space-y-6">
+
+            {/* Biography & About */}
+            <section className="bg-white dark:bg-stone-900/60 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-5 sm:p-6 transition-colors">
+              <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-stone-200/70 dark:border-stone-800">
+                <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight">
+                  Biography &amp; About
                 </h2>
-                <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 leading-relaxed whitespace-pre-line bg-white dark:bg-stone-900/60 p-4 rounded-xl border border-stone-200/60 dark:border-stone-700/50">
-                  {currentUser.about || 'No biography written yet. Click "Edit" to share your collegiate memories and achievements.'}
-                </p>
+                <button
+                  type="button"
+                  onClick={() => openEditProfile()}
+                  className="text-xs text-[#8B181B] dark:text-red-400 font-sans font-semibold hover:underline cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  Edit
+                </button>
               </div>
+              <p className="text-xs sm:text-sm text-stone-600 dark:text-stone-300 leading-relaxed whitespace-pre-line">
+                {currentUser.about || 'No biography written yet. Click "Edit" to share your collegiate memories and achievements.'}
+              </p>
+            </section>
 
-              {/* Cecilian Academic Credentials Invariants */}
-              <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
-                <h2 className="font-sans text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2 mb-4">
-                  <ShieldCheck className="w-5 h-5 text-[#8B181B] dark:text-red-400" />
-                  <span>Institutional Credentials</span>
+            {/* Institutional Credentials */}
+            <section className="bg-white dark:bg-stone-900/60 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-5 sm:p-6 transition-colors">
+              <div className="flex items-center gap-2 pb-3 mb-2 border-b border-stone-200/70 dark:border-stone-800">
+                <ShieldCheck className="w-5 h-5 text-[#8B181B] dark:text-red-400 shrink-0" />
+                <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight">
+                  Institutional Credentials
                 </h2>
-
-                <div className="space-y-3 text-xs">
-                  <div className="flex items-center justify-between p-3 bg-white dark:bg-stone-900/60 rounded-xl border border-stone-200/60 dark:border-stone-700/50">
-                    <span className="text-stone-500 dark:text-stone-400 font-medium">Academic Student ID</span>
-                    <span className="font-mono font-bold text-stone-900 dark:text-stone-100">
-                      {currentUser.studentId || 'SCC-2023-XXXX'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-white dark:bg-stone-900/60 rounded-xl border border-stone-200/60 dark:border-stone-700/50">
-                    <span className="text-stone-500 dark:text-stone-400 font-medium">Alumni ID Pass</span>
-                    <span className="font-mono font-bold text-[#8B181B] dark:text-red-400">
-                      {currentUser.alumniId || `SCC-ALUM-${currentUser.batch || '2024'}-001`}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-white dark:bg-stone-900/60 rounded-xl border border-stone-200/60 dark:border-stone-700/50">
-                    <span className="text-stone-500 dark:text-stone-400 font-medium">Accreditation Authority</span>
-                    <span className="font-semibold text-stone-800 dark:text-stone-200">
-                      Office of the Registrar
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-white dark:bg-stone-900/60 rounded-xl border border-stone-200/60 dark:border-stone-700/50">
-                    <span className="text-stone-500 dark:text-stone-400 font-medium">Campus Access Standing</span>
-                    <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Good Standing
-                    </span>
-                  </div>
-                </div>
               </div>
-            </div>
 
-            {/* Right Column (7 Cols): Experience & Education */}
-            <div className="lg:col-span-7 space-y-6">
-              
-              {/* Professional Experience Section */}
-              <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
-                <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-                  <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
-                    <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B181B] dark:text-red-400 shrink-0" />
-                    <span>Career Experience ({(currentUser.experience || []).length})</span>
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={() => openEditProfile()}
-                    className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer shrink-0"
-                  >
-                    + Add / Edit
-                  </button>
+              <dl className="divide-y divide-stone-200/70 dark:divide-stone-800 text-xs sm:text-sm">
+                <div className="flex items-center justify-between gap-4 py-3">
+                  <dt className="text-stone-500 dark:text-stone-400 font-medium">Academic Student ID</dt>
+                  <dd className="font-mono tabular-nums font-bold text-stone-900 dark:text-stone-100 text-right">
+                    {currentUser.studentId || 'SCC-2023-XXXX'}
+                  </dd>
                 </div>
 
-                <div className="space-y-3">
-                  {(currentUser.experience || []).length === 0 ? (
-                    <div className="p-6 bg-white dark:bg-stone-900/60 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 text-center text-xs text-stone-500 dark:text-stone-400">
-                      <Briefcase className="w-6 h-6 mx-auto mb-2 text-stone-400 dark:text-stone-500 opacity-60" />
-                      No professional experience listed yet. Click "+ Add / Edit" to build your alumni career timeline.
+                <div className="flex items-center justify-between gap-4 py-3">
+                  <dt className="text-stone-500 dark:text-stone-400 font-medium">Alumni ID Pass</dt>
+                  <dd className="font-mono tabular-nums font-bold text-[#8B181B] dark:text-red-400 text-right">
+                    {currentUser.alumniId || `SCC-ALUM-${currentUser.batch || '2024'}-001`}
+                  </dd>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 py-3">
+                  <dt className="text-stone-500 dark:text-stone-400 font-medium">Accreditation Authority</dt>
+                  <dd className="font-semibold text-stone-800 dark:text-stone-200 text-right">
+                    Office of the Registrar
+                  </dd>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 py-3">
+                  <dt className="text-stone-500 dark:text-stone-400 font-medium">Campus Access Standing</dt>
+                  <dd className="inline-flex items-center gap-1.5 font-bold text-emerald-600 dark:text-emerald-400 text-right">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Good Standing</span>
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            {/* Professional Experience */}
+            <section className="bg-white dark:bg-stone-900/60 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-5 sm:p-6 transition-colors">
+              <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-stone-200/70 dark:border-stone-800 flex-wrap">
+                <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B181B] dark:text-red-400 shrink-0" />
+                  <span className="tabular-nums">Career Experience ({(currentUser.experience || []).length})</span>
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => openEditProfile()}
+                  className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  + Add / Edit
+                </button>
+              </div>
+
+              {(currentUser.experience || []).length === 0 ? (
+                <div className="py-6 text-center text-xs text-stone-500 dark:text-stone-400">
+                  <Briefcase className="w-6 h-6 mx-auto mb-2 text-stone-400 dark:text-stone-500 opacity-60" />
+                  No professional experience listed yet. Click &quot;+ Add / Edit&quot; to build your alumni career timeline.
+                </div>
+              ) : (
+                <div className="divide-y divide-stone-200/70 dark:divide-stone-800">
+                  {(currentUser.experience || []).map((exp) => (
+                    <div key={exp.id} className="py-3.5 first:pt-0 last:pb-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <h3 className="text-sm font-bold text-stone-900 dark:text-white">{exp.title}</h3>
+                        <span className="text-xs text-stone-500 dark:text-stone-400 font-medium tabular-nums">
+                          {exp.startDate}
+                        </span>
+                      </div>
+                      <div className="text-xs text-[#8B181B] dark:text-red-400 font-semibold mt-0.5">
+                        {exp.company} · <span className="text-stone-600 dark:text-stone-400 font-normal">{exp.location}</span>
+                      </div>
+                      {exp.description && (
+                        <p className="text-xs text-stone-600 dark:text-stone-300 mt-2 leading-relaxed whitespace-pre-line">
+                          {exp.description}
+                        </p>
+                      )}
                     </div>
-                  ) : (
-                    (currentUser.experience || []).map((exp) => (
-                      <div
-                        key={exp.id}
-                        className="p-4 bg-white dark:bg-stone-900/70 rounded-xl border border-stone-200/70 dark:border-stone-700/60 shadow-2xs transition-colors"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <h3 className="text-sm font-bold text-stone-900 dark:text-white">{exp.title}</h3>
-                          <span className="text-xs text-stone-500 dark:text-stone-400 font-medium">{exp.startDate}</span>
-                        </div>
-                        <div className="text-xs text-[#8B181B] dark:text-red-400 font-semibold mt-0.5">
-                          {exp.company} • <span className="text-stone-600 dark:text-stone-400 font-normal">{exp.location}</span>
-                        </div>
-                        {exp.description && (
-                          <p className="text-xs text-stone-600 dark:text-stone-300 mt-2.5 leading-relaxed whitespace-pre-line border-t border-stone-100 dark:border-stone-800/80 pt-2">
-                            {exp.description}
-                          </p>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Education Section */}
-              <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
-                <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-                  <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
-                    <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B181B] dark:text-red-400 shrink-0" />
-                    <span>Education & Degrees ({(currentUser.education || []).length})</span>
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={() => openEditProfile()}
-                    className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer shrink-0"
-                  >
-                    + Add / Edit
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {(currentUser.education || []).length === 0 ? (
-                    <div className="p-6 bg-white dark:bg-stone-900/60 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 text-center text-xs text-stone-500 dark:text-stone-400">
-                      <GraduationCap className="w-6 h-6 mx-auto mb-2 text-stone-400 dark:text-stone-500 opacity-60" />
-                      No educational degrees listed yet. Click "+ Add / Edit" to record your academic history.
-                    </div>
-                  ) : (
-                    (currentUser.education || []).map((edu) => (
-                      <div
-                        key={edu.id}
-                        className="p-4 bg-white dark:bg-stone-900/70 rounded-xl border border-stone-200/70 dark:border-stone-700/60 shadow-2xs transition-colors"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                          <h3 className="text-sm font-bold text-stone-900 dark:text-white">{edu.degree}</h3>
-                          <span className="text-xs text-stone-500 dark:text-stone-400 font-medium">
-                            {edu.startYear} - {edu.endYear}
-                          </span>
-                        </div>
-                        <div className="text-xs text-stone-700 dark:text-stone-300 font-medium mt-0.5">
-                          {edu.institution} • <span className="text-stone-500 dark:text-stone-400">{edu.fieldOfStudy}</span>
-                        </div>
-                        {edu.honors && (
-                          <div className="mt-2 text-xs font-semibold inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-[#8B181B] dark:text-red-300 border border-red-200/60 dark:border-red-900/60">
-                            <Sparkles className="w-3 h-3 text-[#8B181B] dark:text-red-400" />
-                            <span>Honors: {edu.honors}</span>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Recent Timeline Preview in Overview (Hidden for Employer accounts) */}
-              {currentUser.role !== 'employer' && (
-                <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 p-5 sm:p-6 transition-colors">
-                  <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-                    <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
-                      <Megaphone className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B181B] dark:text-red-400 shrink-0" />
-                      <span>Personal Timeline ({myTimelineOrdered.length})</span>
-                    </h2>
-                    <button
-                      type="button"
-                      onClick={() => setProfileViewTab('posts')}
-                      className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer shrink-0"
-                    >
-                      Open Full Timeline
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {myTimelineOrdered.length === 0 ? (
-                      <div className="p-6 bg-white dark:bg-stone-900/60 rounded-xl border border-dashed border-stone-300 dark:border-stone-700 text-center space-y-2.5 text-xs text-stone-500 dark:text-stone-400">
-                        <Megaphone className="w-6 h-6 mx-auto text-stone-400 dark:text-stone-500 opacity-60" />
-                        <p className="font-semibold text-stone-700 dark:text-stone-300">No posts yet</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setProfileViewTab('posts');
-                            setTimeout(() => composerTitleRef.current?.focus(), 60);
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#8B181B] text-white rounded-xl text-xs font-bold cursor-pointer"
-                        >
-                          <span>Share your first post</span>
-                        </button>
-                      </div>
-                    ) : (
-                      myTimelineOrdered.slice(0, 3).map((post) => (
-                        <PostCard
-                          key={post.id}
-                          post={post}
-                          showPinControl={true}
-                          isPinnedOnProfile={currentUser.pinnedPostId === post.id}
-                          highlighted={isHighlighted(post.id)}
-                          onImageClick={(url, title) => setViewerImage({ url, title })}
-                        />
-                      ))
-                    )}
-                  </div>
+                  ))}
                 </div>
               )}
+            </section>
 
-            </div>
+            {/* Education & Degrees */}
+            <section className="bg-white dark:bg-stone-900/60 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-5 sm:p-6 transition-colors">
+              <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-stone-200/70 dark:border-stone-800 flex-wrap">
+                <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B181B] dark:text-red-400 shrink-0" />
+                  <span className="tabular-nums">Education &amp; Degrees ({(currentUser.education || []).length})</span>
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => openEditProfile()}
+                  className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  + Add / Edit
+                </button>
+              </div>
+
+              {(currentUser.education || []).length === 0 ? (
+                <div className="py-6 text-center text-xs text-stone-500 dark:text-stone-400">
+                  <GraduationCap className="w-6 h-6 mx-auto mb-2 text-stone-400 dark:text-stone-500 opacity-60" />
+                  No educational degrees listed yet. Click &quot;+ Add / Edit&quot; to record your academic history.
+                </div>
+              ) : (
+                <div className="divide-y divide-stone-200/70 dark:divide-stone-800">
+                  {(currentUser.education || []).map((edu) => (
+                    <div key={edu.id} className="py-3.5 first:pt-0 last:pb-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                        <h3 className="text-sm font-bold text-stone-900 dark:text-white">{edu.degree}</h3>
+                        <span className="text-xs text-stone-500 dark:text-stone-400 font-medium tabular-nums">
+                          {edu.startYear} - {edu.endYear}
+                        </span>
+                      </div>
+                      <div className="text-xs text-stone-700 dark:text-stone-300 font-medium mt-0.5">
+                        {edu.institution} · <span className="text-stone-500 dark:text-stone-400">{edu.fieldOfStudy}</span>
+                      </div>
+                      {edu.honors && (
+                        <div className="mt-1.5 text-xs font-semibold text-[#8B181B] dark:text-red-300">
+                          Honors: {edu.honors}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Personal Timeline (Hidden for Employer accounts) */}
+            {currentUser.role !== 'employer' && (
+              <section className="bg-white dark:bg-stone-900/60 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-5 sm:p-6 transition-colors">
+                <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-stone-200/70 dark:border-stone-800 flex-wrap">
+                  <h2 className="font-sans text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight flex items-center gap-2">
+                    <Megaphone className="w-4 h-4 sm:w-5 sm:h-5 text-[#8B181B] dark:text-red-400 shrink-0" />
+                    <span className="tabular-nums">Personal Timeline ({myTimelineOrdered.length})</span>
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => setProfileViewTab('posts')}
+                    className="text-xs text-[#8B181B] dark:text-red-400 font-semibold hover:underline cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    Open Full Timeline
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {myTimelineOrdered.length === 0 ? (
+                    <div className="py-6 text-center space-y-2.5 text-xs text-stone-500 dark:text-stone-400">
+                      <Megaphone className="w-6 h-6 mx-auto text-stone-400 dark:text-stone-500 opacity-60" />
+                      <p className="font-semibold text-stone-700 dark:text-stone-300">No posts yet</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileViewTab('posts');
+                          setTimeout(() => composerTitleRef.current?.focus(), 60);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                      >
+                        <span>Share your first post</span>
+                      </button>
+                    </div>
+                  ) : (
+                    myTimelineOrdered.slice(0, 3).map((post) => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        showPinControl={true}
+                        isPinnedOnProfile={currentUser.pinnedPostId === post.id}
+                        highlighted={isHighlighted(post.id)}
+                        onImageClick={(url, title) => setViewerImage({ url, title })}
+                      />
+                    ))
+                  )}
+                </div>
+              </section>
+            )}
           </div>
             </>
           ) : (
