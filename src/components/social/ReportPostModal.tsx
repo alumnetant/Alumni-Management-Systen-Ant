@@ -5,17 +5,33 @@
 
 import React, { useState } from 'react';
 import { Flag, X, AlertTriangle, Loader2, ShieldAlert } from 'lucide-react';
-import { POST_REPORT_REASONS, ReportReason } from '../../types';
-import { apiFetchWithCsrf } from '../../services/apiClient';
-import { useAlumni } from '../../context/AlumniContext';
+import { InstitutionalFeedPost, POST_REPORT_REASONS, ReportReason } from '../../types';
+import { apiFetchWithCsrf, clearCsrfTokenCache } from '../../services/apiClient';
+import { saveActiveSession, useAlumni } from '../../context/AlumniContext';
 
 interface ReportPostModalProps {
   isOpen: boolean;
   targetType?: 'post' | 'comment';
   targetId: string;
   targetTitle?: string;
+  postSnapshot?: InstitutionalFeedPost;
   onClose: () => void;
   onReported?: (targetId: string) => void;
+}
+
+function buildCompactPostSnapshot(post?: InstitutionalFeedPost): InstitutionalFeedPost | undefined {
+  if (!post || !post.id) return undefined;
+  const rawImage = post.imageUrl || post.mediaUrl;
+  const safeImageUrl =
+    typeof rawImage === 'string' && rawImage.startsWith('data:') && rawImage.length > 50000
+      ? undefined
+      : rawImage;
+  return {
+    ...post,
+    imageUrl: safeImageUrl,
+    mediaUrl: safeImageUrl,
+    comments: Array.isArray(post.comments) ? post.comments.slice(0, 20) : []
+  };
 }
 
 export const ReportPostModal: React.FC<ReportPostModalProps> = ({
@@ -23,10 +39,11 @@ export const ReportPostModal: React.FC<ReportPostModalProps> = ({
   targetType = 'post',
   targetId,
   targetTitle,
+  postSnapshot,
   onClose,
   onReported
 }) => {
-  const { showToast } = useAlumni();
+  const { currentUser, showToast } = useAlumni();
   const [reason, setReason] = useState<ReportReason>('Inappropriate content');
   const [details, setDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,16 +56,41 @@ export const ReportPostModal: React.FC<ReportPostModalProps> = ({
     setErrorMsg(null);
     setIsSubmitting(true);
     try {
-      const res = await apiFetchWithCsrf('/api/reports', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetType,
-          targetId,
-          reason,
-          details: details.trim().slice(0, 500) || undefined
-        })
+      const payload = JSON.stringify({
+        targetType,
+        targetId,
+        reason,
+        details: details.trim().slice(0, 500) || undefined,
+        postSnapshotFallback: buildCompactPostSnapshot(postSnapshot)
       });
+
+      let res = await apiFetchWithCsrf(
+        '/api/reports',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload
+        },
+        10000
+      );
+
+      if (res.status === 401 && currentUser) {
+        const errBody = await res.clone().json().catch(() => null);
+        if (errBody?.code !== 'SESSION_TERMINATED') {
+          saveActiveSession(currentUser, undefined, true);
+          clearCsrfTokenCache();
+          res = await apiFetchWithCsrf(
+            '/api/reports',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: payload
+            },
+            10000
+          );
+        }
+      }
+
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         const message = data?.error || 'Could not submit report. Please try again.';
@@ -78,7 +120,7 @@ export const ReportPostModal: React.FC<ReportPostModalProps> = ({
         if (e.target === e.currentTarget && !isSubmitting) onClose();
       }}
     >
-      <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4">
+      <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92dvh] overflow-y-auto">
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-stone-100 dark:border-stone-800">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-red-50 dark:bg-red-950/50 text-[#8B181B] dark:text-red-400 border border-red-200/70 dark:border-red-900/60 flex items-center justify-center shrink-0">

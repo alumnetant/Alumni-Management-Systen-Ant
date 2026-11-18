@@ -154,7 +154,9 @@ export interface ModerationStateSnapshot {
   legacyAuditReport: { checkedAt?: string; totalChecked: number; normalizedCount: number };
 }
 
-const MODERATION_DB_FILE = path.join(process.cwd(), 'data', 'moderation_db.json');
+const MODERATION_DB_FILE = process.env.VERCEL
+  ? path.join('/tmp', 'moderation_db.json')
+  : path.join(process.cwd(), 'data', 'moderation_db.json');
 
 export function getPriorityForReason(reason: ReportReason): ReportPriority {
   if (reason === 'Harassment or bullying' || reason === 'Fake profile/impersonation') {
@@ -2109,10 +2111,23 @@ export class PostModerationEngine {
     // Ensure post exists (or hydrate if synced from client state on first reference)
     let post = this.state.posts[payload.targetId];
     if (!post && payload.postSnapshotFallback && payload.postSnapshotFallback.id === payload.targetId) {
+      const fallback = payload.postSnapshotFallback;
+      const nowFallback = new Date().toISOString();
       post = {
-        ...payload.postSnapshotFallback,
-        title: sanitizeModerationText(payload.postSnapshotFallback.title || '', 200),
-        content: sanitizeModerationText(payload.postSnapshotFallback.content || '', 5000)
+        ...fallback,
+        id: fallback.id,
+        authorId: fallback.authorId || 'unknown_author',
+        authorName: sanitizeModerationText(fallback.authorName || 'Cecilian Member', 120) || 'Cecilian Member',
+        authorRole: fallback.authorRole || 'alumni',
+        postType: fallback.postType || 'update',
+        title: sanitizeModerationText(fallback.title || '', 200),
+        content: sanitizeModerationText(fallback.content || '', 5000),
+        createdAt: fallback.createdAt || nowFallback,
+        updatedAt: fallback.updatedAt || fallback.createdAt || nowFallback,
+        visibility: fallback.visibility || 'public',
+        hearts: Array.isArray(fallback.hearts) ? fallback.hearts : [],
+        likes: Array.isArray(fallback.likes) ? fallback.likes : [],
+        comments: Array.isArray(fallback.comments) ? fallback.comments : []
       };
       this.state.posts[post.id] = post;
     }

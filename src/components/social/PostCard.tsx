@@ -867,8 +867,12 @@ export const PostCard: React.FC<PostCardProps> = ({
         targetType="post"
         targetId={post.id}
         targetTitle={post.title || post.content}
+        postSnapshot={post}
         onClose={() => setShowReportModal(false)}
         onReported={(pid) => {
+          if (onPostUpdated) {
+            onPostUpdated({ ...post, viewerHasReported: true });
+          }
           if (onPostReported) onPostReported(pid);
         }}
       />

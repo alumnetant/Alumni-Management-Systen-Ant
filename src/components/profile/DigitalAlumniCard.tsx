@@ -219,7 +219,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   // CARD FRONT — SIGNATURE DEEP CRIMSON (#8B181B) & GOLD THEME
   // ==========================================
   const cardFront = (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-[#8B181B] via-[#6b1215] to-[#2b0709] text-white p-4 sm:p-6 flex flex-col justify-between gap-3 shadow-[0_14px_44px_rgba(139,24,27,0.45),0_0_0_1px_rgba(245,158,11,0.35)] border-2 border-amber-400/60 select-none">
+    <div className="relative w-full min-h-[250px] sm:h-full rounded-2xl overflow-hidden bg-gradient-to-br from-[#8B181B] via-[#6b1215] to-[#2b0709] text-white p-3.5 sm:p-6 flex flex-col justify-between gap-2.5 sm:gap-3 shadow-[0_14px_44px_rgba(139,24,27,0.45),0_0_0_1px_rgba(245,158,11,0.35)] border-2 border-amber-400/60 select-none">
       {/* Background Guilloche Security Pattern & Gold Radial Ambience */}
       <div className="absolute inset-0 opacity-25 pointer-events-none bg-[radial-gradient(ellipse_at_80%_20%,rgba(245,158,11,0.4),transparent_60%),radial-gradient(circle_at_20%_80%,rgba(139,24,27,0.45),transparent_50%)]" />
       <div className="absolute -right-14 -bottom-14 w-56 h-56 rounded-full border border-amber-400/20 pointer-events-none" />
@@ -227,8 +227,8 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
       <div className="absolute -left-12 -top-12 w-48 h-48 rounded-full border border-amber-400/15 pointer-events-none" />
 
       {/* 1. Header: Circular Logo + ST. CECILIA'S COLLEGE + Digital Alumni Credential + Verified Badge */}
-      <div className="relative z-10 flex items-start justify-between gap-2.5 border-b border-amber-500/20 pb-2.5">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+      <div className="relative z-10 flex items-center justify-between gap-2 border-b border-amber-500/20 pb-2 sm:pb-2.5">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
           <img
             src={sealImgSrc}
             alt="St. Cecilia's College Seal"
@@ -237,13 +237,13 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
                 setSealImgSrc('/assets/cecilians-seal.jpg');
               }
             }}
-            className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-amber-400 shadow-md object-cover bg-white shrink-0"
+            className="w-9 h-9 sm:w-12 sm:h-12 rounded-full border-2 border-amber-400 shadow-md object-cover bg-white shrink-0"
           />
           <div className="min-w-0">
-            <span className="text-xs sm:text-base font-black tracking-wider uppercase text-amber-200 font-serif block leading-tight drop-shadow-xs">
+            <span className="text-[11px] sm:text-base font-black tracking-wide sm:tracking-wider uppercase text-amber-200 font-serif block leading-tight drop-shadow-xs">
               ST. CECILIA'S COLLEGE
             </span>
-            <span className="text-[9px] sm:text-[11px] font-bold tracking-widest text-amber-400/90 font-mono uppercase block leading-tight mt-0.5">
+            <span className="text-[8.5px] sm:text-[11px] font-bold tracking-wider sm:tracking-widest text-amber-400/90 font-mono uppercase block leading-tight mt-0.5">
               Digital Alumni Credential
             </span>
           </div>
@@ -252,7 +252,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
         {/* Verified Status Badge & NFC Icon */}
         <div className="flex items-center gap-1.5 shrink-0">
           <div className="inline-flex items-center gap-1 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 shadow-xs">
-            <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400" />
+            <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400 shrink-0" />
             <span className="text-[9px] sm:text-[10.5px] font-extrabold uppercase tracking-wider">
               VERIFIED
             </span>
@@ -262,75 +262,128 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
       </div>
 
       {/* 2. Middle Row: Prominent Profile Picture + Alumnus Information + QR Code */}
-      <div className="relative z-10 grid grid-cols-12 gap-3 sm:gap-4 items-center my-auto py-1.5">
-        {/* Left Column: Alumnus Profile Picture Frame */}
-        <div className="col-span-4 sm:col-span-3 flex flex-col items-center">
-          <div className="relative group">
-            <div className="w-20 h-24 sm:w-24 sm:h-28 md:w-28 md:h-32 rounded-xl p-0.5 sm:p-1 bg-gradient-to-tr from-amber-500 via-amber-200 to-amber-600 shadow-lg overflow-hidden">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={user.name}
-                  className="w-full h-full rounded-[9px] object-cover bg-stone-900"
-                />
-              ) : (
-                <div className="w-full h-full rounded-[9px] bg-stone-900 flex flex-col items-center justify-center text-amber-300 p-1 text-center">
-                  <span className="text-2xl sm:text-3xl font-serif font-black">
-                    {user.name.charAt(0)}
-                  </span>
-                  <span className="text-[8px] text-amber-400/80 uppercase font-semibold mt-0.5">
-                    No Photo
-                  </span>
-                </div>
-              )}
+      <div className="relative z-10 flex flex-col gap-2.5 sm:grid sm:grid-cols-12 sm:gap-4 sm:items-center my-auto py-1">
+        {/* Top / Left Profile + Identity Row on mobile; Left Col on sm+ */}
+        <div className="flex items-center gap-3 sm:contents">
+          {/* Alumnus Profile Picture Frame */}
+          <div className="shrink-0 sm:col-span-3 flex flex-col items-center">
+            <div className="relative group">
+              <div className="w-16 h-20 sm:w-24 sm:h-28 md:w-28 md:h-32 rounded-xl p-0.5 sm:p-1 bg-gradient-to-tr from-amber-500 via-amber-200 to-amber-600 shadow-lg overflow-hidden">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={user.name}
+                    className="w-full h-full rounded-[9px] object-cover bg-stone-900"
+                  />
+                ) : (
+                  <div className="w-full h-full rounded-[9px] bg-stone-900 flex flex-col items-center justify-center text-amber-300 p-1 text-center">
+                    <span className="text-xl sm:text-3xl font-serif font-black">
+                      {user.name.charAt(0)}
+                    </span>
+                    <span className="text-[7px] sm:text-[8px] text-amber-400/80 uppercase font-semibold mt-0.5">
+                      No Photo
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Upload / Change Photo Hover Trigger */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
+                className="absolute -bottom-1 -right-1 p-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-full border border-black shadow-md transition-transform hover:scale-110 cursor-pointer"
+                title="Update profile picture on Digital ID"
+                aria-label="Upload profile picture"
+              >
+                {isUploadingPhoto ? (
+                  <div className="w-3 h-3 border-2 border-stone-950 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Camera className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                )}
+              </button>
             </div>
 
-            {/* Quick Upload / Change Photo Hover Trigger */}
+            <span className="text-[8.5px] sm:text-[10px] text-amber-300/90 font-mono mt-1.5 text-center uppercase tracking-wider leading-tight">
+              {graduationCohort}
+            </span>
+          </div>
+
+          {/* Mobile Name + Degree summary */}
+          <div className="min-w-0 flex-1 space-y-1 sm:hidden">
+            <div className="inline-flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded border border-amber-500/35 max-w-full">
+              <Award className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+              <span className="leading-tight truncate">{membershipType}</span>
+            </div>
+            <h3 className="text-sm font-black tracking-tight uppercase text-white leading-tight break-words drop-shadow-sm font-sans">
+              {user.name}
+            </h3>
+            <p className="text-[10.5px] font-bold text-amber-200/95 leading-snug break-words">
+              {degreeProgram}
+            </p>
+          </div>
+        </div>
+
+        {/* Mobile Bottom Sub-Row: ID Box + Reveal + Verification QR */}
+        <div className="flex items-center justify-between gap-2 pt-1 sm:hidden">
+          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+            <div className="bg-black/60 px-2 py-1 rounded border border-amber-500/30 font-mono text-[10px] font-bold text-amber-300 tracking-wider">
+              {maskedId}
+            </div>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                fileInputRef.current?.click();
+                setShowFullNumber(!showFullNumber);
               }}
-              className="absolute -bottom-1 -right-1 p-1.5 bg-amber-500 hover:bg-amber-400 text-stone-950 rounded-full border border-black shadow-md transition-transform hover:scale-110 cursor-pointer"
-              title="Update profile picture on Digital ID"
-              aria-label="Upload profile picture"
+              className="text-[8.5px] uppercase font-bold px-2 py-1 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-amber-500/20 cursor-pointer shrink-0"
             >
-              {isUploadingPhoto ? (
-                <div className="w-3 h-3 border-2 border-stone-950 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Camera className="w-3.5 h-3.5" />
-              )}
+              {showFullNumber ? 'Hide' : 'Reveal'}
             </button>
           </div>
 
-          <span className="text-[8.5px] sm:text-[10px] text-amber-300/90 font-mono mt-1.5 text-center uppercase tracking-wider leading-tight">
-            {graduationCohort}
-          </span>
+          <div className="shrink-0 flex flex-col items-center">
+            <div className="p-1 bg-white rounded-lg shadow-md border border-amber-400/50">
+              {verificationQrUrl ? (
+                <img
+                  src={verificationQrUrl}
+                  alt="Alumni Verification QR Code"
+                  className="w-12 h-12 object-contain"
+                />
+              ) : (
+                <QrCode className="w-12 h-12 text-black" />
+              )}
+            </div>
+            <span className="text-[7px] text-amber-300/85 font-mono tracking-widest uppercase mt-0.5">
+              Scan Verify
+            </span>
+          </div>
         </div>
 
-        {/* Center-Right Column: Name, Degree, Membership & Verification QR */}
-        <div className="col-span-8 sm:col-span-9 flex items-center justify-between gap-2.5 sm:gap-3 min-w-0">
-          <div className="min-w-0 flex-1 space-y-1 sm:space-y-1.5">
+        {/* Desktop (sm+) Center-Right Column: Name, Degree, Membership & Verification QR */}
+        <div className="hidden sm:flex sm:col-span-9 items-center justify-between gap-3 min-w-0">
+          <div className="min-w-0 flex-1 space-y-1.5">
             {/* Membership Type Pill */}
-            <div className="inline-flex items-center gap-1 text-[9px] sm:text-[10.5px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/35 max-w-full">
+            <div className="inline-flex items-center gap-1 text-[10.5px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/35 max-w-full">
               <Award className="w-3 h-3 text-amber-400 shrink-0" />
               <span className="leading-tight">{membershipType}</span>
             </div>
 
             {/* Alumnus Name */}
-            <h3 className="text-sm sm:text-lg md:text-xl font-black tracking-tight uppercase text-white leading-tight break-words drop-shadow-sm font-sans">
+            <h3 className="text-lg md:text-xl font-black tracking-tight uppercase text-white leading-tight break-words drop-shadow-sm font-sans">
               {user.name}
             </h3>
 
             {/* Degree / Program */}
-            <p className="text-[10.5px] sm:text-xs md:text-sm font-bold text-amber-200/95 leading-snug break-words">
+            <p className="text-xs md:text-sm font-bold text-amber-200/95 leading-snug break-words">
               {degreeProgram}
             </p>
 
             {/* Alumni ID Number Box */}
             <div className="pt-0.5 flex flex-wrap items-center gap-1.5">
-              <div className="bg-black/60 px-2 py-0.5 rounded border border-amber-500/30 font-mono text-[10px] sm:text-xs font-bold text-amber-300 tracking-wider">
+              <div className="bg-black/60 px-2 py-0.5 rounded border border-amber-500/30 font-mono text-xs font-bold text-amber-300 tracking-wider">
                 {maskedId}
               </div>
               <button
@@ -339,7 +392,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
                   e.stopPropagation();
                   setShowFullNumber(!showFullNumber);
                 }}
-                className="text-[8px] sm:text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-amber-500/20 cursor-pointer shrink-0"
+                className="text-[9px] uppercase font-bold px-2 py-0.5 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-amber-500/20 cursor-pointer shrink-0"
               >
                 {showFullNumber ? 'Hide' : 'Reveal'}
               </button>
@@ -348,18 +401,18 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
 
           {/* Verification QR Code (Opens Secure Public Verification Page) */}
           <div className="shrink-0 flex flex-col items-center pl-1">
-            <div className="p-1 sm:p-1.5 bg-white rounded-lg shadow-md border border-amber-400/50">
+            <div className="p-1.5 bg-white rounded-lg shadow-md border border-amber-400/50">
               {verificationQrUrl ? (
                 <img
                   src={verificationQrUrl}
                   alt="Alumni Verification QR Code"
-                  className="w-14 h-14 sm:w-[72px] sm:h-[72px] md:w-20 md:h-20 object-contain"
+                  className="w-[72px] h-[72px] md:w-20 md:h-20 object-contain"
                 />
               ) : (
-                <QrCode className="w-14 h-14 sm:w-[72px] sm:h-[72px] md:w-20 md:h-20 text-black" />
+                <QrCode className="w-[72px] h-[72px] md:w-20 md:h-20 text-black" />
               )}
             </div>
-            <span className="text-[7px] sm:text-[8.5px] text-amber-300/85 font-mono tracking-widest uppercase mt-1">
+            <span className="text-[8.5px] text-amber-300/85 font-mono tracking-widest uppercase mt-1">
               Scan Verify
             </span>
           </div>
@@ -367,14 +420,14 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
       </div>
 
       {/* 3. Footer: Latin Motto "VIRTUS • SCIENTIA • CHARITAS" & Security Signature */}
-      <div className="relative z-10 pt-2 border-t border-amber-500/20 flex items-center justify-between gap-2 text-[8.5px] sm:text-[10px]">
-        <div className="flex items-center gap-1.5">
-          <span className="text-amber-400/90 font-serif font-bold tracking-widest">
+      <div className="relative z-10 pt-2 border-t border-amber-500/20 flex items-center justify-between gap-2 text-[8px] sm:text-[10px]">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-amber-400/90 font-serif font-bold tracking-wider sm:tracking-widest truncate">
             VIRTUS • SCIENTIA • CHARITAS
           </span>
         </div>
 
-        <div className="text-right">
+        <div className="text-right shrink-0">
           <span className="font-mono text-amber-200/75 tracking-wider">
             OFFICIAL ALUMNI CREDENTIAL
           </span>
@@ -396,7 +449,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
   // CARD BACK — OFFICIAL INSTITUTIONAL RECORD
   // ==========================================
   const cardBack = (
-    <div className="relative w-full h-full rounded-2xl overflow-hidden bg-gradient-to-br from-[#8B181B] via-[#661013] to-[#250507] text-white p-3.5 sm:p-5 flex flex-col justify-between shadow-[0_14px_44px_rgba(139,24,27,0.45),0_0_0_1px_rgba(245,158,11,0.35)] border-2 border-amber-400/60 select-none">
+    <div className="relative w-full min-h-[250px] h-full rounded-2xl overflow-hidden bg-gradient-to-br from-[#8B181B] via-[#661013] to-[#250507] text-white p-3.5 sm:p-5 flex flex-col justify-between shadow-[0_14px_44px_rgba(139,24,27,0.45),0_0_0_1px_rgba(245,158,11,0.35)] border-2 border-amber-400/60 select-none">
       {/* Magnetic Stripe */}
       <div className="absolute top-3 sm:top-4 left-0 right-0 h-7 sm:h-9 bg-black border-y border-stone-800 shadow-inner" />
 
@@ -469,12 +522,12 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
             }
           }}
           style={{ perspective: '1200px', WebkitPerspective: '1200px', touchAction: 'manipulation' }}
-          className="w-full min-h-[250px] sm:aspect-[1.586/1] sm:min-h-[305px] md:min-h-[340px] cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99] duration-300 group select-none"
+          className="w-full cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99] duration-300 group select-none"
           title="Click to flip between front and back of your Digital Alumni ID"
           aria-label="Digital Alumni Card - tap to flip"
         >
           <div
-            className="relative w-full h-full transition-transform duration-700"
+            className="relative w-full transition-transform duration-700"
             style={{
               transformStyle: 'preserve-3d',
               WebkitTransformStyle: 'preserve-3d',
@@ -482,9 +535,9 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
               WebkitTransform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
             }}
           >
-            {/* Front Side */}
+            {/* Front Side (stays in normal flow so container never collapses on mobile Safari) */}
             <div
-              className="absolute inset-0 transition-opacity duration-300"
+              className="relative w-full min-h-[250px] sm:aspect-[1.586/1] sm:min-h-[305px] md:min-h-[340px] transition-opacity duration-300"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
@@ -500,7 +553,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
 
             {/* Back Side */}
             <div
-              className="absolute inset-0 transition-opacity duration-300"
+              className="absolute inset-0 w-full h-full transition-opacity duration-300"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
@@ -589,7 +642,7 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
             </div>
 
             {/* Render card front */}
-            <div className="w-full min-h-[235px] sm:aspect-[1.586/1] sm:min-h-[270px]">{cardFront}</div>
+            <div className="w-full sm:aspect-[1.586/1] sm:min-h-[270px]">{cardFront}</div>
 
             {/* High-Contrast Turnstile QR Code with Rolling Token & SVG Countdown Ring */}
             <div className="bg-white p-3.5 sm:p-4 rounded-2xl flex flex-col items-center gap-3 text-stone-900 w-full shadow-lg border border-stone-200">

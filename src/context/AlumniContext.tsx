@@ -906,11 +906,11 @@ export function isSignedHmacToken(token?: string | null): boolean {
  * Persist active session tokens and identifiers to both localStorage and sessionStorage.
  * Preserves an existing valid signed HMAC server token when a caller omits `token`.
  */
-export function saveActiveSession(user: UserProfile, token?: string) {
+export function saveActiveSession(user: UserProfile, token?: string, forceRefresh = false) {
   try {
     const canonicalUid = normalizeUid(user.uid) || user.uid;
     let sessionToken = token;
-    if (!sessionToken) {
+    if (!sessionToken && !forceRefresh) {
       const existingToken = getStoredSessionToken();
       if (isSignedHmacToken(existingToken)) {
         const parsed = parseAndValidateSessionToken(existingToken!);
@@ -2903,7 +2903,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           experience: [],
           education: [],
           createdAt: new Date().toISOString()
-        };
+        });
       }
     }
     return found || null;
@@ -2968,7 +2968,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             experience: [],
             education: [],
             createdAt: new Date().toISOString()
-          };
+          });
           return [recovered, ...prev];
         });
       }
@@ -4866,6 +4866,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const signature = `${currentUserId}:${users.length}:${feedPosts.length}`;
     if (hasSyncedServerSnapshotRef.current === signature) return;
     hasSyncedServerSnapshotRef.current = signature;
+    const stripLargeDataUri = (val?: string) =>
+      typeof val === 'string' && val.startsWith('data:') && val.length > 4096 ? undefined : val;
     apiFetchWithCsrf('/api/posts/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -4880,8 +4882,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           course: u.course,
           department: u.department,
           location: u.location,
-          profilePictureUrl: u.profilePictureUrl,
-          coverPhotoUrl: u.coverPhotoUrl,
+          profilePictureUrl: stripLargeDataUri(u.profilePictureUrl),
+          coverPhotoUrl: stripLargeDataUri(u.coverPhotoUrl),
           headline: u.headline,
           about: u.about,
           company: u.company,
@@ -4905,7 +4907,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           isBanned: u.isBanned,
           createdAt: u.createdAt
         })),
-        posts: feedPosts
+        posts: feedPosts.map((p) => ({
+          ...p,
+          authorAvatar: stripLargeDataUri(p.authorAvatar),
+          imageUrl: stripLargeDataUri(p.imageUrl),
+          mediaUrl: stripLargeDataUri(p.mediaUrl),
+          comments: Array.isArray(p.comments) ? p.comments.slice(0, 20) : []
+        }))
       })
     }).catch(() => {});
   }, [currentUserId, users, feedPosts]);
