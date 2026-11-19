@@ -252,17 +252,32 @@ export const onNewEventCreated = onDocumentCreated('events/{eventId}', async (ev
  * Called by frontend to subscribe device tokens to topics (all_alumni, batch_{year}, employer_{uid})
  */
 export const subscribeToCohortTopics = onCall(async (request) => {
-  const { token, topics } = request.data || {};
-
-  if (!token || !Array.isArray(topics) || topics.length === 0) {
-    throw new HttpsError('invalid-argument', 'Token and topics array are required.');
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required to subscribe to notification topics.');
   }
 
-  // Subscribe token to each requested topic
-  const results = await Promise.allSettled(
-    topics.map((topic: string) => messaging.subscribeToTopic(token, topic))
+  const { token, topics } = request.data || {};
+
+  if (!token || typeof token !== 'string' || !Array.isArray(topics) || topics.length === 0 || topics.length > 20) {
+    throw new HttpsError('invalid-argument', 'Valid token and topics array are required.');
+  }
+
+  const uid = request.auth.uid;
+  const allowedTopics = topics.filter(
+    (topic): topic is string =>
+      typeof topic === 'string' &&
+      (topic === 'all_alumni' || /^batch_\d{4}$/.test(topic) || topic === `employer_${uid}`)
   );
 
-  const successfulTopics = topics.filter((_, idx) => results[idx].status === 'fulfilled');
+  if (allowedTopics.length === 0) {
+    throw new HttpsError('permission-denied', 'No permitted topics requested.');
+  }
+
+  // Subscribe token to each validated topic
+  const results = await Promise.allSettled(
+    allowedTopics.map((topic: string) => messaging.subscribeToTopic(token, topic))
+  );
+
+  const successfulTopics = allowedTopics.filter((_, idx) => results[idx].status === 'fulfilled');
   return { success: true, subscribedTopics: successfulTopics };
 });

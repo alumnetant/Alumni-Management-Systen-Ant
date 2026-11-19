@@ -1,7 +1,10 @@
 import crypto from 'crypto';
 
 const SERVER_CRYPTO_SECRET =
-  process.env.SERVER_AUTH_SECRET || 'scc_alumnet_secret_key_8b181b_sec_v1_tamperproof_institutional';
+  process.env.SERVER_AUTH_SECRET ||
+  (process.env.NODE_ENV === 'production'
+    ? crypto.randomBytes(32).toString('hex')
+    : 'scc_alumnet_dev_only_secret_key_do_not_use_in_prod');
 
 const AES_KEY = crypto.createHash('sha256').update(SERVER_CRYPTO_SECRET).digest();
 const ENC_PREFIX = 'enc:v1:';

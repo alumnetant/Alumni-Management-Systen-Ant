@@ -86,6 +86,20 @@ export async function checkPushPermissions(): Promise<'granted' | 'denied' | 'pr
   return 'prompt';
 }
 
+function getPushAuthToken(): string | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    return (
+      localStorage.getItem('alumni_server_auth_token') ||
+      sessionStorage.getItem('alumni_server_auth_token') ||
+      localStorage.getItem('alumni_auth_token') ||
+      sessionStorage.getItem('alumni_auth_token')
+    );
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Registers device token or web push subscription with the backend server
  */
@@ -96,9 +110,13 @@ export async function registerDeviceWithServer(params: {
   platform?: 'web' | 'android' | 'ios';
 }): Promise<boolean> {
   try {
+    const authToken = getPushAuthToken();
     const res = await fetch('/api/push/register', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+      },
       body: JSON.stringify({
         userId: params.userId,
         token: params.token,
@@ -388,7 +406,12 @@ export function startLivePushStream(
     } catch {}
   }
 
-  const streamUrl = `/api/push/live-stream${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`;
+  const authToken = getPushAuthToken();
+  const streamParams = new URLSearchParams();
+  if (userId) streamParams.set('userId', userId);
+  if (authToken) streamParams.set('token', authToken);
+  const qs = streamParams.toString();
+  const streamUrl = `/api/push/live-stream${qs ? `?${qs}` : ''}`;
   const es = new EventSource(streamUrl);
   activeLiveStream = es;
 
@@ -440,9 +463,13 @@ export async function sendPushBroadcast(payload: {
   data?: Record<string, any>;
 }): Promise<boolean> {
   try {
+    const authToken = getPushAuthToken();
     const res = await fetch('/api/push/send', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+      },
       body: JSON.stringify({
         targetUserId: 'all',
         ...payload
@@ -465,9 +492,13 @@ export async function triggerTestPushNotification(
 ): Promise<{ success: boolean; message: string }> {
   try {
     // 1. Send via backend server to all registered devices / subscriptions
+    const authToken = getPushAuthToken();
     const res = await fetch('/api/push/test', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+      },
       body: JSON.stringify({
         userId,
         delaySeconds

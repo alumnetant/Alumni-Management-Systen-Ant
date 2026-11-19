@@ -2,9 +2,9 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { createServer as createViteServer } from 'vite';
 
 const __dirname = path.resolve();
+const IS_VERCEL = Boolean(process.env.VERCEL);
 import type { Opportunity, JobApplication, ApplicationStatus, ChatThread, ChatMessage } from './src/types';
 import { normalizeSystemRole } from './src/types';
 import { INITIAL_USERS, INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
@@ -25,36 +25,119 @@ import { filterJobContent, recordJobReport } from './src/server/employerVerifica
 import { normalizeDomain, extractEmailDomain } from './src/server/employerVerification/domainMatch';
 import { postModerationEngine } from './src/server/postModeration/moderationEngine';
 import { createPostModerationRouter } from './src/server/postModeration/moderationRouter';
+import { hashTokenHmac, verifyTokenHmac } from './src/server/security/cryptoUtils';
 
 const app = express();
 const PORT = 3000;
 const IS_PROD = process.env.NODE_ENV === 'production';
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'institutional-secure-webhook-key-2026';
+const WEBHOOK_SECRET =
+  process.env.WEBHOOK_SECRET ||
+  (IS_PROD ? crypto.randomBytes(32).toString('hex') : 'institutional-secure-webhook-key-2026');
 
 // Parse JSON bodies with an appropriate limit for base64 post photos and profile sync
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // ============================================================================
-// 1. CORS & SECURITY HEADERS (CORS for Android APK, CSP, HSTS, Sniffing)
+// 1. CORS, HTTPS TRANSPORT & SECURITY HEADERS
 // ============================================================================
-app.use((req: Request, res: Response, next: NextFunction) => {
-  // Full cross-origin support for native Android APK (https://localhost) and PWA
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Client-Platform, X-Requested-With, X-CSRF-Token');
+function isAllowedCorsOrigin(origin?: string): boolean {
+  if (!origin) return false;
+  const trimmed = origin.trim();
+  const staticAllowed = new Set<string>([
+    'https://localhost',
+    'http://localhost',
+    'capacitor://localhost',
+    'ionic://localhost',
+    'https://aistudio.google.com'
+  ]);
+  if (staticAllowed.has(trimmed)) return true;
 
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
+  if (process.env.APP_URL) {
+    try {
+      if (trimmed === new URL(process.env.APP_URL).origin) return true;
+    } catch {
+      // ignore malformed APP_URL
+    }
+  }
+  if (process.env.CORS_ALLOWED_ORIGINS) {
+    const extra = process.env.CORS_ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
+    if (extra.includes(trimmed)) return true;
   }
 
-  // Prevent MIME type sniffing
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase();
+    if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && (host === 'localhost' || host === '127.0.0.1')) {
+      return true;
+    }
+    if (
+      parsed.protocol === 'https:' &&
+      (host.endsWith('.run.app') ||
+        host.endsWith('.vercel.app') ||
+        host.endsWith('.web.app') ||
+        host.endsWith('.firebaseapp.com') ||
+        host.endsWith('.googleusercontent.com'))
+    ) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const hostHeader = String(req.headers.host || '').toLowerCase();
+  const isLocalHost = hostHeader.startsWith('localhost') || hostHeader.startsWith('127.0.0.1');
+  const forwardedProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+
+  if (IS_PROD && !isLocalHost && forwardedProto === 'http') {
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+    }
+    return res.status(403).json({ error: 'HTTPS is required in production.' });
+  }
+
+  const origin = typeof req.headers.origin === 'string' ? req.headers.origin : '';
+  const originAllowed = isAllowedCorsOrigin(origin);
+
+  res.setHeader('Vary', 'Origin');
+  if (origin && originAllowed) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Client-Platform, X-Requested-With, X-CSRF-Token');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return origin && !originAllowed ? res.sendStatus(403) : res.sendStatus(204);
+  }
+
+  // CSRF Origin Guard: Reject state-changing browser requests from untrusted cross-site origins
+  if (
+    origin &&
+    !originAllowed &&
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) &&
+    req.path.startsWith('/api') &&
+    !req.path.startsWith('/api/webhooks/')
+  ) {
+    return res.status(403).json({
+      error: 'Forbidden: Cross-origin state-changing request from untrusted origin blocked.',
+      code: 'UNTRUSTED_ORIGIN'
+    });
+  }
+
+  // Security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Allow iframe rendering for AI Studio while blocking unauthorized cross-origin framing
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+  if (IS_PROD || forwardedProto === 'https') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
 
-  // CSP: Allow self, Google fonts, Firebase, Cloud Run, and native APK origins
+  // CSP: Allow self, Google fonts, Firebase, Cloud Run, native APK, and AI Studio preview iframe
   const cspDirectives = [
     "default-src 'self' data: blob:",
     "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://*.firebaseapp.com https://*.googleapis.com",
@@ -62,7 +145,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https://images.unsplash.com https://*.googleusercontent.com https://*.firebasestorage.app https://handy-pier-cvxch.firebasestorage.app",
     "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.run.app https://localhost:* capacitor://localhost http://localhost:*",
-    "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com"
+    "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com",
+    "frame-ancestors 'self' https://aistudio.google.com https://*.google.com https://*.googleusercontent.com"
   ].join('; ');
 
   res.setHeader('Content-Security-Policy', cspDirectives);
@@ -74,35 +158,57 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 // Blocks directory traversal, database dumps, secrets, and credential files
 // without interfering with Vite development module loading
 // ============================================================================
-const FORBIDDEN_SENSITIVE_EXTENSIONS = /\.(csv|tsv|sql|db|sqlite|log|bak|env)$/i;
+const FORBIDDEN_SENSITIVE_EXTENSIONS = /\.(csv|tsv|sql|db|sqlite|log|bak|env|map)$/i;
 const FORBIDDEN_SYSTEM_FILES = [
   'firebase-blueprint.json',
+  'firebase-applet-config.json',
+  'firebase-applet-config.example.json',
+  'firebase.json',
+  'firestore.rules',
+  'package.json',
+  'package-lock.json',
+  'tsconfig.json',
+  'vercel.json',
+  'capacitor.config.ts',
+  'server.ts',
+  '.vapid-keys.json',
   'default_accounts.md',
   'security_spec.md',
   '.env',
   '.env.example'
 ];
+const FORBIDDEN_PRIVATE_PREFIXES = /^\/(data|functions|tests|scripts|api\/_internal)(\/|$)/i;
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   const rawPath = req.path || '';
-  const normalizedPath = decodeURIComponent(rawPath).toLowerCase();
+  let normalizedPath = '';
+  try {
+    normalizedPath = decodeURIComponent(rawPath).toLowerCase();
+  } catch {
+    return res.status(400).send('Bad Request');
+  }
 
   // 1. Directory traversal attempt
-  if (normalizedPath.includes('..') || rawPath.includes('%2e%2e')) {
+  if (normalizedPath.includes('..') || rawPath.toLowerCase().includes('%2e%2e')) {
     return res.status(404).send('Not Found');
   }
 
-  // 2. Hidden dot-files (.env, .git, etc.) - allow Vite internal paths like /@vite
+  // 2. Hidden dot-files (.env, .git, .vapid-keys.json, etc.) - allow Vite internals like /@vite
   if (normalizedPath.startsWith('/.') || normalizedPath.includes('/.env') || normalizedPath.includes('/.git')) {
     return res.status(404).send('Not Found');
   }
 
-  // 3. Sensitive data dump extensions (.csv, .sql, .sqlite, .db, .env, .bak, .log)
+  // 3. Private internal directories (server data dumps, functions, test suites)
+  if (FORBIDDEN_PRIVATE_PREFIXES.test(normalizedPath)) {
+    return res.status(404).send('Not Found');
+  }
+
+  // 4. Sensitive data dump and sourcemap extensions
   if (FORBIDDEN_SENSITIVE_EXTENSIONS.test(normalizedPath)) {
     return res.status(404).send('Not Found');
   }
 
-  // 4. Sensitive internal specification or blueprint files
+  // 5. Sensitive internal configuration, specification, or server source files
   const filename = normalizedPath.split('/').pop() || '';
   if (FORBIDDEN_SYSTEM_FILES.includes(filename)) {
     return res.status(404).send('Not Found');
@@ -196,6 +302,15 @@ function createRateLimiter(options: { windowMs: number; max: number; message: st
     if (record.timestamps.length >= options.max) {
       const retryAfterSec = Math.ceil((record.timestamps[0] + options.windowMs - now) / 1000);
       res.setHeader('Retry-After', retryAfterSec);
+      serverAuditLogs.push({
+        id: `audit_rl_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        timestamp: new Date().toISOString(),
+        action: 'RATE_LIMIT_EXCEEDED',
+        actor: 'anonymous',
+        actorRole: 'guest',
+        ip: req.ip || 'unknown',
+        details: { path: `${req.baseUrl || ''}${req.path}`, retryAfterSec }
+      });
       return res.status(429).json({
         error: options.message,
         retryAfter: retryAfterSec
@@ -230,6 +345,12 @@ const webhookRateLimiter = createRateLimiter({
   windowMs: 60 * 1000, // 1 minute
   max: 60,
   message: 'Webhook rate limit exceeded.'
+});
+
+const messagingRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60,
+  message: 'Message send rate limit exceeded. Please slow down.'
 });
 
 // ============================================================================
@@ -286,8 +407,29 @@ const revokedTokens = new Set<string>();
 // ============================================================================
 // CRYPTOGRAPHIC AUTHENTICATION TOKEN SERVICE
 // ============================================================================
-const SERVER_AUTH_SECRET =
-  process.env.SERVER_AUTH_SECRET || 'scc_alumnet_secret_key_8b181b_sec_v1_tamperproof_institutional';
+const SERVER_AUTH_SECRET = (() => {
+  if (process.env.SERVER_AUTH_SECRET) {
+    return process.env.SERVER_AUTH_SECRET;
+  }
+  if (IS_VERCEL) {
+    console.warn(
+      '[Security Notice] SERVER_AUTH_SECRET is not set on Vercel; deriving deployment-scoped secret so tokens remain consistent across serverless instances.'
+    );
+    const seedMaterial =
+      process.env.VERCEL_PROJECT_ID ||
+      process.env.VERCEL_GIT_REPO_ID ||
+      process.env.VERCEL_ORG_ID ||
+      process.env.VERCEL_URL ||
+      'cecilian-alumnet-vercel';
+    return crypto
+      .createHmac('sha256', 'cecilian-alumnet-vercel-serverless-secret-v1')
+      .update(seedMaterial)
+      .digest('hex');
+  }
+  return IS_PROD
+    ? crypto.randomBytes(32).toString('hex')
+    : 'scc_alumnet_dev_only_secret_key_do_not_use_in_prod';
+})();
 
 interface SignedSessionPayload {
   sessionId: string;
@@ -345,6 +487,15 @@ function verifySignedSessionToken(token: string): SignedSessionPayload | null {
       !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))
     ) {
       console.warn('[Security] Cryptographic token signature mismatch! Token tampering rejected.');
+      serverAuditLogs.push({
+        id: `audit_tok_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        timestamp: new Date().toISOString(),
+        action: 'INVALID_TOKEN_SIGNATURE',
+        actor: 'anonymous',
+        actorRole: 'guest',
+        ip: 'internal',
+        details: { reason: 'HMAC signature mismatch' }
+      });
       return null;
     }
 
@@ -535,8 +686,11 @@ const seedUsers: StoredUserCredential[] = [
   }
 ];
 
-// Persistent Disk File for Credentials Store
-const CREDENTIALS_DB_FILE = path.join(process.cwd(), 'data', 'credentials_db.json');
+// Persistent Disk File for Credentials Store (use /tmp on Vercel read-only filesystem)
+const BUNDLED_DATA_DIR = path.join(process.cwd(), 'data');
+const WRITABLE_DATA_DIR = IS_VERCEL ? path.join('/tmp', 'cecilian_alumnet_data') : BUNDLED_DATA_DIR;
+const CREDENTIALS_DB_FILE = path.join(WRITABLE_DATA_DIR, 'credentials_db.json');
+const BUNDLED_CREDENTIALS_DB_FILE = path.join(BUNDLED_DATA_DIR, 'credentials_db.json');
 
 function persistCredentialsToDisk(): void {
   try {
@@ -605,7 +759,8 @@ function registerCredentialInDb(u: StoredUserCredential, persist: boolean = true
   }
 }
 
-const DELETED_ACCOUNTS_FILE = path.join(process.cwd(), 'data', 'deleted_accounts.json');
+const DELETED_ACCOUNTS_FILE = path.join(WRITABLE_DATA_DIR, 'deleted_accounts.json');
+const BUNDLED_DELETED_ACCOUNTS_FILE = path.join(BUNDLED_DATA_DIR, 'deleted_accounts.json');
 const deletedAccountUids = new Set<string>();
 
 function persistDeletedAccountsToDisk(): void {
@@ -622,8 +777,13 @@ function persistDeletedAccountsToDisk(): void {
 
 function loadDeletedAccountsFromDisk(): void {
   try {
-    if (fs.existsSync(DELETED_ACCOUNTS_FILE)) {
-      const raw = fs.readFileSync(DELETED_ACCOUNTS_FILE, 'utf-8');
+    const sourceFile = fs.existsSync(DELETED_ACCOUNTS_FILE)
+      ? DELETED_ACCOUNTS_FILE
+      : IS_VERCEL && fs.existsSync(BUNDLED_DELETED_ACCOUNTS_FILE)
+      ? BUNDLED_DELETED_ACCOUNTS_FILE
+      : null;
+    if (sourceFile) {
+      const raw = fs.readFileSync(sourceFile, 'utf-8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         parsed.forEach((uid) => {
@@ -662,8 +822,13 @@ function deleteCredentialFromDb(uid: string, persist: boolean = true) {
 
 function loadCredentialsFromDisk(): boolean {
   try {
-    if (fs.existsSync(CREDENTIALS_DB_FILE)) {
-      const raw = fs.readFileSync(CREDENTIALS_DB_FILE, 'utf-8');
+    const sourceFile = fs.existsSync(CREDENTIALS_DB_FILE)
+      ? CREDENTIALS_DB_FILE
+      : IS_VERCEL && fs.existsSync(BUNDLED_CREDENTIALS_DB_FILE)
+      ? BUNDLED_CREDENTIALS_DB_FILE
+      : null;
+    if (sourceFile) {
+      const raw = fs.readFileSync(sourceFile, 'utf-8');
       const records: StoredUserCredential[] = JSON.parse(raw);
       if (Array.isArray(records) && records.length > 0) {
         records.forEach((cred) => {
@@ -1226,12 +1391,12 @@ app.post('/api/auth/register', authRateLimiter, (req: Request, res: Response) =>
     hash,
     salt,
     role: assignedRole,
-    emailVerified: true,
+    emailVerified: false,
     isVerified: initialVerified,
     verificationStatus: initialVerified ? 'verified' : 'pending_review',
     accountStatus: initialAccountStatus,
     status: initialAccountStatus,
-    verificationToken,
+    verificationToken: hashTokenHmac(verificationToken),
     verificationTokenExpiry: verificationExpiry
   };
 
@@ -1247,7 +1412,7 @@ app.post('/api/auth/register', authRateLimiter, (req: Request, res: Response) =>
     company: sanitizedCompany || 'N/A',
     employmentStatus: sanitizedEmploymentStatus || (accountType === 'student' ? 'Student' : 'Seeking Opportunities'),
     emailVerified: false,
-    verificationToken // returned in dev/demo to simulate email verification click
+    ...(!IS_PROD ? { verificationToken } : {})
   });
 });
 
@@ -1362,6 +1527,15 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
 
   // Password verification is strictly mandatory - never allow login without valid password
   if (!user || isCredentialDeleted(user) || !verifyPassword(password, user.salt, user.hash)) {
+    serverAuditLogs.push({
+      id: `audit_login_fail_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      timestamp: new Date().toISOString(),
+      action: 'AUTH_LOGIN_FAILED',
+      actor: identifier.includes('@') ? maskEmail(identifier) : identifier.slice(0, 32),
+      actorRole: 'guest',
+      ip: req.ip || 'unknown',
+      details: { reason: user ? 'INVALID_CREDENTIALS_OR_DELETED' : 'UNKNOWN_ACCOUNT' }
+    });
     return res.status(401).json({ error: 'Invalid email address/Student ID or password.' });
   }
 
@@ -1797,12 +1971,12 @@ app.post('/api/auth/send-otp', async (req: Request, res: Response) => {
     success: true,
     deliveryMode,
     message: `If an account with ${maskEmail(email)} exists, a 6-digit verification code has been dispatched. Check your inbox and spam folder.`,
-    ...(offlineFallbackCode ? { offlineFallbackCode } : {})
+    ...(!IS_PROD && offlineFallbackCode ? { offlineFallbackCode } : {})
   });
 });
 
 // Endpoint 1B: Request Authenticated Email Change OTP (sends to new email address)
-app.post('/api/auth/email-change/send-otp', requireServerAuth, async (req: Request, res: Response) => {
+app.post('/api/auth/email-change/send-otp', verificationRateLimiter, requireServerAuth, async (req: Request, res: Response) => {
   const userPayload = (req as any).user;
   const newEmail = typeof req.body.newEmail === 'string' ? req.body.newEmail.trim().toLowerCase() : '';
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1908,13 +2082,13 @@ app.post('/api/auth/email-change/send-otp', requireServerAuth, async (req: Reque
     message:
       deliveryMode === 'email'
         ? `A 6-digit verification code has been emailed to ${maskEmail(newEmail)}.`
-        : `Email server unavailable or unconfigured; use the fallback verification code below.`,
-    ...(offlineFallbackCode ? { offlineFallbackCode } : {})
+        : `Email server unavailable or unconfigured; please contact administrator or configure SMTP.`,
+    ...(!IS_PROD && offlineFallbackCode ? { offlineFallbackCode } : {})
   });
 });
 
 // Endpoint 1C: Confirm Email Change with Validated 6-Digit OTP
-app.post('/api/auth/email-change/confirm', requireServerAuth, (req: Request, res: Response) => {
+app.post('/api/auth/email-change/confirm', verificationRateLimiter, requireServerAuth, (req: Request, res: Response) => {
   const userPayload = (req as any).user;
   const newEmail = typeof req.body.newEmail === 'string' ? req.body.newEmail.trim().toLowerCase() : '';
   const otp = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
@@ -2007,7 +2181,7 @@ app.post('/api/auth/email-change/confirm', requireServerAuth, (req: Request, res
 });
 
 // Endpoint 2: Validate OTP Code (Max 5 attempts, constant-time comparison)
-app.post('/api/auth/verify-otp', (req: Request, res: Response) => {
+app.post('/api/auth/verify-otp', verificationRateLimiter, (req: Request, res: Response) => {
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const otp = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
 
@@ -2055,7 +2229,7 @@ app.post('/api/auth/verify-otp', (req: Request, res: Response) => {
 });
 
 // Endpoint 3: Reset Password with Validated OTP
-app.post('/api/auth/reset-password', (req: Request, res: Response) => {
+app.post('/api/auth/reset-password', authRateLimiter, (req: Request, res: Response) => {
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   const otp = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
   const newPassword = typeof req.body.newPassword === 'string' ? req.body.newPassword : '';
@@ -2268,14 +2442,21 @@ function resolveServerSubmissionSource(input: {
   return { submissionSource: 'request_verification', requestType: 'manual_verification_request' };
 }
 
-const ALUMNI_VERIFICATION_REQUESTS_FILE = path.join(process.cwd(), 'data', 'alumni_verification_requests.json');
-const VERIFICATION_SELFIES_DIR = path.join(process.cwd(), 'data', 'verification_selfies');
+const ALUMNI_VERIFICATION_REQUESTS_FILE = path.join(WRITABLE_DATA_DIR, 'alumni_verification_requests.json');
+const BUNDLED_VERIFICATION_REQUESTS_FILE = path.join(BUNDLED_DATA_DIR, 'alumni_verification_requests.json');
+const VERIFICATION_SELFIES_DIR = path.join(WRITABLE_DATA_DIR, 'verification_selfies');
+const BUNDLED_VERIFICATION_SELFIES_DIR = path.join(BUNDLED_DATA_DIR, 'verification_selfies');
 const alumniVerificationRequests = new Map<string, AlumniVerificationRequest>();
 
 function loadAlumniVerificationRequestsFromDisk(): void {
   try {
-    if (!fs.existsSync(ALUMNI_VERIFICATION_REQUESTS_FILE)) return;
-    const raw = fs.readFileSync(ALUMNI_VERIFICATION_REQUESTS_FILE, 'utf-8');
+    const sourceFile = fs.existsSync(ALUMNI_VERIFICATION_REQUESTS_FILE)
+      ? ALUMNI_VERIFICATION_REQUESTS_FILE
+      : IS_VERCEL && fs.existsSync(BUNDLED_VERIFICATION_REQUESTS_FILE)
+      ? BUNDLED_VERIFICATION_REQUESTS_FILE
+      : null;
+    if (!sourceFile) return;
+    const raw = fs.readFileSync(sourceFile, 'utf-8');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((item: AlumniVerificationRequest) => {
@@ -2349,14 +2530,19 @@ function saveSelfieImageToSecureStorage(
   if (!hasValidImageMagicBytes(buffer, mimeType)) {
     return null;
   }
-  if (!fs.existsSync(VERIFICATION_SELFIES_DIR)) {
-    fs.mkdirSync(VERIFICATION_SELFIES_DIR, { recursive: true });
-  }
   const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
   const safeId = requestId.replace(/[^a-zA-Z0-9_-]/g, '');
   const fileName = `${safeId}.${ext}`;
-  const fullPath = path.join(VERIFICATION_SELFIES_DIR, fileName);
-  fs.writeFileSync(fullPath, buffer);
+  try {
+    if (!fs.existsSync(VERIFICATION_SELFIES_DIR)) {
+      fs.mkdirSync(VERIFICATION_SELFIES_DIR, { recursive: true });
+    }
+    const fullPath = path.join(VERIFICATION_SELFIES_DIR, fileName);
+    fs.writeFileSync(fullPath, buffer);
+  } catch (err) {
+    console.warn('[Verification Selfies] Could not write selfie to disk, keeping in-memory/payload reference:', err);
+    return { storagePath: '', mimeType };
+  }
 
   // Remove stale file if extension changed to avoid orphaned uploads
   if (previousStoragePath) {
@@ -2380,10 +2566,20 @@ function readSelfieDataUrlFromRequest(reqRecord: AlumniVerificationRequest): str
   if (reqRecord.selfieStoragePath) {
     const safeFile = path.basename(reqRecord.selfieStoragePath);
     const fullPath = path.join(VERIFICATION_SELFIES_DIR, safeFile);
-    if (fs.existsSync(fullPath)) {
-      const buffer = fs.readFileSync(fullPath);
-      const mime = reqRecord.selfieMimeType || 'image/jpeg';
-      return `data:${mime};base64,${buffer.toString('base64')}`;
+    const bundledPath = path.join(BUNDLED_VERIFICATION_SELFIES_DIR, safeFile);
+    const targetPath = fs.existsSync(fullPath)
+      ? fullPath
+      : IS_VERCEL && fs.existsSync(bundledPath)
+      ? bundledPath
+      : null;
+    if (targetPath) {
+      try {
+        const buffer = fs.readFileSync(targetPath);
+        const mime = reqRecord.selfieMimeType || 'image/jpeg';
+        return `data:${mime};base64,${buffer.toString('base64')}`;
+      } catch {
+        // fall through to inline proofUrl
+      }
     }
   }
   if (reqRecord.proofUrl && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(reqRecord.proofUrl)) {
@@ -2394,7 +2590,7 @@ function readSelfieDataUrlFromRequest(reqRecord: AlumniVerificationRequest): str
 
 loadAlumniVerificationRequestsFromDisk();
 
-app.post('/api/alumni/verification-request', (req: Request, res: Response) => {
+app.post('/api/alumni/verification-request', verificationRateLimiter, (req: Request, res: Response) => {
   const {
     userId,
     conflictId,
@@ -2533,6 +2729,7 @@ app.post('/api/alumni/verification-request', (req: Request, res: Response) => {
     originalOwnerCourse: resolvedOwnerCourse,
     originalOwnerBatch: resolvedOwnerBatch,
     proofName: resolvedFileName || existingByConflict?.proofName,
+    proofUrl: (!savedImageMeta?.storagePath && rawImage) ? rawImage : existingByConflict?.proofUrl,
     selfieFileName: resolvedFileName || existingByConflict?.selfieFileName,
     selfieMimeType: savedImageMeta?.mimeType || existingByConflict?.selfieMimeType,
     selfieStoragePath: savedImageMeta?.storagePath || existingByConflict?.selfieStoragePath,
@@ -3139,20 +3336,21 @@ app.post('/api/auth/terminate-session', authRateLimiter, (req: Request, res: Res
   let targetUid = '';
   let targetEmail = '';
 
-  // 1. Authenticated user revoking remote session
+  // 1. Authenticated user revoking remote session (strict HMAC verification required)
   if (authHeader) {
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid authorization header format.' });
+    }
     const token = authHeader.split(' ')[1];
-    try {
-      let payloadStr = '';
-      if (token.includes('.')) {
-        payloadStr = Buffer.from(token.split('.')[1], 'base64').toString('utf-8');
-      } else {
-        payloadStr = Buffer.from(token, 'base64').toString('utf-8');
-      }
-      const payload = JSON.parse(payloadStr);
-      targetUid = payload.uid;
-      targetEmail = payload.email;
-    } catch {}
+    if (!token || revokedTokens.has(token)) {
+      return res.status(401).json({ error: 'Unauthorized: Token has been revoked or is missing.' });
+    }
+    const verifiedPayload = verifySignedSessionToken(token);
+    if (!verifiedPayload || !verifiedPayload.uid) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid or tampered session token.' });
+    }
+    targetUid = verifiedPayload.uid;
+    targetEmail = verifiedPayload.email || '';
   }
 
   // 2. Unauthenticated user on login screen providing valid password credentials
@@ -3225,28 +3423,34 @@ app.get('/api/auth/security-notices', requireServerAuth, (req: Request, res: Res
 app.post('/api/auth/logout', (req: Request, res: Response) => {
   const authHeader = req.headers.authorization;
   let loggedOutEmail = 'anonymous';
+  let verifiedActorUid = '';
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.split(' ')[1];
-    if (token) {
+    const verifiedPayload = token && !revokedTokens.has(token) ? verifySignedSessionToken(token) : null;
+    if (verifiedPayload && verifiedPayload.uid) {
       revokedTokens.add(token);
-      for (const [uid, sess] of activeSessions.entries()) {
-        if (sess.token === token) {
-          loggedOutEmail = sess.email;
-          activeSessions.delete(uid);
-          break;
-        }
+      verifiedActorUid = verifiedPayload.uid;
+      loggedOutEmail = verifiedPayload.email || verifiedPayload.uid;
+      const active = activeSessions.get(verifiedPayload.uid);
+      if (active && (active.token === token || active.sessionId === verifiedPayload.sessionId)) {
+        activeSessions.delete(verifiedPayload.uid);
       }
     }
   }
 
   const { refreshToken, revokeRefreshToken } = req.body || {};
   if (refreshToken && typeof refreshToken === 'string' && revokeRefreshToken) {
-    revokedTokens.add(refreshToken);
-    const refreshPayload = verifySignedSessionToken(refreshToken);
+    const refreshPayload = !revokedTokens.has(refreshToken) ? verifySignedSessionToken(refreshToken) : null;
     if (refreshPayload && refreshPayload.uid) {
-      activeSessions.delete(refreshPayload.uid);
-      if (refreshPayload.email) loggedOutEmail = refreshPayload.email;
+      revokedTokens.add(refreshToken);
+      if (!verifiedActorUid || verifiedActorUid === refreshPayload.uid) {
+        const active = activeSessions.get(refreshPayload.uid);
+        if (!active || active.refreshToken === refreshToken || active.sessionId === refreshPayload.sessionId) {
+          activeSessions.delete(refreshPayload.uid);
+        }
+        if (refreshPayload.email) loggedOutEmail = refreshPayload.email;
+      }
     }
   }
 
@@ -3278,17 +3482,17 @@ app.post('/api/auth/verify-email/request', verificationRateLimiter, (req: Reques
   }
 
   const newToken = crypto.randomBytes(32).toString('hex');
-  user.verificationToken = newToken;
+  user.verificationToken = hashTokenHmac(newToken);
   user.verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000;
 
   res.json({
     message: 'A new verification link has been generated.',
-    verificationToken: newToken
+    ...(!IS_PROD ? { verificationToken: newToken } : {})
   });
 });
 
 // 6.4 Email Verification: Confirm Token
-app.post('/api/auth/verify-email/confirm', (req: Request, res: Response) => {
+app.post('/api/auth/verify-email/confirm', verificationRateLimiter, (req: Request, res: Response) => {
   const { token, email } = req.body;
   if (!token || !email) {
     return res.status(400).json({ error: 'Verification token and email are required.' });
@@ -3297,7 +3501,7 @@ app.post('/api/auth/verify-email/confirm', (req: Request, res: Response) => {
   const normalized = String(email).toLowerCase().trim();
   const user = credentialsDb.get(normalized);
 
-  if (!user || user.verificationToken !== token) {
+  if (!user || !user.verificationToken || !verifyTokenHmac(String(token), user.verificationToken)) {
     return res.status(400).json({ error: 'Invalid or expired verification token.' });
   }
 
@@ -3311,20 +3515,6 @@ app.post('/api/auth/verify-email/confirm', (req: Request, res: Response) => {
   delete user.verificationTokenExpiry;
 
   res.json({ message: 'Email address successfully verified.', emailVerified: true });
-});
-
-// 6.5 Authentication: Logout & Token Revocation
-app.post('/api/auth/logout', requireServerAuth, (req: Request, res: Response) => {
-  const userPayload = (req as any).user;
-  const authHeader = req.headers.authorization;
-  if (authHeader) {
-    const token = authHeader.split(' ')[1];
-    revokedTokens.add(token);
-  }
-  if (userPayload && userPayload.uid) {
-    activeSessions.delete(userPayload.uid);
-  }
-  res.json({ message: 'Signed out successfully. Token revoked.' });
 });
 
 // 6.5.1 Authentication: Secure Password Change
@@ -3393,12 +3583,12 @@ app.post('/api/auth/verify-email/resend', verificationRateLimiter, (req: Request
   }
 
   const newToken = crypto.randomBytes(32).toString('hex');
-  user.verificationToken = newToken;
+  user.verificationToken = hashTokenHmac(newToken);
   user.verificationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000;
 
   res.json({
     message: 'A new verification link has been generated.',
-    verificationToken: newToken
+    ...(!IS_PROD ? { verificationToken: newToken } : {})
   });
 });
 
@@ -4392,17 +4582,33 @@ app.put('/api/profile', requireServerAuth, (req: Request, res: Response) => {
     userCred = credentialsDb.get((req as any).user.email.toLowerCase());
   }
 
-  const { name, headline, about, phone, currentPosition, company, location } = req.body;
+  const { name, headline, about, phone, currentPosition, company, location } = req.body || {};
+  const cleanName = name !== undefined ? sanitizePlainText(name, 120) : undefined;
+  const cleanHeadline = headline !== undefined ? sanitizePlainText(headline, 200) : undefined;
+  const cleanAbout = about !== undefined ? sanitizePlainText(about, 1500) : undefined;
+  const cleanPhone = phone !== undefined ? sanitizePlainText(phone, 40) : undefined;
+  const cleanPosition = currentPosition !== undefined ? sanitizePlainText(currentPosition, 120) : undefined;
+  const cleanCompany = company !== undefined ? sanitizePlainText(company, 120) : undefined;
+  const cleanLocation = location !== undefined ? sanitizePlainText(location, 120) : undefined;
+
   if (userCred) {
-    if (name) userCred.name = name;
-    if (company) userCred.company = company;
+    if (cleanName) userCred.name = cleanName;
+    if (cleanCompany) userCred.company = cleanCompany;
   }
 
   res.json({
     success: true,
     message: 'Profile updated securely.',
     uid: authenticatedUid,
-    updatedFields: { name, headline, about, phone, currentPosition, company, location }
+    updatedFields: {
+      name: cleanName,
+      headline: cleanHeadline,
+      about: cleanAbout,
+      phone: cleanPhone,
+      currentPosition: cleanPosition,
+      company: cleanCompany,
+      location: cleanLocation
+    }
   });
 });
 
@@ -5068,10 +5274,31 @@ app.post('/api/opportunities', requireServerAuth, handleOpportunityPost);
 
 app.delete('/api/opportunities/:id', requireServerAuth, (req: Request, res: Response) => {
   const actor = (req as any).user;
-  if (actor.role === 'alumni') {
+  const isPrivileged = ['admin', 'superadmin', 'moderator', 'staff'].includes(actor.role);
+  if (actor.role === 'alumni' || (!isPrivileged && actor.role !== 'employer')) {
     return res.status(403).json({ error: 'Forbidden: Alumni accounts cannot delete job opportunities.' });
   }
   const id = req.params.id;
+  const existing = backendOpportunities.get(id);
+  if (!existing) {
+    return res.status(404).json({ error: 'Job opportunity not found.' });
+  }
+  if (!isPrivileged) {
+    const actorUid = actor.uid || '';
+    const actorEmail = (actor.email || '').toLowerCase().trim();
+    const employerCompany = getEmployerCompany(actor);
+    const isOwner =
+      existing.postedBy === actorUid ||
+      (isCeciliaEmployerUid(actorUid) && isCeciliaEmployerUid(existing.postedBy || '')) ||
+      (employerCompany && existing.company && existing.company.toLowerCase().trim() === employerCompany) ||
+      (actorEmail && existing.contactEmail && existing.contactEmail.toLowerCase().trim() === actorEmail);
+    if (!isOwner) {
+      return res.status(403).json({
+        error: 'Forbidden: You can only delete job opportunities owned by your organization.',
+        code: 'NOT_JOB_OWNER'
+      });
+    }
+  }
   backendOpportunities.delete(id);
   res.json({ success: true, message: 'Opportunity removed.' });
 });
@@ -5149,20 +5376,29 @@ app.post('/api/messages/delete', requireServerAuth, (req: Request, res: Response
 const VAPID_KEYS_FILE = path.resolve(process.cwd(), '.vapid-keys.json');
 let vapidKeys: { publicKey: string; privateKey: string };
 
-try {
-  if (fs.existsSync(VAPID_KEYS_FILE)) {
-    vapidKeys = JSON.parse(fs.readFileSync(VAPID_KEYS_FILE, 'utf-8'));
-  } else {
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  vapidKeys = {
+    publicKey: process.env.VAPID_PUBLIC_KEY,
+    privateKey: process.env.VAPID_PRIVATE_KEY
+  };
+} else {
+  try {
+    if (!IS_PROD && fs.existsSync(VAPID_KEYS_FILE)) {
+      vapidKeys = JSON.parse(fs.readFileSync(VAPID_KEYS_FILE, 'utf-8'));
+    } else {
+      vapidKeys = webpush.generateVAPIDKeys();
+      if (!IS_PROD) {
+        fs.writeFileSync(VAPID_KEYS_FILE, JSON.stringify(vapidKeys, null, 2), 'utf-8');
+      }
+    }
+  } catch {
     vapidKeys = webpush.generateVAPIDKeys();
-    fs.writeFileSync(VAPID_KEYS_FILE, JSON.stringify(vapidKeys, null, 2), 'utf-8');
   }
-} catch {
-  vapidKeys = webpush.generateVAPIDKeys();
 }
 
 try {
   webpush.setVapidDetails(
-    'mailto:alumnetant@gmail.com',
+    process.env.VAPID_SUBJECT || 'mailto:notifications@stcecilia.edu.ph',
     vapidKeys.publicKey,
     vapidKeys.privateKey
   );
@@ -5271,15 +5507,32 @@ async function dispatchPushToUser(
   return { sent, failed };
 }
 
+function canAccessChatThread(actor: any, chatId: string): boolean {
+  if (!actor || !actor.uid) return false;
+  if (['admin', 'superadmin', 'moderator'].includes(actor.role)) return true;
+  const thread = backendChats.get(chatId);
+  if (!thread) return true; // Thread not synced to memory yet; caller identity still enforced
+  const members: string[] = Array.isArray(thread.memberIds)
+    ? thread.memberIds
+    : Array.isArray((thread as any).participants)
+    ? (thread as any).participants
+    : [];
+  return members.length === 0 || members.includes(actor.uid);
+}
+
 // 6.6.7.3 Messenger-Style Message Reactions: Strictly One Active Reaction Per User
 // Request 7: Enforce one-reaction-per-user rule on the server/database.
 // Replaces previous reaction if different emoji selected, removes reaction if same emoji selected.
-app.post('/api/messages/react', (req: Request, res: Response) => {
-  const { chatId, messageId, emoji, userId } = req.body;
-  const activeUserId = (req as any).user?.uid || userId;
+app.post('/api/messages/react', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const { chatId, messageId, emoji } = req.body;
+  const activeUserId = actor.uid;
 
   if (!chatId || !messageId || !emoji || typeof emoji !== 'string' || !activeUserId) {
-    return res.status(400).json({ error: 'chatId, messageId, emoji, and userId are required.' });
+    return res.status(400).json({ error: 'chatId, messageId, and emoji are required.' });
+  }
+  if (!canAccessChatThread(actor, chatId)) {
+    return res.status(403).json({ error: 'Forbidden: You are not a participant of this conversation.' });
   }
 
   const sanitizedEmoji = emoji.trim().slice(0, 10);
@@ -5347,13 +5600,17 @@ app.post('/api/messages/react', (req: Request, res: Response) => {
 });
 
 // Also support parameterized route /api/messages/:chatId/:messageId/reactions
-app.post('/api/messages/:chatId/:messageId/reactions', (req: Request, res: Response) => {
+app.post('/api/messages/:chatId/:messageId/reactions', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
   const { chatId, messageId } = req.params;
-  const { emoji, userId } = req.body;
-  const activeUserId = (req as any).user?.uid || userId;
+  const { emoji } = req.body;
+  const activeUserId = actor.uid;
 
   if (!chatId || !messageId || !emoji || !activeUserId) {
-    return res.status(400).json({ error: 'chatId, messageId, emoji, and userId are required.' });
+    return res.status(400).json({ error: 'chatId, messageId, and emoji are required.' });
+  }
+  if (!canAccessChatThread(actor, chatId)) {
+    return res.status(403).json({ error: 'Forbidden: You are not a participant of this conversation.' });
   }
 
   const sanitizedEmoji = String(emoji).trim().slice(0, 10);
@@ -5409,10 +5666,14 @@ app.post('/api/messages/:chatId/:messageId/reactions', (req: Request, res: Respo
 });
 
 // 6.6.7.4 Message Send & Real-time Upload Endpoint with Automatic Push Notification Dispatch
-app.post('/api/messages/send', async (req: Request, res: Response) => {
+app.post('/api/messages/send', requireServerAuth, messagingRateLimiter, async (req: Request, res: Response) => {
+  const actor = (req as any).user;
   const { chatId, message } = req.body;
-  if (!chatId || !message || typeof message !== 'object') {
+  if (!chatId || typeof chatId !== 'string' || !message || typeof message !== 'object') {
     return res.status(400).json({ error: 'chatId and message object are required.' });
+  }
+  if (!canAccessChatThread(actor, chatId)) {
+    return res.status(403).json({ error: 'Forbidden: You cannot post messages to a conversation you do not belong to.' });
   }
 
   const text = String(message.text || '').trim();
@@ -5428,15 +5689,15 @@ app.post('/api/messages/send', async (req: Request, res: Response) => {
   const cleanMsg: ChatMessage = {
     id: message.id || `msg_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
     chatId,
-    senderId: message.senderId || 'usr_anonymous',
-    senderName: message.senderName || 'Cecilian Member',
-    senderAvatar: message.senderAvatar,
-    senderRole: message.senderRole || 'alumni',
+    senderId: actor.uid,
+    senderName: sanitizePlainText(actor.name || message.senderName || 'Cecilian Member', 120),
+    senderAvatar: typeof message.senderAvatar === 'string' ? message.senderAvatar.slice(0, 500) : undefined,
+    senderRole: actor.role || 'alumni',
     text: cleanText,
-    createdAt: message.createdAt || new Date().toISOString(),
+    createdAt: new Date().toISOString(),
     status: 'sent',
     offlineQueued: false,
-    reactions: message.reactions || {}
+    reactions: {}
   };
 
   const threadMsgs = backendMessages.get(chatId) || [];
@@ -5492,22 +5753,29 @@ app.get('/api/push/vapid-public-key', (_req: Request, res: Response) => {
   });
 });
 
-// 2. Register Device Token / WebPush Subscription (Universally accessible across web and native APK)
+// 2. Register Device Token / WebPush Subscription (Bound to authenticated actor)
 app.post('/api/push/register', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
   const { userId, token, subscription, platform, userAgent } = req.body;
-  if (!userId) {
-    return res.status(400).json({ error: 'userId is required.' });
-  }
+  const effectiveUserId =
+    ['admin', 'superadmin'].includes(actor.role) && typeof userId === 'string' && userId.trim()
+      ? userId.trim()
+      : actor.uid;
 
   const deviceId = token || (subscription && subscription.endpoint) || `dev_${Date.now()}`;
+  const existingDevice = registeredPushDevices.get(deviceId);
+  if (existingDevice && existingDevice.userId !== effectiveUserId && !['admin', 'superadmin'].includes(actor.role)) {
+    return res.status(403).json({ error: 'Forbidden: Device registration belongs to another user.' });
+  }
+
   const record: PushDeviceRecord = {
     id: deviceId,
-    userId,
+    userId: effectiveUserId,
     token,
     subscription,
     platform: platform || (subscription ? 'web' : 'android'),
     userAgent: userAgent || (req.headers['user-agent'] as string) || '',
-    createdAt: registeredPushDevices.get(deviceId)?.createdAt || new Date().toISOString(),
+    createdAt: existingDevice?.createdAt || new Date().toISOString(),
     lastActiveAt: new Date().toISOString()
   };
 
@@ -5516,44 +5784,79 @@ app.post('/api/push/register', requireServerAuth, (req: Request, res: Response) 
   res.json({
     success: true,
     deviceId,
-    registeredDevicesForUser: Array.from(registeredPushDevices.values()).filter((d) => d.userId === userId).length
+    registeredDevicesForUser: Array.from(registeredPushDevices.values()).filter((d) => d.userId === effectiveUserId).length
   });
 });
 
-// 3. Unregister Device
-app.post('/api/push/unregister', (req: Request, res: Response) => {
-  const { deviceId, token, endpoint } = req.body;
+// 3. Unregister Device (Owner or Admin only)
+app.post('/api/push/unregister', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const { deviceId, token, endpoint } = req.body || {};
   const targetId = deviceId || token || endpoint;
-  if (targetId && registeredPushDevices.has(targetId)) {
+  if (!targetId) {
+    return res.status(400).json({ error: 'deviceId, token, or endpoint is required.' });
+  }
+  const existing = registeredPushDevices.get(targetId);
+  if (existing) {
+    if (existing.userId !== actor.uid && !['admin', 'superadmin'].includes(actor.role)) {
+      return res.status(403).json({ error: 'Forbidden: You can only unregister your own devices.' });
+    }
     registeredPushDevices.delete(targetId);
   }
+  res.json({ success: true, removed: Boolean(existing) });
 });
 
-// 3b. Subscribe Device Token to FCM Topics (all_alumni, batch_{year}, employer_{id})
-app.post('/api/fcm/subscribe-topics', (req: Request, res: Response) => {
+// 3b. Subscribe Device Token to FCM Topics (all_alumni, batch_{year}, employer_{self})
+app.post('/api/fcm/subscribe-topics', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
   const { token, topics } = req.body;
-  if (!token || !topics) {
-    return res.status(400).json({ error: 'token and topics are required.' });
+  if (!token || typeof token !== 'string' || !Array.isArray(topics)) {
+    return res.status(400).json({ error: 'token string and topics array are required.' });
   }
 
-  // Topic subscription confirmed
+  const safeTopics = topics.filter(
+    (t): t is string =>
+      typeof t === 'string' &&
+      (t === 'all_alumni' || /^batch_\d{4}$/.test(t) || t === `employer_${actor.uid}`)
+  );
+
   res.json({
     success: true,
     token: `${token.slice(0, 10)}...`,
-    subscribedTopics: topics
+    subscribedTopics: safeTopics
   });
 });
 
 // 4. Send Push Notification to specific user or broadcast
-app.post('/api/push/send', async (req: Request, res: Response) => {
+app.post('/api/push/send', requireServerAuth, messagingRateLimiter, async (req: Request, res: Response) => {
+  const actor = (req as any).user;
   const { targetUserId, title, body, category, data } = req.body;
   if (!title || !body) {
     return res.status(400).json({ error: 'title and body are required.' });
   }
 
+  const isPrivileged = ['admin', 'superadmin', 'staff', 'moderator', 'registrar'].includes(actor.role);
+  const isGlobalBroadcast = !targetUserId || targetUserId === 'all';
+
+  if (isGlobalBroadcast && !isPrivileged) {
+    return res.status(403).json({
+      error: 'Forbidden: Only institutional administrators or moderators can send global push broadcasts.'
+    });
+  }
+
+  if (!isGlobalBroadcast && targetUserId !== actor.uid && !isPrivileged) {
+    const chatId = data?.chatId;
+    const isChatMsg = category === 'message' && typeof chatId === 'string' && canAccessChatThread(actor, chatId);
+    if (!isChatMsg) {
+      return res.status(403).json({
+        error: 'Forbidden: You can only send push notifications to your own devices or active chat participants.'
+      });
+    }
+  }
+
   const result = await dispatchPushToUser(targetUserId || null, {
-    title,
-    body,
+    title: sanitizePlainText(title, 150),
+    body: sanitizePlainText(body, 500),
     category,
     data
   });
@@ -5565,19 +5868,22 @@ app.post('/api/push/send', async (req: Request, res: Response) => {
   });
 });
 
-// 5. Test Push Notification on Actual Device (with optional delay to allow background testing)
-app.post('/api/push/test', (req: Request, res: Response) => {
-  const { userId, delaySeconds = 0 } = req.body;
-  if (!userId) {
-    return res.status(400).json({ error: 'userId is required for test push notification.' });
-  }
+// 5. Test Push Notification on Actual Device
+app.post('/api/push/test', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const { userId, delaySeconds = 0 } = req.body || {};
+  const targetUid =
+    ['admin', 'superadmin'].includes(actor.role) && typeof userId === 'string' && userId.trim()
+      ? userId.trim()
+      : actor.uid;
 
-  const userDevices = Array.from(registeredPushDevices.values()).filter((d) => d.userId === userId);
+  const safeDelay = Math.min(Math.max(Number(delaySeconds) || 0, 0), 30);
+  const userDevices = Array.from(registeredPushDevices.values()).filter((d) => d.userId === targetUid);
 
   const performTestPush = () => {
-    dispatchPushToUser(userId, {
+    dispatchPushToUser(targetUid, {
       title: "St. Cecilia's College",
-      body: "🔔 Mobile Push Verified: Your phone is now actively receiving real notifications from Cecilian Alumnet!",
+      body: "Mobile Push Verified: Your device is actively receiving real notifications from Cecilian Alumnet.",
       category: 'general',
       data: {
         url: '/?tab=notifications',
@@ -5587,13 +5893,13 @@ app.post('/api/push/test', (req: Request, res: Response) => {
     }).catch((err) => console.warn('[Test Push Error]:', err));
   };
 
-  if (delaySeconds > 0) {
-    setTimeout(performTestPush, delaySeconds * 1000);
+  if (safeDelay > 0) {
+    setTimeout(performTestPush, safeDelay * 1000);
     return res.json({
       success: true,
-      scheduledInSeconds: delaySeconds,
+      scheduledInSeconds: safeDelay,
       deviceCount: userDevices.length,
-      message: `Push notification scheduled in ${delaySeconds} seconds. Lock your phone or go to home screen to test background arrival!`
+      message: `Push notification scheduled in ${safeDelay} seconds. Lock your phone or go to home screen to test background arrival!`
     });
   } else {
     performTestPush();
@@ -5607,6 +5913,13 @@ app.post('/api/push/test', (req: Request, res: Response) => {
 
 // 6. Live Push Notification SSE Stream (Foreground Device Pop-up Receiver)
 app.get('/api/push/live-stream', (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  const headerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : '';
+  const queryToken = typeof req.query.token === 'string' ? req.query.token : '';
+  const rawToken = headerToken || queryToken;
+  const verifiedPayload =
+    rawToken && !revokedTokens.has(rawToken) ? verifySignedSessionToken(rawToken) : null;
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
@@ -5614,12 +5927,12 @@ app.get('/api/push/live-stream', (req: Request, res: Response) => {
   res.flushHeaders?.();
 
   const clientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
+  const userId = verifiedPayload?.uid || undefined;
 
   sseClients.set(clientId, { res, userId });
 
   // Initial connection heartbeat
-  res.write(`data: ${JSON.stringify({ type: 'connected', clientId, timestamp: new Date().toISOString() })}\n\n`);
+  res.write(`data: ${JSON.stringify({ type: 'connected', clientId, authenticated: Boolean(userId), timestamp: new Date().toISOString() })}\n\n`);
 
   const heartbeatInterval = setInterval(() => {
     try {
@@ -5636,16 +5949,21 @@ app.get('/api/push/live-stream', (req: Request, res: Response) => {
   });
 });
 
-// 7. Recent Broadcasts Retrieval (For App Sync upon Re-opening)
-app.get('/api/push/recent-broadcasts', (_req: Request, res: Response) => {
+// 7. Recent Broadcasts Retrieval (Authenticated, filtered to global broadcasts or own alerts)
+app.get('/api/push/recent-broadcasts', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const visible = recentBroadcasts
+    .filter((b) => !b.targetUserId || b.targetUserId === 'all' || b.targetUserId === actor.uid)
+    .slice(0, 20);
   res.json({
     success: true,
-    broadcasts: recentBroadcasts.slice(0, 20)
+    broadcasts: visible
   });
 });
 
 // 6.6.7.5 Offline Message Batch Synchronization Endpoint (Sync Now / Auto-reconnect)
-app.post('/api/messages/sync', (req: Request, res: Response) => {
+app.post('/api/messages/sync', requireServerAuth, messagingRateLimiter, (req: Request, res: Response) => {
+  const actor = (req as any).user;
   const { messages } = req.body;
   if (!Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages array is required for synchronization.' });
@@ -5657,21 +5975,25 @@ app.post('/api/messages/sync', (req: Request, res: Response) => {
   for (const rawMsg of messages) {
     try {
       if (!rawMsg || !rawMsg.chatId || !rawMsg.text) continue;
+      if (!canAccessChatThread(actor, String(rawMsg.chatId))) {
+        errors.push(`Forbidden chat thread: ${sanitizePlainText(rawMsg.chatId, 64)}`);
+        continue;
+      }
       const cleanText = sanitizePlainText(rawMsg.text, 2000);
       if (!cleanText) continue;
 
       const cleanMsg: ChatMessage = {
         id: rawMsg.id || `msg_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
         chatId: rawMsg.chatId,
-        senderId: rawMsg.senderId || 'usr_anonymous',
-        senderName: rawMsg.senderName || 'Cecilian Member',
-        senderAvatar: rawMsg.senderAvatar,
-        senderRole: rawMsg.senderRole || 'alumni',
+        senderId: actor.uid,
+        senderName: sanitizePlainText(actor.name || rawMsg.senderName || 'Cecilian Member', 120),
+        senderAvatar: typeof rawMsg.senderAvatar === 'string' ? rawMsg.senderAvatar.slice(0, 500) : undefined,
+        senderRole: actor.role || 'alumni',
         text: cleanText,
         createdAt: rawMsg.createdAt || new Date().toISOString(),
         status: 'sent',
         offlineQueued: false,
-        reactions: rawMsg.reactions || {}
+        reactions: {}
       };
 
       const threadMsgs = backendMessages.get(cleanMsg.chatId) || [];
@@ -5691,8 +6013,8 @@ app.post('/api/messages/sync', (req: Request, res: Response) => {
       }
 
       synced.push(cleanMsg);
-    } catch (err: any) {
-      errors.push(`Failed message ${rawMsg?.id}: ${err?.message || err}`);
+    } catch {
+      errors.push(`Failed to sync message ${sanitizePlainText(rawMsg?.id || 'unknown', 64)}`);
     }
   }
 
@@ -5706,8 +6028,12 @@ app.post('/api/messages/sync', (req: Request, res: Response) => {
 });
 
 // 6.6.7.6 Messages Retrieval by Chat ID
-app.get('/api/messages/:chatId', (req: Request, res: Response) => {
+app.get('/api/messages/:chatId', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
   const { chatId } = req.params;
+  if (!canAccessChatThread(actor, chatId)) {
+    return res.status(403).json({ error: 'Forbidden: You are not a participant of this conversation.' });
+  }
   const msgs = backendMessages.get(chatId) || [];
   res.json({
     success: true,
@@ -5716,16 +6042,22 @@ app.get('/api/messages/:chatId', (req: Request, res: Response) => {
   });
 });
 
-// 6.6.7.7 Chat Threads List
-app.get('/api/chats', (_req: Request, res: Response) => {
+// 6.6.7.7 Chat Threads List (Filtered to participant unless privileged)
+app.get('/api/chats', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const isPrivileged = ['admin', 'superadmin', 'moderator'].includes(actor.role);
+  const allChats = Array.from(backendChats.values());
+  const chats = isPrivileged
+    ? allChats
+    : allChats.filter((c) => !Array.isArray(c.memberIds) || c.memberIds.includes(actor.uid));
   res.json({
     success: true,
-    chats: Array.from(backendChats.values())
+    chats
   });
 });
 
-// 6.6.7.8 Full Institutional Dataset Cloud Sync Endpoint
-app.post('/api/sync/all', (req: Request, res: Response) => {
+// 6.6.7.8 Full Institutional Dataset Cloud Sync Endpoint (Admin / Superadmin / Registrar / Staff only)
+app.post('/api/sync/all', requireServerAuth, requireRole(['admin', 'superadmin', 'staff', 'registrar']), (req: Request, res: Response) => {
   const { users, events, opportunities, announcements, messages, chats } = req.body || {};
 
   if (Array.isArray(chats)) {
@@ -5999,7 +6331,23 @@ const handleApplicationStatusUpdate = (req: Request, res: Response) => {
   let app = backendJobApplications.get(applicationId);
   if (!app) {
     if (req.body.application && typeof req.body.application === 'object') {
-      app = { ...req.body.application, id: applicationId };
+      const associatedJobId = String(req.body.application.jobId || '').trim();
+      const associatedJob = associatedJobId ? backendOpportunities.get(associatedJobId) : undefined;
+      if (!isPrivileged && !associatedJob) {
+        return res.status(404).json({ error: 'Associated job opportunity not found.' });
+      }
+      // Anchor authoritative ownership fields from backend opportunity instead of trusting client payload
+      app = {
+        ...req.body.application,
+        id: applicationId,
+        ...(associatedJob
+          ? {
+              jobId: associatedJob.id,
+              employerUid: associatedJob.postedBy,
+              companyName: associatedJob.company
+            }
+          : {})
+      };
       backendJobApplications.set(applicationId, app!);
     } else {
       return res.status(404).json({ error: 'Job application not found.' });
@@ -6418,12 +6766,12 @@ app.post('/api/webhooks/alumni-events', webhookRateLimiter, (req: Request, res: 
 
 interface PendingEmployerVerification {
   id: string;
-  token: string;
   hashedToken: string;
   expiresAt: Date;
   fullName: string;
   workEmail: string;
   passwordHash: string;
+  passwordSalt: string;
   companyLegalName: string;
   tradeName?: string;
   websiteUrl: string;
@@ -6437,7 +6785,7 @@ const pendingEmployerVerifications = new Map<string, PendingEmployerVerification
 const companyVerificationDecisions = new Map<string, any>();
 
 // 1. Employer Signup with Automated Pre-screening and Email Confirmation Token
-app.post('/api/employer/register', async (req: Request, res: Response) => {
+app.post('/api/employer/register', authRateLimiter, async (req: Request, res: Response) => {
   try {
     const {
       fullName,
@@ -6455,6 +6803,13 @@ app.post('/api/employer/register', async (req: Request, res: Response) => {
       return res.status(400).json({
         error: 'Missing required employer registration fields: fullName, workEmail, password, companyLegalName, websiteUrl.',
         code: 'MISSING_REGISTRATION_FIELDS'
+      });
+    }
+
+    if (typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({
+        error: 'Password must be at least 8 characters long.',
+        code: 'WEAK_PASSWORD'
       });
     }
 
@@ -6476,24 +6831,24 @@ app.post('/api/employer/register', async (req: Request, res: Response) => {
       });
     }
 
-    // Generate single-use, 24h expiring token hashed at rest
+    // Generate single-use, 24h expiring token hashed at rest + salted PBKDF2-SHA512 password hash
     const { token, hashedToken, expiresAt } = generateVerificationToken(workEmail);
     const verificationId = `emp_verif_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    const { hash: passwordHash, salt: passwordSalt } = hashPassword(password);
 
     const pendingRecord: PendingEmployerVerification = {
       id: verificationId,
-      token,
       hashedToken,
       expiresAt,
-      fullName: fullName.trim(),
+      fullName: sanitizePlainText(fullName, 120),
       workEmail: workEmail.toLowerCase().trim(),
       passwordHash,
-      companyLegalName: companyLegalName.trim(),
-      tradeName: tradeName?.trim(),
+      passwordSalt,
+      companyLegalName: sanitizePlainText(companyLegalName, 150),
+      tradeName: tradeName ? sanitizePlainText(tradeName, 150) : undefined,
       websiteUrl: normWebsite,
-      country,
-      registrationNumber: registrationNumber?.trim(),
+      country: sanitizePlainText(country, 16) || 'PH',
+      registrationNumber: registrationNumber ? sanitizePlainText(registrationNumber, 80) : undefined,
       documentUploaded: Boolean(documentUploaded),
       createdAt: new Date().toISOString()
     };
@@ -6502,18 +6857,18 @@ app.post('/api/employer/register', async (req: Request, res: Response) => {
 
     // Send verification link email
     const verificationLink = `${req.protocol}://${req.get('host')}/api/employer/verify-email?token=${token}`;
-    const emailText = `Dear ${fullName},\n\nPlease confirm your corporate email for ${companyLegalName} by visiting the link below within 24 hours:\n\n${verificationLink}\n\nAutomated domain and registry verification checks will execute upon confirmation.\n\nSt. Cecilia's College Placement Bureau`;
+    const emailText = `Dear ${pendingRecord.fullName},\n\nPlease confirm your corporate email for ${pendingRecord.companyLegalName} by visiting the link below within 24 hours:\n\n${verificationLink}\n\nAutomated domain and registry verification checks will execute upon confirmation.\n\nSt. Cecilia's College Placement Bureau`;
     const emailHtml = `<div style="font-family: sans-serif; padding: 20px;">
       <h2>Confirm Your Corporate Email</h2>
-      <p>Dear <strong>${fullName}</strong>,</p>
-      <p>Thank you for registering <strong>${companyLegalName}</strong> on the Cecilian Alumnet corporate platform. Please click below to confirm your email and initiate automated verification:</p>
+      <p>Dear <strong>${pendingRecord.fullName}</strong>,</p>
+      <p>Thank you for registering <strong>${pendingRecord.companyLegalName}</strong> on the Cecilian Alumnet corporate platform. Please click below to confirm your email and initiate automated verification:</p>
       <p><a href="${verificationLink}" style="display: inline-block; background-color: #8B181B; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px;">Confirm Corporate Email</a></p>
       <p style="font-size: 12px; color: #666;">This link expires in 24 hours.</p>
     </div>`;
 
     await sendRealEmail({
       to: workEmail,
-      subject: `Confirm Work Email for ${companyLegalName} — St. Cecilia's College`,
+      subject: `Confirm Work Email for ${pendingRecord.companyLegalName} — St. Cecilia's College`,
       text: emailText,
       html: emailHtml
     }).catch((err) => console.error('[Verification Email Error]', err));
@@ -6522,7 +6877,7 @@ app.post('/api/employer/register', async (req: Request, res: Response) => {
       success: true,
       message: 'Employer registered successfully. Please click the confirmation link sent to your work email (valid for 24h).',
       verificationId,
-      verificationToken: token
+      ...(!IS_PROD ? { verificationToken: token } : {})
     });
   } catch (err: any) {
     console.error('[Employer Register Error]', err);
@@ -6531,28 +6886,27 @@ app.post('/api/employer/register', async (req: Request, res: Response) => {
 });
 
 // 2. Email Confirmation & Automated Background Verification Pipeline
-app.get('/api/employer/verify-email', async (req: Request, res: Response) => {
+app.get('/api/employer/verify-email', verificationRateLimiter, async (req: Request, res: Response) => {
   try {
     const { token } = req.query;
     if (!token || typeof token !== 'string') {
       return res.status(400).json({ error: 'Missing token parameter.', code: 'MISSING_TOKEN' });
     }
 
-    const providedHash = crypto.createHash('sha256').update(token).digest('hex');
+    const providedHash = hashTokenHmac(token);
     const pending = pendingEmployerVerifications.get(providedHash);
 
-    if (!pending) {
+    if (!pending || !verifyTokenHash(token, pending.hashedToken, pending.expiresAt)) {
+      if (pending && new Date() > new Date(pending.expiresAt)) {
+        pendingEmployerVerifications.delete(providedHash);
+        return res.status(410).json({
+          error: 'This verification token has expired (>24 hours). Please register again.',
+          code: 'TOKEN_EXPIRED'
+        });
+      }
       return res.status(404).json({
         error: 'Invalid or expired confirmation link. Please request a new registration link.',
         code: 'TOKEN_NOT_FOUND'
-      });
-    }
-
-    if (new Date() > new Date(pending.expiresAt)) {
-      pendingEmployerVerifications.delete(providedHash);
-      return res.status(410).json({
-        error: 'This verification token has expired (>24 hours). Please register again.',
-        code: 'TOKEN_EXPIRED'
       });
     }
 
@@ -6578,11 +6932,14 @@ app.get('/api/employer/verify-email', async (req: Request, res: Response) => {
     });
 
     const isApprovedTier = decision.status === 'AUTO_VERIFIED' || decision.status === 'VERIFIED';
-    const employerProfile = {
+    const employerProfile: StoredUserCredential = {
       uid: newUid,
       name: pending.fullName,
       email: pending.workEmail,
+      hash: pending.passwordHash,
+      salt: pending.passwordSalt,
       role: 'employer',
+      emailVerified: true,
       companyName: pending.companyLegalName,
       company: pending.companyLegalName,
       companyWebsite: `https://${pending.websiteUrl}`,
@@ -6593,7 +6950,7 @@ app.get('/api/employer/verify-email', async (req: Request, res: Response) => {
       companyDomainRole: domainRouting.role,
       verificationDecision: decision,
       createdAt: new Date().toISOString()
-    };
+    } as any;
 
     credentialsDb.set(newUid, employerProfile);
     credentialsDb.set(pending.workEmail.toLowerCase(), employerProfile);
@@ -6782,26 +7139,27 @@ app.post('/api/employer/review-queue/:id/decision', requireServerAuth, requireRo
 });
 
 // 5. Job Post Content Filter Safeguard
-app.post('/api/jobs/validate', (req: Request, res: Response) => {
+app.post('/api/jobs/validate', authRateLimiter, (req: Request, res: Response) => {
   const { title, description, requirements, contactEmail, howToApply } = req.body;
   const filterResult = filterJobContent({ title, description, requirements, contactEmail, howToApply });
   res.json(filterResult);
 });
 
 // 6. Job Reporting & Auto-Suspension Trigger (3 Reports Auto-Suspends)
-app.post('/api/jobs/:id/report', (req: Request, res: Response) => {
+app.post('/api/jobs/:id/report', requireServerAuth, authRateLimiter, (req: Request, res: Response) => {
+  const actor = (req as any).user;
   const { id } = req.params;
-  const { employerId, reporterUid, reason = 'Suspicious or non-compliant job opportunity' } = req.body;
+  const { employerId, reason = 'Suspicious or non-compliant job opportunity' } = req.body || {};
 
-  if (!employerId || !reporterUid) {
-    return res.status(400).json({ error: 'employerId and reporterUid are required to report a job.', code: 'MISSING_REPORT_PARAMS' });
+  if (!employerId) {
+    return res.status(400).json({ error: 'employerId is required to report a job.', code: 'MISSING_REPORT_PARAMS' });
   }
 
   const report = recordJobReport({
     jobId: id,
-    employerId,
-    reporterUid,
-    reason
+    employerId: String(employerId),
+    reporterUid: actor.uid,
+    reason: sanitizePlainText(reason, 500) || 'Suspicious or non-compliant job opportunity'
   });
 
   if (report.shouldAutoSuspend) {
@@ -6979,20 +7337,27 @@ const postModerationRouter = createPostModerationRouter({
 
 app.use('/api', postModerationRouter);
 
+app.use('/api', (_req: Request, res: Response) => {
+  res.status(404).json({ error: 'API endpoint not found.', code: 'API_NOT_FOUND' });
+});
+
 // ============================================================================
 // 7. VITE MIDDLEWARE & SERVER BOOT + PRODUCTION ERROR SHIELDING
 // ============================================================================
 async function startServer() {
-  if (!IS_PROD) {
+  if (!IS_PROD && !IS_VERCEL) {
     process.env.DISABLE_HMR = 'true';
-    const vitePromise = createViteServer({
-      server: {
-        middlewareMode: true,
-        hmr: false,
-        watch: null
-      },
-      appType: 'spa'
-    });
+    const vitePromise = (async () => {
+      const { createServer: createViteServer } = await import('vite');
+      return createViteServer({
+        server: {
+          middlewareMode: true,
+          hmr: false,
+          watch: null
+        },
+        appType: 'spa'
+      });
+    })();
     vitePromise.catch((err) => {
       console.error('[VITE INIT ERROR]', err?.message || err);
     });

@@ -28,9 +28,10 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  private pruneBloatedStorageCaches = () => {
+  private pruneBloatedStorageCaches = (aggressive = false) => {
     try {
       if (typeof window === 'undefined') return;
+      const threshold = aggressive ? 25_000 : 50_000;
       const evictableMediaCaches = [
         'alumni_gallery_v5',
         'alumni_feed_posts_v1',
@@ -39,16 +40,28 @@ export class ErrorBoundary extends Component<Props, State> {
         'alumni_opportunities_v1',
         'alumni_backups_v1',
         'alumni_audit_logs_v1',
-        'st_cecilia_registry_conflicts'
+        'st_cecilia_registry_conflicts',
+        'alumni_messages_v2',
+        'alumni_notifications_v1',
+        'alumni_applications_v1',
+        'alumni_connections_v1',
+        'alumni_following_v1'
       ];
       for (const key of evictableMediaCaches) {
         try {
           const raw = localStorage.getItem(key);
-          if (raw && raw.length > 120_000) {
+          if (raw && (aggressive || raw.length > threshold)) {
             localStorage.removeItem(key);
           }
         } catch {}
       }
+      // Also strip oversized inline data URLs inside cached users list if bloated
+      try {
+        const rawUsers = localStorage.getItem('alumni_users_v3');
+        if (rawUsers && rawUsers.length > 250_000) {
+          localStorage.removeItem('alumni_users_v3');
+        }
+      } catch {}
     } catch {}
   };
 
@@ -56,7 +69,7 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('[Institutional Shield] Uncaught React exception caught by ErrorBoundary:', error, errorInfo);
     const msg = error?.message || error?.toString() || '';
     if (error?.name === 'QuotaExceededError' || /quota/i.test(msg)) {
-      this.pruneBloatedStorageCaches();
+      this.pruneBloatedStorageCaches(true);
     }
     this.setState({ errorInfo });
   }
@@ -71,7 +84,7 @@ export class ErrorBoundary extends Component<Props, State> {
     try {
       if (typeof window !== 'undefined') {
         // Clear transient keys and bloated non-auth media caches while preserving core auth credentials
-        this.pruneBloatedStorageCaches();
+        this.pruneBloatedStorageCaches(true);
         sessionStorage.clear();
         localStorage.removeItem('alumni_active_tab_v2');
         localStorage.removeItem('alumni_active_view_v1');

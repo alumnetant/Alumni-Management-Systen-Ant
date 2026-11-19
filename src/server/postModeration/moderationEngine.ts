@@ -154,9 +154,10 @@ export interface ModerationStateSnapshot {
   legacyAuditReport: { checkedAt?: string; totalChecked: number; normalizedCount: number };
 }
 
+const BUNDLED_MODERATION_DB_FILE = path.join(process.cwd(), 'data', 'moderation_db.json');
 const MODERATION_DB_FILE = process.env.VERCEL
   ? path.join('/tmp', 'moderation_db.json')
-  : path.join(process.cwd(), 'data', 'moderation_db.json');
+  : BUNDLED_MODERATION_DB_FILE;
 
 export function getPriorityForReason(reason: ReportReason): ReportPriority {
   if (reason === 'Harassment or bullying' || reason === 'Fake profile/impersonation') {
@@ -317,8 +318,13 @@ export class PostModerationEngine {
 
   private loadFromDisk(): void {
     try {
-      if (fs.existsSync(MODERATION_DB_FILE)) {
-        const raw = fs.readFileSync(MODERATION_DB_FILE, 'utf-8');
+      const sourceFile = fs.existsSync(MODERATION_DB_FILE)
+        ? MODERATION_DB_FILE
+        : process.env.VERCEL && fs.existsSync(BUNDLED_MODERATION_DB_FILE)
+        ? BUNDLED_MODERATION_DB_FILE
+        : null;
+      if (sourceFile) {
+        const raw = fs.readFileSync(sourceFile, 'utf-8');
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
           const loadedProfiles: Record<string, StoredProfileRecord> = {};

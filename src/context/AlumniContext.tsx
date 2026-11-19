@@ -700,26 +700,34 @@ const EVICTABLE_MEDIA_CACHE_KEYS = [
   'alumni_audit_logs_v1',
   'st_cecilia_registry_conflicts',
   'alumni_messages_v2',
-  'alumni_notifications_v1'
+  'alumni_notifications_v1',
+  'alumni_applications_v1',
+  'alumni_connections_v1',
+  'alumni_following_v1'
 ];
 
-const MAX_CACHE_ENTRY_CHARS = 300_000;
+const MAX_CACHE_ENTRY_CHARS = 150_000;
 
-function pruneOversizedLocalStorageCaches(excludeKey?: string): void {
+function pruneOversizedLocalStorageCaches(excludeKey?: string, aggressive = false): void {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  const threshold = aggressive ? 40_000 : MAX_CACHE_ENTRY_CHARS;
   for (const cacheKey of EVICTABLE_MEDIA_CACHE_KEYS) {
     if (excludeKey && cacheKey === excludeKey) continue;
     try {
       const raw = localStorage.getItem(cacheKey);
-      if (!raw || raw.length <= MAX_CACHE_ENTRY_CHARS) continue;
+      if (!raw || raw.length <= threshold) continue;
+      if (aggressive && (cacheKey === 'alumni_gallery_v5' || cacheKey === 'alumni_backups_v1' || cacheKey === 'alumni_feed_posts_v1')) {
+        localStorage.removeItem(cacheKey);
+        continue;
+      }
       try {
         const parsed = JSON.parse(raw);
         const compacted = stripLargeInlineDataUrls(parsed);
         const compactedJson = JSON.stringify(compacted);
-        if (compactedJson.length <= MAX_CACHE_ENTRY_CHARS) {
+        if (compactedJson.length <= threshold) {
           localStorage.setItem(cacheKey, compactedJson);
         } else if (Array.isArray(compacted)) {
-          localStorage.setItem(cacheKey, JSON.stringify(compacted.slice(0, 15)));
+          localStorage.setItem(cacheKey, JSON.stringify(compacted.slice(0, 10)));
         } else {
           localStorage.removeItem(cacheKey);
         }
@@ -732,6 +740,29 @@ function pruneOversizedLocalStorageCaches(excludeKey?: string): void {
 
 // Proactively compact any legacy multi-megabyte media caches left in localStorage on boot
 pruneOversizedLocalStorageCaches();
+
+function safeSetCriticalStorageItem(key: string, value: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, value);
+      return;
+    }
+  } catch {
+    pruneOversizedLocalStorageCaches(key, false);
+    try {
+      localStorage.setItem(key, value);
+      return;
+    } catch {
+      pruneOversizedLocalStorageCaches(key, true);
+      try {
+        localStorage.setItem(key, value);
+      } catch {
+        // Fallback to sessionStorage if localStorage remains blocked
+      }
+    }
+  }
+}
 
 function safeSetLocalStorageJson(key: string, data: unknown): void {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
@@ -760,23 +791,29 @@ function safeSetLocalStorageJson(key: string, data: unknown): void {
     // QuotaExceededError or private-mode restriction: evict bloated media caches and retry compact payload
   }
 
-  pruneOversizedLocalStorageCaches(key);
+  pruneOversizedLocalStorageCaches(key, false);
 
   try {
     const compact = stripLargeInlineDataUrls(data);
     localStorage.setItem(key, JSON.stringify(compact));
     return;
   } catch {
-    // Still over quota: if array, cache only the most recent 15 compact items
+    // Still over quota: perform aggressive media cache eviction and retry compact subset
   }
+
+  pruneOversizedLocalStorageCaches(key, true);
 
   if (Array.isArray(data)) {
     try {
-      const recentCompact = stripLargeInlineDataUrls(data.slice(0, 15));
+      const recentCompact = stripLargeInlineDataUrls(data.slice(0, 12));
       localStorage.setItem(key, JSON.stringify(recentCompact));
     } catch {
       // Final graceful skip so React state & Firestore/server persistence remain unaffected
     }
+  } else if (isAuthOrVaultKey) {
+    try {
+      localStorage.setItem(key, JSON.stringify(stripLargeInlineDataUrls(data)));
+    } catch {}
   }
 }
 
@@ -1055,13 +1092,15 @@ export function saveActiveSession(user: UserProfile, token?: string, forceRefres
     if (!sessionToken) {
       sessionToken = createSessionToken({ ...user, uid: canonicalUid });
     }
-    localStorage.setItem(STORAGE_KEYS.USER_ID, canonicalUid);
-    localStorage.setItem('alumni_auth_session_real_v1', canonicalUid);
-    localStorage.setItem('alumni_server_auth_token', sessionToken);
-    sessionStorage.setItem('alumni_server_auth_token', sessionToken);
-    localStorage.setItem('alumni_auth_token', sessionToken);
-    sessionStorage.setItem('alumni_auth_token', sessionToken);
-    localStorage.setItem(STORAGE_KEYS.VIEW, 'portal');
+    safeSetCriticalStorageItem(STORAGE_KEYS.USER_ID, canonicalUid);
+    safeSetCriticalStorageItem('alumni_auth_session_real_v1', canonicalUid);
+    safeSetCriticalStorageItem('alumni_server_auth_token', sessionToken);
+    safeSetCriticalStorageItem('alumni_auth_token', sessionToken);
+    safeSetCriticalStorageItem(STORAGE_KEYS.VIEW, 'portal');
+    try {
+      sessionStorage.setItem('alumni_server_auth_token', sessionToken);
+      sessionStorage.setItem('alumni_auth_token', sessionToken);
+    } catch {}
   } catch {}
 }
 
@@ -2652,6 +2691,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
                       persistUsersSafe(next);
                       return next;
                     });
+                  } else if (errData?.code === 'INVALID_TOKEN' && !isCancelled) {
+                    // Token was signed by an earlier deployment secret; re-mint fallback session token cleanly
+                    saveActiveSession(canonicalUser, undefined, true);
                   }
                 }
               })
@@ -3093,10 +3135,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (isSignedHmacToken(existingToken)) {
           const parsed = parseAndValidateSessionToken(existingToken!);
           if (parsed.valid && parsed.payload?.uid === canonicalUid) {
-            sessionStorage.setItem('alumni_server_auth_token', existingToken!);
-            sessionStorage.setItem('alumni_auth_token', existingToken!);
-            localStorage.setItem('alumni_server_auth_token', existingToken!);
-            localStorage.setItem('alumni_auth_token', existingToken!);
+            try {
+              sessionStorage.setItem('alumni_server_auth_token', existingToken!);
+              sessionStorage.setItem('alumni_auth_token', existingToken!);
+            } catch {}
+            safeSetCriticalStorageItem('alumni_server_auth_token', existingToken!);
+            safeSetCriticalStorageItem('alumni_auth_token', existingToken!);
             return;
           }
         }
@@ -3108,10 +3152,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           exp: Date.now() + 24 * 60 * 60 * 1000
         };
         const token = btoa(unescape(encodeURIComponent(JSON.stringify(tokenPayload))));
-        sessionStorage.setItem('alumni_server_auth_token', token);
-        sessionStorage.setItem('alumni_auth_token', token);
-        localStorage.setItem('alumni_server_auth_token', token);
-        localStorage.setItem('alumni_auth_token', token);
+        try {
+          sessionStorage.setItem('alumni_server_auth_token', token);
+          sessionStorage.setItem('alumni_auth_token', token);
+        } catch {}
+        safeSetCriticalStorageItem('alumni_server_auth_token', token);
+        safeSetCriticalStorageItem('alumni_auth_token', token);
       } catch (e) {
         console.warn('Could not cache session auth token:', e);
       }
@@ -3323,12 +3369,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const emailLower = (fbUser.email || '').toLowerCase();
       const isKnownAdmin =
         emailLower === 'rlopez@stcecilia.edu.ph' ||
-        emailLower.includes('admin') ||
-        emailLower.includes('superadmin') ||
         ['vincentbaloro002@gmail.com', 'vincentbaloro003@gmail.com', 'jamessvencanonigo@gmail.com', 'jamessvenansali@gmail.com', 'sheepyawa@gmail.com', 'just47969@gmail.com'].includes(emailLower);
 
       if (matched) {
-        // If user is a verified institution administrator
+        // If user is an explicitly allowlisted institution administrator
         if (isKnownAdmin) {
           matched.role = normalizeSystemRole(matched.role) === 'superadmin' ? 'superadmin' : 'admin';
           matched.isVerified = true;
@@ -3358,11 +3402,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return true;
       } else {
         const email = fbUser.email || '';
-        const role: UserRole = isKnownAdmin
-          ? 'admin'
-          : (emailLower.includes('registrar') || emailLower.includes('staff') || emailLower.includes('moderator'))
-          ? 'moderator'
-          : 'alumni';
+        const role: UserRole = isKnownAdmin ? 'admin' : 'alumni';
 
         // Alumni registering via Google must be verified before login
         const isAutoVerified = role !== 'alumni' || isKnownAdmin;
@@ -3740,16 +3780,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               try {
                 sessionStorage.setItem('alumni_server_auth_token', authData.token);
                 sessionStorage.setItem('alumni_auth_token', authData.token);
-                localStorage.setItem('alumni_server_auth_token', authData.token);
-                localStorage.setItem('alumni_auth_token', authData.token);
               } catch {}
+              safeSetCriticalStorageItem('alumni_server_auth_token', authData.token);
+              safeSetCriticalStorageItem('alumni_auth_token', authData.token);
             }
             if (authData.refreshToken) {
               try {
                 sessionStorage.setItem('alumni_refresh_token', authData.refreshToken);
-                localStorage.setItem('alumni_refresh_token', authData.refreshToken);
                 sessionStorage.setItem('alumni_latest_refresh_token', authData.refreshToken);
               } catch {}
+              safeSetCriticalStorageItem('alumni_refresh_token', authData.refreshToken);
             }
             setActiveSessionConflict(null);
             setLoginPlatformError(null);
@@ -3784,16 +3824,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           try {
             sessionStorage.setItem('alumni_server_auth_token', authData.token);
             sessionStorage.setItem('alumni_auth_token', authData.token);
-            localStorage.setItem('alumni_server_auth_token', authData.token);
-            localStorage.setItem('alumni_auth_token', authData.token);
           } catch {}
+          safeSetCriticalStorageItem('alumni_server_auth_token', authData.token);
+          safeSetCriticalStorageItem('alumni_auth_token', authData.token);
         }
         if (authData.refreshToken) {
           try {
             sessionStorage.setItem('alumni_refresh_token', authData.refreshToken);
-            localStorage.setItem('alumni_refresh_token', authData.refreshToken);
             sessionStorage.setItem('alumni_latest_refresh_token', authData.refreshToken);
           } catch {}
+          safeSetCriticalStorageItem('alumni_refresh_token', authData.refreshToken);
         }
         setActiveSessionConflict(null);
         setLoginPlatformError(null);
@@ -4329,16 +4369,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (authData.token) {
           try {
             sessionStorage.setItem('alumni_server_auth_token', authData.token);
-            localStorage.setItem('alumni_server_auth_token', authData.token);
-            localStorage.setItem('alumni_auth_token', authData.token);
           } catch {}
+          safeSetCriticalStorageItem('alumni_server_auth_token', authData.token);
+          safeSetCriticalStorageItem('alumni_auth_token', authData.token);
         }
         if (authData.refreshToken) {
           try {
             sessionStorage.setItem('alumni_refresh_token', authData.refreshToken);
-            localStorage.setItem('alumni_refresh_token', authData.refreshToken);
             sessionStorage.setItem('alumni_latest_refresh_token', authData.refreshToken);
           } catch {}
+          safeSetCriticalStorageItem('alumni_refresh_token', authData.refreshToken);
         }
         setActiveSessionConflict(null);
 
@@ -4429,18 +4469,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       if (authData.token) {
         try {
           sessionStorage.setItem('alumni_server_auth_token', authData.token);
-          localStorage.setItem('alumni_server_auth_token', authData.token);
-          localStorage.setItem('alumni_auth_token', authData.token);
         } catch {}
+        safeSetCriticalStorageItem('alumni_server_auth_token', authData.token);
+        safeSetCriticalStorageItem('alumni_auth_token', authData.token);
       }
       if (authData.refreshToken) {
         try {
           sessionStorage.setItem('alumni_refresh_token', authData.refreshToken);
-          localStorage.setItem('alumni_refresh_token', authData.refreshToken);
           if (Capacitor.isNativePlatform() && authData.user) {
             vaultBiometricRefreshToken(authData.user.uid, authData.user.email, authData.refreshToken).catch(() => {});
           }
         } catch {}
+        safeSetCriticalStorageItem('alumni_refresh_token', authData.refreshToken);
       }
 
       let user = users.find(
@@ -6595,9 +6635,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     saveChatMessageToFirestore(chatId, newMsg)
       .then(() => {
         // Also push to backend REST store
+        const msgToken = getAuthToken() || getStoredSessionToken();
         fetch('/api/messages/send', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(msgToken ? { Authorization: `Bearer ${msgToken}` } : {})
+          },
           body: JSON.stringify({ chatId, message: newMsg })
         }).catch(() => {});
 
@@ -6653,9 +6697,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               saveNotificationToFirestore(msgNotif).catch(() => {});
 
               // Send real push notification to recipient device
+              const pushToken = getAuthToken() || getStoredSessionToken();
               fetch('/api/push/send', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(pushToken ? { Authorization: `Bearer ${pushToken}` } : {})
+                },
                 body: JSON.stringify({
                   targetUserId: mId,
                   title: `New message from ${currentUser.name}`,
@@ -6848,9 +6896,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
         // 3. Synchronize with backend server endpoint enforcing server-side rule
         try {
+          const reactToken = getAuthToken() || getStoredSessionToken();
           fetch('/api/messages/react', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              ...(reactToken ? { Authorization: `Bearer ${reactToken}` } : {})
+            },
             body: JSON.stringify({
               chatId,
               messageId,
@@ -10683,9 +10735,13 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
       // 3. Sync datasets to backend REST API
       try {
+        const syncToken = getAuthToken() || getStoredSessionToken();
         await fetch('/api/sync/all', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(syncToken ? { Authorization: `Bearer ${syncToken}` } : {})
+          },
           body: JSON.stringify({
             users,
             events,

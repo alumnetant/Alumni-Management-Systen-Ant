@@ -1737,9 +1737,15 @@ export function saveRegistrationConflicts(conflicts: RegistrationConflictRecord[
   try {
     localStorage.setItem(REGISTRY_CONFLICTS_STORAGE_KEY, JSON.stringify(conflicts));
   } catch {
-    // Retry without large inline base64 data URLs when localStorage quota is tight;
+    // Retry without large inline base64 data URLs and evict non-critical media caches when localStorage quota is tight;
     // the full Selfie with ID remains securely persisted on the backend and Firestore.
     try {
+      ['alumni_gallery_v5', 'alumni_feed_posts_v1', 'alumni_backups_v1'].forEach((k) => {
+        try {
+          const raw = localStorage.getItem(k);
+          if (raw && raw.length > 50_000) localStorage.removeItem(k);
+        } catch {}
+      });
       const compact = conflicts.map((c) => {
         if (c.selfieWithIdUrl && c.selfieWithIdUrl.startsWith('data:') && c.selfieWithIdUrl.length > 24000) {
           const { selfieWithIdUrl: _omit, ...rest } = c;

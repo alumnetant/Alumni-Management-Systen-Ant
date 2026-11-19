@@ -172,19 +172,27 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       }
 
       const [casesRes, reportersRes, banFlagsRes] = await Promise.all([
-        apiFetch(`/api/moderation/cases?${params.toString()}`, { method: 'GET' }, 6000),
-        apiFetch('/api/moderation/abuse/reporters', { method: 'GET' }, 5000),
+        apiFetch(`/api/moderation/cases?${params.toString()}`, { method: 'GET' }, 12000),
+        apiFetch('/api/moderation/abuse/reporters', { method: 'GET' }, 10000),
         isAdmin
-          ? apiFetch('/api/moderation/abuse/ban-flags', { method: 'GET' }, 5000)
+          ? apiFetch('/api/moderation/abuse/ban-flags', { method: 'GET' }, 10000)
           : Promise.resolve(null)
       ]);
 
       if (!casesRes.ok) {
-        const errBody = await casesRes.json().catch(() => null);
+        const rawText = await casesRes.text().catch(() => '');
+        const errBody = (() => {
+          try {
+            return rawText ? JSON.parse(rawText) : null;
+          } catch {
+            return null;
+          }
+        })();
         if (casesRes.status === 401 || casesRes.status === 403) {
           throw new Error(errBody?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
         }
-        throw new Error(errBody?.error || 'Failed to load moderation cases.');
+        const statusHint = casesRes.status ? ` (HTTP ${casesRes.status})` : '';
+        throw new Error(errBody?.error || `Failed to load moderation cases${statusHint}.`);
       }
 
       const data = await casesRes.json();
@@ -220,10 +228,10 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setOverrideNote('');
     setSanctionReason('');
     try {
-      const res = await apiFetch(`/api/moderation/cases/${encodeURIComponent(caseId)}`, { method: 'GET' }, 6000);
+      const res = await apiFetch(`/api/moderation/cases/${encodeURIComponent(caseId)}`, { method: 'GET' }, 12000);
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
-        throw new Error(errBody?.error || 'Unable to load case details.');
+        throw new Error(errBody?.error || `Unable to load case details (HTTP ${res.status}).`);
       }
       const data: CaseDetailPayload = await res.json();
       setCaseDetail(data);
@@ -253,13 +261,13 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setAppealsLoading(true);
     setAppealsError(null);
     try {
-      const res = await apiFetch('/api/appeals', { method: 'GET' }, 6000);
+      const res = await apiFetch('/api/appeals', { method: 'GET' }, 12000);
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
         if (res.status === 401 || res.status === 403) {
           throw new Error(errBody?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
         }
-        throw new Error(errBody?.error || 'Failed to load appeals.');
+        throw new Error(errBody?.error || `Failed to load appeals (HTTP ${res.status}).`);
       }
       const data = await res.json();
       setAppeals(Array.isArray(data.appeals) ? data.appeals : []);
@@ -286,8 +294,8 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setSettingsError(null);
     try {
       const [feedRes, modRes] = await Promise.all([
-        apiFetch('/api/feed/config', { method: 'GET' }, 5000),
-        apiFetch('/api/moderation/config', { method: 'GET' }, 5000)
+        apiFetch('/api/feed/config', { method: 'GET' }, 10000),
+        apiFetch('/api/moderation/config', { method: 'GET' }, 10000)
       ]);
       if (!feedRes.ok || !modRes.ok) {
         const feedErr = !feedRes.ok ? await feedRes.json().catch(() => null) : null;
@@ -295,7 +303,8 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
         if (feedRes.status === 401 || feedRes.status === 403 || modRes.status === 401 || modRes.status === 403) {
           throw new Error(modErr?.error || feedErr?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
         }
-        throw new Error(modErr?.error || feedErr?.error || 'Failed to load feed and moderation policy settings.');
+        const failedStatus = !modRes.ok ? modRes.status : feedRes.status;
+        throw new Error(modErr?.error || feedErr?.error || `Failed to load feed and moderation policy settings (HTTP ${failedStatus}).`);
       }
       const feedData = await feedRes.json();
       const modData = await modRes.json();
@@ -318,13 +327,13 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setEmployersLoading(true);
     setEmployersError(null);
     try {
-      const res = await apiFetch('/api/employer/review-queue', { method: 'GET' }, 6000);
+      const res = await apiFetch('/api/employer/review-queue', { method: 'GET' }, 12000);
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
         if (res.status === 401 || res.status === 403) {
           throw new Error(errBody?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
         }
-        throw new Error(errBody?.error || 'Failed to load employer accreditation queue.');
+        throw new Error(errBody?.error || `Failed to load employer accreditation queue (HTTP ${res.status}).`);
       }
       const data = await res.json();
       setEmployerQueue(Array.isArray(data.queue) ? data.queue : []);

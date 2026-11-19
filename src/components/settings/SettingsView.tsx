@@ -73,6 +73,7 @@ import {
   triggerTestPushNotification
 } from '../../services/pushNotificationService';
 import { openExternalUrl } from '../../services/externalLinkService';
+import { getAuthToken } from '../../services/apiClient';
 import { shareAlumniPortal } from '../../services/nativeShareService';
 import { sendPasswordResetLinkEmail } from '../../services/emailNotificationService';
 import { SixDigitOtpModal } from '../common/SixDigitOtpModal';
@@ -263,9 +264,13 @@ export const SettingsView: React.FC = () => {
     });
 
     if (currentUser?.uid) {
+      const authToken = getAuthToken();
       fetch('/api/push/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        },
         body: JSON.stringify({
           targetUserId: currentUser.uid,
           title: titles[category],

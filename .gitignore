@@ -47,6 +47,9 @@ key.properties
 *.bak
 server.cjs*
 *.map
+.vapid-keys.json
+data/*.json
+data/verification_selfies/
 
 # IDE configurations
 .idea/

@@ -25,7 +25,7 @@ export function getEmailTransporter(): Transporter | null {
         secure: port === 465,
         auth: { user, pass },
         tls: {
-          rejectUnauthorized: false
+          rejectUnauthorized: process.env.SMTP_ALLOW_SELF_SIGNED !== 'true'
         }
       });
       console.log(`[Email Service] Initialized SMTP transporter using ${host}:${port} (${user})`);
@@ -147,6 +147,15 @@ export async function sendRealEmail(options: EmailOptions): Promise<{
 /**
  * Generates an institutional HTML & plaintext template for password reset OTP.
  */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function buildOtpEmailTemplate(params: {
   otp: string;
   recipientName: string;
@@ -154,6 +163,8 @@ export function buildOtpEmailTemplate(params: {
   expiresInMinutes: number;
 }): { html: string; text: string } {
   const { otp, recipientName, expiresInMinutes } = params;
+  const safeName = escapeHtml(recipientName);
+  const safeOtp = escapeHtml(otp);
 
   const text = `St. Cecilia's College - Cebu, Inc.
 Alumni Network Identity Recovery
@@ -187,14 +198,14 @@ Poblacion Ward II, Minglanilla, Cebu, Philippines 6046`;
       <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.9; font-weight: 500;">Alumni Network Identity Recovery</p>
     </div>
     <div style="padding: 32px 28px;">
-      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">Hello <strong>${recipientName}</strong>,</p>
+      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">Hello <strong>${safeName}</strong>,</p>
       <p style="font-size: 14px; line-height: 1.6; color: #44403c; margin: 0 0 24px 0;">
         We received a request to reset the password for your Cecilian Alumni Network account. Enter the following single-use verification code to complete your password reset:
       </p>
 
       <div style="background: #fafaf9; border: 2px dashed #d6d3d1; border-radius: 12px; padding: 20px; text-align: center; margin: 0 0 24px 0;">
         <span style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #8B181B; display: inline-block;">
-          ${otp}
+          ${safeOtp}
         </span>
       </div>
 
@@ -232,6 +243,9 @@ export function buildEmailChangeOtpTemplate(params: {
   expiresInMinutes: number;
 }): { html: string; text: string } {
   const { otp, recipientName, newEmail, expiresInMinutes } = params;
+  const safeName = escapeHtml(recipientName);
+  const safeNewEmail = escapeHtml(newEmail);
+  const safeOtp = escapeHtml(otp);
 
   const text = `St. Cecilia's College - Cebu, Inc.
 Alumni Network Email Verification
@@ -263,14 +277,14 @@ Poblacion Ward II, Minglanilla, Cebu, Philippines 6046`;
       <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.9; font-weight: 500;">Email Address Verification</p>
     </div>
     <div style="padding: 32px 28px;">
-      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">Hello <strong>${recipientName}</strong>,</p>
+      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">Hello <strong>${safeName}</strong>,</p>
       <p style="font-size: 14px; line-height: 1.6; color: #44403c; margin: 0 0 24px 0;">
-        Please confirm that you want to update your Cecilian Alumni Network email address to <strong>${newEmail}</strong> by entering this 6-digit verification code:
+        Please confirm that you want to update your Cecilian Alumni Network email address to <strong>${safeNewEmail}</strong> by entering this 6-digit verification code:
       </p>
 
       <div style="background: #fafaf9; border: 2px dashed #d6d3d1; border-radius: 12px; padding: 20px; text-align: center; margin: 0 0 24px 0;">
         <span style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #8B181B; display: inline-block;">
-          ${otp}
+          ${safeOtp}
         </span>
       </div>
 
@@ -308,6 +322,9 @@ export function buildEmployerStatusEmailTemplate(params: {
   reason?: string;
 }): { html: string; text: string } {
   const { companyName, contactName, status, reason } = params;
+  const safeCompany = escapeHtml(companyName);
+  const safeContact = escapeHtml(contactName);
+  const safeReason = reason ? escapeHtml(reason) : '';
   const isApproved = status === 'approved';
 
   const title = isApproved
@@ -345,7 +362,7 @@ St. Cecilia's College Alumni & Placement Bureau`;
       <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.9;">Corporate Relations & Career Placement</p>
     </div>
     <div style="padding: 28px;">
-      <p>Dear <strong>${contactName}</strong> (${companyName}),</p>
+      <p>Dear <strong>${safeContact}</strong> (${safeCompany}),</p>
       ${
         isApproved
           ? `<div style="background: #ecfdf5; border: 1px solid #a7f3d0; padding: 16px; border-radius: 12px; margin: 16px 0;">
@@ -355,11 +372,11 @@ St. Cecilia's College Alumni & Placement Bureau`;
           : status === 'needs_info'
           ? `<div style="background: #fffbeb; border: 1px solid #fde68a; padding: 16px; border-radius: 12px; margin: 16px 0;">
               <h3 style="color: #92400e; margin: 0 0 8px 0; font-size: 16px;">Additional Information Required</h3>
-              <p style="margin: 0; font-size: 13px; color: #b45309;">${reason || 'Please provide updated corporate verification documents.'}</p>
+              <p style="margin: 0; font-size: 13px; color: #b45309;">${safeReason || 'Please provide updated corporate verification documents.'}</p>
             </div>`
           : `<div style="background: #fef2f2; border: 1px solid #fecaca; padding: 16px; border-radius: 12px; margin: 16px 0;">
               <h3 style="color: #991b1b; margin: 0 0 8px 0; font-size: 16px;">Accreditation Not Approved</h3>
-              <p style="margin: 0; font-size: 13px; color: #b91c1c;">${reason || 'Corporate verification could not be validated with institutional authorities.'}</p>
+              <p style="margin: 0; font-size: 13px; color: #b91c1c;">${safeReason || 'Corporate verification could not be validated with institutional authorities.'}</p>
             </div>`
       }
       <p style="font-size: 12px; color: #78716c; margin-top: 24px;">For questions regarding corporate partnerships, contact the Alumni Placement Office.</p>
