@@ -35,6 +35,8 @@ import {
 } from '../../services/studentVerificationService';
 import { CsvStudentBulkImporter } from './CsvStudentBulkImporter';
 import { useAlumni } from '../../context/AlumniContext';
+import { CourseFilterButton } from '../common/CourseFilterButton';
+import { matchesCourseFilter } from '../../lib/courseFilter';
 
 export const RegistrarRegistryMatcher: React.FC = () => {
   const { users, currentUser, showToast, addAuditLog, setSelectedUserIdForModal } = useAlumni();
@@ -302,7 +304,7 @@ export const RegistrarRegistryMatcher: React.FC = () => {
           (selectedStatus === 'registered' && r.isRegistered) ||
           (selectedStatus === 'pending' && !r.isRegistered) ||
           (selectedStatus === 'honors' && Boolean(r.honors));
-        const matchesCourse = selectedCourse === 'all' || r.course === selectedCourse;
+        const matchesCourse = matchesCourseFilter(r.course, selectedCourse);
 
         return matchesSearch && matchesBatch && matchesStatus && matchesCourse;
       })
@@ -323,9 +325,10 @@ export const RegistrarRegistryMatcher: React.FC = () => {
       });
   }, [records, searchQuery, canSearchRegistry, selectedBatch, selectedStatus, selectedCourse, sortBy]);
 
-  // Reset search independently when switching user/role sessions
+  // Reset search and course filter independently when switching user/role sessions
   useEffect(() => {
     setSearchQuery('');
+    setSelectedCourse('all');
   }, [currentUser?.uid, currentUser?.role]);
 
   // Reset pagination on filter or search changes
@@ -392,39 +395,49 @@ export const RegistrarRegistryMatcher: React.FC = () => {
       {/* ========================================================
           2. MASTER ROSTER DATA LEDGER
           ======================================================== */}
-      <div className="bg-white rounded-[32px] border border-stone-200/90 shadow-2xs overflow-hidden">
-        {/* Role-Based Registry Search Bar (Super Admin, Admin, Moderator) */}
+      <div className="bg-white rounded-[32px] border border-stone-200/90 shadow-2xs">
+        {/* Role-Based Registry Search Bar & Course Filter (Super Admin, Admin, Moderator) */}
         {canSearchRegistry && (
-          <div className="px-4 sm:px-6 py-3.5 border-b border-stone-200/80 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            <div className="relative flex-1 max-w-xl">
-              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                id="registrar-registry-search"
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape' && searchQuery) {
-                    setSearchQuery('');
-                  }
-                }}
-                placeholder="Search by Student ID, Full Name, Course, Guardian, Contact, Birthdate, Address..."
-                aria-label="Search Registrar Registry"
-                className="w-full pl-10 pr-9 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] focus:bg-white transition-all"
+          <div className="px-4 sm:px-6 py-3.5 border-b border-stone-200/80 bg-white rounded-t-[32px] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 flex-1 max-w-2xl">
+              <div className="relative flex-1 min-w-0">
+                <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  id="registrar-registry-search"
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape' && searchQuery) {
+                      setSearchQuery('');
+                    }
+                  }}
+                  placeholder="Search by Student ID, Full Name, Course, Guardian, Contact, Birthdate, Address..."
+                  aria-label="Search Registrar Registry"
+                  className="w-full pl-10 pr-9 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] focus:bg-white transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Clear search"
+                    title="Clear search"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-stone-700 rounded-md hover:bg-stone-200/70 transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <CourseFilterButton
+                id="registrar-course-filter-btn"
+                value={selectedCourse}
+                onChange={setSelectedCourse}
+                align="right"
               />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  aria-label="Clear search"
-                  title="Clear search"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-stone-700 rounded-md hover:bg-stone-200/70 transition-colors cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
             </div>
-            {searchQuery.trim() && (
+
+            {(searchQuery.trim() || selectedCourse !== 'all') && (
               <div className="flex items-center gap-2 text-xs text-stone-500 shrink-0">
                 <span>
                   <strong className="font-mono tabular-nums text-stone-900 font-bold">
@@ -438,7 +451,10 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedCourse('all');
+                  }}
                   className="text-xs font-semibold text-[#8B181B] hover:text-[#721316] hover:underline cursor-pointer"
                 >
                   Clear
@@ -449,7 +465,7 @@ export const RegistrarRegistryMatcher: React.FC = () => {
         )}
 
         {/* Ledger Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-b-[32px]">
           <table className="w-full text-xs text-left">
             <thead className="bg-stone-50 text-stone-600 font-bold border-b border-stone-200 text-[11px] tracking-wide">
               <tr>

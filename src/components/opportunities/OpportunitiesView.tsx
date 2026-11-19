@@ -33,6 +33,8 @@ import { Opportunity } from '../../types';
 import { JobApplicationModal } from './JobApplicationModal';
 import { JobApplicantsTrackerModal } from './JobApplicantsTrackerModal';
 import { JobModerationQueue } from './JobModerationQueue';
+import { CourseFilterButton } from '../common/CourseFilterButton';
+import { matchesCourseFilter } from '../../lib/courseFilter';
 import { ShareModal, ShareItem } from '../common/ShareModal';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { PaginationControl } from '../common/PaginationControl';
@@ -232,9 +234,7 @@ export const OpportunitiesView: React.FC = () => {
         (opp.skills || []).some((s) => s.toLowerCase().includes(q));
 
       const matchesType = selectedType === 'all' || opp.type === selectedType;
-      const matchesCourse =
-        selectedCourseFilter === 'all' ||
-        (opp.requiredCourse || '').toLowerCase().includes(selectedCourseFilter.toLowerCase());
+      const matchesCourse = matchesCourseFilter(opp.requiredCourse, selectedCourseFilter);
 
       // Skills-based filter: match at least one verified profile skill
       if (filterByMySkills) {
@@ -549,9 +549,27 @@ export const OpportunitiesView: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by role, company name, required course, or skill (e.g. PHP, Laravel, React, TypeScript)..."
-                className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#8B181B] focus:border-[#8B181B] placeholder:text-stone-400 dark:placeholder:text-stone-500"
+                className="w-full pl-9 pr-9 py-2 text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#8B181B] focus:border-[#8B181B] placeholder:text-stone-400 dark:placeholder:text-stone-500"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                  title="Clear search"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 rounded-md hover:bg-stone-200/70 dark:hover:bg-stone-700 transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
+
+            <CourseFilterButton
+              id="opportunities-course-filter-btn"
+              value={selectedCourseFilter}
+              onChange={setSelectedCourseFilter}
+              align="right"
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2 w-full lg:w-auto">
               <select
@@ -565,18 +583,6 @@ export const OpportunitiesView: React.FC = () => {
                 <option value="Internship">Internship</option>
                 <option value="Mentorship">Mentorship</option>
                 <option value="Contract">Contract</option>
-              </select>
-
-              <select
-                value={selectedCourseFilter}
-                onChange={(e) => setSelectedCourseFilter(e.target.value)}
-                className="w-full sm:w-auto px-3 py-2 text-xs bg-stone-50 border border-stone-200/90 rounded-xl text-stone-700 font-medium"
-              >
-                <option value="all">All Degrees / Courses</option>
-                <option value="Information Technology">BS Information Technology</option>
-                <option value="Computer Science">BS Computer Science</option>
-                <option value="Business">BS Business Administration</option>
-                <option value="Education">BSEd / Elementary Education</option>
               </select>
 
               {/* Skills-Based Dropdown Filter */}
@@ -720,10 +726,10 @@ export const OpportunitiesView: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                setSelectedCourseFilter(selectedCourseFilter !== 'all' ? 'all' : 'Information Technology');
+                setSelectedCourseFilter(selectedCourseFilter === 'BSIT | ACT' ? 'all' : 'BSIT | ACT');
               }}
               className={`px-3 py-1 rounded-xl font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
-                selectedCourseFilter !== 'all'
+                selectedCourseFilter === 'BSIT | ACT'
                   ? 'bg-[#8B181B] text-white shadow-2xs'
                   : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
               }`}

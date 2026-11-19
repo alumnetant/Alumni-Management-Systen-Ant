@@ -51,6 +51,8 @@ import { areUsersBlocked, isAccountUnavailable } from '../../lib/postVisibility'
 import { PaginationControl } from '../common/PaginationControl';
 import { PartneredCompaniesView } from './PartneredCompaniesView';
 import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
+import { CourseFilterButton } from '../common/CourseFilterButton';
+import { matchesCourseFilter } from '../../lib/courseFilter';
 
 export const NetworkView: React.FC = () => {
   const {
@@ -188,15 +190,10 @@ export const NetworkView: React.FC = () => {
     setCurrentPage(1);
   }, [searchQuery, selectedBatch, selectedCourse, selectedRole, selectedStatus]);
 
-  // Distinct batches and courses for filter dropdowns
+  // Distinct batches for filter dropdown
   const allBatches = useMemo(() => {
     const batches = Array.from(new Set(users.map((u) => u.batch).filter(Boolean)));
     return ['all', ...batches.sort().reverse()];
-  }, [users]);
-
-  const allCourses = useMemo(() => {
-    const courses = Array.from(new Set(users.map((u) => u.course).filter(Boolean)));
-    return ['all', ...courses.sort()];
   }, [users]);
 
   // Received and Sent Requests
@@ -336,7 +333,7 @@ export const NetworkView: React.FC = () => {
         (u.skills || []).some((s) => s.toLowerCase().includes(q));
 
       const matchesBatch = selectedBatch === 'all' || u.batch === selectedBatch;
-      const matchesCourse = selectedCourse === 'all' || u.course === selectedCourse;
+      const matchesCourse = matchesCourseFilter(u.course, selectedCourse);
       const matchesRole =
         selectedRole === 'all' ||
         u.role === selectedRole ||
@@ -889,8 +886,15 @@ export const NetworkView: React.FC = () => {
             )}
           </div>
 
+          <CourseFilterButton
+            id="network-course-filter-btn"
+            value={selectedCourse}
+            onChange={setSelectedCourse}
+            align="right"
+          />
+
           {/* Quick Select Filter Strip */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:flex md:flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:flex md:flex-wrap items-center gap-2 w-full md:w-auto">
             <select
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
@@ -912,20 +916,6 @@ export const NetworkView: React.FC = () => {
               {allBatches.filter((b) => b !== 'all').map((b) => (
                 <option key={b} value={b}>
                   Batch {b}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={selectedCourse}
-              onChange={(e) => setSelectedCourse(e.target.value)}
-              aria-label="Filter by Course"
-              className="w-full md:w-auto px-3 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 rounded-xl text-stone-700 dark:text-stone-300 focus:outline-hidden focus:border-[#8B181B] md:max-w-[170px] truncate cursor-pointer"
-            >
-              <option value="all">All Courses</option>
-              {allCourses.filter((c) => c !== 'all').map((c) => (
-                <option key={c} value={c}>
-                  {c}
                 </option>
               ))}
             </select>

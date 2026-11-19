@@ -54,6 +54,8 @@ import { exportAlumniRosterCsv, exportAlumniRosterExcel } from '../../services/a
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { AdminAccountSuspensionModal } from './AdminAccountSuspensionModal';
 import { SuspensionHistoryModal } from './SuspensionHistoryModal';
+import { CourseFilterButton } from '../common/CourseFilterButton';
+import { matchesCourseFilter } from '../../lib/courseFilter';
 
 interface AdminUsersTableProps {
   onOpenCreateUser: () => void;
@@ -79,6 +81,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [batchFilter, setBatchFilter] = useState<string>('all');
+  const [courseFilter, setCourseFilter] = useState<string>('all');
   const [employmentFilter, setEmploymentFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'name_asc' | 'name_desc' | 'batch_desc' | 'batch_asc' | 'recent' | 'verified_first'>('name_asc');
@@ -135,7 +138,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter, sortBy]);
+  }, [searchQuery, roleFilter, batchFilter, courseFilter, employmentFilter, statusFilter, sortBy]);
 
   const activeUsers = useMemo(() => users.filter((u) => !isAccountDeleted(u)), [users]);
 
@@ -177,10 +180,11 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
     if (searchQuery.trim()) count++;
     if (roleFilter !== 'all') count++;
     if (batchFilter !== 'all') count++;
+    if (courseFilter !== 'all') count++;
     if (employmentFilter !== 'all') count++;
     if (statusFilter !== 'all') count++;
     return count;
-  }, [searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter]);
+  }, [searchQuery, roleFilter, batchFilter, courseFilter, employmentFilter, statusFilter]);
 
   const secondaryFiltersCount = useMemo(() => {
     let count = 0;
@@ -195,6 +199,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
     setSearchQuery('');
     setRoleFilter('all');
     setBatchFilter('all');
+    setCourseFilter('all');
     setEmploymentFilter('all');
     setStatusFilter('all');
     setSortBy('name_asc');
@@ -240,6 +245,9 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
       // Batch filter
       const matchesBatch = batchFilter === 'all' || u.batch === batchFilter;
 
+      // Course filter
+      const matchesCourse = matchesCourseFilter(u.course, courseFilter);
+
       // Employment filter
       const matchesEmployment =
         employmentFilter === 'all'
@@ -257,7 +265,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
         matchesStatus = effectiveStatus === statusFilter;
       }
 
-      return matchesSearch && matchesRole && matchesBatch && matchesEmployment && matchesStatus;
+      return matchesSearch && matchesRole && matchesBatch && matchesCourse && matchesEmployment && matchesStatus;
     });
 
     // Precision sorting
@@ -284,7 +292,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
       }
       return 0;
     });
-  }, [activeUsers, searchQuery, roleFilter, batchFilter, employmentFilter, statusFilter, sortBy]);
+  }, [activeUsers, searchQuery, roleFilter, batchFilter, courseFilter, employmentFilter, statusFilter, sortBy]);
 
   // Reset pagination on filter or search changes
   useEffect(() => {
@@ -420,8 +428,15 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
             </div>
           </div>
 
-          {/* Minimal Controls: Filters Drawer Toggle + View Mode Switcher */}
+          {/* Minimal Controls: Course Filter + Filters Drawer Toggle + View Mode Switcher */}
           <div className="flex items-center gap-1.5 shrink-0">
+            <CourseFilterButton
+              id="admin-users-course-filter-btn"
+              value={courseFilter}
+              onChange={setCourseFilter}
+              align="right"
+            />
+
             {/* Toggle Filters Button */}
             <button
               type="button"
