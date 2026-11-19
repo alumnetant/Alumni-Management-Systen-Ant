@@ -821,29 +821,33 @@ export const NetworkView: React.FC = () => {
           </button>
         </div>
 
-        {/* Download Alumni List CSV & Excel */}
-        <button
-          type="button"
-          onClick={() => {
-            exportAlumniRosterCsv(users, 'st_cecilia_alumni_directory');
-            showToast?.(`Exported ${users.length} alumni to CSV!`, 'success');
-          }}
-          title="Download Alumni CSV (7-column format)"
-          className="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 flex items-center justify-center text-stone-700 dark:text-stone-300 transition-all cursor-pointer shrink-0"
-        >
-          <Download className="w-4 h-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            exportAlumniRosterExcel(users, 'st_cecilia_alumni_directory');
-            showToast?.(`Exported ${users.length} alumni to Excel (.xlsx)!`, 'success');
-          }}
-          title="Download Alumni Excel (.xlsx) (7-column format)"
-          className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-700 dark:text-emerald-300 transition-all cursor-pointer shrink-0"
-        >
-          <FileSpreadsheet className="w-4 h-4" />
-        </button>
+        {/* Download Alumni List CSV & Excel (Admin/Staff Only — hidden for alumni role) */}
+        {currentUser?.role !== 'alumni' && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                exportAlumniRosterCsv(users, 'st_cecilia_alumni_directory');
+                showToast?.(`Exported ${users.length} alumni to CSV!`, 'success');
+              }}
+              title="Download Alumni CSV (7-column format)"
+              className="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 flex items-center justify-center text-stone-700 dark:text-stone-300 transition-all cursor-pointer shrink-0"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                exportAlumniRosterExcel(users, 'st_cecilia_alumni_directory');
+                showToast?.(`Exported ${users.length} alumni to Excel (.xlsx)!`, 'success');
+              }}
+              title="Download Alumni Excel (.xlsx) (7-column format)"
+              className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-700 dark:text-emerald-300 transition-all cursor-pointer shrink-0"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+            </button>
+          </>
+        )}
       </div>
     </div>
 
@@ -951,54 +955,6 @@ export const NetworkView: React.FC = () => {
               </button>
             )}
           </div>
-        </div>
-
-        {/* Quick Filter Tags */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none pt-1 border-t border-stone-100 dark:border-stone-800">
-          <span className="text-stone-400 text-[11px] font-semibold shrink-0 flex items-center gap-1 pr-1">
-            <Filter className="w-3 h-3 stroke-[1.75]" /> Quick Filters:
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery('');
-              setSelectedRole('all');
-              setSelectedBatch('all');
-              setSelectedCourse('all');
-              setSelectedStatus('all');
-            }}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold shrink-0 transition-colors cursor-pointer ${
-              !searchQuery && selectedRole === 'all' && selectedBatch === 'all' && selectedCourse === 'all' && selectedStatus === 'all'
-                ? 'bg-[#8B181B] text-white shadow-2xs'
-                : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200/80'
-            }`}
-          >
-            All Members ({users.filter((u) => u.uid !== currentUser?.uid && u.role !== 'admin' && u.role !== 'superadmin' && u.role !== 'moderator' && (u.role !== 'employer' || isEmployerVisibleInDirectory(u))).length})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSelectedBatch('2024')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium shrink-0 transition-colors cursor-pointer ${
-              selectedBatch === '2024'
-                ? 'bg-[#8B181B] text-white font-semibold'
-                : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200/80'
-            }`}
-          >
-            Batch 2024
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSelectedBatch('2023')}
-            className={`px-3 py-1 rounded-lg text-xs font-medium shrink-0 transition-colors cursor-pointer ${
-              selectedBatch === '2023'
-                ? 'bg-[#8B181B] text-white font-semibold'
-                : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-stone-200/80'
-            }`}
-          >
-            Batch 2023
-          </button>
         </div>
       </div>
 

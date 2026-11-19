@@ -123,15 +123,20 @@ const RegistrarSelfVerificationModalContent: React.FC<{ onClose: () => void }> =
     setIsSubmittingRequest(true);
     const updater = updateProfile || updateUserProfile;
 
+    const nowIso = new Date().toISOString();
     const requestPayload = {
       verificationStatus: 'pending_review' as const,
+      verificationSubmissionSource: 'request_verification' as const,
       studentId: cleanId,
       batch: reqBatch.trim(),
       course: reqCourse.trim(),
+      selfieWithIdUrl: proofDataUrl || undefined,
+      selfieWithIdName: proofFileName || undefined,
+      selfieWithIdUploadedAt: proofDataUrl ? nowIso : undefined,
       verificationProofUrl: proofDataUrl || undefined,
       verificationProofName: proofFileName || undefined,
       verificationNotes: reqNotes.trim() || undefined,
-      verificationSubmittedAt: new Date().toISOString()
+      verificationSubmittedAt: nowIso
     };
 
     try {
@@ -139,17 +144,23 @@ const RegistrarSelfVerificationModalContent: React.FC<{ onClose: () => void }> =
         updater(requestPayload);
       }
 
-      // 1. Add formal verification conflict/appeal to the Requests & Conflicts queue (persisted to Firestore)
-      addRegistrationConflict({
+      // 1. Add formal verification request exclusively under Collisions & Appeals (persisted to Firestore)
+      const createdConflict = addRegistrationConflict({
         applicantUid: currentUser.uid,
         applicantName: currentUser.name,
         applicantEmail: currentUser.email,
+        applicantPhone: currentUser.phone,
         applicantStudentId: cleanId,
         applicantBatch: reqBatch.trim(),
         applicantCourse: reqCourse.trim(),
+        submissionSource: 'request_verification',
+        requestType: 'manual_verification_request',
         conflictType: 'manual_verification_request',
         severity: 'medium',
         confidenceScore: 60,
+        selfieWithIdUrl: proofDataUrl || undefined,
+        selfieWithIdName: proofFileName || undefined,
+        selfieWithIdUploadedAt: proofDataUrl ? nowIso : undefined,
         notes: `MANUAL DEGREE VERIFICATION WITH PROOF: ${currentUser.name} (${currentUser.email}) uploaded document proof ("${proofFileName || 'Proof Document'}") for Student ID ${cleanId}. Batch: ${reqBatch.trim()}, Course: ${reqCourse.trim()}. Notes: "${reqNotes.trim() || 'Please verify my diploma and transcript of records.'}".`
       });
 
@@ -159,13 +170,19 @@ const RegistrarSelfVerificationModalContent: React.FC<{ onClose: () => void }> =
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser.uid,
+          conflictId: createdConflict.id,
+          submissionSource: 'request_verification',
+          requestType: 'manual_verification_request',
           name: currentUser.name,
           email: currentUser.email,
+          phone: currentUser.phone,
           studentId: cleanId,
           batch: reqBatch.trim(),
           course: reqCourse.trim(),
           proofName: proofFileName || undefined,
           proofUrl: proofDataUrl || undefined,
+          selfieWithIdName: proofFileName || undefined,
+          selfieWithIdUrl: proofDataUrl || undefined,
           notes: reqNotes.trim() || undefined
         })
       }).catch(() => {});

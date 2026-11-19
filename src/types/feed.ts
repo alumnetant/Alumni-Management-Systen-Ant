@@ -66,4 +66,4 @@ export interface FeedItem {
   rawItem: any;
 }
 
-export type FeedTab = 'foryou' | 'recent' | 'official';
+export type FeedTab = 'recent' | 'official';

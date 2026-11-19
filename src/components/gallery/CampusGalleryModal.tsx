@@ -17,6 +17,7 @@ import {
 import { useAlumni } from '../../context/AlumniContext';
 import { GalleryItem } from '../../types';
 import { validateUploadedFile } from '../../lib/security';
+import { compressImage } from '../../lib/utils';
 
 interface CampusGalleryModalProps {
   isOpen: boolean;
@@ -165,12 +166,18 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
         setUploadError(val.error || 'Invalid image file.');
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewUrl(reader.result as string);
+      try {
+        const compressed = await compressImage(file, 1280, 1280, 0.82);
+        setNewUrl(compressed);
         setUploadError('');
-      };
-      reader.readAsDataURL(file);
+      } catch {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setNewUrl(reader.result as string);
+          setUploadError('');
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -186,7 +193,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
   const handleSubmitUpload = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canUpload) {
-      setUploadError('Only Admin and Registrar can upload to the Campus & Heritage Gallery.');
+      setUploadError('You do not have permission to upload to the Campus & Heritage Gallery.');
       return;
     }
     if (!newTitle.trim()) {
@@ -254,7 +261,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {canUpload ? (
+            {canUpload && (
               <button
                 onClick={() => setShowUploadModal(true)}
                 className="flex items-center gap-1.5 px-3 py-2 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
@@ -262,15 +269,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                 <Upload className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Upload Photo</span>
                 <span className="sm:hidden">Upload</span>
-                <span className="hidden md:inline ml-1 text-[10px] bg-white/20 px-1.5 py-0.5 rounded-md font-mono uppercase">
-                  {currentUser?.role}
-                </span>
               </button>
-            ) : (
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 text-xs border border-stone-200 dark:border-stone-700">
-                <Shield className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
-                <span>Uploads restricted to <strong>Admin</strong> & <strong>Registrar</strong></span>
-              </div>
             )}
 
             <button
@@ -335,8 +334,8 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
             <p className="text-sm font-semibold text-stone-700 dark:text-stone-200">No photos in this collection yet</p>
             <p className="text-xs text-stone-400 mt-1">
               {canUpload
-                ? 'As an Administrator or Registrar, click "Upload Photo" above to contribute archival imagery.'
-                : 'Archival photos will appear here once uploaded by the Administrator or Registrar.'}
+                ? 'Click "Upload Photo" above to contribute archival imagery.'
+                : 'Archival photos will appear here once added to the collection.'}
             </p>
           </div>
         ) : (
@@ -395,7 +394,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                     <div className="flex items-center gap-1.5 truncate">
                       <Shield className="w-3 h-3 text-[#991B1B] dark:text-rose-400" />
                       <span className="truncate">
-                        By {item.uploadedByName || 'Institution'} ({item.uploaderRole || 'admin'})
+                        By {item.uploadedByName || 'Institution'}
                       </span>
                     </div>
 
@@ -406,7 +405,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                           setItemToDelete(item);
                         }}
                         className="p-1.5 text-stone-400 hover:text-red-600 dark:hover:text-rose-400 rounded-lg hover:bg-red-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
-                        title="Delete photo (Admin/Registrar)"
+                        title="Delete photo"
                         aria-label="Delete photo"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -423,11 +422,6 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
         <div className="mt-8 pt-4 border-t border-stone-200 dark:border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="text-xs text-stone-500 dark:text-stone-400 text-center sm:text-left">
             <span>Preserving St. Cecilia's legacy across generations.</span>
-            {!canUpload && (
-              <span className="block sm:inline sm:ml-2 text-stone-400 dark:text-stone-500">
-                (Upload access restricted to Admin and Registrar)
-              </span>
-            )}
           </div>
           <button
             onClick={onClose}
@@ -439,7 +433,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
       </div>
 
       {/* ========================================================
-          SUB-MODAL: UPLOAD ARCHIVAL PHOTO (Admin & Registrar Only)
+          SUB-MODAL: UPLOAD ARCHIVAL PHOTO
           ======================================================== */}
       {showUploadModal && canUpload && (
         <div
@@ -458,7 +452,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
                 <div>
                   <h4 className="text-sm font-bold text-stone-900 dark:text-stone-100">Upload to Campus & Heritage Gallery</h4>
                   <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                    Authorized as <strong className="text-[#8B181B] dark:text-rose-400 uppercase">{currentUser?.role}</strong> ({currentUser?.name})
+                    Uploading as {currentUser?.name}
                   </p>
                 </div>
               </div>
@@ -667,7 +661,7 @@ export const CampusGalleryModal: React.FC<CampusGalleryModalProps> = ({
               <div className="flex items-center gap-1">
                 <Shield className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
                 <span>
-                  Archived by: <strong className="text-stone-800 dark:text-stone-200">{inspectingItem.uploadedByName || 'Institution'}</strong> ({inspectingItem.uploaderRole || 'admin'})
+                  Archived by: <strong className="text-stone-800 dark:text-stone-200">{inspectingItem.uploadedByName || 'Institution'}</strong>
                 </span>
               </div>
               <button

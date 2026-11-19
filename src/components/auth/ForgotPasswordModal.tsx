@@ -118,13 +118,18 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       if (!res.ok) {
         throw new Error(data.error || 'Failed to dispatch email.');
       }
-      setGeneratedCode(data.code || localOtp);
+      setGeneratedCode(data.offlineFallbackCode || '');
       setCodeExpiry(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
       setResendCooldown(30); // 30 seconds cooldown
       setEmail(emailToTest);
       setVerificationCode('');
       setStep(2);
-      showToast(`🔒 Reset Verification Code: ${data.code || localOtp} (Dispatched to ${emailToTest})`, 'info');
+      showToast(
+        data.deliveryMode === 'offline_fallback'
+          ? `Offline mode: preview verification code generated for ${emailToTest}.`
+          : `6-digit verification code sent to ${emailToTest}. Please check your inbox.`,
+        'info'
+      );
     } catch {
       // Graceful offline/standalone fallback: set code and proceed
       setGeneratedCode(localOtp);
@@ -133,7 +138,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
       setEmail(emailToTest);
       setVerificationCode('');
       setStep(2);
-      showToast(`🔒 Reset Verification Code: ${localOtp} (Dispatched to ${emailToTest})`, 'info');
+      showToast(`Offline mode: preview verification code ready for ${emailToTest}.`, 'info');
     } finally {
       setIsSending(false);
     }
@@ -394,16 +399,29 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                 </button>
               </div>
 
-              {/* Institutional Email Instruction Banner (No plaintext OTP display) */}
-              <div className="mb-4 p-3 rounded-xl bg-stone-50 border border-stone-200 text-stone-700 text-xs shadow-2xs">
-                <div className="flex items-center gap-1.5 font-bold text-[11px] uppercase tracking-wider text-stone-800 mb-1">
-                  <Mail className="w-3.5 h-3.5 text-[#8B181B]" />
-                  <span>Security Code Dispatched</span>
+              {/* Institutional Email Instruction Banner (Offline Preview Shown Only When Disconnected) */}
+              {generatedCode ? (
+                <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs shadow-2xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-[11px] uppercase tracking-wider text-amber-800">
+                      Offline Preview Code
+                    </span>
+                    <span className="font-mono text-sm font-extrabold text-[#8B181B] tracking-widest bg-white px-2 py-0.5 rounded border border-amber-200">
+                      {generatedCode}
+                    </span>
+                  </div>
                 </div>
-                <p className="text-[11px] text-stone-600 leading-relaxed">
-                  Please check your inbox or spam folder for your 6-digit verification code. For security, one-time passcodes are never displayed on this screen.
-                </p>
-              </div>
+              ) : (
+                <div className="mb-4 p-3 rounded-xl bg-stone-50 border border-stone-200 text-stone-700 text-xs shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-bold text-[11px] uppercase tracking-wider text-stone-800 mb-1">
+                    <Mail className="w-3.5 h-3.5 text-[#8B181B]" />
+                    <span>Security Code Dispatched</span>
+                  </div>
+                  <p className="text-[11px] text-stone-600 leading-relaxed">
+                    Please check your inbox or spam folder for your 6-digit verification code. For security, one-time passcodes are never displayed on this screen.
+                  </p>
+                </div>
+              )}
 
               <form onSubmit={handleVerifyCode} className="space-y-4">
                 <div>

@@ -28,20 +28,38 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Generate a cryptographically styled 6-digit OTP
-  const generateNewCode = () => {
-    const freshCode = generateSecureNumericCode(100000, 999999).toString();
-    setGeneratedCode(freshCode);
+  // Dispatch 6-digit OTP via server email with offline fallback
+  const generateNewCode = async () => {
     setCodeDigits(['', '', '', '', '', '']);
     setErrorMessage('');
     setResendCooldown(60);
 
-    // Show real-time interactive toast notification with OTP
-    showToast(`🔒 Security Code: ${freshCode} (Dispatched to ${userEmail})`, 'info');
-
-    // Show institutional email dispatch simulation notification
     const masked = maskEmail(userEmail);
-    setCodeNotification(`A 6-digit verification code (${freshCode}) has been dispatched to ${masked}.`);
+    const localCode = generateSecureNumericCode(100000, 999999).toString();
+
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail.trim().toLowerCase() })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.deliveryMode === 'offline_fallback' && data?.offlineFallbackCode) {
+        setGeneratedCode(String(data.offlineFallbackCode));
+        setCodeNotification(`Offline mode: use preview code ${data.offlineFallbackCode} for ${masked}.`);
+        showToast(`Offline mode: preview verification code ready for ${masked}.`, 'info');
+      } else if (res.ok) {
+        setGeneratedCode('');
+        setCodeNotification(null);
+        showToast(`Verification code sent to ${masked}. Check your inbox.`, 'info');
+      } else {
+        throw new Error(data?.error || 'Dispatch error');
+      }
+    } catch {
+      setGeneratedCode(localCode);
+      setCodeNotification(`Offline mode: use preview code ${localCode} for ${masked}.`);
+      showToast(`Offline mode: preview verification code ready for ${masked}.`, 'info');
+    }
 
     // Auto-focus first input
     setTimeout(() => {
@@ -51,7 +69,7 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
 
   useEffect(() => {
     if (isOpen) {
-      generateNewCode();
+      void generateNewCode();
     }
   }, [isOpen]);
 
@@ -116,19 +134,40 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
     }
   };
 
-  const verifyEnteredCode = (enteredCode: string) => {
+  const verifyEnteredCode = async (enteredCode: string) => {
     setIsVerifying(true);
     setErrorMessage('');
 
-    setTimeout(() => {
-      if (enteredCode === generatedCode) {
-        setIsVerifying(false);
+    try {
+      if (generatedCode && (!navigator.onLine || enteredCode === generatedCode)) {
+        if (enteredCode === generatedCode) {
+          onVerifySuccess();
+          return;
+        }
+      }
+
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail.trim().toLowerCase(), otp: enteredCode })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok || (generatedCode && enteredCode === generatedCode)) {
         onVerifySuccess();
       } else {
-        setIsVerifying(false);
+        setErrorMessage(
+          data?.error || 'The 6-digit security code entered is incorrect. Please check the code and try again.'
+        );
+      }
+    } catch {
+      if (generatedCode && enteredCode === generatedCode) {
+        onVerifySuccess();
+      } else {
         setErrorMessage('The 6-digit security code entered is incorrect. Please check the code and try again.');
       }
-    }, 350);
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -170,19 +209,16 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
             <strong className="text-stone-900 dark:text-stone-100 font-mono">{maskEmail(userEmail)}</strong>.
           </p>
 
-          {/* Institutional Simulation Dispatch Banner */}
+          {/* Offline Preview Banner (Shown Only in Offline Fallback Mode) */}
           {codeNotification && (
-            <div className="mb-5 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 text-xs flex items-start gap-2.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+            <div className="mb-5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="font-semibold text-emerald-800 dark:text-emerald-300">
-                  Institutional Email Dispatched
+                <p className="font-semibold text-amber-800 dark:text-amber-300">
+                  Offline Preview Verification Code
                 </p>
-                <p className="font-mono font-bold text-sm tracking-wider mt-0.5 text-[#8B181B] dark:text-red-400">
+                <p className="font-mono font-bold text-xs tracking-wider mt-0.5 text-[#8B181B] dark:text-red-400">
                   {codeNotification}
-                </p>
-                <p className="text-[10px] text-emerald-700 dark:text-emerald-400/80 mt-1">
-                  Code expires in 10 minutes. Enter the code below or click resend if needed.
                 </p>
               </div>
             </div>
@@ -196,7 +232,7 @@ export const TwoFactorVerificationModal: React.FC<TwoFactorVerificationModalProp
                   type="button"
                   onClick={() => {
                     setCodeDigits(generatedCode.split(''));
-                    verifyEnteredCode(generatedCode);
+                    void verifyEnteredCode(generatedCode);
                   }}
                   className="text-[11px] font-mono font-semibold text-[#8B181B] dark:text-red-400 hover:underline cursor-pointer flex items-center gap-1"
                 >

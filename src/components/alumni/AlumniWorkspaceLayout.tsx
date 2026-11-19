@@ -56,7 +56,6 @@ import { CampusGalleryModal } from '../gallery/CampusGalleryModal';
 import { DigitalAlumniCard } from '../profile/DigitalAlumniCard';
 import { VerificationGate } from '../common/VerificationGate';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
-import { exportAlumniRosterCsv } from '../../services/adminExportService';
 import { GlobalCommandPalette } from '../common/GlobalCommandPalette';
 import { NotificationsView } from '../notifications/NotificationsView';
 import { registerBackAction, triggerHaptic } from '../../services/mobileAppService';

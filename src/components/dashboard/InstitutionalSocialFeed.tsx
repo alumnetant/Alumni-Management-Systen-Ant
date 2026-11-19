@@ -10,7 +10,6 @@ import {
   Megaphone,
   RefreshCw,
   Search,
-  Sparkles,
   Users,
   AlertTriangle,
   ArrowUp
@@ -58,7 +57,6 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
   const [streamPosts, setStreamPosts] = useState<InstitutionalFeedPost[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const [sortMode, setSortMode] = useState<'chronological' | 'relevance'>('chronological');
   const [latestPostAt, setLatestPostAt] = useState<string | null>(null);
   const [newPostsAvailableCount, setNewPostsAvailableCount] = useState(0);
 
@@ -184,7 +182,6 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
 
             setPinnedPosts(pinned);
             setStreamPosts(regular);
-            setSortMode(data.sortMode || 'chronological');
             setLatestPostAt(data.latestPostAt || regular[0]?.createdAt || null);
             setNewPostsAvailableCount(0);
           } else {
@@ -225,7 +222,6 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
         regular.forEach((p) => seenIdsRef.current.add(p.id));
         setPinnedPosts(pinned);
         setStreamPosts(regular);
-        setSortMode(localPage.sortMode);
         setLatestPostAt(localPage.latestPostAt || null);
         setNewPostsAvailableCount(0);
       } else {
@@ -587,14 +583,9 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
       <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight">
-                Alumni & Campus Feed
-              </h2>
-              <span className="text-[11px] font-medium text-stone-400 dark:text-stone-500">
-                {sortMode === 'relevance' ? 'Relevance' : 'Newest First'}
-              </span>
-            </div>
+            <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight">
+              Alumni & Campus Feed
+            </h2>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
               Community updates, campus gallery photos, and official announcements
             </p>
@@ -614,10 +605,10 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
         </div>
 
         {/* Segmented Category Filter */}
-        <div className="flex flex-wrap items-center gap-1.5 pb-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-stone-100 dark:border-stone-800/80">
           {[
-            { id: 'all', label: 'All Posts', icon: Sparkles },
-            { id: 'update', label: 'Updates', icon: Sparkles },
+            { id: 'all', label: 'All Posts', icon: Globe },
+            { id: 'update', label: 'Updates', icon: Users },
             { id: 'gallery', label: 'Campus Gallery', icon: Camera },
             { id: 'announcement', label: 'Announcements', icon: Megaphone }
           ].map((tab) => {

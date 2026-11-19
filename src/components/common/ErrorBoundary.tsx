@@ -28,8 +28,36 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  private pruneBloatedStorageCaches = () => {
+    try {
+      if (typeof window === 'undefined') return;
+      const evictableMediaCaches = [
+        'alumni_gallery_v5',
+        'alumni_feed_posts_v1',
+        'alumni_events_v1',
+        'alumni_announcements_v1',
+        'alumni_opportunities_v1',
+        'alumni_backups_v1',
+        'alumni_audit_logs_v1',
+        'st_cecilia_registry_conflicts'
+      ];
+      for (const key of evictableMediaCaches) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw && raw.length > 120_000) {
+            localStorage.removeItem(key);
+          }
+        } catch {}
+      }
+    } catch {}
+  };
+
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('[Institutional Shield] Uncaught React exception caught by ErrorBoundary:', error, errorInfo);
+    const msg = error?.message || error?.toString() || '';
+    if (error?.name === 'QuotaExceededError' || /quota/i.test(msg)) {
+      this.pruneBloatedStorageCaches();
+    }
     this.setState({ errorInfo });
   }
 
@@ -42,7 +70,8 @@ export class ErrorBoundary extends Component<Props, State> {
   private handleClearAndReset = () => {
     try {
       if (typeof window !== 'undefined') {
-        // Clear transient keys that might cause corrupt state while preserving core auth credentials
+        // Clear transient keys and bloated non-auth media caches while preserving core auth credentials
+        this.pruneBloatedStorageCaches();
         sessionStorage.clear();
         localStorage.removeItem('alumni_active_tab_v2');
         localStorage.removeItem('alumni_active_view_v1');

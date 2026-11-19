@@ -303,8 +303,11 @@ export function resolveNotificationDeepLink(
       bodyLower.includes('conflict')
     ) {
       if (isUserAdminOrMod) {
-        const subTab =
-          titleLower.includes('conflict') || titleLower.includes('dispute') ? 'conflicts' : 'requests';
+        const isDisputeClaim =
+          titleLower.includes('dispute') ||
+          bodyLower.includes('dispute student id') ||
+          titleLower.includes('id claim');
+        const subTab = isDisputeClaim ? 'requests' : 'conflicts';
         return buildTarget('conflicts', 'conflict', notif.refId || meta.conflictId, subTab);
       }
       return buildTarget('profile', 'verification', notif.refId);

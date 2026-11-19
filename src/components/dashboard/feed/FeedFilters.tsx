@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  * 
  * FeedFilters Component
- * Multi-tab interface (For You, Chronological, Official) with real-time keyword search
+ * Multi-tab interface (Chronological, Official) with real-time keyword search
  * Integrated at the top of the Alumni Home Page feed.
  */
 
 import React from 'react';
-import { Sparkles, Clock, Building2, Search, X } from 'lucide-react';
+import { Clock, Building2, Search, X } from 'lucide-react';
 import { FeedTab } from '../../../types/feed';
 import { triggerHaptic } from '../../../services/hapticsService';
 
@@ -35,25 +35,24 @@ export const FeedFilters: React.FC<FeedFiltersProps> = ({
           className="flex items-center gap-1 p-1 bg-stone-100/90 dark:bg-stone-800 rounded-xl overflow-x-auto select-none"
           aria-label="Feed Streams Navigation"
         >
-          {/* 1. For You Stream */}
+          {/* 1. Chronological Stream */}
           <button
             type="button"
             onClick={() => {
               triggerHaptic('light');
-              onTabChange('foryou');
+              onTabChange('recent');
             }}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              activeTab === 'foryou'
+              activeTab === 'recent'
                 ? 'bg-white dark:bg-stone-700 text-[#8B181B] dark:text-rose-400 shadow-2xs font-extrabold'
                 : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>For You</span>
+            <Clock className="w-3.5 h-3.5" />
+            <span>Chronological</span>
           </button>
 
-
-          {/* 3. Official Bulletins Stream */}
+          {/* 2. Official Bulletins Stream */}
           <button
             type="button"
             onClick={() => {
@@ -100,7 +99,7 @@ export const FeedFilters: React.FC<FeedFiltersProps> = ({
           <span>
             Stream Mode:{' '}
             <strong className="text-stone-700 dark:text-stone-300 capitalize">
-              {activeTab === 'foryou' ? 'For You (Personalized)' : activeTab === 'recent' ? 'Chronological' : 'Official Bulletins Only'}
+              {activeTab === 'official' ? 'Official Bulletins Only' : 'Chronological'}
             </strong>
           </span>
           <span>{totalCount} updates available</span>

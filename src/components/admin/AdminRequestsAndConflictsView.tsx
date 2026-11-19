@@ -41,9 +41,15 @@ import {
   Globe,
   Radio,
   Plus,
-  KeyRound
+  KeyRound,
+  Camera,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
-import { useAlumni } from '../../context/AlumniContext';
+import { useAlumni, getStoredSessionToken } from '../../context/AlumniContext';
 import {
   getRegistrationConflicts,
   resolveConflictRecord,
@@ -51,7 +57,10 @@ import {
   normalizeStudentId,
   markRegistryRecordAsRegistered,
   syncRegistrationConflictsWithFirestore,
-  mergeCloudConflictsWithLocal
+  mergeCloudConflictsWithLocal,
+  resolveConflictSubmissionSource,
+  isDisputeStudentIdClaim,
+  isRequestVerificationAppeal
 } from '../../services/studentVerificationService';
 import { subscribeToConflictRecords } from '../../lib/firebase';
 import {
@@ -60,7 +69,12 @@ import {
   RegistryDiscrepancyAnalysis
 } from '../../services/governanceLogicService';
 import { generateConflictResolutionPdfReport } from '../../services/conflictReportPdfService';
-import { RegistrationConflictRecord, UserProfile } from '../../types';
+import {
+  RegistrationConflictRecord,
+  UserProfile,
+  StudentVerificationRecord,
+  normalizeSystemRole
+} from '../../types';
 
 interface AdminRequestsAndConflictsViewProps {
   initialSubTab?: 'alumni' | 'conflicts' | 'employers' | 'jobs' | 'requests' | 'identity' | 'history';
@@ -97,6 +111,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
   const [activeTab, setActiveTab] = useState<'alumni' | 'conflicts' | 'employers' | 'jobs' | 'history'>(resolveInitialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'perfect' | 'discrepancy' | 'high_priority'>('all');
+  const [claimsStatusFilter, setClaimsStatusFilter] = useState<'all' | 'pending' | 'resolved_verified' | 'resolved_rejected'>('pending');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'resolved_verified' | 'resolved_rejected'>('pending');
   const [selectedSpectrumIndex, setSelectedSpectrumIndex] = useState<number | null>(null);
 
@@ -111,6 +126,88 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
   const [isReconciling, setIsReconciling] = useState(false);
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
+  // Server-persisted verification requests (for Selfie with ID lookup & audit linkage)
+  interface ServerVerificationRequestSummary {
+    id: string;
+    userId: string;
+    submissionSource?: 'dispute_student_id_claim' | 'request_verification';
+    requestType?: 'claimed_id_dispute' | 'manual_verification_request';
+    conflictId?: string;
+    name: string;
+    email: string;
+    phone?: string;
+    studentId: string;
+    batch: string;
+    course: string;
+    originalOwnerUid?: string;
+    originalOwnerName?: string;
+    originalOwnerEmail?: string;
+    originalOwnerStudentId?: string;
+    originalOwnerCourse?: string;
+    originalOwnerBatch?: string;
+    selfieFileName?: string;
+    selfieStoragePath?: string;
+    selfieUploadedAt?: string;
+    hasSelfieWithId?: boolean;
+    selfieEndpoint?: string;
+    notes?: string;
+    submittedAt: string;
+    status: 'pending' | 'approved' | 'rejected';
+    rejectionReason?: string;
+    reviewedAt?: string;
+    reviewedByName?: string;
+    reviewedByRole?: string;
+  }
+
+  interface VerificationInspectionTarget {
+    source: 'alumni' | 'conflict';
+    user?: UserProfile;
+    analysis?: RegistryDiscrepancyAnalysis;
+    conflict?: RegistrationConflictRecord;
+    registryRecord?: StudentVerificationRecord;
+    applicantName: string;
+    applicantEmail: string;
+    applicantPhone?: string;
+    studentId?: string;
+    course?: string;
+    batch?: string;
+    notes?: string;
+    submittedAt?: string;
+    isPending: boolean;
+    currentStatusLabel: string;
+    syncTranscriptOnApprove?: boolean;
+  }
+
+  const [serverVerificationRequests, setServerVerificationRequests] = useState<ServerVerificationRequestSummary[]>([]);
+  const [selfieViewerTarget, setSelfieViewerTarget] = useState<VerificationInspectionTarget | null>(null);
+  const [selfieViewerImageUrl, setSelfieViewerImageUrl] = useState<string | null>(null);
+  const [selfieViewerFileName, setSelfieViewerFileName] = useState<string>('');
+  const [selfieViewerUploadedAt, setSelfieViewerUploadedAt] = useState<string>('');
+  const [isLoadingSelfieImage, setIsLoadingSelfieImage] = useState(false);
+  const [selfieZoom, setSelfieZoom] = useState<number>(1);
+  const [approveConfirmTarget, setApproveConfirmTarget] = useState<VerificationInspectionTarget | null>(null);
+  const [rejectConfirmTarget, setRejectConfirmTarget] = useState<VerificationInspectionTarget | null>(null);
+  const [rejectReasonText, setRejectReasonText] = useState<string>('');
+  const [rejectReasonError, setRejectReasonError] = useState<string | null>(null);
+  const [isSubmittingDecision, setIsSubmittingDecision] = useState(false);
+
+  const loadServerVerificationRequests = useCallback(async () => {
+    const token = getStoredSessionToken();
+    if (!token) return;
+    try {
+      const res = await fetch('/api/admin/alumni-verification-requests', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => null);
+      if (data?.success && Array.isArray(data.requests)) {
+        setServerVerificationRequests(data.requests);
+      }
+    } catch {
+      // Offline or fallback mode
+    }
+  }, []);
+
   // Sync conflicts from storage & cloud Firestore
   const loadConflicts = useCallback(() => {
     try {
@@ -123,6 +220,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
   useEffect(() => {
     loadConflicts();
+    loadServerVerificationRequests();
     // Initial fetch from Cloud Firestore to merge any cross-browser requests
     syncRegistrationConflictsWithFirestore().then((merged) => {
       setConflicts(merged);
@@ -134,7 +232,10 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
       setConflicts(merged);
     });
 
-    const handleUpdate = () => loadConflicts();
+    const handleUpdate = () => {
+      loadConflicts();
+      loadServerVerificationRequests();
+    };
     window.addEventListener('storage', handleUpdate);
     window.addEventListener('conflicts-updated', handleUpdate);
     return () => {
@@ -142,7 +243,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
       window.removeEventListener('storage', handleUpdate);
       window.removeEventListener('conflicts-updated', handleUpdate);
     };
-  }, [loadConflicts]);
+  }, [loadConflicts, loadServerVerificationRequests]);
 
   // Sync if initialSubTab prop changes
   useEffect(() => {
@@ -174,10 +275,336 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
   // Derived datasets
   const registrarRecords = useMemo(() => getRegistrarRecords(), []);
 
-  // Pending items
+  // Authoritative classification helpers based strictly on original submission source
+  // (NEVER on displayed label, Alumni name, Student ID, or current status):
+  // - Dispute Student ID Claim                    -> Alumni Claims tab ONLY
+  // - Request Verification / Manual Verification  -> Collisions & Appeals tab ONLY
+  const isStudentIdDisputeRecord = useCallback((record: RegistrationConflictRecord): boolean => {
+    return isDisputeStudentIdClaim(record);
+  }, []);
+
+  const isRequestVerificationRecord = useCallback((record: RegistrationConflictRecord): boolean => {
+    return isRequestVerificationAppeal(record);
+  }, []);
+
+  const extractDisputeExplanation = useCallback((record: RegistrationConflictRecord): string => {
+    if (record.disputeExplanation && record.disputeExplanation.trim()) {
+      return record.disputeExplanation.trim();
+    }
+    const rawNotes = (record.notes || '').trim();
+    const statementMatch = /Statement:\s*"([^"]+)"/i.exec(rawNotes);
+    if (statementMatch && statementMatch[1]) {
+      return statementMatch[1].trim();
+    }
+    return rawNotes || 'No explanation provided.';
+  }, []);
+
+  // Resolve the original registered account owner holding the contested Student ID (strictly distinct from the claimant)
+  const findOriginalOwnerForDispute = useCallback(
+    (claim: RegistrationConflictRecord): {
+      user?: UserProfile;
+      name?: string;
+      email?: string;
+      studentId?: string;
+      course?: string;
+      batch?: string;
+      isVerified?: boolean;
+    } | null => {
+      const contestedSid = normalizeStudentId(claim.targetRegistryStudentId || claim.applicantStudentId || '').toUpperCase();
+      const claimantEmail = (claim.applicantEmail || '').trim().toLowerCase();
+
+      let matchedOwner: UserProfile | undefined;
+      if (claim.originalOwnerUid) {
+        matchedOwner = users.find((u) => !u.isDeleted && u.uid === claim.originalOwnerUid);
+      }
+      if (!matchedOwner && contestedSid) {
+        const candidates = users.filter(
+          (u) =>
+            !u.isDeleted &&
+            u.studentId &&
+            normalizeStudentId(u.studentId).toUpperCase() === contestedSid &&
+            (!claim.applicantUid || u.uid !== claim.applicantUid) &&
+            (!claimantEmail || u.email?.trim().toLowerCase() !== claimantEmail)
+        );
+        matchedOwner = candidates.find((u) => u.isVerified) || candidates[0];
+      }
+
+      if (matchedOwner) {
+        return {
+          user: matchedOwner,
+          name: matchedOwner.name,
+          email: matchedOwner.email,
+          studentId: matchedOwner.studentId || contestedSid,
+          course: matchedOwner.course,
+          batch: matchedOwner.batch,
+          isVerified: matchedOwner.isVerified
+        };
+      }
+
+      if (claim.originalOwnerName || claim.originalOwnerEmail) {
+        return {
+          name: claim.originalOwnerName,
+          email: claim.originalOwnerEmail,
+          studentId: claim.originalOwnerStudentId || contestedSid,
+          course: claim.originalOwnerCourse,
+          batch: claim.originalOwnerBatch
+        };
+      }
+
+      return null;
+    },
+    [users]
+  );
+
+  // Unified, refresh-safe dataset combining Firestore/local records with backend-persisted requests
+  const unifiedConflicts = useMemo<RegistrationConflictRecord[]>(() => {
+    const mapServerStatus = (status: ServerVerificationRequestSummary['status']): RegistrationConflictRecord['status'] => {
+      if (status === 'approved') return 'resolved_verified';
+      if (status === 'rejected') return 'resolved_rejected';
+      return 'pending';
+    };
+
+    const resolveServerSource = (r: ServerVerificationRequestSummary): 'dispute_student_id_claim' | 'request_verification' => {
+      if (r.submissionSource === 'dispute_student_id_claim') return 'dispute_student_id_claim';
+      if (r.submissionSource === 'request_verification') return 'request_verification';
+      if (r.requestType === 'claimed_id_dispute') return 'dispute_student_id_claim';
+      if (typeof r.notes === 'string' && r.notes.trim().toUpperCase().startsWith('STUDENT ID CLAIM DISPUTE')) {
+        return 'dispute_student_id_claim';
+      }
+      return 'request_verification';
+    };
+
+    const findRegistryMatch = (sid?: string): StudentVerificationRecord | undefined => {
+      if (!sid) return undefined;
+      const norm = normalizeStudentId(sid).toUpperCase();
+      if (!norm) return undefined;
+      return registrarRecords.find((r) => normalizeStudentId(r.studentId).toUpperCase() === norm);
+    };
+
+    const matchedServerIds = new Set<string>();
+
+    const enrichedLocal: RegistrationConflictRecord[] = conflicts.map((c) => {
+      const cSource = resolveConflictSubmissionSource(c);
+      const cIsDispute = cSource === 'dispute_student_id_claim';
+      const cEmail = c.applicantEmail?.trim().toLowerCase() || '';
+      const cSid = normalizeStudentId(c.targetRegistryStudentId || c.applicantStudentId || '').toUpperCase();
+
+      const matchingServer = serverVerificationRequests.find((r) => {
+        if (c.verificationRequestId && r.id === c.verificationRequestId) return true;
+        if (r.conflictId && r.conflictId === c.id) return true;
+        const rSource = resolveServerSource(r);
+        if (cSource && rSource !== cSource) return false;
+        const rEmail = (r.email || '').trim().toLowerCase();
+        const rSid = normalizeStudentId(r.studentId || '').toUpperCase();
+        return Boolean(cEmail && rEmail === cEmail && (!cSid || !rSid || cSid === rSid));
+      });
+
+      if (matchingServer) {
+        matchedServerIds.add(matchingServer.id);
+      }
+
+      const resolvedStatus =
+        c.status === 'pending' && matchingServer && matchingServer.status !== 'pending'
+          ? mapServerStatus(matchingServer.status)
+          : c.status;
+
+      const finalSource = cSource || (matchingServer ? resolveServerSource(matchingServer) : undefined);
+
+      return {
+        ...c,
+        ...(finalSource ? { submissionSource: finalSource } : {}),
+        requestType:
+          finalSource === 'dispute_student_id_claim'
+            ? 'claimed_id_dispute'
+            : finalSource === 'request_verification'
+            ? 'manual_verification_request'
+            : c.requestType || 'registration_conflict',
+        status: resolvedStatus,
+        applicantPhone: c.applicantPhone || matchingServer?.phone,
+        originalOwnerUid: c.originalOwnerUid || matchingServer?.originalOwnerUid,
+        originalOwnerName: c.originalOwnerName || matchingServer?.originalOwnerName,
+        originalOwnerEmail: c.originalOwnerEmail || matchingServer?.originalOwnerEmail,
+        originalOwnerStudentId: c.originalOwnerStudentId || matchingServer?.originalOwnerStudentId,
+        originalOwnerCourse: c.originalOwnerCourse || matchingServer?.originalOwnerCourse,
+        originalOwnerBatch: c.originalOwnerBatch || matchingServer?.originalOwnerBatch,
+        registryRecord: c.registryRecord || findRegistryMatch(c.targetRegistryStudentId || c.applicantStudentId),
+        verificationRequestId: c.verificationRequestId || matchingServer?.id,
+        selfieWithIdName: c.selfieWithIdName || matchingServer?.selfieFileName,
+        selfieStoragePath: c.selfieStoragePath || matchingServer?.selfieStoragePath,
+        selfieWithIdUploadedAt: c.selfieWithIdUploadedAt || matchingServer?.selfieUploadedAt,
+        reviewedAt: c.reviewedAt || matchingServer?.reviewedAt,
+        reviewedByName: c.reviewedByName || matchingServer?.reviewedByName,
+        reviewedByRole: c.reviewedByRole || matchingServer?.reviewedByRole,
+        rejectionReason: c.rejectionReason || matchingServer?.rejectionReason
+      };
+    });
+
+    // Hydrate any server-persisted requests not present in local/Firestore cache (ensures persistence across refresh & devices)
+    const serverOnlyRecords: RegistrationConflictRecord[] = [];
+    serverVerificationRequests.forEach((r) => {
+      if (matchedServerIds.has(r.id)) return;
+      const rSource = resolveServerSource(r);
+      const isDispute = rSource === 'dispute_student_id_claim';
+      const sid = r.studentId || '';
+      serverOnlyRecords.push({
+        id: r.conflictId || `server_req_${r.id}`,
+        applicantUid: r.userId,
+        applicantName: r.name,
+        applicantEmail: r.email,
+        applicantPhone: r.phone,
+        applicantStudentId: sid,
+        targetRegistryStudentId: isDispute ? sid : undefined,
+        originalOwnerUid: r.originalOwnerUid,
+        originalOwnerName: r.originalOwnerName,
+        originalOwnerEmail: r.originalOwnerEmail,
+        originalOwnerStudentId: r.originalOwnerStudentId,
+        originalOwnerCourse: r.originalOwnerCourse,
+        originalOwnerBatch: r.originalOwnerBatch,
+        applicantBatch: r.batch,
+        applicantCourse: r.course,
+        registryRecord: findRegistryMatch(sid),
+        conflictType: isDispute ? 'claimed_id_dispute' : 'manual_verification_request',
+        submissionSource: rSource,
+        requestType: isDispute ? 'claimed_id_dispute' : 'manual_verification_request',
+        severity: isDispute ? 'high' : 'medium',
+        confidenceScore: isDispute ? 85 : 50,
+        flaggedAt: r.submittedAt,
+        status: mapServerStatus(r.status),
+        notes: r.notes || '',
+        disputeExplanation: isDispute ? r.notes || '' : undefined,
+        selfieWithIdName: r.selfieFileName,
+        selfieStoragePath: r.selfieStoragePath,
+        selfieWithIdUploadedAt: r.selfieUploadedAt,
+        verificationRequestId: r.id,
+        reviewedAt: r.reviewedAt,
+        reviewedByName: r.reviewedByName,
+        reviewedByRole: r.reviewedByRole,
+        rejectionReason: r.rejectionReason
+      });
+    });
+
+    const combined = [...enrichedLocal, ...serverOnlyRecords];
+
+    // Deduplicate by ID (keeping the richest record without ever collapsing different submission sources)
+    const dedupMap = new Map<string, RegistrationConflictRecord>();
+    combined.forEach((rec) => {
+      if (!rec.id) return;
+      if (!dedupMap.has(rec.id)) {
+        dedupMap.set(rec.id, rec);
+      }
+    });
+
+    return Array.from(dedupMap.values()).sort(
+      (a, b) => new Date(b.flaggedAt || 0).getTime() - new Date(a.flaggedAt || 0).getTime()
+    );
+  }, [conflicts, serverVerificationRequests, registrarRecords]);
+
+  // 1. ALUMNI CLAIMS — Strictly Dispute Student ID Claim submissions ONLY
+  const alumniDisputeClaims = useMemo(() => {
+    return unifiedConflicts.filter((c) => isStudentIdDisputeRecord(c));
+  }, [unifiedConflicts, isStudentIdDisputeRecord]);
+
+  const pendingDisputeClaims = useMemo(() => {
+    return alumniDisputeClaims.filter((c) => c.status === 'pending');
+  }, [alumniDisputeClaims]);
+
+  // Helper to identify whether a legacy UserProfile without a conflict doc originated from Request Verification
+  // (strictly excludes Dispute Student ID Claim accounts and NEVER matches across different people by Student ID)
+  const isUserManualVerificationRequest = useCallback(
+    (u: UserProfile): boolean => {
+      if (u.verificationSubmissionSource === 'dispute_student_id_claim') return false;
+      if (u.studentId && u.studentId.toUpperCase().startsWith('SCC-DISPUTE-')) return false;
+
+      const cleanEmail = u.email?.trim().toLowerCase() || '';
+      const hasDisputeConflict = alumniDisputeClaims.some(
+        (c) =>
+          (c.applicantUid && c.applicantUid === u.uid) ||
+          (cleanEmail && c.applicantEmail?.trim().toLowerCase() === cleanEmail)
+      );
+      if (hasDisputeConflict) return false;
+
+      if (u.verificationSubmissionSource === 'request_verification') return true;
+      if (u.verificationStatus === 'pending_review') return true;
+      if (u.studentId && u.studentId.toUpperCase().startsWith('SCC-PENDING-')) return true;
+      if (u.verificationProofUrl || u.verificationSubmittedAt || u.verificationNotes) return true;
+      return false;
+    },
+    [alumniDisputeClaims]
+  );
+
+  // 2. COLLISIONS & APPEALS — Strictly Request Verification / Manual Verification Appeal submissions ONLY
+  //    (NEVER includes Dispute Student ID Claim records)
+  const collisionAndAppealConflicts = useMemo<RegistrationConflictRecord[]>(() => {
+    const baseRequestVerifications = unifiedConflicts.filter((c) => isRequestVerificationRecord(c));
+
+    // Preserve any legacy unverified Request Verification users that do not yet have a conflict document
+    const legacyManualUsers = users.filter((u) => {
+      if (u.role !== 'alumni' || u.isVerified || u.isDeleted) return false;
+      if (u.verificationStatus === 'rejected' || u.accountStatus === 'REJECTED') return false;
+      if (!isUserManualVerificationRequest(u)) return false;
+
+      const cleanEmail = u.email?.trim().toLowerCase() || '';
+      const alreadyListed = baseRequestVerifications.some(
+        (c) =>
+          (c.applicantUid && c.applicantUid === u.uid) ||
+          (cleanEmail && c.applicantEmail?.trim().toLowerCase() === cleanEmail)
+      );
+      return !alreadyListed;
+    });
+
+    const derivedLegacyRecords: RegistrationConflictRecord[] = legacyManualUsers.map((u) => ({
+      id: `legacy_manual_${u.uid}`,
+      applicantUid: u.uid,
+      applicantName: u.name,
+      applicantEmail: u.email,
+      applicantPhone: u.phone,
+      applicantStudentId: u.studentId,
+      applicantBatch: u.batch,
+      applicantCourse: u.course,
+      registryRecord: u.studentId
+        ? registrarRecords.find(
+            (r) => normalizeStudentId(r.studentId).toUpperCase() === normalizeStudentId(u.studentId!).toUpperCase()
+          )
+        : undefined,
+      conflictType: 'manual_verification_request',
+      submissionSource: 'request_verification',
+      requestType: 'manual_verification_request',
+      severity: 'medium',
+      confidenceScore: 50,
+      flaggedAt: u.verificationSubmittedAt || u.selfieWithIdUploadedAt || u.createdAt || new Date().toISOString(),
+      status: 'pending',
+      notes: u.verificationNotes || 'Manual verification request pending registrar review.',
+      selfieWithIdUrl: u.selfieWithIdUrl || u.verificationProofUrl,
+      selfieWithIdName: u.selfieWithIdName || u.verificationProofName,
+      selfieWithIdUploadedAt: u.selfieWithIdUploadedAt || u.verificationSubmittedAt,
+      verificationRequestId: u.verificationRequestId
+    }));
+
+    return [...baseRequestVerifications, ...derivedLegacyRecords].sort(
+      (a, b) => new Date(b.flaggedAt || 0).getTime() - new Date(a.flaggedAt || 0).getTime()
+    );
+  }, [unifiedConflicts, users, registrarRecords, isRequestVerificationRecord, isUserManualVerificationRequest]);
+
+  // Standard pending alumni accounts (used only for integrity metrics; Alumni Claims tab displays strictly Dispute Student ID Claims)
   const pendingAlumniUsers = useMemo(() => {
-    return users.filter((u) => !u.isVerified && u.role === 'alumni');
-  }, [users]);
+    return users.filter((u) => {
+      if (u.isVerified || u.role !== 'alumni' || u.isDeleted) return false;
+      if (u.verificationStatus === 'rejected' || u.accountStatus === 'REJECTED') return false;
+      if (isUserManualVerificationRequest(u)) return false;
+
+      const cleanEmail = u.email?.trim().toLowerCase() || '';
+      const alreadyInDisputeClaims = alumniDisputeClaims.some(
+        (c) =>
+          (c.applicantUid && c.applicantUid === u.uid) ||
+          (cleanEmail && c.applicantEmail?.trim().toLowerCase() === cleanEmail)
+      );
+      if (alreadyInDisputeClaims) return false;
+      if (u.verificationSubmissionSource === 'dispute_student_id_claim') return false;
+      if (u.studentId && u.studentId.toUpperCase().startsWith('SCC-DISPUTE-')) return false;
+
+      return true;
+    });
+  }, [users, alumniDisputeClaims, isUserManualVerificationRequest]);
 
   const pendingEmployers = useMemo(() => {
     return users.filter(
@@ -189,7 +616,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     return (opportunities || []).filter((o) => o.approvalStatus === 'pending_approval');
   }, [opportunities]);
 
-  // Deep integrity analysis across pending alumni
+  // Deep integrity analysis across standard pending alumni
   const pendingAnalyses: RegistryDiscrepancyAnalysis[] = useMemo(() => {
     return pendingAlumniUsers.map((u) => analyzeUserRegistryIntegrity(u, users, registrarRecords));
   }, [pendingAlumniUsers, users, registrarRecords]);
@@ -202,29 +629,32 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     return pendingAnalyses.filter((a) => a.status !== 'PERFECT_MATCH');
   }, [pendingAnalyses]);
 
+  // Pending Collisions & Appeals (strictly Request Verification / Manual Verification Appeal)
   const pendingConflicts = useMemo(() => {
-    return conflicts.filter((c) => c.status === 'pending');
-  }, [conflicts]);
+    return collisionAndAppealConflicts.filter((c) => c.status === 'pending');
+  }, [collisionAndAppealConflicts]);
 
   const resolvedConflicts = useMemo(() => {
-    return conflicts.filter((c) => c.status !== 'pending');
-  }, [conflicts]);
+    return unifiedConflicts.filter((c) => c.status !== 'pending');
+  }, [unifiedConflicts]);
 
   const integrityMetrics = useMemo(() => {
-    return calculateGovernanceIntegrityMetrics(users, conflicts);
-  }, [users, conflicts]);
+    return calculateGovernanceIntegrityMetrics(users, unifiedConflicts);
+  }, [users, unifiedConflicts]);
+
+  const totalAlumniClaimsPendingCount = pendingDisputeClaims.length;
 
   const totalWorkloadCount =
-    pendingAlumniUsers.length + pendingConflicts.length + pendingEmployers.length + pendingJobs.length;
+    totalAlumniClaimsPendingCount + pendingConflicts.length + pendingEmployers.length + pendingJobs.length;
 
   // Command Center Signature: Interactive 7-Segment Spectrum Data
   const dynamicHeroData = useMemo(() => {
     const categories = [
-      { id: 'collisions', label: 'ID Clash', count: pendingConflicts.length, sub: 'ID Collisions', isUrgent: pendingConflicts.length > 0 },
+      { id: 'collisions', label: 'ID Clash', count: pendingConflicts.length, sub: 'Appeals & Collisions', isUrgent: pendingConflicts.length > 0 },
       { id: 'perfect', label: '100% Match', count: perfectMatchAnalyses.length, sub: 'Exact Archive Match', isUrgent: false },
       { id: 'degree', label: 'Curriculum', count: pendingAnalyses.filter((a) => a.status === 'DEGREE_DISCREPANCY').length, sub: 'Degree Variance', isUrgent: false },
       { id: 'name', label: 'Name Diff', count: pendingAnalyses.filter((a) => a.status === 'NAME_DISCREPANCY').length, sub: 'Spelling Variance', isUrgent: false },
-      { id: 'unreg', label: 'Unlisted', count: pendingAnalyses.filter((a) => a.status === 'UNREGISTERED_ID').length, sub: 'Unregistered ID', isUrgent: false },
+      { id: 'unreg', label: 'Unlisted', count: pendingDisputeClaims.length, sub: 'ID Disputes', isUrgent: pendingDisputeClaims.length > 0 },
       { id: 'employers', label: 'Partners', count: pendingEmployers.length, sub: 'Employer Vetting', isUrgent: pendingEmployers.length > 0 },
       { id: 'jobs', label: 'Job Review', count: pendingJobs.length, sub: 'Career Quality Check', isUrgent: pendingJobs.length > 0 }
     ];
@@ -262,14 +692,44 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     pendingConflicts.length,
     perfectMatchAnalyses.length,
     pendingAnalyses,
+    pendingDisputeClaims.length,
     pendingEmployers.length,
     pendingJobs.length,
     totalWorkloadCount,
     integrityMetrics
   ]);
 
-  // Filtered Alumni Applicants
+  // Filtered Dispute Student ID Claims (Alumni Claims Tab)
+  const filteredDisputeClaims = useMemo(() => {
+    return alumniDisputeClaims.filter((c) => {
+      const q = searchQuery.toLowerCase().trim();
+      const explanation = extractDisputeExplanation(c).toLowerCase();
+      const owner = findOriginalOwnerForDispute(c);
+      const matchesSearch =
+        !q ||
+        c.applicantName.toLowerCase().includes(q) ||
+        c.applicantEmail.toLowerCase().includes(q) ||
+        (c.applicantPhone && c.applicantPhone.toLowerCase().includes(q)) ||
+        (c.targetRegistryStudentId && c.targetRegistryStudentId.toLowerCase().includes(q)) ||
+        (c.applicantStudentId && c.applicantStudentId.toLowerCase().includes(q)) ||
+        (c.applicantCourse && c.applicantCourse.toLowerCase().includes(q)) ||
+        (c.applicantBatch && c.applicantBatch.toLowerCase().includes(q)) ||
+        (owner?.name && owner.name.toLowerCase().includes(q)) ||
+        (owner?.email && owner.email.toLowerCase().includes(q)) ||
+        explanation.includes(q);
+
+      const matchesStatus =
+        claimsStatusFilter === 'all' ? true : c.status === claimsStatusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [alumniDisputeClaims, searchQuery, claimsStatusFilter, extractDisputeExplanation, findOriginalOwnerForDispute]);
+
+  // Filtered Standard Alumni Applicants (Alumni Claims Tab)
   const filteredAlumniAnalyses = useMemo(() => {
+    if (claimsStatusFilter !== 'all' && claimsStatusFilter !== 'pending') {
+      return [];
+    }
     return pendingAnalyses.filter((analysis) => {
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
@@ -300,17 +760,20 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
       return matchesSearch && matchesFilter;
     });
-  }, [pendingAnalyses, searchQuery, filterType, selectedSpectrumIndex, dynamicHeroData]);
+  }, [pendingAnalyses, searchQuery, filterType, claimsStatusFilter, selectedSpectrumIndex, dynamicHeroData]);
 
-  // Filtered Conflicts
+  // Filtered Collisions & Appeals (strictly Request Verification / Manual Verification Request & non-dispute collisions)
   const filteredConflicts = useMemo(() => {
-    return conflicts.filter((c) => {
+    const sourceList = activeTab === 'history' ? unifiedConflicts : collisionAndAppealConflicts;
+    return sourceList.filter((c) => {
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
         c.applicantName.toLowerCase().includes(q) ||
         c.applicantEmail.toLowerCase().includes(q) ||
         (c.applicantStudentId && c.applicantStudentId.toLowerCase().includes(q)) ||
+        (c.applicantCourse && c.applicantCourse.toLowerCase().includes(q)) ||
+        (c.applicantBatch && c.applicantBatch.toLowerCase().includes(q)) ||
         (c.registryRecord?.fullName && c.registryRecord.fullName.toLowerCase().includes(q));
 
       const matchesStatus =
@@ -322,7 +785,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
       return matchesSearch && matchesStatus;
     });
-  }, [conflicts, searchQuery, statusFilter, activeTab]);
+  }, [collisionAndAppealConflicts, unifiedConflicts, searchQuery, statusFilter, activeTab]);
 
   // Filtered Employers
   const filteredEmployers = useMemo(() => {
@@ -358,33 +821,687 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
     setTimeout(() => setCopiedText(null), 1800);
   };
 
-  // Helper to resolve any pending conflicts matching an approved user
-  const autoResolveMatchingConflicts = (userId: string, studentId?: string) => {
+  // Helper to locate linked Alumni account for a conflict record
+  // Strictly matches by applicantUid or applicantEmail ONLY (never by Student ID, which on disputes belongs to the original account owner)
+  const findLinkedUserForConflict = useCallback(
+    (conflict: RegistrationConflictRecord): UserProfile | undefined => {
+      const cleanEmail = conflict.applicantEmail?.trim().toLowerCase();
+      return users.find(
+        (u) =>
+          (conflict.applicantUid && u.uid === conflict.applicantUid) ||
+          (cleanEmail && u.email?.trim().toLowerCase() === cleanEmail)
+      );
+    },
+    [users]
+  );
+
+  // Helper to locate linked conflict record for an Alumni account (strictly by UID or email)
+  const findLinkedConflictForUser = useCallback(
+    (user: UserProfile): RegistrationConflictRecord | undefined => {
+      const cleanEmail = user.email?.trim().toLowerCase();
+      return unifiedConflicts.find(
+        (c) =>
+          (c.applicantUid && c.applicantUid === user.uid) ||
+          (cleanEmail && c.applicantEmail?.trim().toLowerCase() === cleanEmail)
+      );
+    },
+    [unifiedConflicts]
+  );
+
+  // Helper to locate matching server verification request summary (strictly scoped by submissionSource / requestType)
+  const findServerRequestMatch = useCallback(
+    (params: {
+      conflictId?: string;
+      userId?: string;
+      email?: string;
+      submissionSource?: 'dispute_student_id_claim' | 'request_verification';
+      requestType?: string;
+    }) => {
+      const cleanEmail = params.email?.trim().toLowerCase();
+      // 1. Exact conflictId match first
+      if (params.conflictId) {
+        const byConflict = serverVerificationRequests.find((r) => r.conflictId === params.conflictId);
+        if (byConflict) return byConflict;
+      }
+      const hasConstraint = Boolean(params.submissionSource || params.requestType);
+      const candidates = hasConstraint
+        ? serverVerificationRequests.filter((r) => {
+            const rSource =
+              r.submissionSource ||
+              (r.requestType === 'claimed_id_dispute' ? 'dispute_student_id_claim' : 'request_verification');
+            const rType = r.requestType || (rSource === 'dispute_student_id_claim' ? 'claimed_id_dispute' : 'manual_verification_request');
+            if (params.submissionSource && rSource !== params.submissionSource) return false;
+            if (params.requestType && rType !== params.requestType) return false;
+            return true;
+          })
+        : serverVerificationRequests;
+      return candidates.find(
+        (r) =>
+          (params.userId && r.userId === params.userId) ||
+          (cleanEmail && r.email && r.email.trim().toLowerCase() === cleanEmail)
+      );
+    },
+    [serverVerificationRequests]
+  );
+
+  // Check whether a request/user has an actual uploaded Selfie with ID available locally or on server
+  const hasUploadedSelfieForTarget = useCallback(
+    (params: { user?: UserProfile; conflict?: RegistrationConflictRecord }): boolean => {
+      const { user, conflict } = params;
+      if (conflict?.selfieWithIdUrl || conflict?.selfieStoragePath) return true;
+      const linkedConflict = user && !conflict ? findLinkedConflictForUser(user) : conflict;
+      const isDispute = linkedConflict ? isStudentIdDisputeRecord(linkedConflict) : false;
+      if (linkedConflict?.selfieWithIdUrl || linkedConflict?.selfieStoragePath) return true;
+      const linkedUser = conflict && !user ? findLinkedUserForConflict(conflict) : user;
+      if (!isDispute && (linkedUser?.selfieWithIdUrl || linkedUser?.verificationProofUrl)) return true;
+      if (isDispute && linkedUser?.verificationSubmissionSource === 'dispute_student_id_claim' && linkedUser?.selfieWithIdUrl) {
+        return true;
+      }
+      const serverMatch = findServerRequestMatch({
+        conflictId: linkedConflict?.id,
+        userId: linkedUser?.uid || linkedConflict?.applicantUid,
+        email: linkedConflict?.applicantEmail || linkedUser?.email,
+        submissionSource: linkedConflict
+          ? isDispute
+            ? 'dispute_student_id_claim'
+            : 'request_verification'
+          : undefined,
+        requestType: linkedConflict
+          ? isDispute
+            ? 'claimed_id_dispute'
+            : 'manual_verification_request'
+          : undefined
+      });
+      return Boolean(serverMatch?.hasSelfieWithId);
+    },
+    [findLinkedConflictForUser, findLinkedUserForConflict, findServerRequestMatch, isStudentIdDisputeRecord]
+  );
+
+  // Build unified inspection target from an Alumni Claims card
+  const buildInspectionTargetFromAnalysis = useCallback(
+    (analysis: RegistryDiscrepancyAnalysis, syncTranscriptOnApprove: boolean = false): VerificationInspectionTarget => {
+      const linkedConflict = findLinkedConflictForUser(analysis.user);
+      const isPending =
+        !analysis.user.isVerified &&
+        analysis.user.verificationStatus !== 'rejected' &&
+        analysis.user.accountStatus !== 'REJECTED';
+      return {
+        source: 'alumni',
+        user: analysis.user,
+        analysis,
+        conflict: linkedConflict,
+        registryRecord: analysis.registryRecord || linkedConflict?.registryRecord,
+        applicantName: analysis.user.name,
+        applicantEmail: analysis.user.email,
+        applicantPhone: analysis.user.phone,
+        studentId: analysis.user.studentId || linkedConflict?.applicantStudentId,
+        course: analysis.user.course || linkedConflict?.applicantCourse,
+        batch: analysis.user.batch || linkedConflict?.applicantBatch,
+        notes: analysis.user.verificationNotes || linkedConflict?.notes,
+        submittedAt: analysis.user.verificationSubmittedAt || analysis.user.selfieWithIdUploadedAt || linkedConflict?.flaggedAt || analysis.user.createdAt,
+        isPending,
+        currentStatusLabel: analysis.user.isVerified
+          ? 'Verified'
+          : analysis.user.verificationStatus === 'rejected'
+          ? 'Rejected'
+          : 'Pending Review',
+        syncTranscriptOnApprove
+      };
+    },
+    [findLinkedConflictForUser]
+  );
+
+  // Build unified inspection target from a Dispute Claim or Collisions & Appeals card
+  const buildInspectionTargetFromConflict = useCallback(
+    (conflict: RegistrationConflictRecord): VerificationInspectionTarget => {
+      const linkedUser = findLinkedUserForConflict(conflict);
+      const isDispute = isStudentIdDisputeRecord(conflict);
+      const effectiveSid = isDispute
+        ? conflict.targetRegistryStudentId || conflict.applicantStudentId || linkedUser?.studentId
+        : conflict.applicantStudentId || linkedUser?.studentId;
+      const matchedRegistry =
+        conflict.registryRecord ||
+        (effectiveSid
+          ? registrarRecords.find(
+              (r) =>
+                normalizeStudentId(r.studentId).toUpperCase() ===
+                normalizeStudentId(effectiveSid).toUpperCase()
+            )
+          : undefined);
+      return {
+        source: isDispute ? 'alumni' : 'conflict',
+        user: linkedUser,
+        conflict,
+        registryRecord: matchedRegistry,
+        applicantName: conflict.applicantName,
+        applicantEmail: conflict.applicantEmail,
+        applicantPhone: linkedUser?.phone,
+        studentId: effectiveSid,
+        course: conflict.applicantCourse || linkedUser?.course,
+        batch: conflict.applicantBatch || linkedUser?.batch,
+        notes: isDispute ? extractDisputeExplanation(conflict) : conflict.notes || linkedUser?.verificationNotes,
+        submittedAt: conflict.selfieWithIdUploadedAt || conflict.flaggedAt || linkedUser?.verificationSubmittedAt,
+        isPending: conflict.status === 'pending',
+        currentStatusLabel:
+          conflict.status === 'pending'
+            ? 'Pending Review'
+            : conflict.status === 'resolved_verified'
+            ? 'Approved & Verified'
+            : conflict.status === 'resolved_rejected'
+            ? 'Rejected'
+            : conflict.status
+      };
+    },
+    [findLinkedUserForConflict, registrarRecords, isStudentIdDisputeRecord, extractDisputeExplanation]
+  );
+
+  // Open Selfie with ID Viewer modal and securely resolve the ACTUAL uploaded image for this Alumni/request
+  const openSelfieViewer = useCallback(
+    async (target: VerificationInspectionTarget) => {
+      setSelfieViewerTarget(target);
+      setSelfieZoom(1);
+      setSelfieViewerImageUrl(null);
+      setSelfieViewerFileName('');
+      setSelfieViewerUploadedAt('');
+
+      const isDisputeTarget = target.conflict ? isStudentIdDisputeRecord(target.conflict) : false;
+      const localImage = isDisputeTarget
+        ? target.conflict?.selfieWithIdUrl ||
+          (target.user?.verificationSubmissionSource === 'dispute_student_id_claim'
+            ? target.user?.selfieWithIdUrl
+            : null) ||
+          null
+        : target.conflict?.selfieWithIdUrl ||
+          target.user?.selfieWithIdUrl ||
+          target.user?.verificationProofUrl ||
+          null;
+      const localFileName =
+        target.conflict?.selfieWithIdName ||
+        target.user?.selfieWithIdName ||
+        target.user?.verificationProofName ||
+        'Selfie_with_ID.jpg';
+      const localUploadedAt =
+        target.conflict?.selfieWithIdUploadedAt ||
+        target.user?.selfieWithIdUploadedAt ||
+        target.user?.verificationSubmittedAt ||
+        target.submittedAt ||
+        '';
+
+      if (localImage) {
+        setSelfieViewerImageUrl(localImage);
+        setSelfieViewerFileName(localFileName);
+        setSelfieViewerUploadedAt(localUploadedAt);
+        return;
+      }
+
+      // Otherwise fetch from the role-restricted backend endpoint using authenticated session token
+      const token = getStoredSessionToken();
+      if (!token) return;
+
+      const desiredSubmissionSource: 'dispute_student_id_claim' | 'request_verification' | undefined = target.conflict
+        ? isDisputeTarget
+          ? 'dispute_student_id_claim'
+          : 'request_verification'
+        : undefined;
+      const desiredRequestType = target.conflict
+        ? isDisputeTarget
+          ? 'claimed_id_dispute'
+          : 'manual_verification_request'
+        : undefined;
+
+      const serverMatch = findServerRequestMatch({
+        conflictId: target.conflict?.id,
+        userId: target.user?.uid || target.conflict?.applicantUid,
+        email: target.applicantEmail,
+        submissionSource: desiredSubmissionSource,
+        requestType: desiredRequestType
+      });
+      const lookupId =
+        target.conflict?.verificationRequestId ||
+        serverMatch?.id ||
+        target.conflict?.id ||
+        target.user?.verificationRequestId ||
+        target.user?.uid ||
+        '';
+
+      if (!lookupId && !target.applicantEmail) return;
+
+      setIsLoadingSelfieImage(true);
+      try {
+        const params = new URLSearchParams();
+        if (target.applicantEmail) params.set('email', target.applicantEmail);
+        if (target.user?.uid) params.set('userId', target.user.uid);
+        if (target.conflict?.id) params.set('conflictId', target.conflict.id);
+        if (desiredSubmissionSource) params.set('submissionSource', desiredSubmissionSource);
+        if (desiredRequestType) params.set('requestType', desiredRequestType);
+        const queryStr = params.toString() ? `?${params.toString()}` : '';
+        const res = await fetch(
+          `/api/admin/verification-requests/${encodeURIComponent(lookupId || 'lookup')}/selfie${queryStr}`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        if (res.ok) {
+          const data = await res.json().catch(() => null);
+          if (data?.success && data.imageDataUrl) {
+            setSelfieViewerImageUrl(data.imageDataUrl);
+            setSelfieViewerFileName(data.fileName || localFileName);
+            setSelfieViewerUploadedAt(data.uploadedAt || localUploadedAt);
+          }
+        }
+      } catch {
+        // Leave image empty (never display placeholder/sample photos)
+      } finally {
+        setIsLoadingSelfieImage(false);
+      }
+    },
+    [findServerRequestMatch, isStudentIdDisputeRecord]
+  );
+
+  const openApproveConfirmation = useCallback((target: VerificationInspectionTarget) => {
+    if (!target.isPending) {
+      showToast('This verification request has already been processed.', 'info');
+      return;
+    }
+    setApproveConfirmTarget(target);
+  }, [showToast]);
+
+  const openRejectConfirmation = useCallback((target: VerificationInspectionTarget) => {
+    if (!target.isPending) {
+      showToast('This verification request has already been processed.', 'info');
+      return;
+    }
+    const existingInlineNote = target.conflict?.id ? (singleNotesById[target.conflict.id] || '').trim() : '';
+    setRejectReasonText(existingInlineNote);
+    setRejectReasonError(null);
+    setRejectConfirmTarget(target);
+  }, [showToast, singleNotesById]);
+
+  // Helper to resolve duplicate pending conflicts for the SAME applicant within the SAME submission source
+  // (NEVER matches across different alumni via shared Student ID)
+  const autoResolveMatchingConflicts = (
+    userId: string,
+    _studentId?: string,
+    decision: 'resolved_verified' | 'resolved_rejected' = 'resolved_verified',
+    noteText?: string,
+    reviewerMeta?: {
+      reviewedByUid?: string;
+      reviewedByName?: string;
+      reviewedByRole?: string;
+      reviewedAt?: string;
+      rejectionReason?: string;
+    },
+    onlyDisputeCategory?: boolean
+  ) => {
     const matchedUser = users.find((u) => u.uid === userId);
     const emailLower = matchedUser?.email?.trim().toLowerCase();
-    const normSid = studentId ? normalizeStudentId(studentId).toUpperCase() : '';
-    const actorName = currentUser?.name || 'Registrar Officer';
+    const actorName = reviewerMeta?.reviewedByName || currentUser?.name || 'Authorized Reviewer';
 
     conflicts
-      .filter((c) => c.status === 'pending')
+      .filter((c) => {
+        if (c.status !== 'pending') return false;
+        if (typeof onlyDisputeCategory === 'boolean' && isStudentIdDisputeRecord(c) !== onlyDisputeCategory) {
+          return false;
+        }
+        return true;
+      })
       .forEach((c) => {
-        const matchesUid = c.applicantUid && c.applicantUid === userId;
-        const matchesEmail = emailLower && c.applicantEmail?.trim().toLowerCase() === emailLower;
-        const matchesSid =
-          normSid &&
-          c.applicantStudentId &&
-          normalizeStudentId(c.applicantStudentId).toUpperCase() === normSid;
+        const matchesUid = Boolean(c.applicantUid && c.applicantUid === userId);
+        const matchesEmail = Boolean(emailLower && c.applicantEmail?.trim().toLowerCase() === emailLower);
 
-        if (matchesUid || matchesEmail || matchesSid) {
+        if (matchesUid || matchesEmail) {
           resolveConflictRecord(
             c.id,
-            'resolved_verified',
+            decision,
             actorName,
-            `Auto-resolved upon alumni account approval by ${actorName}.`,
-            c
+            noteText ||
+              (decision === 'resolved_verified'
+                ? `Approved and verified by ${actorName}.`
+                : `Rejected by ${actorName}.`),
+            c,
+            reviewerMeta
           );
         }
       });
+  };
+
+  // Confirm Approve & Verify execution (strictly atomic, duplicate-guarded, preserves Alumni role)
+  const handleConfirmApproveAndVerify = async () => {
+    if (!approveConfirmTarget || isSubmittingDecision) return;
+
+    const target = approveConfirmTarget;
+    const actorRole = normalizeSystemRole(currentUser?.role);
+    if (!['moderator', 'admin', 'superadmin'].includes(actorRole)) {
+      showToast('Permission denied: Moderator, Admin, or Superadmin clearance required.', 'error');
+      return;
+    }
+
+    // Re-check live state to prevent duplicate approvals or conflicting status updates
+    const latestConflict = target.conflict
+      ? unifiedConflicts.find((c) => c.id === target.conflict!.id) || target.conflict
+      : undefined;
+    const latestUser = target.user
+      ? users.find((u) => u.uid === target.user!.uid) || target.user
+      : target.conflict
+      ? findLinkedUserForConflict(target.conflict)
+      : undefined;
+
+    if (latestConflict && latestConflict.status !== 'pending') {
+      showToast('This verification request has already been processed.', 'info');
+      setApproveConfirmTarget(null);
+      return;
+    }
+    if (!latestConflict && latestUser?.isVerified && latestUser.verificationStatus === 'verified') {
+      showToast(`${latestUser.name} is already verified.`, 'info');
+      setApproveConfirmTarget(null);
+      return;
+    }
+
+    setIsSubmittingDecision(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const reviewerUid = currentUser?.uid || 'authorized_reviewer';
+      const reviewerName = currentUser?.name || 'Authorized Reviewer';
+      const reviewerMeta = {
+        reviewedByUid: reviewerUid,
+        reviewedByName: reviewerName,
+        reviewedByRole: actorRole,
+        reviewedAt: nowIso
+      };
+
+      const inlineNote = latestConflict?.id ? (singleNotesById[latestConflict.id] || '').trim() : '';
+      const approvalNote =
+        inlineNote || `Identity, Selfie with ID, and academic records approved by ${reviewerName} (${actorRole}).`;
+
+      // Optional curriculum sync when approving a Curriculum Variance claim
+      const syncedCourse = target.syncTranscriptOnApprove && target.registryRecord?.course
+        ? target.registryRecord.course
+        : undefined;
+      const syncedBatch = target.syncTranscriptOnApprove && target.registryRecord?.batchYear
+        ? target.registryRecord.batchYear
+        : undefined;
+
+      // 1. Update Conflict / Manual Verification Request status to Approved / Verified
+      if (latestConflict) {
+        const resolvedOk = resolveConflictRecord(
+          latestConflict.id,
+          'resolved_verified',
+          reviewerName,
+          approvalNote,
+          latestConflict,
+          reviewerMeta
+        );
+        if (!resolvedOk) {
+          showToast('This verification request was already resolved.', 'info');
+          setApproveConfirmTarget(null);
+          return;
+        }
+      }
+
+      // 2. Update Alumni account record: keep role as 'alumni', set Verified & Active, persist approval date & reviewer details
+      if (latestUser) {
+        if (syncedCourse || syncedBatch) {
+          await updateAlumniProfile(latestUser.uid, {
+            role: 'alumni',
+            ...(syncedCourse ? { course: syncedCourse } : {}),
+            ...(syncedBatch ? { batch: syncedBatch } : {})
+          });
+        }
+
+        const studentIdToMark =
+          target.registryRecord?.studentId ||
+          (latestConflict && isStudentIdDisputeRecord(latestConflict)
+            ? latestConflict.targetRegistryStudentId || latestConflict.applicantStudentId
+            : undefined) ||
+          latestUser.studentId ||
+          target.studentId;
+
+        const isDisputeDecision = Boolean(latestConflict && isStudentIdDisputeRecord(latestConflict));
+        const decisionSubmissionSource = latestConflict
+          ? isDisputeDecision
+            ? 'dispute_student_id_claim'
+            : 'request_verification'
+          : undefined;
+        const decisionRequestType = latestConflict
+          ? isDisputeDecision
+            ? 'claimed_id_dispute'
+            : 'manual_verification_request'
+          : undefined;
+
+        setUserVerified(latestUser.uid, true, {
+          ...reviewerMeta,
+          silentToast: true,
+          conflictId: latestConflict?.id,
+          requestId: latestConflict?.verificationRequestId || latestUser.verificationRequestId,
+          submissionSource: decisionSubmissionSource,
+          requestType: decisionRequestType,
+          studentId: studentIdToMark,
+          course: syncedCourse || latestConflict?.applicantCourse || latestUser.course,
+          batch: syncedBatch || latestConflict?.applicantBatch || latestUser.batch,
+          notes: approvalNote
+        });
+
+        if (studentIdToMark) {
+          markRegistryRecordAsRegistered(studentIdToMark, latestUser.uid);
+        }
+
+        autoResolveMatchingConflicts(
+          latestUser.uid,
+          studentIdToMark,
+          'resolved_verified',
+          approvalNote,
+          reviewerMeta,
+          latestConflict ? isDisputeDecision : undefined
+        );
+      } else if (latestConflict) {
+        // Even if no local UserProfile matched, sync the decision to backend verification/credentials store
+        const token = getStoredSessionToken();
+        if (token) {
+          const isDisputeDecision = isStudentIdDisputeRecord(latestConflict);
+          await fetch('/api/admin/alumni-verification/decision', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              action: 'approve',
+              userId: latestConflict.applicantUid,
+              email: latestConflict.applicantEmail,
+              studentId: latestConflict.targetRegistryStudentId || latestConflict.applicantStudentId,
+              conflictId: latestConflict.id,
+              requestId: latestConflict.verificationRequestId,
+              submissionSource: isDisputeDecision ? 'dispute_student_id_claim' : 'request_verification',
+              requestType: isDisputeDecision ? 'claimed_id_dispute' : 'manual_verification_request',
+              notes: approvalNote
+            })
+          }).catch(() => {});
+        }
+      }
+
+      addAuditLog({
+        action: 'ALUMNI_VERIFICATION_APPROVED',
+        actorId: reviewerUid,
+        actorName: reviewerName,
+        actorRole,
+        category: 'alumni_verification',
+        targetUserId: latestUser?.uid || latestConflict?.applicantUid,
+        targetRecordId: latestConflict?.id,
+        details: `Approved & verified Alumni ${target.applicantName} (${target.applicantEmail}, Student ID: ${target.studentId || 'N/A'}). Role maintained as Alumni. Reviewed by ${reviewerName} (${actorRole}).`,
+        severity: 'success'
+      });
+
+      if (latestConflict?.id) {
+        setSingleNotesById((prev) => {
+          const copy = { ...prev };
+          delete copy[latestConflict.id];
+          return copy;
+        });
+      }
+
+      loadConflicts();
+      loadServerVerificationRequests();
+      setTimeout(() => loadServerVerificationRequests(), 400);
+      setApproveConfirmTarget(null);
+      setSelfieViewerTarget(null);
+      showToast('Alumni Successfully Verified.', 'success');
+    } finally {
+      setIsSubmittingDecision(false);
+    }
+  };
+
+  // Confirm Reject execution (requires rejection reason, duplicate-guarded, preserves Alumni role)
+  const handleConfirmRejectRequest = async () => {
+    if (!rejectConfirmTarget || isSubmittingDecision) return;
+
+    const cleanReason = rejectReasonText.trim();
+    if (!cleanReason) {
+      setRejectReasonError('Please provide a clear rejection reason before confirming.');
+      return;
+    }
+
+    const target = rejectConfirmTarget;
+    const actorRole = normalizeSystemRole(currentUser?.role);
+    if (!['moderator', 'admin', 'superadmin'].includes(actorRole)) {
+      showToast('Permission denied: Moderator, Admin, or Superadmin clearance required.', 'error');
+      return;
+    }
+
+    const latestConflict = target.conflict
+      ? unifiedConflicts.find((c) => c.id === target.conflict!.id) || target.conflict
+      : undefined;
+    const latestUser = target.user
+      ? users.find((u) => u.uid === target.user!.uid) || target.user
+      : target.conflict
+      ? findLinkedUserForConflict(target.conflict)
+      : undefined;
+
+    if (latestConflict && latestConflict.status !== 'pending') {
+      showToast('This verification request has already been processed.', 'info');
+      setRejectConfirmTarget(null);
+      return;
+    }
+    if (!latestConflict && latestUser && (latestUser.verificationStatus === 'rejected' || latestUser.accountStatus === 'REJECTED')) {
+      showToast('This alumni verification request has already been rejected.', 'info');
+      setRejectConfirmTarget(null);
+      return;
+    }
+
+    setIsSubmittingDecision(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const reviewerUid = currentUser?.uid || 'authorized_reviewer';
+      const reviewerName = currentUser?.name || 'Authorized Reviewer';
+      const reviewerMeta = {
+        reviewedByUid: reviewerUid,
+        reviewedByName: reviewerName,
+        reviewedByRole: actorRole,
+        reviewedAt: nowIso,
+        rejectionReason: cleanReason
+      };
+
+      // 1. Update Conflict / Manual Verification Request status to Rejected with reason & reviewer metadata
+      if (latestConflict) {
+        const resolvedOk = resolveConflictRecord(
+          latestConflict.id,
+          'resolved_rejected',
+          reviewerName,
+          cleanReason,
+          latestConflict,
+          reviewerMeta
+        );
+        if (!resolvedOk) {
+          showToast('This verification request was already resolved.', 'info');
+          setRejectConfirmTarget(null);
+          return;
+        }
+      }
+
+      // 2. Update Alumni account record: keep role as 'alumni', set Rejected, save reason + date + reviewer details
+      if (latestUser) {
+        const isDisputeDecision = Boolean(latestConflict && isStudentIdDisputeRecord(latestConflict));
+        setUserVerified(latestUser.uid, false, {
+          ...reviewerMeta,
+          silentToast: true,
+          conflictId: latestConflict?.id,
+          requestId: latestConflict?.verificationRequestId || latestUser.verificationRequestId,
+          submissionSource: latestConflict
+            ? isDisputeDecision
+              ? 'dispute_student_id_claim'
+              : 'request_verification'
+            : undefined,
+          requestType: latestConflict
+            ? isDisputeDecision
+              ? 'claimed_id_dispute'
+              : 'manual_verification_request'
+            : undefined,
+          studentId: latestUser.studentId || target.studentId
+        });
+
+        autoResolveMatchingConflicts(
+          latestUser.uid,
+          latestUser.studentId || target.studentId,
+          'resolved_rejected',
+          cleanReason,
+          reviewerMeta,
+          latestConflict ? isDisputeDecision : undefined
+        );
+      } else if (latestConflict) {
+        const token = getStoredSessionToken();
+        if (token) {
+          const isDisputeDecision = isStudentIdDisputeRecord(latestConflict);
+          await fetch('/api/admin/alumni-verification/decision', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              action: 'reject',
+              userId: latestConflict.applicantUid,
+              email: latestConflict.applicantEmail,
+              studentId: latestConflict.targetRegistryStudentId || latestConflict.applicantStudentId,
+              conflictId: latestConflict.id,
+              requestId: latestConflict.verificationRequestId,
+              submissionSource: isDisputeDecision ? 'dispute_student_id_claim' : 'request_verification',
+              requestType: isDisputeDecision ? 'claimed_id_dispute' : 'manual_verification_request',
+              rejectionReason: cleanReason
+            })
+          }).catch(() => {});
+        }
+      }
+
+      addAuditLog({
+        action: 'ALUMNI_VERIFICATION_REJECTED',
+        actorId: reviewerUid,
+        actorName: reviewerName,
+        actorRole,
+        category: 'alumni_verification',
+        targetUserId: latestUser?.uid || latestConflict?.applicantUid,
+        targetRecordId: latestConflict?.id,
+        details: `Rejected verification request for Alumni ${target.applicantName} (${target.applicantEmail}). Role maintained as Alumni. Reason: ${cleanReason}`,
+        severity: 'warning'
+      });
+
+      if (latestConflict?.id) {
+        setSingleNotesById((prev) => {
+          const copy = { ...prev };
+          delete copy[latestConflict.id];
+          return copy;
+        });
+      }
+
+      loadConflicts();
+      loadServerVerificationRequests();
+      setTimeout(() => loadServerVerificationRequests(), 400);
+      setRejectConfirmTarget(null);
+      setRejectReasonText('');
+      setRejectReasonError(null);
+      setSelfieViewerTarget(null);
+      showToast(`Alumni verification request rejected for ${target.applicantName}.`, 'info');
+    } finally {
+      setIsSubmittingDecision(false);
+    }
   };
 
   // 1-Click Smart Auto-Reconcile for all 100% matched alumni
@@ -396,132 +1513,84 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
     setIsReconciling(true);
     const count = perfectMatchAnalyses.length;
+    const nowIso = new Date().toISOString();
+    const reviewerMeta = {
+      reviewedByUid: currentUser?.uid || 'authorized_reviewer',
+      reviewedByName: currentUser?.name || 'Authorized Reviewer',
+      reviewedByRole: normalizeSystemRole(currentUser?.role),
+      reviewedAt: nowIso
+    };
 
     try {
       for (const item of perfectMatchAnalyses) {
-        setUserVerified(item.userId, true);
+        setUserVerified(item.userId, true, { ...reviewerMeta, silentToast: true });
         if (item.registryRecord) {
           markRegistryRecordAsRegistered(item.registryRecord.studentId, item.userId);
         }
-        autoResolveMatchingConflicts(item.userId, item.registryRecord?.studentId || item.user.studentId);
+        autoResolveMatchingConflicts(
+          item.userId,
+          item.registryRecord?.studentId || item.user.studentId,
+          'resolved_verified',
+          `Auto-reconciled 100% Registrar match by ${reviewerMeta.reviewedByName}.`,
+          reviewerMeta
+        );
       }
 
       addAuditLog({
         action: 'SMART_GOVERNANCE_AUTO_RECONCILE',
-        actorId: currentUser?.uid || 'registrar_officer',
-        actorName: currentUser?.name || 'Registrar Officer',
-        actorRole: currentUser?.role || 'admin',
+        actorId: reviewerMeta.reviewedByUid,
+        actorName: reviewerMeta.reviewedByName,
+        actorRole: reviewerMeta.reviewedByRole,
         category: 'alumni_verification',
         details: `Smart Governance Auto-Reconciliation executed: Verified ${count} alumni claimants with 100% Registrar archive alignment.`,
         severity: 'success'
       });
 
-      showToast(`✓ Auto-reconciled ${count} verified Cecilian graduates!`, 'success');
+      showToast('Alumni Successfully Verified.', 'success');
       loadConflicts();
+      loadServerVerificationRequests();
     } finally {
       setIsReconciling(false);
     }
   };
 
-  // 1-Click Sync to Registrar Transcript & Approve single user
-  const handleSyncToTranscriptAndVerify = (analysis: RegistryDiscrepancyAnalysis) => {
-    const reg = analysis.registryRecord;
-    if (!reg) {
-      setUserVerified(analysis.userId, true);
-      autoResolveMatchingConflicts(analysis.userId, analysis.user.studentId);
-      loadConflicts();
-      showToast(`Verified applicant ${analysis.user.name}.`, 'success');
-      return;
-    }
-
-    updateAlumniProfile(analysis.userId, {
-      course: reg.course,
-      batch: reg.batchYear || analysis.user.batch
-    });
-
-    setUserVerified(analysis.userId, true);
-    markRegistryRecordAsRegistered(reg.studentId, analysis.userId);
-    autoResolveMatchingConflicts(analysis.userId, reg.studentId);
-    loadConflicts();
-
-    addAuditLog({
-      action: 'REGISTRAR_TRANSCRIPT_SYNC_VERIFY',
-      actorId: currentUser?.uid || 'registrar_officer',
-      actorName: currentUser?.name || 'Registrar Officer',
-      actorRole: currentUser?.role || 'admin',
-      category: 'alumni_verification',
-      details: `Corrected profile for ${analysis.user.name} to official Registrar record (${reg.course}, Class of ${reg.batchYear}) and granted verified alumni status.`,
-      severity: 'info'
-    });
-
-    showToast(`✓ Synced ${analysis.user.name}'s profile to official transcript and approved!`, 'success');
-  };
-
-  // Direct single alumni approve as is
-  const handleApproveAlumniAsDeclared = (userId: string, userName: string, studentId?: string) => {
-    setUserVerified(userId, true);
-    if (studentId) {
-      markRegistryRecordAsRegistered(studentId, userId);
-    }
-    autoResolveMatchingConflicts(userId, studentId);
-    loadConflicts();
-
-    addAuditLog({
-      action: 'MANUAL_ALUMNI_VERIFY',
-      actorId: currentUser?.uid || 'moderator',
-      actorName: currentUser?.name || 'Moderator Officer',
-      actorRole: currentUser?.role || 'moderator',
-      category: 'alumni_verification',
-      details: `Manually approved and granted verified alumni status to ${userName} (Student ID: ${studentId || 'N/A'}).`,
-      severity: 'success'
-    });
-
-    showToast(`✓ Approved ${userName} as verified alumnus.`, 'success');
-  };
-
-  // Handle single conflict resolution
+  // Handle conflict dismiss (Approve & Verify and Reject route through confirmation dialogs)
   const handleResolveConflict = (
     conflict: RegistrationConflictRecord,
     action: 'resolved_verified' | 'resolved_rejected' | 'dismissed'
   ) => {
-    const actorName = currentUser?.name || 'Registrar Officer';
+    if (action === 'resolved_verified') {
+      openApproveConfirmation(buildInspectionTargetFromConflict(conflict));
+      return;
+    }
+    if (action === 'resolved_rejected') {
+      openRejectConfirmation(buildInspectionTargetFromConflict(conflict));
+      return;
+    }
+
+    const actorName = currentUser?.name || 'Authorized Reviewer';
+    const actorRole = normalizeSystemRole(currentUser?.role);
     const note = (singleNotesById[conflict.id] || '').trim() || undefined;
 
-    const success = resolveConflictRecord(conflict.id, action, actorName, note, conflict);
+    const success = resolveConflictRecord(conflict.id, action, actorName, note, conflict, {
+      reviewedByUid: currentUser?.uid,
+      reviewedByName: actorName,
+      reviewedByRole: actorRole,
+      reviewedAt: new Date().toISOString()
+    });
 
     if (success) {
-      if (conflict.applicantUid) {
-        setUserVerified(conflict.applicantUid, action === 'resolved_verified');
-      } else {
-        const matched = users.find(
-          (u) =>
-            u.email.toLowerCase() === conflict.applicantEmail.toLowerCase() ||
-            (conflict.applicantStudentId && u.studentId === conflict.applicantStudentId)
-        );
-        if (matched) {
-          setUserVerified(matched.uid, action === 'resolved_verified');
-        }
-      }
-
       addAuditLog({
-        action: `CONFLICT_RESOLUTION_${action.toUpperCase()}`,
+        action: 'CONFLICT_RESOLUTION_DISMISSED',
         actorId: currentUser?.uid || 'moderator',
         actorName,
-        actorRole: currentUser?.role || 'moderator',
+        actorRole,
         category: 'conflict_resolution',
-        details: `${action === 'resolved_verified' ? 'Approved and auto-verified' : 'Rejected/Dismissed'} registration dispute for ${conflict.applicantName} (Student ID: ${conflict.applicantStudentId || 'N/A'}). Note: ${note || 'Routine hearing deliberation'}.`,
-        severity: action === 'resolved_verified' ? 'success' : 'warning'
+        details: `Dismissed registration dispute for ${conflict.applicantName} (Student ID: ${conflict.applicantStudentId || 'N/A'}). Note: ${note || 'Routine hearing deliberation'}.`,
+        severity: 'warning'
       });
 
-      showToast(
-        action === 'resolved_verified'
-          ? `✓ Applicant ${conflict.applicantName} approved and verified.`
-          : action === 'resolved_rejected'
-          ? `Registration claim for ${conflict.applicantName} rejected.`
-          : `Dispute flag dismissed.`,
-        action === 'resolved_verified' ? 'success' : 'info'
-      );
-
+      showToast('Dispute flag dismissed.', 'info');
       loadConflicts();
       setSingleNotesById((prev) => {
         const copy = { ...prev };
@@ -583,9 +1652,31 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
   const executeReassignAndApprove = async () => {
     if (!reassignModalConflict || !newReassignedId.trim()) return;
-    const actorName = currentUser?.name || 'Registrar Officer';
+    const actorName = currentUser?.name || 'Authorized Reviewer';
+    const actorRole = normalizeSystemRole(currentUser?.role);
+    const nowIso = new Date().toISOString();
+    const reviewerMeta = {
+      reviewedByUid: currentUser?.uid || 'authorized_reviewer',
+      reviewedByName: actorName,
+      reviewedByRole: actorRole,
+      reviewedAt: nowIso
+    };
     const cleanId = newReassignedId.trim().toUpperCase();
     const note = (singleNotesById[reassignModalConflict.id] || '').trim() || `Student ID corrected to ${cleanId} to resolve clerical collision with existing record.`;
+
+    const resolvedOk = resolveConflictRecord(
+      reassignModalConflict.id,
+      'resolved_verified',
+      actorName,
+      note,
+      reassignModalConflict,
+      reviewerMeta
+    );
+    if (!resolvedOk) {
+      showToast('This verification request has already been processed.', 'info');
+      setReassignModalConflict(null);
+      return;
+    }
 
     const targetUser = users.find(
       (u) =>
@@ -595,28 +1686,33 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
 
     if (targetUser) {
       await updateAlumniProfile(targetUser.uid, {
-        studentId: cleanId,
-        isVerified: true
+        role: 'alumni',
+        studentId: cleanId
       });
-      setUserVerified(targetUser.uid, true);
+      setUserVerified(targetUser.uid, true, {
+        ...reviewerMeta,
+        silentToast: true,
+        conflictId: reassignModalConflict.id,
+        studentId: cleanId,
+        notes: note
+      });
     }
-
-    resolveConflictRecord(reassignModalConflict.id, 'resolved_verified', actorName, note, reassignModalConflict);
 
     addAuditLog({
       action: 'CONFLICT_RESOLUTION_REASSIGNED',
-      actorId: currentUser?.uid || 'moderator',
+      actorId: reviewerMeta.reviewedByUid,
       actorName,
-      actorRole: currentUser?.role || 'moderator',
+      actorRole,
       category: 'conflict_resolution',
       details: `Reassigned Student ID for ${reassignModalConflict.applicantName} to ${cleanId} and approved verification.`,
       severity: 'success'
     });
 
-    showToast(`✓ Student ID updated to ${cleanId} and applicant approved!`, 'success');
+    showToast('Alumni Successfully Verified.', 'success');
     setReassignModalConflict(null);
     setNewReassignedId('');
     loadConflicts();
+    loadServerVerificationRequests();
   };
 
   // Multi-select for conflicts
@@ -641,54 +1737,70 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
   // Bulk resolve conflicts
   const handleBulkResolveConflicts = (action: 'resolved_verified' | 'resolved_rejected') => {
     if (selectedConflictIds.length === 0) return;
+    if (action === 'resolved_rejected' && !bulkNote.trim()) {
+      showToast('Please enter a rejection reason before rejecting selected requests.', 'error');
+      return;
+    }
     setIsProcessingBulk(true);
 
-    const actorName = currentUser?.name || 'Registrar Officer';
+    const actorName = currentUser?.name || 'Authorized Reviewer';
+    const actorRole = normalizeSystemRole(currentUser?.role);
+    const nowIso = new Date().toISOString();
+    const cleanBulkReason = bulkNote.trim();
+    const reviewerMeta = {
+      reviewedByUid: currentUser?.uid || 'authorized_reviewer',
+      reviewedByName: actorName,
+      reviewedByRole: actorRole,
+      reviewedAt: nowIso,
+      rejectionReason: action === 'resolved_rejected' ? cleanBulkReason : undefined
+    };
     let processed = 0;
 
     selectedConflictIds.forEach((id) => {
-      const conflict = conflicts.find((c) => c.id === id);
-      if (!conflict) return;
+      const conflict = collisionAndAppealConflicts.find((c) => c.id === id);
+      if (!conflict || conflict.status !== 'pending') return;
 
-      const note = bulkNote.trim() || `Bulk resolution (${action}) by ${actorName}`;
-      const success = resolveConflictRecord(id, action, actorName, note, conflict);
+      const note = cleanBulkReason || `Bulk resolution (${action}) by ${actorName}`;
+      const success = resolveConflictRecord(id, action, actorName, note, conflict, reviewerMeta);
 
       if (success) {
         processed++;
-        if (conflict.applicantUid) {
-          setUserVerified(conflict.applicantUid, action === 'resolved_verified');
-        } else {
-          const matched = users.find(
-            (u) => u.email.toLowerCase() === conflict.applicantEmail.toLowerCase()
-          );
-          if (matched) {
-            setUserVerified(matched.uid, action === 'resolved_verified');
-          }
+        const matched = conflict.applicantUid
+          ? users.find((u) => u.uid === conflict.applicantUid)
+          : users.find((u) => u.email.toLowerCase() === conflict.applicantEmail.toLowerCase());
+        if (matched) {
+          setUserVerified(matched.uid, action === 'resolved_verified', {
+            ...reviewerMeta,
+            silentToast: true,
+            conflictId: conflict.id,
+            notes: note
+          });
         }
       }
     });
 
     addAuditLog({
       action: `BULK_CONFLICT_RESOLUTION_${action.toUpperCase()}`,
-      actorId: currentUser?.uid || 'moderator',
+      actorId: reviewerMeta.reviewedByUid,
       actorName,
-      actorRole: currentUser?.role || 'moderator',
+      actorRole,
       category: 'conflict_resolution',
-      details: `Bulk ${action === 'resolved_verified' ? 'approved & verified' : 'rejected & blocked'} ${processed} student registration conflict records.`,
+      details: `Bulk ${action === 'resolved_verified' ? 'approved & verified' : 'rejected'} ${processed} student registration conflict records.`,
       severity: action === 'resolved_verified' ? 'success' : 'warning'
     });
 
     showToast(
-      `✓ Processed ${processed} collision records: ${
-        action === 'resolved_verified' ? 'Bulk Approved' : 'Bulk Rejected'
-      }!`,
-      'success'
+      action === 'resolved_verified'
+        ? 'Alumni Successfully Verified.'
+        : `Rejected ${processed} alumni verification request${processed === 1 ? '' : 's'}.`,
+      action === 'resolved_verified' ? 'success' : 'info'
     );
 
     setSelectedConflictIds([]);
     setBulkNote('');
     setIsProcessingBulk(false);
     loadConflicts();
+    loadServerVerificationRequests();
   };
 
   // Official PDF audit download
@@ -839,7 +1951,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
             <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
               activeTab === 'alumni' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
             }`}>
-              {pendingAlumniUsers.length}
+              {totalAlumniClaimsPendingCount}
             </span>
           </button>
 
@@ -927,42 +2039,17 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
               </div>
 
               {activeTab === 'alumni' && (
-                <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setFilterType('all')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                      filterType === 'all'
-                        ? 'bg-stone-900 text-white font-bold'
-                        : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                    }`}
+                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                  <select
+                    value={claimsStatusFilter}
+                    onChange={(e) => setClaimsStatusFilter(e.target.value as any)}
+                    className="bg-stone-50 border border-stone-200 text-xs text-stone-800 py-2 px-3 rounded-xl focus:outline-hidden font-semibold cursor-pointer"
                   >
-                    All ({pendingAnalyses.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterType('perfect')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                      filterType === 'perfect'
-                        ? 'bg-emerald-700 text-white font-bold'
-                        : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3 h-3" />
-                    <span>Exact ({perfectMatchAnalyses.length})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterType('discrepancy')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 ${
-                      filterType === 'discrepancy'
-                        ? 'bg-amber-600 text-white font-bold'
-                        : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-                    }`}
-                  >
-                    <AlertTriangle className="w-3 h-3" />
-                    <span>Variances ({discrepancyAnalyses.length})</span>
-                  </button>
+                    <option value="pending">Pending Disputes ({pendingDisputeClaims.length})</option>
+                    <option value="all">All Alumni Claims ({alumniDisputeClaims.length})</option>
+                    <option value="resolved_verified">Approved & Verified</option>
+                    <option value="resolved_rejected">Rejected Claims</option>
+                  </select>
                 </div>
               )}
 
@@ -974,7 +2061,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                     className="bg-stone-50 border border-stone-200 text-xs text-stone-800 py-2 px-3 rounded-xl focus:outline-hidden font-semibold cursor-pointer"
                   >
                     <option value="pending">Pending Cases ({pendingConflicts.length})</option>
-                    <option value="all">All Collision Records ({conflicts.length})</option>
+                    <option value="all">All Appeals & Collisions ({collisionAndAppealConflicts.length})</option>
                     <option value="resolved_verified">Approved Claims</option>
                     <option value="resolved_rejected">Rejected Duplicates</option>
                   </select>
@@ -1044,225 +2131,368 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
               </div>
             )}
 
-            {/* TAB 1: ALUMNI APPLICANTS */}
+            {/* TAB 1: ALUMNI CLAIMS — Exclusively Dispute Student ID Claim submissions */}
             {activeTab === 'alumni' && (
               <div className="space-y-3.5">
-                {filteredAlumniAnalyses.length === 0 ? (
+                {filteredDisputeClaims.length === 0 ? (
                   <div className="bg-stone-50/70 rounded-2xl border border-stone-200/80 p-12 text-center">
                     <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
-                    <h3 className="text-sm font-bold text-stone-900">Alumni Intake Docket Clear</h3>
+                    <h3 className="text-sm font-bold text-stone-900">Alumni Claims Docket Clear</h3>
                     <p className="text-xs text-stone-500 max-w-sm mx-auto mt-1">
-                      No unverified alumni registration requests match the active filter criteria.
+                      No Dispute Student ID Claim submissions match the active filter criteria.
                     </p>
                   </div>
                 ) : (
-                  filteredAlumniAnalyses.map((analysis) => {
-                    const reg = analysis.registryRecord;
-                    const isPerfect = analysis.status === 'PERFECT_MATCH';
-                    const isDegreeDiff = analysis.status === 'DEGREE_DISCREPANCY';
-                    const isNameDiff = analysis.status === 'NAME_DISCREPANCY';
+                  <>
+                    {/* Dispute Student ID Claim Submissions (Exclusively in Alumni Claims) */}
+                    {filteredDisputeClaims.map((claim) => {
+                      const contestedStudentId = claim.targetRegistryStudentId || claim.applicantStudentId || 'N/A';
+                      const disputeExplanation = extractDisputeExplanation(claim);
+                      const originalOwner = findOriginalOwnerForDispute(claim);
+                      const claimantUser = findLinkedUserForConflict(claim);
+                      const claimantPhone = claim.applicantPhone || claimantUser?.phone;
+                      const hasSelfieRef = hasUploadedSelfieForTarget({ conflict: claim });
+                      const selfieRefLabel =
+                        claim.selfieWithIdName ||
+                        claim.selfieStoragePath ||
+                        (hasSelfieRef ? 'Uploaded Selfie with ID' : 'No Selfie with ID attached');
 
-                    return (
-                      <div
-                        key={analysis.userId}
-                        className={`rounded-2xl border transition-all overflow-hidden ${
-                          isPerfect
-                            ? 'bg-white border-emerald-300/80 ring-1 ring-emerald-300/30'
-                            : isDegreeDiff
-                            ? 'bg-white border-sky-300/80 ring-1 ring-sky-300/30'
-                            : 'bg-white border-amber-300/80 ring-1 ring-amber-300/30'
-                        }`}
-                      >
-                        {/* Header Row */}
-                        <div className="p-4 sm:p-4.5 bg-stone-50/70 border-b border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
-                              isPerfect
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : isDegreeDiff
-                                ? 'bg-sky-100 text-sky-800'
-                                : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {analysis.user.name.charAt(0).toUpperCase()}
-                            </div>
-
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-sm text-stone-900">
-                                  {analysis.user.name}
-                                </span>
-
-                                {isPerfect && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    100% Match
-                                  </span>
-                                )}
-
-                                {isDegreeDiff && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200">
-                                    Curriculum Variance
-                                  </span>
-                                )}
-
-                                {isNameDiff && (
-                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                                    Name Discrepancy
-                                  </span>
-                                )}
+                      return (
+                        <div
+                          key={claim.id}
+                          className={`rounded-2xl border transition-all overflow-hidden ${
+                            claim.status === 'pending'
+                              ? 'bg-white border-amber-300 ring-1 ring-amber-300/40'
+                              : 'bg-stone-50/60 border-stone-200'
+                          }`}
+                        >
+                          {/* Header Row */}
+                          <div className="p-4 sm:p-4.5 bg-stone-50/70 border-b border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
+                                <Scale className="w-4 h-4" />
                               </div>
 
-                              <div className="text-[11px] text-stone-500 mt-0.5 flex items-center gap-2 flex-wrap">
-                                <span className="flex items-center gap-1">
-                                  <Mail className="w-3 h-3 text-stone-400" />
-                                  <span className="font-mono">{analysis.user.email}</span>
-                                </span>
-                                <span className="text-stone-300">·</span>
-                                <span className="flex items-center gap-1">
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-sm text-stone-900">
+                                    {claim.applicantName}
+                                  </span>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-[#8B181B] border border-red-200/80">
+                                    Student ID Dispute Claim
+                                  </span>
+                                  {claim.status === 'pending' ? (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      Pending Review
+                                    </span>
+                                  ) : claim.status === 'resolved_verified' ? (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      Approved & Verified
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
+                                      {claim.status === 'dismissed' ? 'Dismissed' : 'Rejected Claim'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="text-[11px] text-stone-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                                  <span className="flex items-center gap-1">
+                                    <Mail className="w-3 h-3 text-stone-400" />
+                                    <span className="font-mono">{claim.applicantEmail}</span>
+                                  </span>
+                                  <span className="text-stone-300">·</span>
                                   <span className="font-mono font-bold text-stone-700">
-                                    {analysis.user.studentId || 'No ID Provided'}
+                                    {contestedStudentId}
                                   </span>
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Action Block */}
-                          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
-                            {analysis.user.studentId && (
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(analysis.user.studentId!, 'Student ID')}
-                                className="p-1.5 rounded-lg text-stone-500 hover:text-stone-800 hover:bg-stone-200/70 transition-colors cursor-pointer"
-                                title="Copy Student ID"
-                              >
-                                {copiedText === analysis.user.studentId ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() => setSelectedUserIdForModal(analysis.userId)}
-                              className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Profile</span>
-                            </button>
-
-                            {isDegreeDiff && reg ? (
-                              <button
-                                type="button"
-                                onClick={() => handleSyncToTranscriptAndVerify(analysis)}
-                                className="px-3.5 py-1.5 bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
-                              >
-                                <Sparkles className="w-3.5 h-3.5" />
-                                <span>Sync Transcript</span>
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleApproveAlumniAsDeclared(
-                                    analysis.userId,
-                                    analysis.user.name,
-                                    analysis.user.studentId
-                                  )
-                                }
-                                className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
-                              >
-                                <UserCheck className="w-3.5 h-3.5" />
-                                <span>Approve Access</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Forensic Split-Screen Details */}
-                        <div className="p-4 sm:p-4.5 space-y-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                            <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/80 space-y-1.5">
-                              <span className="font-bold text-stone-900 block text-[11px] pb-1 border-b border-stone-200 uppercase tracking-tight">
-                                User Self-Declaration
-                              </span>
-                              <div className="space-y-1 text-[11px]">
-                                <div className="flex justify-between">
-                                  <span className="text-stone-500">Claimed ID:</span>
-                                  <span className="font-mono font-bold text-stone-900">{analysis.user.studentId || 'N/A'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-stone-500">Degree:</span>
-                                  <span className="text-stone-800 font-medium truncate max-w-[180px]">{analysis.user.course || 'Not specified'}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-stone-500">Class of:</span>
-                                  <span className="text-stone-800 font-medium">{analysis.user.batch || 'N/A'}</span>
+                                  <span className="text-stone-300">·</span>
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-stone-400" />
+                                    <span>Submitted {new Date(claim.flaggedAt).toLocaleString()}</span>
+                                  </span>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/80 space-y-1.5">
-                              <span className="font-bold text-emerald-800 block text-[11px] pb-1 border-b border-stone-200 uppercase tracking-tight">
-                                Official Registrar Archive
-                              </span>
-                              {reg ? (
-                                <div className="space-y-1 text-[11px]">
-                                  <div className="flex justify-between">
-                                    <span className="text-stone-500">Archive ID:</span>
-                                    <span className="font-mono font-bold text-emerald-800">{reg.studentId}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-stone-500">Accredited:</span>
-                                    <span className="text-emerald-900 font-bold truncate max-w-[180px]">{reg.course}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-stone-500">Class of:</span>
-                                    <span className="text-stone-900 font-semibold">{reg.batchYear}</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="text-center py-2 text-stone-500 text-[11px]">
-                                  No diploma record found in official Registrar masterlist.
-                                </div>
+                            <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                              {contestedStudentId !== 'N/A' && (
+                                <button
+                                  type="button"
+                                  onClick={() => copyToClipboard(contestedStudentId, 'Contested Student ID')}
+                                  className="p-1.5 rounded-lg text-stone-500 hover:text-stone-800 hover:bg-stone-200/70 transition-colors cursor-pointer"
+                                  title="Copy Contested Student ID"
+                                >
+                                  {copiedText === contestedStudentId ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() => openSelfieViewer(buildInspectionTargetFromConflict(claim))}
+                                className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                              >
+                                <Camera className="w-3.5 h-3.5" strokeWidth={1.75} />
+                                <span>View Selfie with ID</span>
+                              </button>
                             </div>
                           </div>
 
-                          {analysis.discrepancyDetails.length > 0 && (
-                            <div className="p-2.5 rounded-xl bg-stone-50/80 border border-stone-200 text-xs flex items-start gap-2">
-                              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                              <div className="space-y-0.5">
-                                <span className="font-bold text-stone-900">Diagnostic Finding: </span>
-                                <span className="text-stone-700">
-                                  {analysis.discrepancyDetails.join(' ')}
+                          {/* Dispute Details Body: Claimant vs Original Account Owner & Registrar Masterlist */}
+                          <div className="p-4 sm:p-5 space-y-3.5">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
+                              {/* Column 1: Claimant (Person Claiming the Student ID) */}
+                              <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200/80 space-y-1.5">
+                                <span className="text-[10px] font-bold text-[#8B181B] uppercase tracking-wider block pb-1 border-b border-stone-200">
+                                  Claimant (Disputing ID Ownership)
                                 </span>
+                                <div className="space-y-1.5 text-xs">
+                                  <div className="flex justify-between gap-2">
+                                    <span className="text-stone-500">Claimant Name:</span>
+                                    <span className="font-bold text-stone-900 text-right">{claim.applicantName}</span>
+                                  </div>
+                                  <div className="flex justify-between gap-2">
+                                    <span className="text-stone-500">Contact Email:</span>
+                                    <span className="font-mono text-stone-800 text-right break-all">{claim.applicantEmail}</span>
+                                  </div>
+                                  {claimantPhone && (
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-stone-500">Contact Phone:</span>
+                                      <span className="font-mono text-stone-800 text-right">{claimantPhone}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex justify-between gap-2">
+                                    <span className="text-stone-500">Contested Student ID:</span>
+                                    <span className="font-mono font-bold text-[#8B181B]">{contestedStudentId}</span>
+                                  </div>
+                                  <div className="flex justify-between gap-2">
+                                    <span className="text-stone-500">Degree Program:</span>
+                                    <span className="font-semibold text-stone-800 text-right">{claim.applicantCourse || 'Not specified'}</span>
+                                  </div>
+                                  <div className="flex justify-between gap-2">
+                                    <span className="text-stone-500">Graduation Year:</span>
+                                    <span className="font-semibold text-stone-800">Class of {claim.applicantBatch || 'N/A'}</span>
+                                  </div>
+                                  <div className="flex justify-between gap-2 items-center pt-1 border-t border-stone-200/70">
+                                    <span className="text-stone-500">Selfie with ID:</span>
+                                    <span
+                                      className={`font-mono text-[11px] font-semibold truncate max-w-[170px] ${
+                                        hasSelfieRef ? 'text-emerald-700' : 'text-amber-700'
+                                      }`}
+                                      title={selfieRefLabel}
+                                    >
+                                      {selfieRefLabel}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Column 2: Original Account Owner (Currently Registered Holder) */}
+                              <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200/80 space-y-1.5">
+                                <div className="flex items-center justify-between gap-2 pb-1 border-b border-stone-200">
+                                  <span className="text-[10px] font-bold text-stone-700 uppercase tracking-wider">
+                                    Original Account Owner
+                                  </span>
+                                  {originalOwner?.user && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedUserIdForModal(originalOwner.user!.uid)}
+                                      className="text-[10px] font-semibold text-[#8B181B] hover:underline flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                      <span>View Profile</span>
+                                    </button>
+                                  )}
+                                </div>
+                                {originalOwner ? (
+                                  <div className="space-y-1.5 text-xs">
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-stone-500">Account Holder:</span>
+                                      <span className="font-bold text-stone-900 text-right">{originalOwner.name || 'Registered Account'}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-stone-500">Account Email:</span>
+                                      <span className="font-mono text-stone-800 text-right break-all">{originalOwner.email || 'Not available'}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-stone-500">Registered ID:</span>
+                                      <span className="font-mono font-bold text-stone-900">{originalOwner.studentId || contestedStudentId}</span>
+                                    </div>
+                                    {originalOwner.course && (
+                                      <div className="flex justify-between gap-2">
+                                        <span className="text-stone-500">Degree Program:</span>
+                                        <span className="font-semibold text-stone-800 text-right">{originalOwner.course}</span>
+                                      </div>
+                                    )}
+                                    {originalOwner.batch && (
+                                      <div className="flex justify-between gap-2">
+                                        <span className="text-stone-500">Graduation Year:</span>
+                                        <span className="font-semibold text-stone-800">Class of {originalOwner.batch}</span>
+                                      </div>
+                                    )}
+                                    {typeof originalOwner.isVerified === 'boolean' && (
+                                      <div className="flex justify-between gap-2 pt-1 border-t border-stone-200/70">
+                                        <span className="text-stone-500">Account Status:</span>
+                                        <span className={`font-bold text-[11px] ${originalOwner.isVerified ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                          {originalOwner.isVerified ? 'Verified Owner' : 'Unverified Holder'}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-stone-500 text-xs py-4 text-center">
+                                    Student ID {contestedStudentId} is marked registered in the archive; no active local profile matched.
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Column 3: Official Registrar Masterlist */}
+                              <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200/80 space-y-1.5">
+                                <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block pb-1 border-b border-stone-200">
+                                  Official Registrar Masterlist
+                                </span>
+                                {claim.registryRecord ? (
+                                  <div className="space-y-1.5 text-xs">
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-stone-500">Archive ID:</span>
+                                      <span className="font-mono font-bold text-emerald-800">{claim.registryRecord.studentId}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-stone-500">Archive Name:</span>
+                                      <span className="font-bold text-stone-900 text-right">{claim.registryRecord.fullName}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-stone-500">Accredited Degree:</span>
+                                      <span className="font-semibold text-stone-800 text-right">{claim.registryRecord.course}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-2">
+                                      <span className="text-stone-500">Class of:</span>
+                                      <span className="font-semibold text-stone-800">{claim.registryRecord.batchYear}</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-stone-500 text-xs py-4 text-center">
+                                    No electronic archive record found for Student ID {contestedStudentId}. Inspect Selfie with ID and registrar archives.
+                                  </div>
+                                )}
                               </div>
                             </div>
-                          )}
+
+                            {/* Dispute Explanation */}
+                            <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 text-xs text-stone-800 leading-relaxed">
+                              <span className="font-bold text-stone-900 block text-[11px] uppercase tracking-wider mb-1">
+                                Dispute Explanation & Supporting Statement
+                              </span>
+                              <p className="text-stone-700 whitespace-pre-wrap">{disputeExplanation}</p>
+                            </div>
+
+                            {claim.status !== 'pending' && (claim.reviewedByName || claim.resolvedBy || claim.rejectionReason || claim.resolutionNote) && (
+                              <div className={`p-3 rounded-xl border text-xs space-y-1 ${
+                                claim.status === 'resolved_verified'
+                                  ? 'bg-emerald-50/60 border-emerald-200/80 text-emerald-950'
+                                  : 'bg-stone-100/80 border-stone-200 text-stone-800'
+                              }`}>
+                                <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                                  <span className="font-bold">
+                                    Reviewed by {claim.reviewedByName || claim.resolvedBy || 'Authorized Reviewer'}
+                                    {claim.reviewedByRole ? ` (${claim.reviewedByRole.toUpperCase()})` : ''}
+                                  </span>
+                                  {(claim.reviewedAt || claim.resolvedAt) && (
+                                    <span className="text-stone-500 font-mono">
+                                      {new Date(claim.reviewedAt || claim.resolvedAt!).toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                                {claim.status === 'resolved_rejected' && (claim.rejectionReason || claim.resolutionNote) && (
+                                  <p className="text-stone-700">
+                                    <span className="font-semibold text-stone-900">Rejection Reason: </span>
+                                    {claim.rejectionReason || claim.resolutionNote}
+                                  </p>
+                                )}
+                                {claim.status === 'resolved_verified' && claim.resolutionNote && (
+                                  <p className="text-emerald-900/90">{claim.resolutionNote}</p>
+                                )}
+                              </div>
+                            )}
+
+                            {claim.status === 'pending' && (
+                              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-stone-100">
+                                <div className="flex-1">
+                                  <input
+                                    type="text"
+                                    value={singleNotesById[claim.id] || ''}
+                                    onChange={(e) =>
+                                      setSingleNotesById((prev) => ({
+                                        ...prev,
+                                        [claim.id]: e.target.value
+                                      }))
+                                    }
+                                    placeholder="Optional verification or dispute resolution note..."
+                                    className="w-full px-3 py-1.5 bg-stone-50 border border-stone-200 rounded-lg text-xs focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20"
+                                  />
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleResolveConflict(claim, 'resolved_rejected')}
+                                    className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    Reject
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleResolveConflict(claim, 'dismissed')}
+                                    className="px-3 py-1.5 text-stone-500 hover:text-stone-800 text-xs font-medium cursor-pointer"
+                                  >
+                                    Dismiss
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleResolveConflict(claim, 'resolved_verified')}
+                                    className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                                  >
+                                    <UserCheck className="w-3.5 h-3.5" />
+                                    <span>Approve & Verify</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </>
                 )}
               </div>
             )}
 
-            {/* TAB 2: ID COLLISIONS */}
+            {/* TAB 2: COLLISIONS & APPEALS — Exclusively Request Verification / Manual Verification Appeal */}
             {activeTab === 'conflicts' && (
               <div className="space-y-3.5">
                 {filteredConflicts.length === 0 ? (
                   <div className="bg-stone-50/70 rounded-2xl border border-stone-200/80 p-12 text-center">
                     <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-2" />
-                    <h3 className="text-sm font-bold text-stone-900">Collision Docket Clear</h3>
+                    <h3 className="text-sm font-bold text-stone-900">Collisions & Appeals Docket Clear</h3>
                     <p className="text-xs text-stone-500 max-w-sm mx-auto mt-1">
-                      No active Student ID registration disputes require registrar deliberation.
+                      No pending verification requests or manual verification appeals require registrar review.
                     </p>
                   </div>
                 ) : (
-                  filteredConflicts.map((conflict) => (
+                  filteredConflicts.map((conflict) => {
+                    const linkedApplicantUser = findLinkedUserForConflict(conflict);
+                    const hasSupportingDoc = hasUploadedSelfieForTarget({ conflict, user: linkedApplicantUser });
+                    const supportingDocLabel =
+                      conflict.selfieWithIdName ||
+                      linkedApplicantUser?.verificationProofName ||
+                      linkedApplicantUser?.selfieWithIdName ||
+                      (hasSupportingDoc ? 'Supporting Document / Selfie Attached' : 'No supporting document attached');
+                    return (
                     <div
                       key={conflict.id}
                       className={`rounded-2xl border transition-all overflow-hidden ${
@@ -1323,7 +2553,27 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                          {linkedApplicantUser && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedUserIdForModal(linkedApplicantUser.uid)}
+                              className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Profile</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => openSelfieViewer(buildInspectionTargetFromConflict(conflict))}
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                          >
+                            <Camera className="w-3.5 h-3.5" strokeWidth={1.75} />
+                            <span>View Selfie with ID</span>
+                          </button>
+
                           {conflict.status === 'pending' ? (
                             <span className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 flex items-center gap-1.5">
                               <Clock className="w-3 h-3" />
@@ -1346,26 +2596,38 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-2">
                             <span className="text-[10px] font-semibold text-stone-500 uppercase block pb-1 border-b border-stone-200">
-                              Incoming Claimant
+                              Requesting Alumni & Academic Details
                             </span>
                             <div className="space-y-1.5 text-xs">
-                              <div className="flex justify-between">
-                                <span className="text-stone-500">Claimed ID:</span>
+                              <div className="flex justify-between gap-2">
+                                <span className="text-stone-500">Student ID:</span>
                                 <span className="font-mono font-bold text-stone-900">{conflict.applicantStudentId || 'N/A'}</span>
                               </div>
-                              <div className="flex justify-between">
+                              <div className="flex justify-between gap-2">
                                 <span className="text-stone-500">Declared Name:</span>
-                                <span className="font-bold text-stone-900">{conflict.applicantName}</span>
+                                <span className="font-bold text-stone-900 text-right">{conflict.applicantName}</span>
                               </div>
-                              {conflict.applicantCourse && (
-                                <div className="flex justify-between">
-                                  <span className="text-stone-500">Program:</span>
-                                  <span className="font-semibold text-stone-800 truncate max-w-[200px]">{conflict.applicantCourse}</span>
+                              {(conflict.applicantPhone || linkedApplicantUser?.phone) && (
+                                <div className="flex justify-between gap-2">
+                                  <span className="text-stone-500">Contact Phone:</span>
+                                  <span className="font-mono text-stone-800">{conflict.applicantPhone || linkedApplicantUser?.phone}</span>
                                 </div>
                               )}
-                              <div className="flex justify-between">
+                              {conflict.applicantCourse && (
+                                <div className="flex justify-between gap-2">
+                                  <span className="text-stone-500">Program:</span>
+                                  <span className="font-semibold text-stone-800 truncate max-w-[200px] text-right">{conflict.applicantCourse}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between gap-2">
                                 <span className="text-stone-500">Cohort:</span>
                                 <span className="font-semibold text-stone-800">Class of {conflict.applicantBatch || 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between gap-2 pt-1 border-t border-stone-200/70">
+                                <span className="text-stone-500">Supporting Document:</span>
+                                <span className={`font-mono text-[11px] font-semibold truncate max-w-[180px] ${hasSupportingDoc ? 'text-emerald-700' : 'text-stone-500'}`} title={supportingDocLabel}>
+                                  {supportingDocLabel}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -1403,6 +2665,35 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                               Claimant Statement & Details
                             </span>
                             <p className="text-stone-700 whitespace-pre-wrap">{conflict.notes}</p>
+                          </div>
+                        )}
+
+                        {conflict.status !== 'pending' && (conflict.reviewedByName || conflict.resolvedBy || conflict.rejectionReason || conflict.resolutionNote) && (
+                          <div className={`p-3 rounded-xl border text-xs space-y-1 ${
+                            conflict.status === 'resolved_verified'
+                              ? 'bg-emerald-50/60 border-emerald-200/80 text-emerald-950'
+                              : 'bg-stone-100/80 border-stone-200 text-stone-800'
+                          }`}>
+                            <div className="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+                              <span className="font-bold">
+                                Reviewed by {conflict.reviewedByName || conflict.resolvedBy || 'Authorized Reviewer'}
+                                {conflict.reviewedByRole ? ` (${conflict.reviewedByRole.toUpperCase()})` : ''}
+                              </span>
+                              {(conflict.reviewedAt || conflict.resolvedAt) && (
+                                <span className="text-stone-500 font-mono">
+                                  {new Date(conflict.reviewedAt || conflict.resolvedAt!).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                            {conflict.status === 'resolved_rejected' && (conflict.rejectionReason || conflict.resolutionNote) && (
+                              <p className="text-stone-700">
+                                <span className="font-semibold text-stone-900">Rejection Reason: </span>
+                                {conflict.rejectionReason || conflict.resolutionNote}
+                              </p>
+                            )}
+                            {conflict.status === 'resolved_verified' && conflict.resolutionNote && (
+                              <p className="text-emerald-900/90">{conflict.resolutionNote}</p>
+                            )}
                           </div>
                         )}
 
@@ -1486,7 +2777,8 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                         )}
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             )}
@@ -1692,6 +2984,465 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                 >
                   <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                   <span>Reassign & Approve</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          SELFIE WITH ID INSPECTION MODAL (ZOOMABLE VIEWER)
+          ======================================================== */}
+      {selfieViewerTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/70 backdrop-blur-xs"
+          onClick={() => setSelfieViewerTarget(null)}
+        >
+          <div
+            className="w-full max-w-5xl max-h-[92dvh] bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-5 py-4 bg-stone-50 border-b border-stone-200 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-red-50 text-[#8B181B] border border-red-200/70 flex items-center justify-center shrink-0">
+                  <Camera className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-sm text-stone-900 truncate">
+                    Selfie with ID — {selfieViewerTarget.applicantName}
+                  </h3>
+                  <p className="text-[11px] text-stone-500 truncate">
+                    Identity & academic record verification viewer • Authorized role: {normalizeSystemRole(currentUser?.role).toUpperCase()}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelfieViewerTarget(null)}
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-200/60 transition-colors cursor-pointer"
+                aria-label="Close Selfie with ID viewer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Split Content: Zoomable Image Viewer + Request Info */}
+            <div className="flex-1 overflow-y-auto grid grid-cols-1 lg:grid-cols-12">
+              {/* Left: Zoomable Image Stage */}
+              <div className="lg:col-span-7 bg-stone-900/95 flex flex-col min-h-[320px] lg:min-h-[460px] border-b lg:border-b-0 lg:border-r border-stone-200">
+                {/* Zoom Toolbar */}
+                <div className="px-4 py-2.5 bg-stone-950/60 border-b border-white/10 flex items-center justify-between gap-2 text-xs text-stone-200 shrink-0">
+                  <span className="text-[11px] text-stone-300 truncate max-w-[220px]">
+                    {selfieViewerImageUrl ? (selfieViewerFileName || 'Uploaded Selfie with ID') : 'Verification Photo'}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={!selfieViewerImageUrl || selfieZoom <= 1}
+                      onClick={() => setSelfieZoom((z) => Math.max(1, Number((z - 0.25).toFixed(2))))}
+                      className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white disabled:opacity-35 transition-colors cursor-pointer"
+                      title="Zoom Out"
+                    >
+                      <ZoomOut className="w-3.5 h-3.5" strokeWidth={1.75} />
+                    </button>
+                    <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded bg-white/10 text-stone-100 min-w-[48px] text-center">
+                      {Math.round(selfieZoom * 100)}%
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!selfieViewerImageUrl || selfieZoom >= 3}
+                      onClick={() => setSelfieZoom((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
+                      className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white disabled:opacity-35 transition-colors cursor-pointer"
+                      title="Zoom In"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5" strokeWidth={1.75} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!selfieViewerImageUrl || selfieZoom === 1}
+                      onClick={() => setSelfieZoom(1)}
+                      className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white disabled:opacity-35 transition-colors cursor-pointer"
+                      title="Reset Zoom"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.75} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Image Viewport */}
+                <div className="flex-1 overflow-auto flex items-center justify-center p-4">
+                  {isLoadingSelfieImage ? (
+                    <div className="text-center text-stone-300 space-y-2 py-12">
+                      <Loader2 className="w-7 h-7 animate-spin mx-auto text-stone-400" />
+                      <p className="text-xs">Loading uploaded Selfie with ID...</p>
+                    </div>
+                  ) : selfieViewerImageUrl ? (
+                    <div className="inline-flex items-center justify-center">
+                      <img
+                        src={selfieViewerImageUrl}
+                        alt={`Selfie with ID submitted by ${selfieViewerTarget.applicantName}`}
+                        onClick={() => setSelfieZoom((z) => (z < 2 ? 2 : 1))}
+                        style={{
+                          width: `${selfieZoom * 100}%`,
+                          maxWidth: selfieZoom === 1 ? '100%' : 'none'
+                        }}
+                        className={`rounded-xl shadow-lg object-contain transition-all duration-150 ${
+                          selfieZoom > 1 ? 'cursor-zoom-out' : 'cursor-zoom-in max-h-[420px]'
+                        }`}
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-center max-w-xs mx-auto py-12 px-4 space-y-2">
+                      <div className="w-12 h-12 rounded-2xl bg-white/10 text-stone-300 flex items-center justify-center mx-auto">
+                        <Camera className="w-6 h-6" strokeWidth={1.75} />
+                      </div>
+                      <h4 className="text-sm font-bold text-white">No Selfie with ID Uploaded</h4>
+                      <p className="text-xs text-stone-400 leading-relaxed">
+                        No uploaded verification photo is attached to this alumni request record.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {selfieViewerImageUrl && (
+                  <div className="px-4 py-2 bg-stone-950/60 border-t border-white/10 text-[11px] text-stone-400 flex items-center justify-between gap-2 shrink-0">
+                    <span>Click photo or use zoom controls to inspect face & ID details.</span>
+                    {selfieViewerUploadedAt && (
+                      <span className="font-mono">
+                        Uploaded {new Date(selfieViewerUploadedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Corresponding Alumni Request Information & Registrar Archive */}
+              <div className="lg:col-span-5 p-5 space-y-4 text-xs bg-white">
+                <div className="flex items-center justify-between gap-2 pb-2 border-b border-stone-100">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500">
+                    Submitted Request Details
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                    selfieViewerTarget.isPending
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : selfieViewerTarget.currentStatusLabel.includes('Verified')
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-stone-100 text-stone-700 border-stone-200'
+                  }`}>
+                    {selfieViewerTarget.currentStatusLabel}
+                  </span>
+                </div>
+
+                <div className="bg-stone-50 rounded-xl border border-stone-200/80 p-3.5 space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">
+                    Personal & Academic Information
+                  </span>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-stone-500">Full Name:</span>
+                      <span className="font-bold text-stone-900 text-right">{selfieViewerTarget.applicantName}</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-stone-500">Email:</span>
+                      <span className="font-mono text-stone-800 text-right break-all">{selfieViewerTarget.applicantEmail || 'N/A'}</span>
+                    </div>
+                    {selfieViewerTarget.applicantPhone && (
+                      <div className="flex justify-between gap-3">
+                        <span className="text-stone-500">Phone:</span>
+                        <span className="font-mono text-stone-800 text-right">{selfieViewerTarget.applicantPhone}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between gap-3">
+                      <span className="text-stone-500">Account Role:</span>
+                      <span className="font-semibold text-stone-800">Alumni</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-stone-500">Student ID:</span>
+                      <span className="font-mono font-bold text-stone-900">{selfieViewerTarget.studentId || 'Unlisted / Pending'}</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-stone-500">Degree Program:</span>
+                      <span className="font-semibold text-stone-800 text-right">{selfieViewerTarget.course || 'Not specified'}</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-stone-500">Graduation Batch:</span>
+                      <span className="font-semibold text-stone-800">Class of {selfieViewerTarget.batch || 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-stone-50 rounded-xl border border-stone-200/80 p-3.5 space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">
+                    Available Registrar Record
+                  </span>
+                  {selfieViewerTarget.registryRecord ? (
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between gap-3">
+                        <span className="text-stone-500">Archive ID:</span>
+                        <span className="font-mono font-bold text-emerald-800">{selfieViewerTarget.registryRecord.studentId}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-stone-500">Archive Name:</span>
+                        <span className="font-bold text-stone-900 text-right">{selfieViewerTarget.registryRecord.fullName}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-stone-500">Accredited Degree:</span>
+                        <span className="font-semibold text-stone-800 text-right">{selfieViewerTarget.registryRecord.course}</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-stone-500">Class of:</span>
+                        <span className="font-semibold text-stone-800">{selfieViewerTarget.registryRecord.batchYear}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-stone-500">
+                      No matching electronic record found in the Registrar masterlist. Manual verification against uploaded Selfie with ID and archive records required.
+                    </p>
+                  )}
+                </div>
+
+                {selfieViewerTarget.notes && (
+                  <div className="bg-amber-50/70 rounded-xl border border-amber-200/80 p-3 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-stone-700 block">
+                      {selfieViewerTarget.conflict && isStudentIdDisputeRecord(selfieViewerTarget.conflict)
+                        ? 'Dispute Explanation & Supporting Statement'
+                        : 'Academic Details & Remarks'}
+                    </span>
+                    <p className="text-[11px] text-stone-700 whitespace-pre-wrap leading-relaxed">
+                      {selfieViewerTarget.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3.5 bg-stone-50 border-t border-stone-200 flex items-center justify-between gap-2 flex-wrap shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelfieViewerTarget(null)}
+                className="px-4 py-2 rounded-xl border border-stone-200 bg-white hover:bg-stone-100 text-stone-700 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Close Viewer
+              </button>
+
+              {selfieViewerTarget.isPending && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openRejectConfirmation(selfieViewerTarget)}
+                    className="px-3.5 py-2 bg-stone-200 hover:bg-stone-300 text-stone-900 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openApproveConfirmation(selfieViewerTarget)}
+                    className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Approve & Verify</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          APPROVE & VERIFY CONFIRMATION DIALOG
+          ======================================================== */}
+      {approveConfirmTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-xs"
+          onClick={() => !isSubmittingDecision && setApproveConfirmTarget(null)}
+        >
+          <div
+            className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 bg-stone-50 border-b border-stone-200 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+                <h3 className="font-bold text-sm text-stone-900">Approve & Verify Alumni</h3>
+              </div>
+              <button
+                type="button"
+                disabled={isSubmittingDecision}
+                onClick={() => setApproveConfirmTarget(null)}
+                className="p-1 rounded-lg text-stone-400 hover:text-stone-700 cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <p className="text-sm font-semibold text-stone-900 leading-relaxed">
+                Are you sure you want to approve and verify this Alumni's identity and academic records?
+              </p>
+
+              {/* Reviewer Verification Examination Summary */}
+              <div className="rounded-xl border border-stone-200 bg-stone-50 p-3.5 space-y-2.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">
+                  Pre-Approval Verification Review
+                </span>
+                <div className="space-y-1.5 text-[11px]">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-stone-500">Personal Information:</span>
+                    <span className="font-bold text-stone-900 text-right">
+                      {approveConfirmTarget.applicantName} ({approveConfirmTarget.applicantEmail || 'No email'})
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-stone-500">Academic Details:</span>
+                    <span className="font-semibold text-stone-800 text-right">
+                      {approveConfirmTarget.course || 'N/A'} • Class of {approveConfirmTarget.batch || 'N/A'} ({approveConfirmTarget.studentId || 'Unlisted ID'})
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2 items-center">
+                    <span className="text-stone-500">Uploaded Selfie with ID:</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-semibold ${
+                        hasUploadedSelfieForTarget({ user: approveConfirmTarget.user, conflict: approveConfirmTarget.conflict })
+                          ? 'text-emerald-700'
+                          : 'text-amber-700'
+                      }`}>
+                        {hasUploadedSelfieForTarget({ user: approveConfirmTarget.user, conflict: approveConfirmTarget.conflict })
+                          ? 'Attached'
+                          : 'Not attached'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => openSelfieViewer(approveConfirmTarget)}
+                        className="text-[11px] font-bold text-[#8B181B] hover:underline cursor-pointer"
+                      >
+                        Inspect Photo
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-stone-500">Registrar Archive:</span>
+                    <span className="font-semibold text-stone-800 text-right">
+                      {approveConfirmTarget.registryRecord
+                        ? `Matched: ${approveConfirmTarget.registryRecord.fullName} (${approveConfirmTarget.registryRecord.studentId})`
+                        : 'Manual archive review (no electronic match)'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-emerald-50/70 border border-emerald-200/80 p-3 text-[11px] text-emerald-900 leading-relaxed">
+                Confirming will mark the verification request as <strong>Approved / Verified</strong>, keep the account role as <strong>Alumni</strong>, activate verified Alumni access, and record your reviewing details.
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  disabled={isSubmittingDecision}
+                  onClick={() => setApproveConfirmTarget(null)}
+                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-700 hover:bg-stone-100 font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingDecision}
+                  onClick={handleConfirmApproveAndVerify}
+                  className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>{isSubmittingDecision ? 'Verifying...' : 'Confirm Approval'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          REJECT VERIFICATION REQUEST CONFIRMATION DIALOG
+          ======================================================== */}
+      {rejectConfirmTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-xs"
+          onClick={() => !isSubmittingDecision && setRejectConfirmTarget(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 bg-stone-50 border-b border-stone-200 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-red-50 text-[#8B181B] border border-red-200 flex items-center justify-center">
+                  <UserX className="w-4 h-4" strokeWidth={1.75} />
+                </div>
+                <h3 className="font-bold text-sm text-stone-900">Reject Verification Request</h3>
+              </div>
+              <button
+                type="button"
+                disabled={isSubmittingDecision}
+                onClick={() => setRejectConfirmTarget(null)}
+                className="p-1 rounded-lg text-stone-400 hover:text-stone-700 cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <p className="text-stone-700 leading-relaxed">
+                Are you sure you want to reject the verification request for{' '}
+                <strong className="text-stone-900">{rejectConfirmTarget.applicantName}</strong>{' '}
+                (<span className="font-mono">{rejectConfirmTarget.applicantEmail || 'N/A'}</span>)? Their account role will remain <strong>Alumni</strong> and their verification status will be updated to <strong>Rejected</strong>.
+              </p>
+
+              <div>
+                <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  Rejection Reason <span className="text-red-600">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={rejectReasonText}
+                  onChange={(e) => {
+                    setRejectReasonText(e.target.value);
+                    if (rejectReasonError && e.target.value.trim()) {
+                      setRejectReasonError(null);
+                    }
+                  }}
+                  placeholder="Specify why this verification request is being rejected (e.g., unreadable ID details, photo mismatch, or unconfirmed graduation record)..."
+                  className={`w-full px-3 py-2 bg-stone-50 border rounded-xl text-xs text-stone-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 resize-none ${
+                    rejectReasonError ? 'border-red-300' : 'border-stone-200'
+                  }`}
+                />
+                {rejectReasonError && (
+                  <p className="text-[11px] font-semibold text-red-600 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{rejectReasonError}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+                <button
+                  type="button"
+                  disabled={isSubmittingDecision}
+                  onClick={() => setRejectConfirmTarget(null)}
+                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-700 hover:bg-stone-100 font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSubmittingDecision}
+                  onClick={handleConfirmRejectRequest}
+                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>{isSubmittingDecision ? 'Rejecting...' : 'Confirm Rejection'}</span>
                 </button>
               </div>
             </div>

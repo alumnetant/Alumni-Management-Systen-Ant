@@ -64,8 +64,6 @@ import {
   isBiometricAppLockEnabled,
   setBiometricAppLockEnabled,
   verifyBiometricForDashboardAccess,
-  setCampusPin,
-  getCampusPinConfig,
   BiometricAvailability
 } from '../../services/biometricAuthService';
 import {
@@ -223,12 +221,6 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  // Campus PIN state
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [newCampusPin, setNewCampusPin] = useState('');
-  const [confirmCampusPin, setConfirmCampusPin] = useState('');
-  const [pinDialogError, setPinDialogError] = useState<string | null>(null);
-
   const handleTestBiometrics = async (modality: 'face' | 'fingerprint' = 'face') => {
     setIsBiometricTesting(true);
     try {
@@ -248,27 +240,6 @@ export const SettingsView: React.FC = () => {
       showToast(err?.message || 'Biometric recognition test cancelled.', 'error');
     } finally {
       setIsBiometricTesting(false);
-    }
-  };
-
-  const handleSaveCampusPin = async () => {
-    setPinDialogError(null);
-    if (!newCampusPin || newCampusPin.length < 4 || newCampusPin.length > 6 || !/^\d+$/.test(newCampusPin)) {
-      setPinDialogError('Emergency PIN must be 4 to 6 numeric digits.');
-      return;
-    }
-    if (newCampusPin !== confirmCampusPin) {
-      setPinDialogError('PINs do not match. Please verify both fields.');
-      return;
-    }
-    const success = await setCampusPin(newCampusPin, currentUser?.uid);
-    if (success) {
-      showToast('Emergency PIN updated successfully!', 'success');
-      setShowPinModal(false);
-      setNewCampusPin('');
-      setConfirmCampusPin('');
-    } else {
-      setPinDialogError('Failed to update Emergency PIN.');
     }
   };
 
@@ -412,10 +383,10 @@ export const SettingsView: React.FC = () => {
     setShowEmailOtpModal(true);
   };
 
-  const handleConfirmEmailOtp = () => {
+  const handleConfirmEmailOtp = async () => {
     if (!pendingEmail) return;
-    changeEmail(pendingEmail);
-    showToast(`Email successfully updated to ${pendingEmail}!`, 'success');
+    const updated = await changeEmail(pendingEmail);
+    if (!updated) return;
     setShowEmailOtpModal(false);
     setShowEmailModal(false);
     setNewEmail('');
@@ -931,7 +902,7 @@ export const SettingsView: React.FC = () => {
                       </span>
                     </h4>
                     <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                      Configure Face Detection, hardware Fingerprint / Touch ID sensors, and Emergency PIN fallback
+                      Configure Face Detection and hardware Fingerprint / Touch ID sensors
                     </p>
                   </div>
                 </div>
@@ -961,7 +932,7 @@ export const SettingsView: React.FC = () => {
                         </span>
                       </div>
                       <p className="text-stone-500 dark:text-stone-400 text-[11px] mt-1 leading-relaxed">
-                        Protects collegiate records with optical Face Detection, hardware Touch ID / Fingerprint sensor, and Emergency PIN fallback before entering the portal.
+                        Protects collegiate records with optical Face Detection and hardware Touch ID / Fingerprint sensors before entering the portal.
                       </p>
                     </div>
 
@@ -1085,37 +1056,6 @@ export const SettingsView: React.FC = () => {
                       </button>
                     </div>
                   )}
-                </div>
-
-                {/* 3. Emergency PIN Fallback Configuration */}
-                <div className="p-4 rounded-2xl bg-white dark:bg-stone-800/70 border border-stone-200/80 dark:border-stone-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
-                  <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-stone-900 dark:text-stone-100 text-xs flex items-center gap-1.5">
-                        <KeyRound className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
-                        <span>Emergency PIN</span>
-                      </p>
-                      <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
-                        {getCampusPinConfig(currentUser.uid).isConfigured ? 'CUSTOM CONFIGURED' : 'DEFAULT PIN'}
-                      </span>
-                    </div>
-                    <p className="text-stone-500 dark:text-stone-400 text-[11px] mt-0.5">
-                      4-6 digit numeric passcode used if camera is inaccessible or hardware biometric sensors fail
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPinDialogError(null);
-                      setNewCampusPin('');
-                      setConfirmCampusPin('');
-                      setShowPinModal(true);
-                    }}
-                    className="px-3 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs shrink-0 self-start sm:self-auto"
-                  >
-                    Configure PIN
-                  </button>
                 </div>
               </div>
             </div>
@@ -2274,107 +2214,6 @@ export const SettingsView: React.FC = () => {
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
                   Permanently Delete
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ========================================================================= */}
-      {/* CAMPUS PIN CONFIGURATION MODAL                                            */}
-      {/* ========================================================================= */}
-      <AnimatePresence>
-        {showPinModal && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              className="bg-white dark:bg-stone-900 rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-stone-200 dark:border-stone-800 text-xs space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-red-50 dark:bg-rose-950/50 text-[#8B181B] dark:text-rose-400 flex items-center justify-center">
-                    <KeyRound className="w-4 h-4 stroke-[2]" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-stone-900 dark:text-stone-100">Emergency PIN</h3>
-                    <p className="text-[11px] text-stone-500 dark:text-stone-400">4 to 6 digit backup passcode</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPinModal(false)}
-                  className="p-1 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {pinDialogError && (
-                <div className="p-2.5 rounded-xl bg-red-50 dark:bg-rose-950/40 border border-red-200 dark:border-rose-900 text-red-800 dark:text-rose-300 text-[11px] flex items-center gap-2">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-600 dark:text-rose-400" />
-                  <span>{pinDialogError}</span>
-                </div>
-              )}
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
-                    New 4-6 Digit PIN
-                  </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={newCampusPin}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
-                      setNewCampusPin(val);
-                    }}
-                    placeholder="Enter 4-6 digits"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B] text-center tracking-widest text-base font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-stone-700 dark:text-stone-300 mb-1">
-                    Confirm PIN
-                  </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={6}
-                    value={confirmCampusPin}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
-                      setConfirmCampusPin(val);
-                    }}
-                    placeholder="Re-enter PIN"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-300 dark:border-stone-700 text-stone-900 dark:text-stone-100 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B] text-center tracking-widest text-base font-mono"
-                  />
-                </div>
-
-                <p className="text-[10px] text-stone-400 dark:text-stone-500 leading-relaxed">
-                  Customizing this Emergency PIN protects your account if cameras or fingerprint sensors are unavailable.
-                </p>
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPinModal(false)}
-                  className="px-4 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 rounded-xl font-semibold transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveCampusPin}
-                  className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold transition-all shadow-2xs cursor-pointer"
-                >
-                  Save Emergency PIN
                 </button>
               </div>
             </motion.div>

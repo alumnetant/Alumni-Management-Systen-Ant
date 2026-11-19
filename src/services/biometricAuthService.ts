@@ -184,7 +184,9 @@ export function getPreferredBiometricModality(): 'face' | 'fingerprint' {
  */
 export function setPreferredBiometricModality(modality: 'face' | 'fingerprint'): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(BIOMETRIC_PREFERRED_MODALITY_KEY, modality);
+  try {
+    localStorage.setItem(BIOMETRIC_PREFERRED_MODALITY_KEY, modality);
+  } catch {}
 }
 
 /**
@@ -510,7 +512,7 @@ export async function verifyCapacitorBiometrics(
       description: isFace
         ? 'Align your face inside the viewfinder to authenticate.'
         : 'Place your registered finger on the sensor to unlock.',
-      negativeButtonText: 'Use Emergency PIN',
+      negativeButtonText: 'Use Account Password',
       maxAttempts: 3
     });
 
@@ -635,7 +637,9 @@ export async function verifyCampusPin(
       } catch {}
       if (isMatch) {
         const upgraded = await hashPin(enteredPin);
-        localStorage.setItem(key, upgraded);
+        try {
+          localStorage.setItem(key, upgraded);
+        } catch {}
       }
     }
   } else {
@@ -643,7 +647,9 @@ export async function verifyCampusPin(
     const defaultSaltedHash = await hashPin(DEFAULT_CAMPUS_PIN);
     isMatch = await verifySecretClient(enteredPin, defaultSaltedHash);
     if (isMatch) {
-      localStorage.setItem(key, defaultSaltedHash);
+      try {
+        localStorage.setItem(key, defaultSaltedHash);
+      } catch {}
     }
   }
 
@@ -657,13 +663,17 @@ export async function verifyCampusPin(
   const lockoutKey = userId ? `${PIN_LOCKOUT_UNTIL_KEY}_${userId}` : PIN_LOCKOUT_UNTIL_KEY;
 
   const currentFailed = parseInt(localStorage.getItem(attemptsKey) || '0', 10) + 1;
-  localStorage.setItem(attemptsKey, currentFailed.toString());
+  try {
+    localStorage.setItem(attemptsKey, currentFailed.toString());
+  } catch {}
 
   await triggerHaptic('error');
 
   if (currentFailed >= 5) {
     const lockUntil = Date.now() + 60 * 1000;
-    localStorage.setItem(lockoutKey, lockUntil.toString());
+    try {
+      localStorage.setItem(lockoutKey, lockUntil.toString());
+    } catch {}
     return {
       success: false,
       error: 'Too many incorrect attempts. Emergency PIN locked for 60 seconds.',
@@ -684,24 +694,11 @@ export async function verifyCampusPin(
  * Unified verification method for dashboard access
  */
 export async function verifyBiometricForDashboardAccess(options?: {
-  modality?: 'face' | 'fingerprint' | 'pin';
-  pin?: string;
+  modality?: 'face' | 'fingerprint';
   userName?: string;
   userId?: string;
 }): Promise<{ success: boolean; biometryType?: string; error?: string }> {
   const modality = options?.modality || 'fingerprint';
-
-  if (modality === 'pin') {
-    if (!options?.pin) {
-      return { success: false, error: 'Emergency PIN is required.' };
-    }
-    const pinRes = await verifyCampusPin(options.pin, options.userId);
-    return {
-      success: pinRes.success,
-      biometryType: 'pin',
-      error: pinRes.error
-    };
-  }
 
   if (modality === 'fingerprint') {
     if (Capacitor.isNativePlatform()) {
@@ -759,10 +756,12 @@ export function isBiometricAppLockEnabled(userId?: string): boolean {
 export function setBiometricAppLockEnabled(userId: string, enabled: boolean): void {
   if (typeof window === 'undefined') return;
   if (enabled) {
-    localStorage.setItem(BIOMETRIC_APP_LOCK_KEY, 'true');
-    if (userId) {
-      localStorage.setItem(`${BIOMETRIC_APP_LOCK_KEY}_${userId}`, 'true');
-    }
+    try {
+      localStorage.setItem(BIOMETRIC_APP_LOCK_KEY, 'true');
+      if (userId) {
+        localStorage.setItem(`${BIOMETRIC_APP_LOCK_KEY}_${userId}`, 'true');
+      }
+    } catch {}
   } else {
     if (userId) {
       localStorage.removeItem(`${BIOMETRIC_APP_LOCK_KEY}_${userId}`);

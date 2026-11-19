@@ -204,9 +204,20 @@ export interface UserProfile {
   verificationFlagReason?: string;
   verificationProofUrl?: string;
   verificationProofName?: string;
+  selfieWithIdUrl?: string;
+  selfieWithIdName?: string;
+  selfieWithIdUploadedAt?: string;
+  verificationRequestId?: string;
+  verificationSubmissionSource?: VerificationSubmissionSource;
   verificationNotes?: string;
   verificationSubmittedAt?: string;
   verificationExpiresAt?: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+  reviewedByUid?: string;
+  reviewedByName?: string;
+  reviewedByRole?: string;
+  reviewedAt?: string;
   piiEncrypted?: boolean;
   piiPurged?: boolean;
   piiPurgedAt?: string;
@@ -831,15 +842,26 @@ export interface RegistrarVerificationResult {
   record?: StudentVerificationRecord;
 }
 
+export type VerificationSubmissionSource =
+  | 'dispute_student_id_claim'
+  | 'request_verification';
+
 export interface RegistrationConflictRecord {
   id: string;
   applicantUid?: string;
   applicantName: string;
   applicantEmail: string;
+  applicantPhone?: string;
   applicantStudentId?: string;
   applicantBatch?: string;
   applicantCourse?: string;
   targetRegistryStudentId?: string;
+  originalOwnerUid?: string;
+  originalOwnerName?: string;
+  originalOwnerEmail?: string;
+  originalOwnerStudentId?: string;
+  originalOwnerCourse?: string;
+  originalOwnerBatch?: string;
   registryRecord?: StudentVerificationRecord;
   conflictType:
     | 'name_mismatch'
@@ -850,15 +872,28 @@ export interface RegistrationConflictRecord {
     | 'unlisted_record'
     | 'manual_verification_request'
     | 'claimed_id_dispute';
+  submissionSource?: VerificationSubmissionSource;
+  requestType?: 'claimed_id_dispute' | 'manual_verification_request' | 'registration_conflict';
   severity: 'high' | 'medium' | 'low';
   confidenceScore: number;
   flaggedAt: string;
   verificationExpiresAt?: string;
   status: 'pending' | 'resolved_verified' | 'resolved_rejected' | 'dismissed' | 'expired';
   notes: string;
+  disputeExplanation?: string;
+  selfieWithIdUrl?: string;
+  selfieWithIdName?: string;
+  selfieWithIdUploadedAt?: string;
+  selfieStoragePath?: string;
+  verificationRequestId?: string;
   resolutionNote?: string;
+  rejectionReason?: string;
   resolvedAt?: string;
   resolvedBy?: string;
+  reviewedByUid?: string;
+  reviewedByName?: string;
+  reviewedByRole?: string;
+  reviewedAt?: string;
   piiPurged?: boolean;
   piiPurgedAt?: string;
   anonymizedBlockId?: string;

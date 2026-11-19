@@ -318,7 +318,7 @@ interface AlumniContextType {
   resetPassword: (email: string) => boolean;
   resetUserPasswordByEmail: (email: string, newPass: string) => boolean;
   deleteAccount: () => Promise<boolean> | boolean;
-  changeEmail: (newEmail: string) => boolean;
+  changeEmail: (newEmail: string) => Promise<boolean> | boolean;
   changePassword: (
     oldOrNewPass: string,
     newPass?: string
@@ -494,7 +494,26 @@ interface AlumniContextType {
 
   // Admin Actions
   verifyUser: (uid: string) => void;
-  setUserVerified: (uid: string, status?: boolean) => void;
+  setUserVerified: (
+    uid: string,
+    status?: boolean,
+    options?: {
+      rejectionReason?: string;
+      reviewedByUid?: string;
+      reviewedByName?: string;
+      reviewedByRole?: string;
+      reviewedAt?: string;
+      silentToast?: boolean;
+      conflictId?: string;
+      requestId?: string;
+      submissionSource?: 'dispute_student_id_claim' | 'request_verification';
+      requestType?: 'claimed_id_dispute' | 'manual_verification_request' | 'registration_conflict';
+      studentId?: string;
+      course?: string;
+      batch?: string;
+      notes?: string;
+    }
+  ) => void;
   updateUserRole: (uid: string, newRole: UserRole) => Promise<{ success: boolean; message?: string }>;
   setUserRole: (uid: string, newRole: UserRole) => Promise<{ success: boolean; message?: string }>;
   deleteAlumni: (uid: string) => Promise<boolean>;
@@ -645,18 +664,130 @@ export function isPendingAccountExpired(u: Partial<UserProfile> | null | undefin
   return expiresMs > 0 && nowMs >= expiresMs;
 }
 
+function stripLargeInlineDataUrls<T>(value: T, maxLen = 24000): T {
+  const cleanNode = (node: any): any => {
+    if (typeof node === 'string') {
+      if (node.startsWith('data:') && node.length > maxLen) {
+        return undefined;
+      }
+      return node;
+    }
+    if (Array.isArray(node)) {
+      return node.map((item) => cleanNode(item)).filter((item) => item !== undefined);
+    }
+    if (node && typeof node === 'object') {
+      const out: Record<string, any> = {};
+      for (const [k, v] of Object.entries(node)) {
+        const cleanedVal = cleanNode(v);
+        if (cleanedVal !== undefined) {
+          out[k] = cleanedVal;
+        }
+      }
+      return out;
+    }
+    return node;
+  };
+  return cleanNode(value) as T;
+}
+
+const EVICTABLE_MEDIA_CACHE_KEYS = [
+  'alumni_gallery_v5',
+  'alumni_feed_posts_v1',
+  'alumni_events_v1',
+  'alumni_announcements_v1',
+  'alumni_opportunities_v1',
+  'alumni_backups_v1',
+  'alumni_audit_logs_v1',
+  'st_cecilia_registry_conflicts',
+  'alumni_messages_v2',
+  'alumni_notifications_v1'
+];
+
+const MAX_CACHE_ENTRY_CHARS = 300_000;
+
+function pruneOversizedLocalStorageCaches(excludeKey?: string): void {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  for (const cacheKey of EVICTABLE_MEDIA_CACHE_KEYS) {
+    if (excludeKey && cacheKey === excludeKey) continue;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw || raw.length <= MAX_CACHE_ENTRY_CHARS) continue;
+      try {
+        const parsed = JSON.parse(raw);
+        const compacted = stripLargeInlineDataUrls(parsed);
+        const compactedJson = JSON.stringify(compacted);
+        if (compactedJson.length <= MAX_CACHE_ENTRY_CHARS) {
+          localStorage.setItem(cacheKey, compactedJson);
+        } else if (Array.isArray(compacted)) {
+          localStorage.setItem(cacheKey, JSON.stringify(compacted.slice(0, 15)));
+        } else {
+          localStorage.removeItem(cacheKey);
+        }
+      } catch {
+        localStorage.removeItem(cacheKey);
+      }
+    } catch {}
+  }
+}
+
+// Proactively compact any legacy multi-megabyte media caches left in localStorage on boot
+pruneOversizedLocalStorageCaches();
+
+function safeSetLocalStorageJson(key: string, data: unknown): void {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  let serialized = '';
+  try {
+    serialized = JSON.stringify(data);
+  } catch {
+    return;
+  }
+
+  // Never allow a single non-critical cache entry to consume multi-megabyte localStorage quota with inline base64 images
+  const isAuthOrVaultKey =
+    key === CREDENTIALS_VAULT_KEY ||
+    key === 'alumni_user' ||
+    key === 'alumni_auth_session_real_v1';
+
+  const payloadToWrite =
+    !isAuthOrVaultKey && serialized.length > MAX_CACHE_ENTRY_CHARS
+      ? JSON.stringify(stripLargeInlineDataUrls(data))
+      : serialized;
+
+  try {
+    localStorage.setItem(key, payloadToWrite);
+    return;
+  } catch {
+    // QuotaExceededError or private-mode restriction: evict bloated media caches and retry compact payload
+  }
+
+  pruneOversizedLocalStorageCaches(key);
+
+  try {
+    const compact = stripLargeInlineDataUrls(data);
+    localStorage.setItem(key, JSON.stringify(compact));
+    return;
+  } catch {
+    // Still over quota: if array, cache only the most recent 15 compact items
+  }
+
+  if (Array.isArray(data)) {
+    try {
+      const recentCompact = stripLargeInlineDataUrls(data.slice(0, 15));
+      localStorage.setItem(key, JSON.stringify(recentCompact));
+    } catch {
+      // Final graceful skip so React state & Firestore/server persistence remain unaffected
+    }
+  }
+}
+
 export function persistUsersSafe(list: UserProfile[]): void {
   const cleaned = (list || []).map((u) => stripPlaintextSecretsFromUser(u));
   const seq = ++usersStorageWriteSeq;
-  try {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(cleaned));
-  } catch {}
+  safeSetLocalStorageJson(STORAGE_KEYS.USERS, cleaned);
   Promise.all(cleaned.map((u) => encryptUserPiiForStorage(u)))
     .then((encrypted) => {
       if (seq !== usersStorageWriteSeq) return;
-      try {
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(encrypted));
-      } catch {}
+      safeSetLocalStorageJson(STORAGE_KEYS.USERS, encrypted);
     })
     .catch(() => {});
 }
@@ -701,7 +832,9 @@ function writeVaultEntryToStorage(entry: StoredCredentialEntry): void {
     vault[eClean] = safeEntry;
     vault[`scc-${eClean}`] = safeEntry;
   }
-  localStorage.setItem(CREDENTIALS_VAULT_KEY, JSON.stringify(vault));
+  try {
+    localStorage.setItem(CREDENTIALS_VAULT_KEY, JSON.stringify(vault));
+  } catch {}
 }
 
 export function saveCredentialToVault(entry: StoredCredentialEntry) {
@@ -1310,12 +1443,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     []
   );
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
-    } catch {}
-  }, [notifications]);
-
   const [events, setEvents] = useState<AlumniEvent[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.EVENTS);
@@ -1331,12 +1458,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
-    } catch {}
-  }, [events]);
-
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.ANNOUNCEMENTS);
@@ -1346,12 +1467,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return INITIAL_ANNOUNCEMENTS;
     }
   });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.ANNOUNCEMENTS, JSON.stringify(announcements));
-    } catch {}
-  }, [announcements]);
 
   const [opportunities, setOpportunities] = useState<Opportunity[]>(() => {
     try {
@@ -1367,12 +1482,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.OPPORTUNITIES, JSON.stringify(opportunities));
-    } catch {}
-  }, [opportunities]);
-
   const [jobApplications, setJobApplications] = useState<JobApplication[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.APPLICATIONS);
@@ -1383,12 +1492,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.APPLICATIONS, JSON.stringify(jobApplications));
-    } catch {}
-  }, [jobApplications]);
-
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.GALLERY);
@@ -1398,12 +1501,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return INITIAL_GALLERY_ITEMS;
     }
   });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(galleryItems));
-    } catch {}
-  }, [galleryItems]);
 
   const pendingLocalPostsRef = useRef<Map<string, InstitutionalFeedPost>>(new Map());
   const deletedFeedPostIdsRef = useRef<Set<string>>(new Set());
@@ -1427,9 +1524,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   });
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(feedPosts));
-    } catch {}
+    safeSetLocalStorageJson(STORAGE_KEYS.FEED_POSTS, feedPosts);
   }, [feedPosts]);
 
   // One-time purge of any residual seed items from localStorage
@@ -1451,7 +1546,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             const parsed = JSON.parse(item);
             if (Array.isArray(parsed)) {
               const cleaned = parsed.filter((x: any) => !isSeedId(x?.id));
-              localStorage.setItem(key, JSON.stringify(cleaned));
+              if (cleaned.length !== parsed.length) {
+                safeSetLocalStorageJson(key, cleaned);
+              }
             }
           } catch {}
         }
@@ -1463,12 +1560,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const parsedMsgs = JSON.parse(msgs);
           if (typeof parsedMsgs === 'object' && parsedMsgs !== null) {
             const cleanMsgs: Record<string, ChatMessage[]> = {};
+            let removedAny = false;
             Object.entries(parsedMsgs).forEach(([chatId, mList]) => {
               if (!isSeedId(chatId) && Array.isArray(mList)) {
-                cleanMsgs[chatId] = (mList as ChatMessage[]).filter((m) => !isSeedId(m?.id));
+                const filtered = (mList as ChatMessage[]).filter((m) => !isSeedId(m?.id));
+                if (filtered.length !== mList.length) removedAny = true;
+                cleanMsgs[chatId] = filtered;
+              } else {
+                removedAny = true;
               }
             });
-            localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(cleanMsgs));
+            if (removedAny) {
+              safeSetLocalStorageJson(STORAGE_KEYS.MESSAGES, cleanMsgs);
+            }
           }
         } catch {}
       }
@@ -1931,9 +2035,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (liveEvents && liveEvents.length > 0) {
             const cleanEvents = liveEvents.filter((e) => !isSeedId(e.id));
             setEvents(cleanEvents);
-            try {
-              localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(cleanEvents));
-            } catch {}
+            safeSetLocalStorageJson(STORAGE_KEYS.EVENTS, cleanEvents);
           }
         } catch (err) {
           console.warn('Background sync events notice:', err);
@@ -1959,9 +2061,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (liveAnnouncements && liveAnnouncements.length > 0) {
             const cleanAnnouncements = liveAnnouncements.filter((a) => !isSeedId(a.id));
             setAnnouncements(cleanAnnouncements);
-            try {
-              localStorage.setItem(STORAGE_KEYS.ANNOUNCEMENTS, JSON.stringify(cleanAnnouncements));
-            } catch {}
+            safeSetLocalStorageJson(STORAGE_KEYS.ANNOUNCEMENTS, cleanAnnouncements);
           }
         } catch (err) {
           console.warn('Background sync announcements notice:', err);
@@ -1975,9 +2075,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (liveOpps && liveOpps.length > 0) {
             const cleanOpps = liveOpps.filter((o) => !isSeedId(o.id));
             setOpportunities(cleanOpps);
-            try {
-              localStorage.setItem(STORAGE_KEYS.OPPORTUNITIES, JSON.stringify(cleanOpps));
-            } catch {}
+            safeSetLocalStorageJson(STORAGE_KEYS.OPPORTUNITIES, cleanOpps);
           }
         } catch (err) {
           console.warn('Background sync opportunities notice:', err);
@@ -1990,9 +2088,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           const liveApps = await getJobApplicationsFromFirestore();
           if (liveApps && liveApps.length > 0) {
             setJobApplications(liveApps);
-            try {
-              localStorage.setItem(STORAGE_KEYS.APPLICATIONS, JSON.stringify(liveApps));
-            } catch {}
+            safeSetLocalStorageJson(STORAGE_KEYS.APPLICATIONS, liveApps);
           } else {
             setJobApplications([]);
           }
@@ -2008,9 +2104,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           if (livePosts && livePosts.length > 0) {
             const cleanPosts = dedupePostsById(livePosts.filter((p) => !isSeedId(p.id)));
             setFeedPosts(cleanPosts);
-            try {
-              localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(cleanPosts));
-            } catch {}
+            safeSetLocalStorageJson(STORAGE_KEYS.FEED_POSTS, cleanPosts);
           }
         } catch (err) {
           console.warn('Background sync feed posts notice:', err);
@@ -2057,9 +2151,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               const merged = Array.from(map.values()).sort(
                 (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
               );
-              try {
-                localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(merged));
-              } catch {}
+              safeSetLocalStorageJson(STORAGE_KEYS.NOTIFICATIONS, merged);
               return merged;
             });
           }
@@ -2243,83 +2335,85 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [users]);
 
   useEffect(() => {
-    if (currentUserId) {
-      localStorage.setItem(STORAGE_KEYS.USER_ID, currentUserId);
-      localStorage.setItem('alumni_auth_session_real_v1', currentUserId);
-    } else if (authReady) {
-      // ONLY remove stored session if authentication initialization is verified and completed
-      // Never wipe stored session prematurely during initial page load!
-      localStorage.removeItem(STORAGE_KEYS.USER_ID);
-      localStorage.removeItem('alumni_auth_session_real_v1');
-    }
+    try {
+      if (currentUserId) {
+        localStorage.setItem(STORAGE_KEYS.USER_ID, currentUserId);
+        localStorage.setItem('alumni_auth_session_real_v1', currentUserId);
+      } else if (authReady) {
+        // ONLY remove stored session if authentication initialization is verified and completed
+        // Never wipe stored session prematurely during initial page load!
+        localStorage.removeItem(STORAGE_KEYS.USER_ID);
+        localStorage.removeItem('alumni_auth_session_real_v1');
+      }
+    } catch {}
   }, [currentUserId, authReady]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.REQUESTS, JSON.stringify(friendRequests));
+    safeSetLocalStorageJson(STORAGE_KEYS.REQUESTS, friendRequests);
   }, [friendRequests]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CHATS, JSON.stringify(chats));
+    safeSetLocalStorageJson(STORAGE_KEYS.CHATS, chats);
   }, [chats]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages));
+    safeSetLocalStorageJson(STORAGE_KEYS.MESSAGES, messages);
   }, [messages]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
+    safeSetLocalStorageJson(STORAGE_KEYS.NOTIFICATIONS, notifications);
   }, [notifications]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(events));
+    safeSetLocalStorageJson(STORAGE_KEYS.EVENTS, events);
   }, [events]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.ANNOUNCEMENTS, JSON.stringify(announcements));
+    safeSetLocalStorageJson(STORAGE_KEYS.ANNOUNCEMENTS, announcements);
   }, [announcements]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.OPPORTUNITIES, JSON.stringify(opportunities));
+    safeSetLocalStorageJson(STORAGE_KEYS.OPPORTUNITIES, opportunities);
   }, [opportunities]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.APPLICATIONS, JSON.stringify(jobApplications));
+    safeSetLocalStorageJson(STORAGE_KEYS.APPLICATIONS, jobApplications);
   }, [jobApplications]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CONNECTIONS, JSON.stringify(connectionsMap));
+    safeSetLocalStorageJson(STORAGE_KEYS.CONNECTIONS, connectionsMap);
   }, [connectionsMap]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FOLLOWING, JSON.stringify(followingMap));
+    safeSetLocalStorageJson(STORAGE_KEYS.FOLLOWING, followingMap);
   }, [followingMap]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(notificationSettings));
+    safeSetLocalStorageJson(STORAGE_KEYS.SETTINGS, notificationSettings);
   }, [notificationSettings]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(galleryItems));
+    safeSetLocalStorageJson(STORAGE_KEYS.GALLERY, galleryItems);
   }, [galleryItems]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.FEED_POSTS, JSON.stringify(feedPosts));
+    safeSetLocalStorageJson(STORAGE_KEYS.FEED_POSTS, feedPosts);
   }, [feedPosts]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify(auditLogs));
+    safeSetLocalStorageJson(STORAGE_KEYS.AUDIT_LOGS, auditLogs);
   }, [auditLogs]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.AUTOMATION_JOBS, JSON.stringify(automationJobs));
+    safeSetLocalStorageJson(STORAGE_KEYS.AUTOMATION_JOBS, automationJobs);
   }, [automationJobs]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CAREER_SURVEYS, JSON.stringify(careerSurveys));
+    safeSetLocalStorageJson(STORAGE_KEYS.CAREER_SURVEYS, careerSurveys);
   }, [careerSurveys]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.BACKUPS, JSON.stringify(backups));
+    safeSetLocalStorageJson(STORAGE_KEYS.BACKUPS, backups);
   }, [backups]);
 
   useEffect(() => {
@@ -4076,6 +4170,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return false;
     }
 
+    if (
+      user.role === 'alumni' &&
+      (accountStatus === 'REJECTED' || user.verificationStatus === 'rejected')
+    ) {
+      const reasonSuffix = user.rejectionReason ? ` Reason: ${user.rejectionReason}` : '';
+      showToast(
+        `Your alumni verification request was rejected.${reasonSuffix} Please contact the Registrar Office for assistance.`,
+        'error'
+      );
+      return false;
+    }
+
     // 5. Verification checks: Only enforced after credentials have passed
     if (user.role === 'alumni') {
       const isAlumVerified = !!(user.isVerified || user.verified || user.verificationStatus === 'verified' || vaultCred?.isVerified);
@@ -4380,7 +4486,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   const register = (data: Partial<UserProfile> & { password?: string }): boolean => {
-    const newUid = `user_${Date.now()}`;
+    const newUid =
+      data.uid && typeof data.uid === 'string' && data.uid.trim().length >= 4
+        ? data.uid.trim()
+        : `user_${Date.now()}`;
     // Admin accounts cannot be created by public registration (admin account created by admin only)
     let role = data.role || 'alumni';
     if (role === 'admin') {
@@ -4529,6 +4638,21 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       verified: isAlumniVerified,
       verificationStatus: isAlumniVerified ? 'verified' : (data.verificationStatus || 'pending_review'),
       accountStatus: isAlumniVerified ? 'ACTIVE' : (data.accountStatus || 'PENDING_VERIFICATION'),
+      ...(data.selfieWithIdUrl ? { selfieWithIdUrl: data.selfieWithIdUrl } : {}),
+      ...(data.selfieWithIdName ? { selfieWithIdName: data.selfieWithIdName } : {}),
+      ...(data.selfieWithIdUploadedAt ? { selfieWithIdUploadedAt: data.selfieWithIdUploadedAt } : {}),
+      ...(data.verificationSubmissionSource !== 'dispute_student_id_claim' && (data.verificationProofUrl || data.selfieWithIdUrl)
+        ? { verificationProofUrl: data.verificationProofUrl || data.selfieWithIdUrl }
+        : {}),
+      ...(data.verificationSubmissionSource !== 'dispute_student_id_claim' && (data.verificationProofName || data.selfieWithIdName)
+        ? { verificationProofName: data.verificationProofName || data.selfieWithIdName }
+        : {}),
+      ...(data.verificationSubmissionSource !== 'dispute_student_id_claim' && (data.verificationSubmittedAt || data.selfieWithIdUploadedAt)
+        ? { verificationSubmittedAt: data.verificationSubmittedAt || data.selfieWithIdUploadedAt }
+        : {}),
+      ...(data.verificationNotes ? { verificationNotes: data.verificationNotes } : {}),
+      ...(data.verificationRequestId ? { verificationRequestId: data.verificationRequestId } : {}),
+      ...(data.verificationSubmissionSource ? { verificationSubmissionSource: data.verificationSubmissionSource } : {}),
       ...(verificationExpiresAt ? { verificationExpiresAt } : {}),
       followersCount: 0,
       followingCount: 0,
@@ -4611,6 +4735,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             alumniId: newUser.alumniId,
             role: newUser.role,
             companyName: newUser.companyName,
+            isVerified: isAlumniVerified,
+            accountStatus: newUser.accountStatus,
+            isAppealRegistration,
             formLock: (data as any).formLock
           })
         });
@@ -5681,15 +5808,78 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return performFullAccountDeletion(currentUserId);
   };
 
-  const changeEmail = (newEmail: string): boolean => {
+  const changeEmail = async (newEmail: string): Promise<boolean> => {
     if (!currentUserId) return false;
-    setUsers((prev) =>
-      prev.map((u) => (u.uid === currentUserId ? { ...u, email: newEmail } : u))
+    const trimmed = newEmail.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!trimmed || !emailRegex.test(trimmed)) {
+      showToast('Please enter a valid email address.', 'error');
+      return false;
+    }
+
+    const duplicate = users.some(
+      (u) => u.uid !== currentUserId && u.email && u.email.trim().toLowerCase() === trimmed
     );
-    alumniService.updateAlumni(currentUserId, { email: newEmail }).catch((err) => {
-      console.warn('Error updating email in Firestore:', err);
+    if (duplicate) {
+      showToast(`An account registered with ${trimmed} already exists.`, 'error');
+      return false;
+    }
+
+    const targetUser = users.find((u) => u.uid === currentUserId);
+    const oldEmail = targetUser?.email?.trim().toLowerCase();
+
+    if (targetUser) {
+      const vaultCred = findCredentialInVault(oldEmail || targetUser.uid);
+      const preservedHash = targetUser.passwordHash || vaultCred?.passwordHash;
+
+      if (oldEmail && oldEmail !== trimmed) {
+        try {
+          const vault = getStoredCredentialsVault();
+          if (vault[oldEmail]?.uid === targetUser.uid) {
+            delete vault[oldEmail];
+            localStorage.setItem(CREDENTIALS_VAULT_KEY, JSON.stringify(vault));
+          }
+        } catch {}
+      }
+
+      saveCredentialToVault({
+        uid: targetUser.uid,
+        name: targetUser.name,
+        email: trimmed,
+        studentId: targetUser.studentId,
+        alumniId: targetUser.alumniId,
+        employeeId: targetUser.employeeId,
+        role: targetUser.role,
+        isVerified: Boolean(targetUser.isVerified),
+        ...(preservedHash ? { passwordHash: preservedHash } : {})
+      });
+    }
+
+    setUsers((prev) => {
+      const next = prev.map((u) =>
+        u.uid === currentUserId ? { ...u, email: trimmed, emailVerified: true } : u
+      );
+      persistUsersSafe(next);
+      return next;
     });
-    showToast(`Email updated to ${newEmail}. Verification link sent.`);
+
+    try {
+      await alumniService.updateAlumni(currentUserId, { email: trimmed, emailVerified: true });
+    } catch (err) {
+      console.warn('Error updating email in Firestore:', err);
+    }
+
+    addAuditLog({
+      action: 'EMAIL_ADDRESS_UPDATED',
+      actorId: currentUserId,
+      actorName: targetUser?.name || 'User',
+      actorRole: targetUser?.role || 'alumni',
+      category: 'security',
+      details: `Verified and updated account email to ${trimmed}`,
+      severity: 'info',
+      targetUserId: currentUserId
+    });
+    showToast(`Email address verified and updated to ${trimmed}!`, 'success');
     return true;
   };
 
@@ -9134,49 +9324,182 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   // Admin Actions
-  const setUserVerifiedExplicit = (uid: string, targetStatus?: boolean) => {
-    if (!permissions.canAccessAdminPanel) {
-      showToast('Permission denied: Admin clearance required.', 'error');
+  const setUserVerifiedExplicit = (
+    uid: string,
+    targetStatus?: boolean,
+    options?: {
+      rejectionReason?: string;
+      reviewedByUid?: string;
+      reviewedByName?: string;
+      reviewedByRole?: string;
+      reviewedAt?: string;
+      silentToast?: boolean;
+      conflictId?: string;
+      requestId?: string;
+      submissionSource?: 'dispute_student_id_claim' | 'request_verification';
+      requestType?: 'claimed_id_dispute' | 'manual_verification_request' | 'registration_conflict';
+      studentId?: string;
+      course?: string;
+      batch?: string;
+      notes?: string;
+    }
+  ) => {
+    const actorCanonicalRole = normalizeSystemRole(currentUser?.role);
+    const isAuthorizedReviewer =
+      permissions.canAccessAdminPanel ||
+      ['moderator', 'admin', 'superadmin'].includes(actorCanonicalRole);
+
+    if (!isAuthorizedReviewer) {
+      showToast('Permission denied: Moderator, Admin, or Superadmin clearance required.', 'error');
       return;
     }
     const target = users.find((u) => u.uid === uid);
     if (!target) return;
 
+    const newStatus = targetStatus !== undefined ? targetStatus : !target.isVerified;
+
     // Prevent duplicate verification action if member is already verified
-    if (target.isVerified && (targetStatus === true || targetStatus === undefined)) {
-      showToast(`${target.name} is already verified.`, 'info');
+    if (newStatus && target.isVerified && target.verificationStatus === 'verified') {
+      if (!options?.silentToast) {
+        showToast(`${target.name} is already verified.`, 'info');
+      }
       return;
     }
 
-    const newStatus = targetStatus !== undefined ? targetStatus : !target.isVerified;
+    // Prevent duplicate rejection if already rejected
+    if (!newStatus && target.verificationStatus === 'rejected' && target.accountStatus === 'REJECTED') {
+      if (!options?.silentToast) {
+        showToast(`${target.name}'s verification request is already marked as rejected.`, 'info');
+      }
+      return;
+    }
 
-    setUsers((prev) =>
-      prev.map((u) =>
+    const nowIso = options?.reviewedAt || new Date().toISOString();
+    const reviewerUid = options?.reviewedByUid || currentUser?.uid || 'reviewer';
+    const reviewerName = options?.reviewedByName || currentUser?.name || 'Authorized Reviewer';
+    const reviewerRole = options?.reviewedByRole || actorCanonicalRole;
+    const preservedRole: UserRole = target.role === 'alumni' ? 'alumni' : target.role;
+    const rejectionReason = !newStatus ? (options?.rejectionReason || '').trim() : undefined;
+
+    const generatedAlumniId =
+      newStatus && preservedRole === 'alumni'
+        ? target.alumniId ||
+          generateAlumniId(
+            options?.batch || target.batch || '2024',
+            options?.studentId || target.studentId,
+            target.uid
+          )
+        : target.alumniId;
+
+    const profileUpdates: Partial<UserProfile> = newStatus
+      ? {
+          role: preservedRole,
+          isVerified: true,
+          verified: true,
+          verificationStatus: 'verified',
+          accountStatus: 'ACTIVE',
+          status: 'ACTIVE',
+          alumniId: generatedAlumniId,
+          ...(options?.studentId ? { studentId: options.studentId } : {}),
+          ...(options?.course ? { course: options.course } : {}),
+          ...(options?.batch ? { batch: options.batch } : {}),
+          verifiedAt: nowIso,
+          verifiedBy: reviewerName,
+          reviewedAt: nowIso,
+          reviewedByUid: reviewerUid,
+          reviewedByName: reviewerName,
+          reviewedByRole: reviewerRole,
+          rejectionReason: undefined,
+          rejectedBy: undefined,
+          rejectionDate: undefined
+        }
+      : {
+          role: preservedRole,
+          isVerified: false,
+          verified: false,
+          verificationStatus: 'rejected',
+          accountStatus: 'REJECTED',
+          status: 'REJECTED',
+          rejectionReason: rejectionReason || 'Verification request rejected by administrator.',
+          rejectedBy: reviewerName,
+          rejectionDate: nowIso,
+          reviewedAt: nowIso,
+          reviewedByUid: reviewerUid,
+          reviewedByName: reviewerName,
+          reviewedByRole: reviewerRole
+        };
+
+    setUsers((prev) => {
+      const next = prev.map((u) =>
         u.uid === uid
           ? {
               ...u,
-              isVerified: newStatus,
-              verified: newStatus,
-              verificationStatus: newStatus ? 'verified' : 'rejected'
+              ...profileUpdates
             }
           : u
-      )
-    );
-    alumniService.updateAlumni(uid, {
-      isVerified: newStatus,
-      verified: newStatus,
-      verificationStatus: newStatus ? 'verified' : 'rejected'
-    }).catch((err) => {
+      );
+      persistUsersSafe(next);
+      return next;
+    });
+
+    // Update local credential vault to keep verified login access in sync
+    try {
+      const cred = findCredentialInVault(target.email) || findCredentialInVault(uid);
+      if (cred) {
+        saveCredentialToVault({
+          ...cred,
+          role: preservedRole,
+          isVerified: newStatus,
+          alumniId: generatedAlumniId || cred.alumniId,
+          studentId: options?.studentId || cred.studentId
+        });
+      }
+    } catch {}
+
+    alumniService.updateAlumni(uid, profileUpdates, target).catch((err) => {
       console.warn('Error updating verification status in Firestore:', err);
     });
 
-    if (newStatus) {
-      showToast(`Verified: ${target?.name || 'User'} has been granted verified access.`);
-    } else {
-      showToast(`Revoked: ${target?.name || 'User'}'s verification was revoked. Login blocked until re-verified.`, 'info');
-      if (currentUserId === uid) {
-        logout();
+    // Synchronize approval/rejection decision with server credentials & verification store
+    const token = getStoredSessionToken();
+    if (token) {
+      fetch('/api/admin/alumni-verification/decision', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          action: newStatus ? 'approve' : 'reject',
+          userId: uid,
+          email: target.email,
+          studentId: options?.studentId || target.studentId,
+          alumniId: generatedAlumniId,
+          conflictId: options?.conflictId,
+          requestId: options?.requestId || target.verificationRequestId,
+          submissionSource: options?.submissionSource || target.verificationSubmissionSource,
+          requestType: options?.requestType,
+          rejectionReason: rejectionReason || (!newStatus ? 'Verification request rejected by administrator.' : undefined),
+          notes: options?.notes
+        })
+      }).catch((err) => {
+        console.warn('Backend alumni verification sync notice:', err);
+      });
+    }
+
+    if (!options?.silentToast) {
+      if (newStatus) {
+        showToast('Alumni Successfully Verified.', 'success');
+      } else {
+        showToast(
+          `Verification request for ${target?.name || 'Alumni'} has been rejected.`,
+          'info'
+        );
       }
+    }
+
+    if (!newStatus && currentUserId === uid) {
+      logout();
     }
   };
 

@@ -680,15 +680,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               ]
             : [
                 {
-                  id: 'jobs' as WorkspaceModuleId,
-                  label: isModerator ? 'Employer Accreditation' : 'Jobs & Careers',
-                  shortLabel: isModerator ? 'Accreditation' : 'Careers',
-                  icon: Briefcase,
-                  badge: (pendingJobsCount + pendingEmployersCount) > 0 ? (pendingJobsCount + pendingEmployersCount) : null,
-                  badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
-                  visible: permissions.canManageJobModeration || permissions.canAccessEmployerAccreditation || isModerator
-                },
-                {
                   id: 'moderation' as WorkspaceModuleId,
                   label: 'Post & Content Moderation',
                   shortLabel: 'Moderation',
@@ -769,8 +760,6 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
     pendingModerationCount,
     permissions,
     totalRequestsCount,
-    pendingJobsCount,
-    pendingEmployersCount,
     unreadMessagesCount,
     unreadNotificationsCount,
     clientPlatform
@@ -782,9 +771,10 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
       const match = sec.items.find((item) => item.id === currentModule);
       if (match) return match.label;
     }
+    if (currentModule === 'jobs') return normalizedRole === 'moderator' ? 'Employer Accreditation' : 'Jobs & Careers';
     if (currentModule === 'profile') return 'Administrator Profile';
     return 'Console Overview';
-  }, [navSections, currentModule]);
+  }, [navSections, currentModule, normalizedRole]);
 
   // Click-outside listener for profile menu
   useEffect(() => {

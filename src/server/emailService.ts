@@ -223,6 +223,82 @@ Poblacion Ward II, Minglanilla, Cebu, Philippines 6046`;
 }
 
 /**
+ * Generates an institutional HTML & plaintext template for email change verification OTP.
+ */
+export function buildEmailChangeOtpTemplate(params: {
+  otp: string;
+  recipientName: string;
+  newEmail: string;
+  expiresInMinutes: number;
+}): { html: string; text: string } {
+  const { otp, recipientName, newEmail, expiresInMinutes } = params;
+
+  const text = `St. Cecilia's College - Cebu, Inc.
+Alumni Network Email Verification
+
+Hello ${recipientName},
+
+We received a request to update your registered email address to ${newEmail}. Enter the verification code below to confirm this change:
+
+Verification Code: ${otp}
+
+This code expires in ${expiresInMinutes} minutes and can only be used once.
+
+If you did not initiate this request, please disregard this message and secure your account immediately.
+
+St. Cecilia's College Alumni Affairs & Placement Office
+Poblacion Ward II, Minglanilla, Cebu, Philippines 6046`;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your New Email Address</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f5f5f4; margin: 0; padding: 24px; color: #1c1917;">
+  <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e7e5e4; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.04);">
+    <div style="background-color: #8B181B; padding: 28px 24px; text-align: center; color: #ffffff;">
+      <h1 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em;">St. Cecilia's College - Cebu, Inc.</h1>
+      <p style="margin: 6px 0 0 0; font-size: 13px; opacity: 0.9; font-weight: 500;">Email Address Verification</p>
+    </div>
+    <div style="padding: 32px 28px;">
+      <p style="font-size: 15px; line-height: 1.6; margin: 0 0 16px 0;">Hello <strong>${recipientName}</strong>,</p>
+      <p style="font-size: 14px; line-height: 1.6; color: #44403c; margin: 0 0 24px 0;">
+        Please confirm that you want to update your Cecilian Alumni Network email address to <strong>${newEmail}</strong> by entering this 6-digit verification code:
+      </p>
+
+      <div style="background: #fafaf9; border: 2px dashed #d6d3d1; border-radius: 12px; padding: 20px; text-align: center; margin: 0 0 24px 0;">
+        <span style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 700; letter-spacing: 8px; color: #8B181B; display: inline-block;">
+          ${otp}
+        </span>
+      </div>
+
+      <div style="background: #fef3c7; border-left: 4px solid #d97706; padding: 12px 16px; border-radius: 6px; margin: 0 0 24px 0;">
+        <p style="margin: 0; font-size: 12px; color: #92400e; line-height: 1.5;">
+          <strong>Security Notice:</strong> This code expires in <strong>${expiresInMinutes} minutes</strong> and can only be used once.
+        </p>
+      </div>
+
+      <p style="font-size: 13px; line-height: 1.6; color: #78716c; margin: 0 0 24px 0;">
+        If you did not request this email change, ignore this message—your current email remains unchanged.
+      </p>
+
+      <hr style="border: none; border-top: 1px solid #f5f5f4; margin: 24px 0;" />
+
+      <p style="font-size: 11px; color: #a8a29e; line-height: 1.5; margin: 0; text-align: center;">
+        St. Cecilia's College - Cebu, Inc. • Alumni Affairs & Career Placement<br />
+        Poblacion Ward II, Minglanilla, Cebu, Philippines 6046
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  return { html, text };
+}
+
+/**
  * Generates an institutional HTML & plaintext template for employer status updates.
  */
 export function buildEmployerStatusEmailTemplate(params: {

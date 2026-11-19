@@ -230,20 +230,24 @@ export const GlobalCommandPalette: React.FC<GlobalCommandPaletteProps> = ({
         window.dispatchEvent(new CustomEvent('applet:lock-dashboard'));
       }
     },
-    {
-      id: 'act-export-csv',
-      title: 'Export Alumni Directory to CSV',
-      subtitle: 'Download complete roster of verified Cecilians as a spreadsheet',
-      category: 'Quick Actions',
-      icon: Download,
-      keywords: 'export csv download spreadsheet roster alumni list records excel',
-      action: () => {
-        onClose();
-        exportAlumniRosterCsv(users, 'st_cecilia_alumni_directory');
-        showToast(`Exported ${users.length} verified records to CSV!`, 'success');
-      }
-    }
-  ], [isDark, isFirestoreSyncing, users]);
+    ...(currentUser?.role !== 'alumni'
+      ? [
+          {
+            id: 'act-export-csv',
+            title: 'Export Alumni Directory to CSV',
+            subtitle: 'Download complete roster of verified Cecilians as a spreadsheet',
+            category: 'Quick Actions',
+            icon: Download,
+            keywords: 'export csv download spreadsheet roster alumni list records excel',
+            action: () => {
+              onClose();
+              exportAlumniRosterCsv(users, 'st_cecilia_alumni_directory');
+              showToast(`Exported ${users.length} verified records to CSV!`, 'success');
+            }
+          }
+        ]
+      : [])
+  ], [currentUser?.role, isDark, isFirestoreSyncing, users]);
 
   // Alumni Search Matching
   const matchedAlumni = useMemo(() => {

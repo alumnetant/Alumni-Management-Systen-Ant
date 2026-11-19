@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * Alumni Home Page — Centered Timeline & "For You Page" (FYP)
+ * Alumni Home Page — Centered Timeline & Campus Highlights
  * Aggregates Announcements, Events, and Opportunities
  * into an engaging single-column social timeline with infinite scrolling.
  */
@@ -232,7 +232,7 @@ export const DashboardView: React.FC = () => {
             searchQuery={searchQuery}
             onReset={() => {
               setSearchQuery('');
-              setActiveTab('foryou');
+              setActiveTab('recent');
             }}
           />
         ) : (

@@ -1,11 +1,10 @@
 /**
  * St. Cecilia's College - Cecilian Alumnet
- * Multi-Modal Biometric Security Gate (Face Detection, Fingerprint & Campus PIN)
+ * Multi-Modal Biometric Security Gate (Face Detection & Fingerprint)
  * 
  * Powered by:
  * - Optical Face Detection & Active Liveness Challenge Engine
  * - Native WebAuthn Platform Authenticator & Capacitor Biometrics
- * - Secure 4-6 Digit Campus PIN Enclave Fallback
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -14,7 +13,6 @@ import {
   ShieldCheck,
   ScanFace,
   Fingerprint,
-  KeyRound,
   Lock,
   Unlock,
   LogOut,
@@ -25,20 +23,13 @@ import {
   Camera,
   CameraOff,
   Scan,
-  Focus,
-  Delete,
   Eye,
-  ArrowRight,
-  ShieldAlert,
-  ChevronRight,
   Cpu
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import {
   checkBiometricAvailability,
   verifyBiometricForDashboardAccess,
-  verifyCampusPin,
-  getCampusPinConfig,
   getPreferredBiometricModality,
   setPreferredBiometricModality,
   BiometricAvailability
@@ -54,7 +45,7 @@ interface BiometricAppLockModalProps {
   onSignOut: () => void;
 }
 
-type AuthModality = 'face' | 'fingerprint' | 'pin';
+type AuthModality = 'face' | 'fingerprint';
 
 export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
   currentUser,
@@ -96,38 +87,12 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
     isSpoofSuspected: false
   });
 
-  // Campus PIN Keypad State
-  const [pinDigits, setPinDigits] = useState<string>('');
-  const [pinLockoutSeconds, setPinLockoutSeconds] = useState<number>(0);
-  const [pinRemainingAttempts, setPinRemainingAttempts] = useState<number>(5);
-  const [isPinSubmitting, setIsPinSubmitting] = useState<boolean>(false);
-
   // Load hardware status on mount
   useEffect(() => {
     checkBiometricAvailability().then((avail) => {
       setBiometricAvail(avail);
     });
-    const pinConfig = getCampusPinConfig(currentUser.uid);
-    setPinLockoutSeconds(pinConfig.lockoutSecondsLeft);
-    setPinRemainingAttempts(pinConfig.remainingAttempts);
   }, [currentUser.uid]);
-
-  // Handle countdown interval for PIN lockout
-  useEffect(() => {
-    if (pinLockoutSeconds <= 0) return;
-    const interval = setInterval(() => {
-      setPinLockoutSeconds((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          const updated = getCampusPinConfig(currentUser.uid);
-          setPinRemainingAttempts(updated.remainingAttempts);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [pinLockoutSeconds, currentUser.uid]);
 
   // Clean stop camera stream
   const stopCameraStream = useCallback(() => {
@@ -293,64 +258,6 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
     }
   }, [currentUser.name, isSuccess, isVerifying, onUnlocked]);
 
-  // Campus PIN Submission handler
-  const handlePinDigitPress = (digit: string) => {
-    if (pinLockoutSeconds > 0 || isPinSubmitting || isSuccess) return;
-    if (pinDigits.length >= 6) return;
-    triggerHaptic('light');
-    const newPin = pinDigits + digit;
-    setPinDigits(newPin);
-    setErrorMsg(null);
-
-    // Auto-verify if 4 or 6 digits entered
-    if (newPin.length >= 4) {
-      // Evaluate after small delay for UI feedback
-      setTimeout(() => {
-        executePinVerification(newPin);
-      }, 150);
-    }
-  };
-
-  const handlePinBackspace = () => {
-    if (pinLockoutSeconds > 0 || isPinSubmitting || isSuccess) return;
-    triggerHaptic('light');
-    setPinDigits((prev) => prev.slice(0, -1));
-    setErrorMsg(null);
-  };
-
-  const executePinVerification = async (pinToVerify: string) => {
-    if (isPinSubmitting) return;
-    setIsPinSubmitting(true);
-    setErrorMsg(null);
-
-    try {
-      const res = await verifyCampusPin(pinToVerify, currentUser.uid);
-      if (res.success) {
-        setIsSuccess(true);
-        await triggerHaptic('success');
-        setTimeout(() => {
-          onUnlocked();
-        }, 500);
-      } else {
-        setErrorMsg(res.error || 'Incorrect Emergency PIN.');
-        setPinDigits('');
-        if (res.remainingAttempts !== undefined) {
-          setPinRemainingAttempts(res.remainingAttempts);
-        }
-        if (res.lockedUntil) {
-          setPinLockoutSeconds(Math.ceil((res.lockedUntil - Date.now()) / 1000));
-        }
-        await triggerHaptic('error');
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to verify PIN.');
-      setPinDigits('');
-      await triggerHaptic('error');
-    } finally {
-      setIsPinSubmitting(false);
-    }
-  };
-
   // Auto trigger face or fingerprint on modal open
   useEffect(() => {
     if (isOpen) {
@@ -435,9 +342,7 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
               ? 'Identity Verified'
               : activeModality === 'face'
               ? 'Face Recognition'
-              : activeModality === 'fingerprint'
-              ? 'Fingerprint Sensor'
-              : 'Emergency PIN Entry'}
+              : 'Fingerprint Sensor'}
           </h2>
           <p className="text-xs text-stone-200 font-semibold mt-0.5">
             {currentUser.name}
@@ -469,19 +374,6 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
             >
               <Fingerprint className="w-3.5 h-3.5" />
               <span>Fingerprint</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSelectModality('pin')}
-              className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeModality === 'pin'
-                  ? 'bg-[#8B181B] text-white shadow-sm'
-                  : 'text-stone-400 hover:text-stone-200 hover:bg-stone-850'
-              }`}
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-              <span>PIN Code</span>
             </button>
           </div>
 
@@ -731,77 +623,6 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* VIEW C: CAMPUS PIN CODE FALLBACK KEYPAD                                  */}
-          {/* ========================================================================= */}
-          {activeModality === 'pin' && (
-            <div className="w-full flex flex-col items-center animate-in fade-in duration-200">
-              {/* PIN Code Display Dots */}
-              <div className="my-2 flex items-center gap-2.5">
-                {[0, 1, 2, 3].map((idx) => (
-                  <div
-                    key={idx}
-                    className={`w-3.5 h-3.5 rounded-full border transition-all duration-200 ${
-                      pinDigits.length > idx
-                        ? 'bg-[#8B181B] border-red-400 scale-110 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
-                        : 'bg-stone-800 border-stone-700'
-                    }`}
-                  />
-                ))}
-              </div>
-
-              {pinLockoutSeconds > 0 ? (
-                <div className="p-3 my-2 bg-red-950/80 border border-red-800 rounded-2xl text-[11px] text-red-200 flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-red-400 shrink-0" />
-                  <span>Locked out due to too many attempts. Wait {pinLockoutSeconds}s.</span>
-                </div>
-              ) : (
-                <p className="text-[10px] text-stone-400 mb-2 font-mono">
-                  Enter your 4-6 digit Emergency PIN
-                </p>
-              )}
-
-              {/* 3x4 Numeric Keypad */}
-              <div className="grid grid-cols-3 gap-2 w-full max-w-[240px]">
-                {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-                  <button
-                    key={digit}
-                    type="button"
-                    disabled={pinLockoutSeconds > 0 || isPinSubmitting || isSuccess}
-                    onClick={() => handlePinDigitPress(digit)}
-                    className="h-11 rounded-xl bg-stone-800/90 hover:bg-stone-750 text-white font-bold text-base shadow-sm border border-stone-700/60 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
-                  >
-                    {digit}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  disabled={pinLockoutSeconds > 0 || pinDigits.length === 0}
-                  onClick={() => setPinDigits('')}
-                  className="h-11 rounded-xl bg-stone-900 hover:bg-stone-850 text-stone-400 text-xs font-semibold border border-stone-800 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  disabled={pinLockoutSeconds > 0 || isPinSubmitting || isSuccess}
-                  onClick={() => handlePinDigitPress('0')}
-                  className="h-11 rounded-xl bg-stone-800/90 hover:bg-stone-750 text-white font-bold text-base shadow-sm border border-stone-700/60 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
-                >
-                  0
-                </button>
-                <button
-                  type="button"
-                  disabled={pinLockoutSeconds > 0 || pinDigits.length === 0}
-                  onClick={handlePinBackspace}
-                  className="h-11 rounded-xl bg-stone-900 hover:bg-stone-850 text-stone-300 flex items-center justify-center border border-stone-800 active:scale-95 transition-all cursor-pointer disabled:opacity-40"
-                >
-                  <Delete className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Error Banner */}
           {errorMsg && (
             <div className="w-full mt-3 p-2.5 bg-red-950/70 border border-red-800/80 rounded-2xl text-[11px] text-red-200 flex items-center gap-2 text-left animate-in fade-in">
@@ -823,58 +644,35 @@ export const BiometricAppLockModal: React.FC<BiometricAppLockModalProps> = ({
 
           {/* Primary Action Button */}
           <div className="w-full mt-4 space-y-2">
-            {activeModality !== 'pin' && (
-              <button
-                type="button"
-                disabled={isVerifying || isInitializing || isSuccess}
-                onClick={
-                  activeModality === 'face'
-                    ? handleTriggerFaceUnlock
-                    : handleTriggerFingerprintUnlock
-                }
-                className={`w-full py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold tracking-wider uppercase transition-all shadow-md active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 ${
-                  isSuccess
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-[#8B181B] hover:bg-[#721316] text-white disabled:opacity-70'
-                }`}
-              >
-                {activeModality === 'face' ? (
-                  <ScanFace className="w-4 h-4" />
-                ) : (
-                  <Fingerprint className="w-4 h-4" />
-                )}
-                <span>
-                  {isSuccess
-                    ? 'Access Granted'
-                    : isVerifying
-                    ? 'Verifying Biometrics...'
-                    : activeModality === 'face'
-                    ? 'Scan Face with Camera'
-                    : 'Scan Fingerprint Sensor'}
-                </span>
-              </button>
-            )}
-
-            {/* Switch to PIN or Fallback */}
-            {activeModality !== 'pin' ? (
-              <button
-                type="button"
-                onClick={() => handleSelectModality('pin')}
-                className="w-full py-2 px-3 bg-stone-850 hover:bg-stone-800 text-stone-300 hover:text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <KeyRound className="w-3 h-3 text-amber-400" />
-                <span>Use Emergency PIN Fallback</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleSelectModality('face')}
-                className="w-full py-2 px-3 bg-stone-850 hover:bg-stone-800 text-stone-300 hover:text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <ScanFace className="w-3 h-3 text-red-400" />
-                <span>Return to Biometric Scan</span>
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={isVerifying || isInitializing || isSuccess}
+              onClick={
+                activeModality === 'face'
+                  ? handleTriggerFaceUnlock
+                  : handleTriggerFingerprintUnlock
+              }
+              className={`w-full py-3 px-4 rounded-2xl text-xs sm:text-sm font-bold tracking-wider uppercase transition-all shadow-md active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 ${
+                isSuccess
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-[#8B181B] hover:bg-[#721316] text-white disabled:opacity-70'
+              }`}
+            >
+              {activeModality === 'face' ? (
+                <ScanFace className="w-4 h-4" />
+              ) : (
+                <Fingerprint className="w-4 h-4" />
+              )}
+              <span>
+                {isSuccess
+                  ? 'Access Granted'
+                  : isVerifying
+                  ? 'Verifying Biometrics...'
+                  : activeModality === 'face'
+                  ? 'Scan Face with Camera'
+                  : 'Scan Fingerprint Sensor'}
+              </span>
+            </button>
 
             {/* Alternative Password / Sign Out */}
             <button

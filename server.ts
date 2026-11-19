@@ -10,7 +10,7 @@ import { normalizeSystemRole } from './src/types';
 import { INITIAL_USERS, INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
 import webpush from 'web-push';
 import { getEmployerAuthStatus, isEmployerApproved } from './src/lib/employerAuthStatus';
-import { sendRealEmail, buildOtpEmailTemplate, buildEmployerStatusEmailTemplate } from './src/server/emailService';
+import { sendRealEmail, buildOtpEmailTemplate, buildEmailChangeOtpTemplate, buildEmployerStatusEmailTemplate } from './src/server/emailService';
 import {
   executeAutomatedVerification,
   registerCompanyDomainUser,
@@ -254,6 +254,16 @@ interface StoredUserCredential {
   submittedCredentials?: Array<{ id: string; name: string; url: string; fileType?: string; uploadedAt: string }>;
   emailVerified: boolean;
   isVerified?: boolean;
+  verificationStatus?: string;
+  verifiedAt?: string;
+  verifiedBy?: string;
+  reviewedByUid?: string;
+  reviewedByName?: string;
+  reviewedByRole?: string;
+  reviewedAt?: string;
+  selfieWithIdName?: string;
+  selfieWithIdUploadedAt?: string;
+  verificationRequestId?: string;
   status?: string;
   accountStatus?: string;
   suspensionInfo?: any;
@@ -1165,9 +1175,35 @@ app.post('/api/auth/register', authRateLimiter, (req: Request, res: Response) =>
   const assignedRole = ['admin', 'registrar', 'staff'].includes(role) ? 'alumni' : role;
 
   const { hash, salt } = hashPassword(password);
-  const uid = `usr_${crypto.randomBytes(8).toString('hex')}`;
+  const requestedUid =
+    typeof req.body.uid === 'string' && /^[a-zA-Z0-9_\-.]{4,128}$/.test(req.body.uid.trim())
+      ? req.body.uid.trim()
+      : '';
+  const uid = requestedUid && !credentialsDb.has(requestedUid)
+    ? requestedUid
+    : `usr_${crypto.randomBytes(8).toString('hex')}`;
   const verificationToken = crypto.randomBytes(32).toString('hex');
   const verificationExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+
+  const isPendingAlumniAppeal =
+    assignedRole === 'alumni' &&
+    (Boolean(req.body.isAppealRegistration) ||
+      req.body.isVerified === false ||
+      String(req.body.accountStatus || '').toUpperCase() === 'PENDING_VERIFICATION');
+
+  const initialVerified =
+    assignedRole === 'employer'
+      ? false
+      : isPendingAlumniAppeal
+      ? false
+      : true;
+
+  const initialAccountStatus =
+    assignedRole === 'employer'
+      ? 'PENDING_VERIFICATION'
+      : isPendingAlumniAppeal
+      ? 'PENDING_VERIFICATION'
+      : 'ACTIVE';
 
   const credRecord: StoredUserCredential = {
     uid,
@@ -1191,7 +1227,10 @@ app.post('/api/auth/register', authRateLimiter, (req: Request, res: Response) =>
     salt,
     role: assignedRole,
     emailVerified: true,
-    isVerified: assignedRole === 'employer' ? false : true,
+    isVerified: initialVerified,
+    verificationStatus: initialVerified ? 'verified' : 'pending_review',
+    accountStatus: initialAccountStatus,
+    status: initialAccountStatus,
     verificationToken,
     verificationTokenExpiry: verificationExpiry
   };
@@ -1421,6 +1460,15 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
         code: 'ACCOUNT_PENDING_VERIFICATION'
       });
     }
+
+    if (accountStatus === 'REJECTED' || user.verificationStatus === 'rejected') {
+      const reasonText = user.rejectionReason ? ` Reason: ${user.rejectionReason}` : '';
+      return res.status(403).json({
+        error: `Your alumni verification request was rejected.${reasonText} Please contact the Registrar Office for assistance.`,
+        code: 'ALUMNI_VERIFICATION_REJECTED',
+        reason: user.rejectionReason
+      });
+    }
   }
 
 
@@ -1638,8 +1686,13 @@ function hashOtpCode(code: string, salt: string): string {
   return crypto.createHash('sha256').update(`${code}:${salt}`).digest('hex');
 }
 
+const emailChangeOtpStore = new Map<
+  string,
+  StoredHashedOtp & { uid: string; currentEmail: string; newEmail: string }
+>();
+
 // Endpoint 1: Request Password Reset OTP
-app.post('/api/auth/send-otp', (req: Request, res: Response) => {
+app.post('/api/auth/send-otp', async (req: Request, res: Response) => {
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
   if (!email || !email.includes('@')) {
     return res.status(400).json({ error: 'A valid email address is required.' });
@@ -1659,7 +1712,7 @@ app.post('/api/auth/send-otp', (req: Request, res: Response) => {
     });
   }
 
-  // 2. Enforce 60-second Cooldown per IP
+  // 2. Enforce 15-second Cooldown per IP
   const lastIpRequest = otpIpCooldowns.get(clientIp);
   if (lastIpRequest && now - lastIpRequest < 15 * 1000) {
     const remainingSec = Math.ceil((15 * 1000 - (now - lastIpRequest)) / 1000);
@@ -1697,6 +1750,9 @@ app.post('/api/auth/send-otp', (req: Request, res: Response) => {
     ip: clientIp
   });
 
+  let deliveryMode: 'email' | 'offline_fallback' = 'email';
+  let offlineFallbackCode: string | undefined;
+
   // Account enumeration defense:
   // If user exists, dispatch real email. If user does NOT exist, still return standard success message.
   if (matchedUser) {
@@ -1707,12 +1763,22 @@ app.post('/api/auth/send-otp', (req: Request, res: Response) => {
       expiresInMinutes: 10
     });
 
-    sendRealEmail({
-      to: email,
-      subject: "St. Cecilia's College — Password Reset Verification Code",
-      text,
-      html
-    }).catch((err) => console.error('[OTP Email Dispatch Error]', err));
+    try {
+      const delivery = await sendRealEmail({
+        to: email,
+        subject: "St. Cecilia's College — Security Verification Code",
+        text,
+        html
+      });
+      if (delivery.provider === 'console_fallback') {
+        deliveryMode = 'offline_fallback';
+        offlineFallbackCode = secureOtp;
+      }
+    } catch (err) {
+      console.error('[OTP Email Dispatch Error]', err);
+      deliveryMode = 'offline_fallback';
+      offlineFallbackCode = secureOtp;
+    }
 
     serverAuditLogs.push({
       id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
@@ -1721,16 +1787,222 @@ app.post('/api/auth/send-otp', (req: Request, res: Response) => {
       actor: email,
       actorRole: matchedUser.role || 'user',
       ip: clientIp,
-      details: { emailMasked: maskEmail(email), expiresAt: new Date(now + 10 * 60 * 1000).toISOString() }
+      details: { emailMasked: maskEmail(email), deliveryMode, expiresAt: new Date(now + 10 * 60 * 1000).toISOString() }
     });
   } else {
-    console.info(`[Security Audit] Password reset requested for non-existent email: ${maskEmail(email)}. Enumeration prevented.`);
+    console.info(`[Security Audit] Security verification requested for non-existent email: ${maskEmail(email)}. Enumeration prevented.`);
   }
 
   return res.json({
     success: true,
+    deliveryMode,
     message: `If an account with ${maskEmail(email)} exists, a 6-digit verification code has been dispatched. Check your inbox and spam folder.`,
-    code: secureOtp // Provided for frictionless preview / testing environments
+    ...(offlineFallbackCode ? { offlineFallbackCode } : {})
+  });
+});
+
+// Endpoint 1B: Request Authenticated Email Change OTP (sends to new email address)
+app.post('/api/auth/email-change/send-otp', requireServerAuth, async (req: Request, res: Response) => {
+  const userPayload = (req as any).user;
+  const newEmail = typeof req.body.newEmail === 'string' ? req.body.newEmail.trim().toLowerCase() : '';
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!newEmail || !emailRegex.test(newEmail)) {
+    return res.status(400).json({ error: 'Please enter a valid new email address.' });
+  }
+
+  const uid = String(userPayload?.uid || '').trim();
+  const currentCred =
+    (uid ? credentialsDb.get(uid) : undefined) ||
+    (userPayload?.email ? credentialsDb.get(String(userPayload.email).toLowerCase().trim()) : undefined);
+
+  const currentEmail = (currentCred?.email || userPayload?.email || '').toLowerCase().trim();
+  if (currentEmail && newEmail === currentEmail) {
+    return res.status(400).json({ error: 'The new email address cannot be identical to your current email.' });
+  }
+
+  for (const cred of credentialsDb.values()) {
+    if (
+      cred.uid !== uid &&
+      !isCredentialDeleted(cred) &&
+      cred.email &&
+      cred.email.toLowerCase().trim() === newEmail
+    ) {
+      return res.status(409).json({ error: `An account registered with ${newEmail} already exists.` });
+    }
+  }
+
+  const clientIp = req.ip || 'unknown';
+  const now = Date.now();
+  const storeKey = uid || currentEmail;
+
+  const existingOtp = emailChangeOtpStore.get(storeKey);
+  if (existingOtp && existingOtp.newEmail === newEmail && now - existingOtp.lastSentAt < 60 * 1000) {
+    const remainingSec = Math.ceil((60 * 1000 - (now - existingOtp.lastSentAt)) / 1000);
+    res.setHeader('Retry-After', remainingSec);
+    return res.status(429).json({
+      error: `Please wait ${remainingSec} seconds before requesting another verification code.`,
+      retryAfter: remainingSec
+    });
+  }
+
+  const secureOtp = crypto.randomInt(100000, 1000000).toString();
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hashedCode = hashOtpCode(secureOtp, salt);
+
+  emailChangeOtpStore.set(storeKey, {
+    uid: uid || currentCred?.uid || '',
+    currentEmail,
+    newEmail,
+    email: newEmail,
+    hashedCode,
+    salt,
+    createdAt: now,
+    expiresAt: now + 10 * 60 * 1000,
+    attempts: 0,
+    used: false,
+    lastSentAt: now,
+    ip: clientIp
+  });
+
+  const { html, text } = buildEmailChangeOtpTemplate({
+    otp: secureOtp,
+    recipientName: currentCred?.name || userPayload?.name || 'Cecilian Member',
+    newEmail,
+    expiresInMinutes: 10
+  });
+
+  let deliveryMode: 'email' | 'offline_fallback' = 'email';
+  let offlineFallbackCode: string | undefined;
+
+  try {
+    const delivery = await sendRealEmail({
+      to: newEmail,
+      subject: "St. Cecilia's College — Email Change Verification Code",
+      text,
+      html
+    });
+    if (delivery.provider === 'console_fallback') {
+      deliveryMode = 'offline_fallback';
+      offlineFallbackCode = secureOtp;
+    }
+  } catch (err) {
+    console.error('[Email Change OTP Dispatch Error]', err);
+    deliveryMode = 'offline_fallback';
+    offlineFallbackCode = secureOtp;
+  }
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'EMAIL_CHANGE_OTP_DISPATCHED',
+    actor: currentEmail || uid,
+    actorRole: currentCred?.role || userPayload?.role || 'user',
+    ip: clientIp,
+    details: { targetEmailMasked: maskEmail(newEmail), deliveryMode }
+  });
+
+  return res.json({
+    success: true,
+    deliveryMode,
+    message:
+      deliveryMode === 'email'
+        ? `A 6-digit verification code has been emailed to ${maskEmail(newEmail)}.`
+        : `Email server unavailable or unconfigured; use the fallback verification code below.`,
+    ...(offlineFallbackCode ? { offlineFallbackCode } : {})
+  });
+});
+
+// Endpoint 1C: Confirm Email Change with Validated 6-Digit OTP
+app.post('/api/auth/email-change/confirm', requireServerAuth, (req: Request, res: Response) => {
+  const userPayload = (req as any).user;
+  const newEmail = typeof req.body.newEmail === 'string' ? req.body.newEmail.trim().toLowerCase() : '';
+  const otp = typeof req.body.otp === 'string' ? req.body.otp.trim() : '';
+  const uid = String(userPayload?.uid || '').trim();
+  const fallbackEmailKey = String(userPayload?.email || '').toLowerCase().trim();
+  const storeKey = uid || fallbackEmailKey;
+
+  if (!newEmail || !otp) {
+    return res.status(400).json({ error: 'New email address and 6-digit verification code are required.' });
+  }
+
+  const record = emailChangeOtpStore.get(storeKey);
+  if (!record || record.used || record.newEmail !== newEmail) {
+    return res.status(400).json({ error: 'No active verification code found for this email change. Please resend the code.' });
+  }
+
+  if (Date.now() > record.expiresAt) {
+    emailChangeOtpStore.delete(storeKey);
+    return res.status(400).json({ error: 'The verification code has expired. Please request a new code.' });
+  }
+
+  record.attempts++;
+  if (record.attempts > 5) {
+    emailChangeOtpStore.delete(storeKey);
+    return res.status(429).json({
+      error: 'Too many incorrect attempts. This verification code has been invalidated. Please request a new one.'
+    });
+  }
+
+  const testHash = hashOtpCode(otp, record.salt);
+  const isValid =
+    testHash.length === record.hashedCode.length &&
+    crypto.timingSafeEqual(Buffer.from(testHash, 'hex'), Buffer.from(record.hashedCode, 'hex'));
+
+  if (!isValid) {
+    const remaining = 5 - record.attempts;
+    return res.status(400).json({
+      error: `Incorrect verification code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+    });
+  }
+
+  for (const cred of credentialsDb.values()) {
+    if (
+      cred.uid !== uid &&
+      !isCredentialDeleted(cred) &&
+      cred.email &&
+      cred.email.toLowerCase().trim() === newEmail
+    ) {
+      return res.status(409).json({ error: `An account registered with ${newEmail} already exists.` });
+    }
+  }
+
+  record.used = true;
+  emailChangeOtpStore.delete(storeKey);
+
+  const matchedCred =
+    (uid ? credentialsDb.get(uid) : undefined) ||
+    (record.currentEmail ? credentialsDb.get(record.currentEmail) : undefined);
+
+  if (matchedCred) {
+    const prevEmail = matchedCred.email?.toLowerCase().trim();
+    if (prevEmail && prevEmail !== newEmail) {
+      const keyOwner = credentialsDb.get(prevEmail);
+      if (keyOwner?.uid === matchedCred.uid) {
+        credentialsDb.delete(prevEmail);
+      }
+    }
+    matchedCred.email = newEmail;
+    matchedCred.emailVerified = true;
+    credentialsDb.set(newEmail, matchedCred);
+    registerCredentialInDb(matchedCred, true);
+  }
+
+  serverAuditLogs.push({
+    id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+    timestamp: new Date().toISOString(),
+    action: 'EMAIL_ADDRESS_UPDATED',
+    actor: newEmail,
+    actorRole: matchedCred?.role || userPayload?.role || 'user',
+    ip: req.ip || 'internal',
+    details: { uid, previousEmailMasked: maskEmail(record.currentEmail), newEmailMasked: maskEmail(newEmail) }
+  });
+
+  return res.json({
+    success: true,
+    email: newEmail,
+    emailVerified: true,
+    message: `Email address verified and updated to ${newEmail}.`
   });
 });
 
@@ -1938,66 +2210,763 @@ app.get('/api/auth/deleted-uids', (_req: Request, res: Response) => {
 interface AlumniVerificationRequest {
   id: string;
   userId: string;
+  submissionSource?: 'dispute_student_id_claim' | 'request_verification';
+  requestType?: 'claimed_id_dispute' | 'manual_verification_request';
   name: string;
   email: string;
+  phone?: string;
   studentId: string;
   batch: string;
   course: string;
+  conflictId?: string;
+  originalOwnerUid?: string;
+  originalOwnerName?: string;
+  originalOwnerEmail?: string;
+  originalOwnerStudentId?: string;
+  originalOwnerCourse?: string;
+  originalOwnerBatch?: string;
   proofName?: string;
   proofUrl?: string;
+  selfieFileName?: string;
+  selfieMimeType?: string;
+  selfieStoragePath?: string;
+  selfieUploadedAt?: string;
   notes?: string;
   submittedAt: string;
   status: 'pending' | 'approved' | 'rejected';
   rejectionReason?: string;
+  approvalNotes?: string;
+  reviewedAt?: string;
+  reviewedByUid?: string;
+  reviewedByName?: string;
+  reviewedByRole?: string;
 }
+
+function resolveServerSubmissionSource(input: {
+  submissionSource?: unknown;
+  requestType?: unknown;
+  notes?: unknown;
+}): {
+  submissionSource: 'dispute_student_id_claim' | 'request_verification';
+  requestType: 'claimed_id_dispute' | 'manual_verification_request';
+} {
+  if (input.submissionSource === 'dispute_student_id_claim') {
+    return { submissionSource: 'dispute_student_id_claim', requestType: 'claimed_id_dispute' };
+  }
+  if (input.submissionSource === 'request_verification') {
+    return { submissionSource: 'request_verification', requestType: 'manual_verification_request' };
+  }
+  if (input.requestType === 'claimed_id_dispute') {
+    return { submissionSource: 'dispute_student_id_claim', requestType: 'claimed_id_dispute' };
+  }
+  if (input.requestType === 'manual_verification_request') {
+    return { submissionSource: 'request_verification', requestType: 'manual_verification_request' };
+  }
+  if (typeof input.notes === 'string' && input.notes.trim().toUpperCase().startsWith('STUDENT ID CLAIM DISPUTE')) {
+    return { submissionSource: 'dispute_student_id_claim', requestType: 'claimed_id_dispute' };
+  }
+  return { submissionSource: 'request_verification', requestType: 'manual_verification_request' };
+}
+
+const ALUMNI_VERIFICATION_REQUESTS_FILE = path.join(process.cwd(), 'data', 'alumni_verification_requests.json');
+const VERIFICATION_SELFIES_DIR = path.join(process.cwd(), 'data', 'verification_selfies');
 const alumniVerificationRequests = new Map<string, AlumniVerificationRequest>();
 
-app.post('/api/alumni/verification-request', (req: Request, res: Response) => {
-  const { userId, name, email, studentId, batch, course, proofName, proofUrl, notes } = req.body;
-  if (!userId || !studentId) {
-    return res.status(400).json({ error: 'User ID and Student ID are required.' });
+function loadAlumniVerificationRequestsFromDisk(): void {
+  try {
+    if (!fs.existsSync(ALUMNI_VERIFICATION_REQUESTS_FILE)) return;
+    const raw = fs.readFileSync(ALUMNI_VERIFICATION_REQUESTS_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.forEach((item: AlumniVerificationRequest) => {
+        if (item && item.id) {
+          alumniVerificationRequests.set(item.id, item);
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('[Verification Requests] Failed to load requests from disk:', err);
+  }
+}
+
+function persistAlumniVerificationRequestsToDisk(): void {
+  try {
+    const dir = path.dirname(ALUMNI_VERIFICATION_REQUESTS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const serialized = Array.from(alumniVerificationRequests.values()).map((r) => ({
+      ...r,
+      // Do not duplicate large inline base64 payloads inside JSON metadata when stored on disk
+      proofUrl: r.selfieStoragePath ? undefined : r.proofUrl
+    }));
+    fs.writeFileSync(ALUMNI_VERIFICATION_REQUESTS_FILE, JSON.stringify(serialized, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[Verification Requests] Failed to persist requests to disk:', err);
+  }
+}
+
+function hasValidImageMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  if (buffer.length < 12) return false;
+  if (mimeType === 'image/jpeg') {
+    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (mimeType === 'image/png') {
+    return (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47 &&
+      buffer[4] === 0x0d &&
+      buffer[5] === 0x0a &&
+      buffer[6] === 0x1a &&
+      buffer[7] === 0x0a
+    );
+  }
+  if (mimeType === 'image/webp') {
+    return (
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+    );
+  }
+  return false;
+}
+
+function saveSelfieImageToSecureStorage(
+  requestId: string,
+  dataUrl: string,
+  previousStoragePath?: string
+): { storagePath: string; mimeType: string } | null {
+  const match = /^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/i.exec(dataUrl.trim());
+  if (!match) return null;
+  const mimeType = match[1].toLowerCase() === 'image/jpg' ? 'image/jpeg' : match[1].toLowerCase();
+  const base64Body = match[2].replace(/\s+/g, '');
+  const buffer = Buffer.from(base64Body, 'base64');
+  // Enforce strict 5 MB maximum size and binary signature validation
+  if (buffer.length === 0 || buffer.length > 5 * 1024 * 1024) {
+    return null;
+  }
+  if (!hasValidImageMagicBytes(buffer, mimeType)) {
+    return null;
+  }
+  if (!fs.existsSync(VERIFICATION_SELFIES_DIR)) {
+    fs.mkdirSync(VERIFICATION_SELFIES_DIR, { recursive: true });
+  }
+  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const safeId = requestId.replace(/[^a-zA-Z0-9_-]/g, '');
+  const fileName = `${safeId}.${ext}`;
+  const fullPath = path.join(VERIFICATION_SELFIES_DIR, fileName);
+  fs.writeFileSync(fullPath, buffer);
+
+  // Remove stale file if extension changed to avoid orphaned uploads
+  if (previousStoragePath) {
+    const prevSafe = path.basename(previousStoragePath);
+    if (prevSafe && prevSafe !== fileName) {
+      const prevFullPath = path.join(VERIFICATION_SELFIES_DIR, prevSafe);
+      if (fs.existsSync(prevFullPath)) {
+        try {
+          fs.unlinkSync(prevFullPath);
+        } catch {
+          // ignore cleanup notice
+        }
+      }
+    }
   }
 
-  const id = `req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-  const requestRecord: AlumniVerificationRequest = {
-    id,
+  return { storagePath: fileName, mimeType };
+}
+
+function readSelfieDataUrlFromRequest(reqRecord: AlumniVerificationRequest): string | null {
+  if (reqRecord.selfieStoragePath) {
+    const safeFile = path.basename(reqRecord.selfieStoragePath);
+    const fullPath = path.join(VERIFICATION_SELFIES_DIR, safeFile);
+    if (fs.existsSync(fullPath)) {
+      const buffer = fs.readFileSync(fullPath);
+      const mime = reqRecord.selfieMimeType || 'image/jpeg';
+      return `data:${mime};base64,${buffer.toString('base64')}`;
+    }
+  }
+  if (reqRecord.proofUrl && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(reqRecord.proofUrl)) {
+    return reqRecord.proofUrl;
+  }
+  return null;
+}
+
+loadAlumniVerificationRequestsFromDisk();
+
+app.post('/api/alumni/verification-request', (req: Request, res: Response) => {
+  const {
     userId,
-    name: name || 'Cecilian Alumnus',
-    email: email || '',
-    studentId: String(studentId).trim().toUpperCase(),
-    batch: String(batch || '2024').trim(),
-    course: String(course || 'Degree Graduate').trim(),
+    conflictId,
+    submissionSource,
+    requestType,
+    name,
+    email,
+    phone,
+    studentId,
+    batch,
+    course,
+    originalOwnerUid,
+    originalOwnerName,
+    originalOwnerEmail,
+    originalOwnerStudentId,
+    originalOwnerCourse,
+    originalOwnerBatch,
     proofName,
     proofUrl,
-    notes: notes ? String(notes).trim() : undefined,
-    submittedAt: new Date().toISOString(),
-    status: 'pending'
+    selfieWithIdName,
+    selfieWithIdUrl,
+    notes
+  } = req.body;
+
+  const resolvedUserId = String(userId || '').trim();
+  const resolvedEmail = String(email || '').trim().toLowerCase();
+  const resolvedStudentId = String(studentId || '').trim().toUpperCase();
+  const resolvedClassification = resolveServerSubmissionSource({ submissionSource, requestType, notes });
+  const normalizedSubmissionSource = resolvedClassification.submissionSource;
+  const normalizedRequestType = resolvedClassification.requestType;
+  const rawImage = typeof selfieWithIdUrl === 'string' && selfieWithIdUrl.trim()
+    ? selfieWithIdUrl.trim()
+    : typeof proofUrl === 'string' && proofUrl.trim()
+    ? proofUrl.trim()
+    : '';
+  const resolvedFileName = String(selfieWithIdName || proofName || '').trim() || undefined;
+
+  if (!resolvedUserId && !resolvedEmail) {
+    return res.status(400).json({ error: 'User ID or email address is required.' });
+  }
+  if (!resolvedStudentId && !conflictId) {
+    return res.status(400).json({ error: 'Student ID or verification reference is required.' });
+  }
+  if (normalizedSubmissionSource === 'dispute_student_id_claim' && !rawImage) {
+    return res.status(400).json({
+      error: 'A Selfie with ID photo (JPG, JPEG, PNG, or WEBP up to 5 MB) is required to submit a Student ID dispute.'
+    });
+  }
+
+  let existingByConflict: AlumniVerificationRequest | undefined;
+  if (conflictId) {
+    for (const item of alumniVerificationRequests.values()) {
+      if (item.conflictId && item.conflictId === conflictId) {
+        existingByConflict = item;
+        break;
+      }
+    }
+  }
+
+  // Prevent duplicate pending Student ID disputes for the same email + contested Student ID before writing any file
+  if (!existingByConflict && normalizedSubmissionSource === 'dispute_student_id_claim' && resolvedEmail && resolvedStudentId) {
+    for (const item of alumniVerificationRequests.values()) {
+      const itemSource = resolveServerSubmissionSource(item).submissionSource;
+      if (
+        item.status === 'pending' &&
+        itemSource === 'dispute_student_id_claim' &&
+        item.email.toLowerCase() === resolvedEmail &&
+        item.studentId.toUpperCase() === resolvedStudentId
+      ) {
+        return res.status(409).json({
+          error: 'A pending Student ID dispute already exists for this Student ID and email address.',
+          code: 'DUPLICATE_DISPUTE_REQUEST',
+          existingRequestId: item.id,
+          existingConflictId: item.conflictId
+        });
+      }
+    }
+  }
+
+  const id = existingByConflict?.id || `req_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+  const nowIso = new Date().toISOString();
+
+  let savedImageMeta: { storagePath: string; mimeType: string } | null = null;
+  if (rawImage) {
+    savedImageMeta = saveSelfieImageToSecureStorage(id, rawImage, existingByConflict?.selfieStoragePath);
+    if (!savedImageMeta) {
+      return res.status(400).json({
+        error: 'Invalid Selfie with ID image format or file size exceeds 5 MB limit. Please upload a valid JPG, JPEG, PNG, or WEBP photo.'
+      });
+    }
+  }
+
+  // Auto-resolve original account owner from backend credentials store if this is a Student ID dispute and not explicitly provided
+  let resolvedOwnerUid = originalOwnerUid ? String(originalOwnerUid).trim() : existingByConflict?.originalOwnerUid;
+  let resolvedOwnerName = originalOwnerName ? String(originalOwnerName).trim() : existingByConflict?.originalOwnerName;
+  let resolvedOwnerEmail = originalOwnerEmail ? String(originalOwnerEmail).trim().toLowerCase() : existingByConflict?.originalOwnerEmail;
+  let resolvedOwnerStudentId = originalOwnerStudentId
+    ? String(originalOwnerStudentId).trim().toUpperCase()
+    : existingByConflict?.originalOwnerStudentId || (normalizedSubmissionSource === 'dispute_student_id_claim' ? resolvedStudentId : undefined);
+  let resolvedOwnerCourse = originalOwnerCourse ? String(originalOwnerCourse).trim() : existingByConflict?.originalOwnerCourse;
+  let resolvedOwnerBatch = originalOwnerBatch ? String(originalOwnerBatch).trim() : existingByConflict?.originalOwnerBatch;
+
+  if (normalizedSubmissionSource === 'dispute_student_id_claim' && !resolvedOwnerUid && resolvedStudentId) {
+    for (const candidate of credentialsDb.values()) {
+      if (
+        candidate.studentId &&
+        candidate.studentId.trim().toUpperCase() === resolvedStudentId &&
+        candidate.uid !== resolvedUserId &&
+        candidate.email?.toLowerCase() !== resolvedEmail
+      ) {
+        resolvedOwnerUid = candidate.uid;
+        resolvedOwnerName = resolvedOwnerName || candidate.name;
+        resolvedOwnerEmail = resolvedOwnerEmail || candidate.email;
+        resolvedOwnerStudentId = candidate.studentId.trim().toUpperCase();
+        break;
+      }
+    }
+  }
+
+  const requestRecord: AlumniVerificationRequest = {
+    id,
+    userId: resolvedUserId || existingByConflict?.userId || `pending_${Date.now()}`,
+    submissionSource: normalizedSubmissionSource,
+    requestType: normalizedRequestType,
+    conflictId: conflictId ? String(conflictId).trim() : existingByConflict?.conflictId,
+    name: String(name || existingByConflict?.name || 'Cecilian Alumnus').trim(),
+    email: resolvedEmail || existingByConflict?.email || '',
+    phone: phone ? String(phone).trim() : existingByConflict?.phone,
+    studentId: resolvedStudentId || existingByConflict?.studentId || 'PENDING',
+    batch: String(batch || existingByConflict?.batch || '2024').trim(),
+    course: String(course || existingByConflict?.course || 'Degree Graduate').trim(),
+    originalOwnerUid: resolvedOwnerUid,
+    originalOwnerName: resolvedOwnerName,
+    originalOwnerEmail: resolvedOwnerEmail,
+    originalOwnerStudentId: resolvedOwnerStudentId,
+    originalOwnerCourse: resolvedOwnerCourse,
+    originalOwnerBatch: resolvedOwnerBatch,
+    proofName: resolvedFileName || existingByConflict?.proofName,
+    selfieFileName: resolvedFileName || existingByConflict?.selfieFileName,
+    selfieMimeType: savedImageMeta?.mimeType || existingByConflict?.selfieMimeType,
+    selfieStoragePath: savedImageMeta?.storagePath || existingByConflict?.selfieStoragePath,
+    selfieUploadedAt: savedImageMeta ? nowIso : existingByConflict?.selfieUploadedAt,
+    notes: notes ? String(notes).trim() : existingByConflict?.notes,
+    submittedAt: existingByConflict?.submittedAt || nowIso,
+    status: existingByConflict?.status === 'approved' || existingByConflict?.status === 'rejected'
+      ? existingByConflict.status
+      : 'pending'
   };
+
   alumniVerificationRequests.set(id, requestRecord);
+  persistAlumniVerificationRequestsToDisk();
+
+  // Link verification request metadata to credential record if present
+  const cred =
+    (resolvedUserId ? credentialsDb.get(resolvedUserId) : undefined) ||
+    (resolvedEmail ? credentialsDb.get(resolvedEmail) : undefined);
+  if (cred && normalizeSystemRole(cred.role) === 'alumni') {
+    cred.verificationRequestId = id;
+    if (requestRecord.selfieFileName) cred.selfieWithIdName = requestRecord.selfieFileName;
+    if (requestRecord.selfieUploadedAt) cred.selfieWithIdUploadedAt = requestRecord.selfieUploadedAt;
+    persistCredentialsToDisk();
+  }
 
   serverAuditLogs.push({
     id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
-    timestamp: new Date().toISOString(),
-    action: 'ALUMNI_VERIFICATION_REQUEST_SUBMITTED',
-    actor: email || userId,
+    timestamp: nowIso,
+    action:
+      normalizedSubmissionSource === 'dispute_student_id_claim'
+        ? 'STUDENT_ID_DISPUTE_SUBMITTED'
+        : 'ALUMNI_VERIFICATION_REQUEST_SUBMITTED',
+    actor: resolvedEmail || resolvedUserId,
     actorRole: 'alumni',
     ip: req.ip || 'internal',
-    details: { id, studentId: requestRecord.studentId, batch: requestRecord.batch }
+    details: {
+      id,
+      submissionSource: normalizedSubmissionSource,
+      requestType: normalizedRequestType,
+      conflictId: requestRecord.conflictId,
+      studentId: requestRecord.studentId,
+      batch: requestRecord.batch,
+      hasSelfieWithId: Boolean(requestRecord.selfieStoragePath)
+    }
   });
 
   return res.json({
     success: true,
-    message: 'Verification request submitted for Registrar review.',
-    request: requestRecord
+    message:
+      normalizedSubmissionSource === 'dispute_student_id_claim'
+        ? 'Student ID dispute submitted for Registrar review.'
+        : 'Verification request submitted for review.',
+    request: {
+      id: requestRecord.id,
+      userId: requestRecord.userId,
+      submissionSource: requestRecord.submissionSource,
+      requestType: requestRecord.requestType,
+      conflictId: requestRecord.conflictId,
+      name: requestRecord.name,
+      email: requestRecord.email,
+      phone: requestRecord.phone,
+      studentId: requestRecord.studentId,
+      batch: requestRecord.batch,
+      course: requestRecord.course,
+      originalOwnerUid: requestRecord.originalOwnerUid,
+      originalOwnerName: requestRecord.originalOwnerName,
+      originalOwnerEmail: requestRecord.originalOwnerEmail,
+      originalOwnerStudentId: requestRecord.originalOwnerStudentId,
+      originalOwnerCourse: requestRecord.originalOwnerCourse,
+      originalOwnerBatch: requestRecord.originalOwnerBatch,
+      selfieFileName: requestRecord.selfieFileName,
+      selfieStoragePath: requestRecord.selfieStoragePath,
+      selfieUploadedAt: requestRecord.selfieUploadedAt,
+      hasSelfieWithId: Boolean(requestRecord.selfieStoragePath),
+      selfieEndpoint: requestRecord.selfieStoragePath
+        ? `/api/admin/verification-requests/${encodeURIComponent(requestRecord.id)}/selfie`
+        : undefined,
+      submittedAt: requestRecord.submittedAt,
+      status: requestRecord.status
+    }
   });
 });
 
-app.get('/api/admin/alumni-verification-requests', requireServerAuth, requireRole(['admin', 'superadmin', 'registrar']), (_req: Request, res: Response) => {
-  return res.json({
-    success: true,
-    requests: Array.from(alumniVerificationRequests.values())
-  });
-});
+app.get(
+  '/api/admin/alumni-verification-requests',
+  requireServerAuth,
+  requireRole(['moderator', 'admin', 'superadmin']),
+  (req: Request, res: Response) => {
+    const sourceFilter = typeof req.query.submissionSource === 'string' ? req.query.submissionSource.trim() : '';
+    const requestTypeFilter = typeof req.query.requestType === 'string' ? req.query.requestType.trim() : '';
+
+    const requests = Array.from(alumniVerificationRequests.values())
+      .map((r) => {
+        const cls = resolveServerSubmissionSource(r);
+        return {
+          id: r.id,
+          userId: r.userId,
+          submissionSource: cls.submissionSource,
+          requestType: cls.requestType,
+          conflictId: r.conflictId,
+          name: r.name,
+          email: r.email,
+          phone: r.phone,
+          studentId: r.studentId,
+          batch: r.batch,
+          course: r.course,
+          originalOwnerUid: r.originalOwnerUid,
+          originalOwnerName: r.originalOwnerName,
+          originalOwnerEmail: r.originalOwnerEmail,
+          originalOwnerStudentId: r.originalOwnerStudentId,
+          originalOwnerCourse: r.originalOwnerCourse,
+          originalOwnerBatch: r.originalOwnerBatch,
+          proofName: r.proofName,
+          selfieFileName: r.selfieFileName || r.proofName,
+          selfieStoragePath: r.selfieStoragePath,
+          selfieUploadedAt: r.selfieUploadedAt || r.submittedAt,
+          hasSelfieWithId: Boolean(r.selfieStoragePath || r.proofUrl),
+          selfieEndpoint: Boolean(r.selfieStoragePath || r.proofUrl)
+            ? `/api/admin/verification-requests/${encodeURIComponent(r.id)}/selfie`
+            : undefined,
+          notes: r.notes,
+          submittedAt: r.submittedAt,
+          status: r.status,
+          rejectionReason: r.rejectionReason,
+          approvalNotes: r.approvalNotes,
+          reviewedAt: r.reviewedAt,
+          reviewedByUid: r.reviewedByUid,
+          reviewedByName: r.reviewedByName,
+          reviewedByRole: r.reviewedByRole
+        };
+      })
+      .filter((item) => {
+        if (sourceFilter && item.submissionSource !== sourceFilter) return false;
+        if (requestTypeFilter && item.requestType !== requestTypeFilter) return false;
+        return true;
+      });
+    return res.json({
+      success: true,
+      requests
+    });
+  }
+);
+
+// Protected endpoint: Retrieve the actual uploaded Selfie with ID image for an authorized reviewer
+app.get(
+  '/api/admin/verification-requests/:lookupId/selfie',
+  requireServerAuth,
+  requireRole(['moderator', 'admin', 'superadmin']),
+  (req: Request, res: Response) => {
+    const lookupId = decodeURIComponent(String(req.params.lookupId || '')).trim();
+    const emailQuery = typeof req.query.email === 'string' ? req.query.email.trim().toLowerCase() : '';
+    const userIdQuery = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
+    const conflictIdQuery = typeof req.query.conflictId === 'string' ? req.query.conflictId.trim() : '';
+    const requestTypeQuery = typeof req.query.requestType === 'string' ? req.query.requestType.trim() : '';
+    const submissionSourceQuery = typeof req.query.submissionSource === 'string' ? req.query.submissionSource.trim() : '';
+
+    let matched: AlumniVerificationRequest | undefined = alumniVerificationRequests.get(lookupId);
+
+    if (!matched) {
+      const all = Array.from(alumniVerificationRequests.values()).sort(
+        (a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime()
+      );
+      const hasTypeConstraint = Boolean(submissionSourceQuery || requestTypeQuery);
+      const typeFiltered = hasTypeConstraint
+        ? all.filter((r) => {
+            const cls = resolveServerSubmissionSource(r);
+            if (submissionSourceQuery && cls.submissionSource !== submissionSourceQuery) return false;
+            if (requestTypeQuery && cls.requestType !== requestTypeQuery) return false;
+            return true;
+          })
+        : all;
+
+      // 1. Exact conflictId match
+      matched =
+        all.find((r) => (conflictIdQuery && r.conflictId === conflictIdQuery) || (lookupId && r.conflictId === lookupId)) ||
+        // 2. User ID match strictly within requested submission source
+        typeFiltered.find((r) => (lookupId && r.userId === lookupId) || (userIdQuery && r.userId === userIdQuery)) ||
+        // 3. Email match strictly within requested submission source
+        typeFiltered.find((r) => emailQuery && r.email && r.email.toLowerCase() === emailQuery) ||
+        // 4. General fallback only when no explicit submission source / request type constraint was requested
+        (!hasTypeConstraint
+          ? all.find(
+              (r) =>
+                (lookupId && r.userId === lookupId) ||
+                (userIdQuery && r.userId === userIdQuery) ||
+                (emailQuery && r.email && r.email.toLowerCase() === emailQuery)
+            )
+          : undefined);
+    }
+
+    if (!matched) {
+      return res.status(404).json({
+        success: false,
+        error: 'No Selfie with ID record found for this verification request.'
+      });
+    }
+
+    const imageDataUrl = readSelfieDataUrlFromRequest(matched);
+    if (!imageDataUrl) {
+      return res.status(404).json({
+        success: false,
+        error: 'No uploaded Selfie with ID image is attached to this verification request.'
+      });
+    }
+
+    const matchedCls = resolveServerSubmissionSource(matched);
+    const reviewer = (req as any).user;
+    serverAuditLogs.push({
+      id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      timestamp: new Date().toISOString(),
+      action: 'VERIFICATION_SELFIE_VIEWED',
+      actor: reviewer?.email || reviewer?.uid || 'authorized_reviewer',
+      actorRole: normalizeSystemRole(reviewer?.role),
+      ip: req.ip || 'internal',
+      details: {
+        requestId: matched.id,
+        submissionSource: matchedCls.submissionSource,
+        requestType: matchedCls.requestType,
+        conflictId: matched.conflictId,
+        targetUserId: matched.userId,
+        targetEmail: matched.email
+      }
+    });
+
+    return res.json({
+      success: true,
+      requestId: matched.id,
+      submissionSource: matchedCls.submissionSource,
+      requestType: matchedCls.requestType,
+      conflictId: matched.conflictId,
+      userId: matched.userId,
+      email: matched.email,
+      fileName: matched.selfieFileName || matched.proofName || 'selfie_with_id.jpg',
+      storagePath: matched.selfieStoragePath,
+      uploadedAt: matched.selfieUploadedAt || matched.submittedAt,
+      imageDataUrl
+    });
+  }
+);
+
+// Protected atomic decision endpoint for Approve & Verify / Reject (Moderator, Admin, Superadmin)
+app.post(
+  '/api/admin/alumni-verification/decision',
+  requireServerAuth,
+  requireRole(['moderator', 'admin', 'superadmin']),
+  (req: Request, res: Response) => {
+    const reviewer = (req as any).user;
+    const reviewerUid = reviewer?.uid || 'reviewer';
+    const reviewerName = reviewer?.name || reviewer?.email || 'Authorized Reviewer';
+    const reviewerRole = normalizeSystemRole(reviewer?.role);
+
+    const {
+      action,
+      userId,
+      email,
+      studentId,
+      conflictId,
+      requestId,
+      submissionSource,
+      requestType,
+      rejectionReason,
+      notes,
+      alumniId
+    } = req.body || {};
+
+    if (action !== 'approve' && action !== 'reject') {
+      return res.status(400).json({ error: 'Invalid verification decision action. Must be "approve" or "reject".' });
+    }
+
+    const cleanReason = typeof rejectionReason === 'string' ? rejectionReason.trim() : '';
+    if (action === 'reject' && !cleanReason) {
+      return res.status(400).json({ error: 'A rejection reason is required before rejecting a verification request.' });
+    }
+
+    const cleanEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const cleanUserId = typeof userId === 'string' ? userId.trim() : '';
+    const cleanConflictId = typeof conflictId === 'string' ? conflictId.trim() : '';
+    const cleanRequestId = typeof requestId === 'string' ? requestId.trim() : '';
+    const hasExplicitSource = Boolean(submissionSource || requestType);
+    const requestedCls = hasExplicitSource
+      ? resolveServerSubmissionSource({ submissionSource, requestType })
+      : null;
+
+    // Find matching verification request if present (strictly honoring requestId / conflictId / submissionSource)
+    let matchedRequest: AlumniVerificationRequest | undefined = cleanRequestId
+      ? alumniVerificationRequests.get(cleanRequestId)
+      : undefined;
+
+    if (!matchedRequest) {
+      const allReqs = Array.from(alumniVerificationRequests.values()).sort(
+        (a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime()
+      );
+      const scopedReqs = requestedCls
+        ? allReqs.filter((r) => resolveServerSubmissionSource(r).submissionSource === requestedCls.submissionSource)
+        : allReqs;
+      matchedRequest =
+        allReqs.find((r) => cleanConflictId && r.conflictId === cleanConflictId) ||
+        scopedReqs.find(
+          (r) =>
+            (cleanUserId && r.userId === cleanUserId) ||
+            (cleanEmail && r.email && r.email.toLowerCase() === cleanEmail)
+        );
+    }
+
+    // Duplicate/conflict guard on verification request
+    if (matchedRequest && matchedRequest.status !== 'pending') {
+      return res.status(409).json({
+        error: `This verification request has already been ${matchedRequest.status}. Duplicate processing is prevented.`,
+        code: 'DUPLICATE_VERIFICATION_DECISION',
+        currentStatus: matchedRequest.status
+      });
+    }
+
+    const effectiveSource = matchedRequest
+      ? resolveServerSubmissionSource(matchedRequest).submissionSource
+      : requestedCls?.submissionSource;
+
+    // Locate credential record strictly by claimant userId or email (NEVER overwrite original owner's credential via contested studentId on a dispute)
+    let cred: StoredUserCredential | undefined =
+      (cleanUserId ? credentialsDb.get(cleanUserId) : undefined) ||
+      (cleanEmail ? credentialsDb.get(cleanEmail) : undefined);
+
+    if (!cred && studentId && effectiveSource !== 'dispute_student_id_claim') {
+      const normSid = String(studentId).trim().toUpperCase();
+      for (const candidate of credentialsDb.values()) {
+        if (
+          candidate.studentId &&
+          candidate.studentId.trim().toUpperCase() === normSid &&
+          (!cleanEmail || candidate.email?.toLowerCase() === cleanEmail)
+        ) {
+          cred = candidate;
+          break;
+        }
+      }
+    }
+
+    // Prevent duplicate approval when alumni account is already verified and no pending request exists
+    if (action === 'approve' && !matchedRequest && cred && cred.isVerified && String(cred.accountStatus || '').toUpperCase() === 'ACTIVE') {
+      return res.status(409).json({
+        error: 'This alumni account is already verified.',
+        code: 'ALREADY_VERIFIED'
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+
+    if (cred) {
+      // Strictly preserve Alumni role
+      if (normalizeSystemRole(cred.role) === 'alumni') {
+        cred.role = 'alumni';
+      }
+      if (action === 'approve') {
+        cred.isVerified = true;
+        cred.verificationStatus = 'verified';
+        cred.accountStatus = 'ACTIVE';
+        cred.status = 'ACTIVE';
+        cred.verifiedAt = nowIso;
+        cred.verifiedBy = reviewerName;
+        cred.reviewedAt = nowIso;
+        cred.reviewedByUid = reviewerUid;
+        cred.reviewedByName = reviewerName;
+        cred.reviewedByRole = reviewerRole;
+        if (alumniId && typeof alumniId === 'string') {
+          cred.alumniId = alumniId.trim();
+        }
+        if (studentId && typeof studentId === 'string') {
+          cred.studentId = studentId.trim().toUpperCase();
+        }
+        delete cred.rejectionReason;
+        delete cred.rejectedBy;
+        delete cred.rejectionDate;
+      } else {
+        cred.isVerified = false;
+        cred.verificationStatus = 'rejected';
+        cred.accountStatus = 'REJECTED';
+        cred.status = 'REJECTED';
+        cred.rejectionReason = cleanReason;
+        cred.rejectedBy = reviewerName;
+        cred.rejectionDate = nowIso;
+        cred.reviewedAt = nowIso;
+        cred.reviewedByUid = reviewerUid;
+        cred.reviewedByName = reviewerName;
+        cred.reviewedByRole = reviewerRole;
+      }
+      persistCredentialsToDisk();
+    }
+
+    if (matchedRequest) {
+      matchedRequest.status = action === 'approve' ? 'approved' : 'rejected';
+      matchedRequest.reviewedAt = nowIso;
+      matchedRequest.reviewedByUid = reviewerUid;
+      matchedRequest.reviewedByName = reviewerName;
+      matchedRequest.reviewedByRole = reviewerRole;
+      if (action === 'approve') {
+        matchedRequest.approvalNotes = typeof notes === 'string' && notes.trim() ? notes.trim() : undefined;
+      } else {
+        matchedRequest.rejectionReason = cleanReason;
+      }
+      alumniVerificationRequests.set(matchedRequest.id, matchedRequest);
+      persistAlumniVerificationRequestsToDisk();
+    }
+
+    serverAuditLogs.push({
+      id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      timestamp: nowIso,
+      action: action === 'approve' ? 'ALUMNI_VERIFICATION_APPROVED' : 'ALUMNI_VERIFICATION_REJECTED',
+      actor: reviewer?.email || reviewerUid,
+      actorRole: reviewerRole,
+      ip: req.ip || 'internal',
+      details: {
+        requestId: matchedRequest?.id,
+        conflictId: cleanConflictId || matchedRequest?.conflictId,
+        targetUserId: cred?.uid || cleanUserId,
+        targetEmail: cred?.email || cleanEmail,
+        rolePreserved: cred ? cred.role : 'alumni',
+        rejectionReason: action === 'reject' ? cleanReason : undefined,
+        reviewedByName: reviewerName,
+        reviewedByRole: reviewerRole
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: action === 'approve' ? 'Alumni Successfully Verified.' : 'Alumni verification request has been rejected.',
+      status: action === 'approve' ? 'verified' : 'rejected',
+      reviewedAt: nowIso,
+      reviewedBy: {
+        uid: reviewerUid,
+        name: reviewerName,
+        role: reviewerRole
+      }
+    });
+  }
+);
 
 // 6.2.0 Biometric Vaulted Token Exchange: Refresh Session with Hardware-Bound Refresh Token
 app.post('/api/auth/refresh', authRateLimiter, (req: Request, res: Response) => {

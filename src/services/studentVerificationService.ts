@@ -1736,12 +1736,99 @@ export function getRegistrationConflicts(): RegistrationConflictRecord[] {
 export function saveRegistrationConflicts(conflicts: RegistrationConflictRecord[], silent: boolean = false): void {
   try {
     localStorage.setItem(REGISTRY_CONFLICTS_STORAGE_KEY, JSON.stringify(conflicts));
-    if (!silent && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('conflicts-updated', { detail: conflicts }));
+  } catch {
+    // Retry without large inline base64 data URLs when localStorage quota is tight;
+    // the full Selfie with ID remains securely persisted on the backend and Firestore.
+    try {
+      const compact = conflicts.map((c) => {
+        if (c.selfieWithIdUrl && c.selfieWithIdUrl.startsWith('data:') && c.selfieWithIdUrl.length > 24000) {
+          const { selfieWithIdUrl: _omit, ...rest } = c;
+          return rest;
+        }
+        return c;
+      });
+      localStorage.setItem(REGISTRY_CONFLICTS_STORAGE_KEY, JSON.stringify(compact));
+    } catch (err) {
+      console.warn('Conflict cache write skipped due to browser storage quota:', err);
     }
-  } catch (err) {
-    console.error('Failed to save registration conflicts:', err);
   }
+  if (!silent && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('conflicts-updated', { detail: conflicts }));
+  }
+}
+
+/**
+ * Authoritative request classification based strictly on original submission source
+ * (never on displayed label, Alumni name, Student ID, or current status).
+ * - 'dispute_student_id_claim' -> Alumni Claims tab
+ * - 'request_verification'     -> Collisions & Appeals tab
+ */
+export function resolveConflictSubmissionSource(
+  record: Pick<
+    RegistrationConflictRecord,
+    'submissionSource' | 'requestType' | 'conflictType' | 'notes' | 'disputeExplanation'
+  >
+): 'dispute_student_id_claim' | 'request_verification' | null {
+  if (record.submissionSource === 'dispute_student_id_claim') {
+    return 'dispute_student_id_claim';
+  }
+  if (record.submissionSource === 'request_verification') {
+    return 'request_verification';
+  }
+  if (record.requestType === 'claimed_id_dispute' || record.conflictType === 'claimed_id_dispute') {
+    return 'dispute_student_id_claim';
+  }
+  if (
+    record.requestType === 'manual_verification_request' ||
+    record.conflictType === 'manual_verification_request' ||
+    record.conflictType === 'unlisted_record'
+  ) {
+    return 'request_verification';
+  }
+  if (typeof record.notes === 'string' && record.notes.trim().toUpperCase().startsWith('STUDENT ID CLAIM DISPUTE')) {
+    return 'dispute_student_id_claim';
+  }
+  return null;
+}
+
+export function isDisputeStudentIdClaim(
+  record: Pick<
+    RegistrationConflictRecord,
+    'submissionSource' | 'requestType' | 'conflictType' | 'notes' | 'disputeExplanation'
+  >
+): boolean {
+  return resolveConflictSubmissionSource(record) === 'dispute_student_id_claim';
+}
+
+export function isRequestVerificationAppeal(
+  record: Pick<
+    RegistrationConflictRecord,
+    'submissionSource' | 'requestType' | 'conflictType' | 'notes' | 'disputeExplanation'
+  >
+): boolean {
+  return resolveConflictSubmissionSource(record) === 'request_verification';
+}
+
+function normalizeConflictClassification(record: RegistrationConflictRecord): RegistrationConflictRecord {
+  const source = resolveConflictSubmissionSource(record);
+  if (source === 'dispute_student_id_claim') {
+    return {
+      ...record,
+      submissionSource: 'dispute_student_id_claim',
+      requestType: 'claimed_id_dispute'
+    };
+  }
+  if (source === 'request_verification') {
+    return {
+      ...record,
+      submissionSource: 'request_verification',
+      requestType: 'manual_verification_request'
+    };
+  }
+  return {
+    ...record,
+    requestType: record.requestType || 'registration_conflict'
+  };
 }
 
 /**
@@ -1752,10 +1839,28 @@ export function mergeCloudConflictsWithLocal(cloudConflicts: RegistrationConflic
   const map = new Map<string, RegistrationConflictRecord>();
 
   localConflicts.forEach((c) => {
-    if (c && c.id) map.set(c.id, c);
+    if (c && c.id) map.set(c.id, normalizeConflictClassification(c));
   });
   (cloudConflicts || []).forEach((c) => {
-    if (c && c.id) map.set(c.id, c);
+    if (!c || !c.id) return;
+    const existing = map.get(c.id);
+    const normalizedCloud = normalizeConflictClassification(c);
+    map.set(
+      c.id,
+      existing
+        ? normalizeConflictClassification({
+            ...existing,
+            ...normalizedCloud,
+            submissionSource: normalizedCloud.submissionSource || existing.submissionSource,
+            requestType: normalizedCloud.requestType || existing.requestType,
+            selfieWithIdUrl: normalizedCloud.selfieWithIdUrl || existing.selfieWithIdUrl,
+            originalOwnerUid: normalizedCloud.originalOwnerUid || existing.originalOwnerUid,
+            originalOwnerName: normalizedCloud.originalOwnerName || existing.originalOwnerName,
+            originalOwnerEmail: normalizedCloud.originalOwnerEmail || existing.originalOwnerEmail,
+            originalOwnerStudentId: normalizedCloud.originalOwnerStudentId || existing.originalOwnerStudentId
+          })
+        : normalizedCloud
+    );
   });
 
   const sorted = Array.from(map.values()).sort(
@@ -1771,13 +1876,40 @@ export function mergeCloudConflictsWithLocal(cloudConflicts: RegistrationConflic
  * Adds a new conflict record to the queue and notifies Administrators & Moderators
  */
 export function addRegistrationConflict(
-  data: Omit<RegistrationConflictRecord, 'id' | 'flaggedAt' | 'status'>
+  data: Omit<RegistrationConflictRecord, 'id' | 'flaggedAt' | 'status'> & { id?: string }
 ): RegistrationConflictRecord {
   const current = getRegistrationConflicts();
   const nowMs = Date.now();
+  const resolvedSource = resolveConflictSubmissionSource(data);
+  const inferredRequestType: RegistrationConflictRecord['requestType'] =
+    resolvedSource === 'dispute_student_id_claim'
+      ? 'claimed_id_dispute'
+      : resolvedSource === 'request_verification'
+      ? 'manual_verification_request'
+      : data.requestType || 'registration_conflict';
+
+  const cleanEmail = (data.applicantEmail || '').trim().toLowerCase();
+  const normSid = data.applicantStudentId ? normalizeStudentId(data.applicantStudentId).toUpperCase() : '';
+
+  // Prevent duplicate pending Student ID dispute records for the same claimant + contested Student ID
+  if (resolvedSource === 'dispute_student_id_claim' && cleanEmail && normSid) {
+    const existingPendingDispute = current.find(
+      (c) =>
+        c.status === 'pending' &&
+        isDisputeStudentIdClaim(c) &&
+        c.applicantEmail?.trim().toLowerCase() === cleanEmail &&
+        normalizeStudentId(c.targetRegistryStudentId || c.applicantStudentId || '').toUpperCase() === normSid
+    );
+    if (existingPendingDispute && (!data.id || existingPendingDispute.id === data.id)) {
+      return existingPendingDispute;
+    }
+  }
+
   const newConflict: RegistrationConflictRecord = {
     ...data,
-    id: generateSecureId('conflict'),
+    ...(resolvedSource ? { submissionSource: resolvedSource } : {}),
+    requestType: inferredRequestType,
+    id: data.id || generateSecureId('conflict'),
     flaggedAt: new Date(nowMs).toISOString(),
     verificationExpiresAt: data.verificationExpiresAt || new Date(nowMs + PENDING_VERIFICATION_TTL_MS).toISOString(),
     status: 'pending'
@@ -1792,9 +1924,7 @@ export function addRegistrationConflict(
   });
 
   // Notify Administrators & Moderators via Cloud Firestore notification queue
-  const isManualAppeal =
-    newConflict.conflictType === 'manual_verification_request' ||
-    newConflict.conflictType === 'unlisted_record';
+  const isManualAppeal = resolvedSource === 'request_verification';
   const notif: AppNotification = {
     id: generateSecureId('notif_conflict'),
     toUid: 'admin',
@@ -1811,7 +1941,9 @@ export function addRegistrationConflict(
     metadata: {
       targetRole: 'moderator',
       conflictId: newConflict.id,
-      conflictType: newConflict.conflictType
+      conflictType: newConflict.conflictType,
+      submissionSource: newConflict.submissionSource,
+      requestType: newConflict.requestType
     }
   };
   saveNotificationToFirestore(notif).catch((err) => {
@@ -1851,59 +1983,59 @@ export async function syncRegistrationConflictsWithFirestore(): Promise<Registra
   }
 }
 
+export interface ConflictResolutionMetadata {
+  reviewedByUid?: string;
+  reviewedByName?: string;
+  reviewedByRole?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+}
+
 /**
- * Resolves a conflict entry.
- * On rejection (`resolved_rejected`), immediately purges personal applicant PII and stores an anonymized block record.
+ * Resolves a conflict / manual verification request entry.
+ * Guards against duplicate approvals or conflicting status updates and records
+ * reviewing administrator details, decision date, and rejection reason.
  */
 export function resolveConflictRecord(
   conflictId: string,
   decision: 'resolved_verified' | 'resolved_rejected' | 'dismissed',
   resolvedBy: string = 'Registrar Officer',
   resolutionNote?: string,
-  conflictFallback?: RegistrationConflictRecord
+  conflictFallback?: RegistrationConflictRecord,
+  reviewerMeta?: ConflictResolutionMetadata
 ): boolean {
   const current = getRegistrationConflicts();
   const index = current.findIndex((c) => c.id === conflictId);
   const existing = index !== -1 ? current[index] : conflictFallback;
   if (!existing) return false;
 
-  const nowIso = new Date().toISOString();
-  let updatedConflict: RegistrationConflictRecord = {
+  // Prevent duplicate approvals, duplicate rejections, or conflicting status updates
+  if (existing.status !== 'pending') {
+    return false;
+  }
+
+  const nowIso = reviewerMeta?.reviewedAt || new Date().toISOString();
+  const reviewerName = reviewerMeta?.reviewedByName || resolvedBy;
+  const rejectionReason =
+    decision === 'resolved_rejected'
+      ? (reviewerMeta?.rejectionReason || resolutionNote || '').trim() || undefined
+      : undefined;
+
+  const updatedConflict: RegistrationConflictRecord = {
     ...existing,
     status: decision,
     resolvedAt: nowIso,
-    resolvedBy,
-    resolutionNote: resolutionNote || `Marked as ${decision} by ${resolvedBy}`
+    resolvedBy: reviewerName,
+    reviewedAt: nowIso,
+    reviewedByUid: reviewerMeta?.reviewedByUid,
+    reviewedByName: reviewerName,
+    reviewedByRole: reviewerMeta?.reviewedByRole,
+    rejectionReason,
+    resolutionNote:
+      resolutionNote ||
+      rejectionReason ||
+      `Marked as ${decision} by ${reviewerName}`
   };
-
-  if (decision === 'resolved_rejected') {
-    const blockId = generateSecureId('blk');
-    const blockCategory = existing.conflictType === 'manual_verification_request' || existing.conflictType === 'unlisted_record'
-      ? 'alumni_verification'
-      : 'conflict';
-    recordLocalRejectedBlock({
-      id: blockId,
-      email: existing.applicantEmail,
-      identifier: existing.applicantStudentId,
-      category: blockCategory,
-      reason: resolutionNote || `Verification rejected by ${resolvedBy}`,
-      rejectedByRole: resolvedBy
-    }).catch(() => {});
-
-    updatedConflict = {
-      ...updatedConflict,
-      applicantName: 'Rejected Applicant (Purged)',
-      applicantEmail: '',
-      applicantStudentId: undefined,
-      applicantBatch: undefined,
-      applicantCourse: undefined,
-      registryRecord: undefined,
-      notes: 'Personal applicant data purged upon rejection.',
-      piiPurged: true,
-      piiPurgedAt: nowIso,
-      anonymizedBlockId: blockId
-    };
-  }
 
   if (index !== -1) {
     current[index] = updatedConflict;

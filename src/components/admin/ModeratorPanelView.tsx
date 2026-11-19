@@ -152,6 +152,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   const [sanctionReason, setSanctionReason] = useState('');
   const [sanctionDays, setSanctionDays] = useState<number>(7);
   const [isMutatingCase, setIsMutatingCase] = useState(false);
+  const [pendingClaimCaseId, setPendingClaimCaseId] = useState<string | null>(null);
 
   const fetchCasesAndAbuse = useCallback(async () => {
     if (!hasModerationAccess) return;
@@ -379,6 +380,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   // CASE MUTATION HANDLERS
   // ---------------------------------------------------------------------------
   const handleClaimOrRelease = async (caseId: string, mode: 'claim' | 'release') => {
+    if (isMutatingCase) return;
     setIsMutatingCase(true);
     try {
       const res = await apiFetchWithCsrf(
@@ -388,7 +390,47 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       );
       const data = await res.json().catch(() => null);
       if (!res.ok) {
+        if (res.status === 409) {
+          await fetchCasesAndAbuse();
+          if (selectedCaseId === caseId) {
+            await loadCaseDetail(caseId);
+          }
+        }
         throw new Error(data?.error || `Failed to ${mode} case.`);
+      }
+      if (data?.case) {
+        const updatedCase = data.case as ModerationCase;
+        setCases((prev) =>
+          prev.map((item) =>
+            item.id === caseId
+              ? {
+                  ...item,
+                  status: updatedCase.status,
+                  claimedBy: updatedCase.claimedBy,
+                  claimedByName: updatedCase.claimedByName,
+                  claimedAt: updatedCase.claimedAt,
+                  updatedAt: updatedCase.updatedAt
+                }
+              : item
+          )
+        );
+        if (selectedCaseId === caseId) {
+          setCaseDetail((prev) =>
+            prev && prev.case.id === caseId
+              ? {
+                  ...prev,
+                  case: {
+                    ...prev.case,
+                    status: updatedCase.status,
+                    claimedBy: updatedCase.claimedBy,
+                    claimedByName: updatedCase.claimedByName,
+                    claimedAt: updatedCase.claimedAt,
+                    updatedAt: updatedCase.updatedAt
+                  }
+                }
+              : prev
+          );
+        }
       }
       showToast(mode === 'claim' ? 'Case claimed for review.' : 'Case released back to queue.', 'success');
       await fetchCasesAndAbuse();
@@ -400,6 +442,13 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     } finally {
       setIsMutatingCase(false);
     }
+  };
+
+  const handleConfirmClaim = async () => {
+    if (!pendingClaimCaseId || isMutatingCase) return;
+    const targetCaseId = pendingClaimCaseId;
+    await handleClaimOrRelease(targetCaseId, 'claim');
+    setPendingClaimCaseId(null);
   };
 
   const handleActOnCase = async (action: 'dismiss' | 'warn' | 'delete_post') => {
@@ -1285,7 +1334,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                                 <button
                                   type="button"
                                   disabled={isMutatingCase}
-                                  onClick={() => void handleClaimOrRelease(modCase.id, 'claim')}
+                                  onClick={() => setPendingClaimCaseId(modCase.id)}
                                   className="inline-flex items-center gap-1 min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-800 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-200 cursor-pointer whitespace-nowrap shrink-0"
                                 >
                                   <Lock className="w-3 h-3" />
@@ -2281,25 +2330,34 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                       </div>
                       <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5 tabular-nums">
                         {caseDetail.activeWarningsCount} active warnings · {caseDetail.authorWarningHistory.length} total warnings · Case status: {formatStatusLabel(caseDetail.case.status)}
+                        {caseDetail.case.claimedByName && (caseDetail.case.status === 'pending' || caseDetail.case.status === 'reviewed') && (
+                          <> · Claimed by {caseDetail.case.claimedByName}</>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {caseDetail.canAct && (caseDetail.case.status === 'pending' || caseDetail.case.status === 'reviewed') && (
+                      {caseDetail.canAct && (caseDetail.case.status === 'pending' || caseDetail.case.status === 'reviewed') && !caseDetail.case.claimedBy && (
                         <button
                           type="button"
                           disabled={isMutatingCase}
-                          onClick={() =>
-                            void handleClaimOrRelease(
-                              caseDetail.case.id,
-                              caseDetail.case.claimedBy === currentUser?.uid ? 'release' : 'claim'
-                            )
-                          }
+                          onClick={() => setPendingClaimCaseId(caseDetail.case.id)}
                           className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-stone-200 hover:bg-stone-300 text-stone-800 dark:bg-stone-700 dark:text-stone-100 cursor-pointer"
                         >
-                          {caseDetail.case.claimedBy === currentUser?.uid ? 'Release Lock' : 'Claim Case'}
+                          Claim Case
                         </button>
                       )}
+                      {(caseDetail.case.status === 'pending' || caseDetail.case.status === 'reviewed') &&
+                        (caseDetail.case.claimedBy === currentUser?.uid || (isAdmin && Boolean(caseDetail.case.claimedBy))) && (
+                          <button
+                            type="button"
+                            disabled={isMutatingCase}
+                            onClick={() => void handleClaimOrRelease(caseDetail.case.id, 'release')}
+                            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-stone-200 hover:bg-stone-300 text-stone-800 dark:bg-stone-700 dark:text-stone-100 cursor-pointer"
+                          >
+                            Release Lock
+                          </button>
+                        )}
                       {caseDetail.livePost?.isSoftDeleted && (isAdmin || caseDetail.canAct) && (
                         <button
                           type="button"
@@ -2660,6 +2718,21 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
           </div>
         </div>
       )}
+      <ConfirmationModal
+        isOpen={Boolean(pendingClaimCaseId)}
+        onClose={() => {
+          if (!isMutatingCase) {
+            setPendingClaimCaseId(null);
+          }
+        }}
+        onConfirm={() => void handleConfirmClaim()}
+        title="Claim Moderation Case"
+        message="Are you sure you want to claim this moderation case?"
+        confirmLabel="Yes, Claim"
+        cancelLabel="No, Cancel"
+        variant="warning"
+        isProcessing={isMutatingCase}
+      />
     </div>
   );
 };

@@ -40,7 +40,10 @@ import {
   FileText,
   Send,
   ScanFace,
-  Fingerprint
+  Fingerprint,
+  Camera,
+  Upload,
+  Trash2
 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import {
@@ -70,9 +73,12 @@ import {
   generateAlumniId,
   lookupStudentBySchoolId,
   addRegistrationConflict,
+  getRegistrationConflicts,
+  normalizeStudentId,
   splitFullNameParts
 } from '../../services/studentVerificationService';
 import { saveConflictRecordToFirestore } from '../../lib/firebase';
+import { compressImage } from '../../lib/utils';
 import { getCentenaryBatchYears } from '../../services/longevityService';
 import { getEmployerAuthStatus } from '../../lib/employerAuthStatus';
 
@@ -114,6 +120,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     biometricLoginWithRefreshToken,
     register,
     users,
+    updateAlumniProfile,
     resetUserPasswordByEmail,
     addAuditLog,
     showToast,
@@ -511,6 +518,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [disputeCourse, setDisputeCourse] = useState('B.S. Information Technology');
   const [disputeReason, setDisputeReason] = useState('');
   const [disputeReferenceId, setDisputeReferenceId] = useState<string | null>(null);
+  const [disputeSelfieDataUrl, setDisputeSelfieDataUrl] = useState<string | null>(null);
+  const [disputeSelfieFileName, setDisputeSelfieFileName] = useState('');
+  const [disputeSelfieError, setDisputeSelfieError] = useState<string | null>(null);
+  const [isProcessingDisputeSelfie, setIsProcessingDisputeSelfie] = useState(false);
+  const [isSubmittingDispute, setIsSubmittingDispute] = useState(false);
+  const disputeSelfieInputRef = useRef<HTMLInputElement | null>(null);
 
   // Manual Verification Request state (when alumnus has no ID or ID unlisted in registrar masterlist)
   const [showManualVerificationModal, setShowManualVerificationModal] = useState(false);
@@ -524,6 +537,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [showManualPassword, setShowManualPassword] = useState(false);
   const [manualReferenceId, setManualReferenceId] = useState<string | null>(null);
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
+  const [manualSelfieDataUrl, setManualSelfieDataUrl] = useState<string | null>(null);
+  const [manualSelfieFileName, setManualSelfieFileName] = useState('');
+  const [manualSelfieError, setManualSelfieError] = useState<string | null>(null);
+  const [isProcessingManualSelfie, setIsProcessingManualSelfie] = useState(false);
+  const manualSelfieInputRef = useRef<HTMLInputElement | null>(null);
 
   // 100-Year Centenary batches (from 1968 to 50 years into the future)
   const centenaryBatches = React.useMemo(() => getCentenaryBatchYears(1968, 50), []);
@@ -727,73 +745,310 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setSwitchRoleConfirmTarget(null);
   };
 
+  // Selfie with ID validation & upload handler exclusively for Dispute Student ID Claim (JPG, JPEG, PNG, WEBP, max 5 MB)
+  const handleDisputeSelfieFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const hasAllowedExt = /\.(jpe?g|png|webp)$/i.test(file.name || '');
+    const normalizedType = (file.type || '').toLowerCase();
+
+    if (!allowedMimeTypes.includes(normalizedType) || !hasAllowedExt) {
+      const msg = 'Unsupported file format. Please upload a JPG, JPEG, PNG, or WEBP image.';
+      setDisputeSelfieError(msg);
+      showToast(msg, 'error');
+      e.target.value = '';
+      return;
+    }
+
+    const maxBytes = 5 * 1024 * 1024; // 5 MB
+    if (file.size === 0 || file.size > maxBytes) {
+      const msg = 'Image file size exceeds the 5 MB limit. Please upload a photo up to 5 MB.';
+      setDisputeSelfieError(msg);
+      showToast(msg, 'error');
+      e.target.value = '';
+      return;
+    }
+
+    setDisputeSelfieError(null);
+    setIsProcessingDisputeSelfie(true);
+    try {
+      const compressed = await compressImage(file, 1200, 1200, 0.84);
+      const dataUrlMatch = /^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=\s]+)$/i.exec(compressed);
+      if (!dataUrlMatch) {
+        throw new Error('Invalid image format after processing.');
+      }
+      const approxBytes = Math.ceil((dataUrlMatch[2].length * 3) / 4);
+      if (approxBytes > maxBytes) {
+        const msg = 'Processed image still exceeds the 5 MB limit. Please choose a smaller photo.';
+        setDisputeSelfieError(msg);
+        showToast(msg, 'error');
+        return;
+      }
+      setDisputeSelfieDataUrl(compressed);
+      setDisputeSelfieFileName(file.name);
+      setDisputeSelfieError(null);
+    } catch {
+      const msg = 'Unable to read the selected image. Please upload a valid JPG, JPEG, PNG, or WEBP photo.';
+      setDisputeSelfieError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsProcessingDisputeSelfie(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveDisputeSelfie = () => {
+    setDisputeSelfieDataUrl(null);
+    setDisputeSelfieFileName('');
+    setDisputeSelfieError(null);
+    if (disputeSelfieInputRef.current) {
+      disputeSelfieInputRef.current.value = '';
+    }
+  };
+
   // Submit ID Ownership Dispute & Conflict
   const handleDisputeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingDispute || isProcessingDisputeSelfie) return;
+
     if (!disputeFullName.trim() || !disputeEmail.trim() || !disputeReason.trim()) {
       showToast('Please fill out all required fields.', 'error');
       return;
     }
 
     const cleanEmail = disputeEmail.trim().toLowerCase();
-    const targetStudentId = disputeStudentId.trim() || studentId.trim();
-    const claimantProvisionalId = `SCC-DISPUTE-${Date.now().toString().slice(-4)}`;
-    const existingByEmail = users.find((u) => u.email?.trim().toLowerCase() === cleanEmail);
-
-    // 1. Provision provisional account if email is not yet registered
-    if (!existingByEmail) {
-      register({
-        name: disputeFullName.trim(),
-        email: cleanEmail,
-        password: 'TemporaryPassword123!',
-        role: 'alumni',
-        batch: disputeBatch.trim(),
-        course: disputeCourse.trim(),
-        phone: phone || '09123456789',
-        contactNumber: phone || '09123456789',
-        location: 'Cebu, Philippines',
-        headline: `Claimant for Contested ID ${targetStudentId} • Class of ${disputeBatch.trim()}`,
-        studentId: claimantProvisionalId,
-        isVerified: false,
-        accountStatus: 'PENDING_VERIFICATION',
-        verificationStatus: 'in_review',
-        isAppealRegistration: true
-      } as any);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      showToast('Please enter a valid contact email address.', 'error');
+      return;
     }
 
-    // 2. Add conflict directly to Requests & Conflicts triage workbench & persist to Firestore
-    const conflict = addRegistrationConflict({
-      applicantUid: existingByEmail?.uid,
-      applicantName: disputeFullName.trim(),
-      applicantEmail: cleanEmail,
-      applicantStudentId: targetStudentId,
-      applicantBatch: disputeBatch.trim(),
-      applicantCourse: disputeCourse.trim(),
-      targetRegistryStudentId: targetStudentId,
-      conflictType: 'claimed_id_dispute',
-      severity: 'high',
-      confidenceScore: 85,
-      notes: `STUDENT ID CLAIM DISPUTE: Claimant ${disputeFullName.trim()} (${cleanEmail}) is contesting ownership of Student ID "${targetStudentId}". Course: ${disputeCourse.trim()}, Batch: Class of ${disputeBatch.trim()}. Statement: "${disputeReason.trim()}". Verification of diploma/TOR required.`
-    });
-
-    await saveConflictRecordToFirestore(conflict);
-
-    addAuditLog({
-      action: 'REGISTRATION_CONFLICT_DISPUTE_FILED',
-      actorId: existingByEmail?.uid || `claimant_${Date.now()}`,
-      actorName: disputeFullName.trim(),
-      actorRole: 'alumni',
-      category: 'conflict_resolution',
-      details: `Official ID dispute filed for Student ID "${targetStudentId}" by ${disputeFullName} (${cleanEmail}). Forwarded to Requests & Conflicts queue.`,
-      severity: 'alert'
-    });
-
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('conflicts-updated', { detail: [conflict] }));
+    const targetStudentId = (disputeStudentId.trim() || studentId.trim()).toUpperCase();
+    if (!targetStudentId) {
+      showToast('Contested Student ID number is required.', 'error');
+      return;
     }
 
-    setDisputeReferenceId(conflict.id);
-    showToast(`Registration conflict filed! Reference #${conflict.id}. Case forwarded to Registrar & Admin.`, 'success');
+    if (!disputeSelfieDataUrl) {
+      const msg = 'Please upload your Selfie with ID before submitting this Student ID dispute.';
+      setDisputeSelfieError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+
+    // Prevent duplicate pending disputes for the same claimant + Student ID
+    const normTargetId = normalizeStudentId(targetStudentId).toUpperCase();
+    const existingPendingDispute = getRegistrationConflicts().find(
+      (c) =>
+        c.status === 'pending' &&
+        (c.requestType === 'claimed_id_dispute' || c.conflictType === 'claimed_id_dispute') &&
+        c.applicantEmail?.trim().toLowerCase() === cleanEmail &&
+        normalizeStudentId(c.targetRegistryStudentId || c.applicantStudentId || '').toUpperCase() === normTargetId
+    );
+    if (existingPendingDispute) {
+      const msg = `A pending Student ID dispute for ${targetStudentId} under this email already exists (Ref #${existingPendingDispute.id}).`;
+      setDisputeSelfieError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+
+    setIsSubmittingDispute(true);
+    setDisputeSelfieError(null);
+    try {
+      const nowIso = new Date().toISOString();
+      const existingByEmail = users.find((u) => u.email?.trim().toLowerCase() === cleanEmail);
+      const targetUid = existingByEmail?.uid || `user_${Date.now()}`;
+      const claimantProvisionalId = existingByEmail?.studentId || `SCC-DISPUTE-${Date.now().toString().slice(-4)}`;
+      const conflictId = `conflict_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const selfieFileName = disputeSelfieFileName || `dispute_selfie_${Date.now()}.jpg`;
+      const trimmedExplanation = disputeReason.trim();
+      const claimantPhone = (phone || existingByEmail?.phone || '').trim() || undefined;
+
+      // Identify the original registered account owner currently associated with the contested Student ID
+      const originalOwner = users.find(
+        (u) =>
+          !u.isDeleted &&
+          u.studentId &&
+          normalizeStudentId(u.studentId).toUpperCase() === normTargetId &&
+          u.uid !== targetUid &&
+          u.email?.trim().toLowerCase() !== cleanEmail
+      );
+
+      // 1. Upload & validate Selfie with ID on backend storage FIRST so failed uploads never create incomplete requests
+      const uploadRes = await fetch('/api/alumni/verification-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: targetUid,
+          conflictId,
+          submissionSource: 'dispute_student_id_claim',
+          requestType: 'claimed_id_dispute',
+          name: disputeFullName.trim(),
+          email: cleanEmail,
+          phone: claimantPhone,
+          studentId: targetStudentId,
+          batch: disputeBatch.trim(),
+          course: disputeCourse.trim(),
+          originalOwnerUid: originalOwner?.uid,
+          originalOwnerName: originalOwner?.name,
+          originalOwnerEmail: originalOwner?.email,
+          originalOwnerStudentId: originalOwner?.studentId || targetStudentId,
+          originalOwnerCourse: originalOwner?.course,
+          originalOwnerBatch: originalOwner?.batch,
+          selfieWithIdName: selfieFileName,
+          selfieWithIdUrl: disputeSelfieDataUrl,
+          notes: trimmedExplanation
+        })
+      });
+
+      const uploadPayload = await uploadRes.json().catch(() => null);
+      if (!uploadRes.ok || !uploadPayload?.success || !uploadPayload?.request?.id) {
+        const errMsg =
+          uploadPayload?.error ||
+          'Failed to upload your Selfie with ID photo. Please try again with a valid JPG, JPEG, PNG, or WEBP image (max 5 MB).';
+        setDisputeSelfieError(errMsg);
+        showToast(errMsg, 'error');
+        return;
+      }
+
+      const savedServerRequest = uploadPayload.request;
+
+      // 2. Provision provisional account if email is not yet registered, or link uploaded Selfie with ID metadata
+      if (!existingByEmail) {
+        register({
+          uid: targetUid,
+          name: disputeFullName.trim(),
+          email: cleanEmail,
+          password: 'TemporaryPassword123!',
+          role: 'alumni',
+          batch: disputeBatch.trim(),
+          course: disputeCourse.trim(),
+          phone: claimantPhone || '09123456789',
+          contactNumber: claimantPhone || '09123456789',
+          location: 'Cebu, Philippines',
+          headline: `Claimant for Contested ID ${targetStudentId} • Class of ${disputeBatch.trim()}`,
+          studentId: claimantProvisionalId,
+          isVerified: false,
+          accountStatus: 'PENDING_VERIFICATION',
+          verificationStatus: 'in_review',
+          verificationSubmissionSource: 'dispute_student_id_claim',
+          selfieWithIdUrl: disputeSelfieDataUrl,
+          selfieWithIdName: selfieFileName,
+          selfieWithIdUploadedAt: savedServerRequest.selfieUploadedAt || nowIso,
+          verificationRequestId: savedServerRequest.id,
+          isAppealRegistration: true
+        } as any);
+      } else {
+        updateAlumniProfile(existingByEmail.uid, {
+          verificationSubmissionSource: 'dispute_student_id_claim',
+          selfieWithIdUrl: disputeSelfieDataUrl,
+          selfieWithIdName: selfieFileName,
+          selfieWithIdUploadedAt: savedServerRequest.selfieUploadedAt || nowIso,
+          verificationRequestId: savedServerRequest.id
+        }).catch(() => {});
+      }
+
+      // 3. Add dispute record classified exclusively as Dispute Student ID Claim (Alumni Claims) & persist to Firestore
+      const conflict = addRegistrationConflict({
+        id: conflictId,
+        applicantUid: targetUid,
+        applicantName: disputeFullName.trim(),
+        applicantEmail: cleanEmail,
+        applicantPhone: claimantPhone,
+        applicantStudentId: targetStudentId,
+        applicantBatch: disputeBatch.trim(),
+        applicantCourse: disputeCourse.trim(),
+        targetRegistryStudentId: targetStudentId,
+        originalOwnerUid: originalOwner?.uid || savedServerRequest.originalOwnerUid,
+        originalOwnerName: originalOwner?.name || savedServerRequest.originalOwnerName,
+        originalOwnerEmail: originalOwner?.email || savedServerRequest.originalOwnerEmail,
+        originalOwnerStudentId: originalOwner?.studentId || savedServerRequest.originalOwnerStudentId || targetStudentId,
+        originalOwnerCourse: originalOwner?.course || savedServerRequest.originalOwnerCourse,
+        originalOwnerBatch: originalOwner?.batch || savedServerRequest.originalOwnerBatch,
+        submissionSource: 'dispute_student_id_claim',
+        requestType: 'claimed_id_dispute',
+        conflictType: 'claimed_id_dispute',
+        severity: 'high',
+        confidenceScore: 85,
+        disputeExplanation: trimmedExplanation,
+        selfieWithIdUrl: disputeSelfieDataUrl,
+        selfieWithIdName: selfieFileName,
+        selfieWithIdUploadedAt: savedServerRequest.selfieUploadedAt || nowIso,
+        selfieStoragePath: savedServerRequest.selfieStoragePath,
+        verificationRequestId: savedServerRequest.id,
+        notes: `STUDENT ID CLAIM DISPUTE: Claimant ${disputeFullName.trim()} (${cleanEmail}) is contesting ownership of Student ID "${targetStudentId}". Course: ${disputeCourse.trim()}, Batch: Class of ${disputeBatch.trim()}. Statement: "${trimmedExplanation}". Selfie with ID uploaded for identity verification.`
+      });
+
+      await saveConflictRecordToFirestore(conflict);
+
+      addAuditLog({
+        action: 'REGISTRATION_CONFLICT_DISPUTE_FILED',
+        actorId: targetUid,
+        actorName: disputeFullName.trim(),
+        actorRole: 'alumni',
+        category: 'conflict_resolution',
+        details: `Official ID dispute with Selfie with ID filed for Student ID "${targetStudentId}" by ${disputeFullName.trim()} (${cleanEmail}). Classified under Alumni Claims in Requests & Conflicts.`,
+        severity: 'alert'
+      });
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('conflicts-updated', { detail: [conflict] }));
+      }
+
+      setDisputeReferenceId(conflict.id);
+      handleRemoveDisputeSelfie();
+      showToast(`Student ID dispute filed! Reference #${conflict.id}. Forwarded to Alumni Claims.`, 'success');
+    } catch {
+      const msg = 'Unable to upload your Selfie with ID photo right now. Please check your connection and try again.';
+      setDisputeSelfieError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsSubmittingDispute(false);
+    }
+  };
+
+  const handleManualSelfieFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      setManualSelfieError('Please upload a valid image file (JPG, PNG, or WebP).');
+      showToast('Please upload a valid JPG, PNG, or WebP image for your Selfie with ID.', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setManualSelfieError('Image file size must be 10MB or smaller.');
+      showToast('Image is too large. Please upload a photo under 10MB.', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    setManualSelfieError(null);
+    setIsProcessingManualSelfie(true);
+    try {
+      const compressed = await compressImage(file, 1200, 1200, 0.84);
+      setManualSelfieDataUrl(compressed);
+      setManualSelfieFileName(file.name);
+    } catch {
+      setManualSelfieError('Unable to read the selected image. Please try another photo.');
+      showToast('Failed to process the selected Selfie with ID image.', 'error');
+    } finally {
+      setIsProcessingManualSelfie(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveManualSelfie = () => {
+    setManualSelfieDataUrl(null);
+    setManualSelfieFileName('');
+    setManualSelfieError(null);
+    if (manualSelfieInputRef.current) {
+      manualSelfieInputRef.current.value = '';
+    }
   };
 
   // Submit Manual Verification Request (when No ID or Unlisted Record)
@@ -809,6 +1064,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       return;
     }
 
+    if (!manualSelfieDataUrl) {
+      setManualSelfieError('Please upload your Selfie with ID before submitting this request.');
+      showToast('Selfie with ID is required before submitting your manual verification request.', 'error');
+      return;
+    }
+
     const cleanEmail = manualEmail.trim().toLowerCase();
     const existingByEmail = users.find((u) => u.email?.trim().toLowerCase() === cleanEmail);
     if (existingByEmail && existingByEmail.isVerified) {
@@ -818,11 +1079,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     setIsSubmittingAppeal(true);
     try {
+      const nowIso = new Date().toISOString();
+      const targetUid = existingByEmail?.uid || `user_${Date.now()}`;
       const provisionalStudentId = existingByEmail?.studentId || `SCC-PENDING-${Date.now().toString().slice(-4)}`;
+      const trimmedNotes = manualNotes.trim();
+      const selfieFileName = manualSelfieFileName || `selfie_with_id_${Date.now()}.jpg`;
 
-      // 1. Create provisional account if not already present in users
+      // 1. Create provisional account if not already present in users, or attach Selfie with ID to existing unverified profile
       if (!existingByEmail) {
         const registered = register({
+          uid: targetUid,
           name: manualFullName.trim(),
           email: cleanEmail,
           password: manualPassword.trim(),
@@ -836,41 +1102,106 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           isVerified: false,
           accountStatus: 'PENDING_VERIFICATION',
           verificationStatus: 'pending_review',
+          verificationSubmissionSource: 'request_verification',
+          selfieWithIdUrl: manualSelfieDataUrl,
+          selfieWithIdName: selfieFileName,
+          selfieWithIdUploadedAt: nowIso,
+          verificationProofUrl: manualSelfieDataUrl,
+          verificationProofName: selfieFileName,
+          verificationSubmittedAt: nowIso,
+          verificationNotes: trimmedNotes || undefined,
           isAppealRegistration: true
         } as any);
 
         if (!registered) {
           return;
         }
+      } else {
+        await updateAlumniProfile(existingByEmail.uid, {
+          name: manualFullName.trim(),
+          batch: manualBatch.trim(),
+          course: manualCourse.trim(),
+          phone: manualPhone.trim() || existingByEmail.phone,
+          accountStatus: 'PENDING_VERIFICATION',
+          verificationStatus: 'pending_review',
+          verificationSubmissionSource: 'request_verification',
+          selfieWithIdUrl: manualSelfieDataUrl,
+          selfieWithIdName: selfieFileName,
+          selfieWithIdUploadedAt: nowIso,
+          verificationProofUrl: manualSelfieDataUrl,
+          verificationProofName: selfieFileName,
+          verificationSubmittedAt: nowIso,
+          verificationNotes: trimmedNotes || undefined
+        });
       }
 
-      // 2. Register conflict/appeal in Registration Conflicts queue & persist to Cloud Firestore
+      // 2. Register Request Verification / Manual Verification Appeal exclusively under Collisions & Appeals & persist to Firestore
       const conflict = addRegistrationConflict({
-        applicantUid: existingByEmail?.uid,
+        applicantUid: targetUid,
         applicantName: manualFullName.trim(),
         applicantEmail: cleanEmail,
+        applicantPhone: manualPhone.trim() || existingByEmail?.phone,
         applicantStudentId: provisionalStudentId,
         applicantBatch: manualBatch.trim(),
         applicantCourse: manualCourse.trim(),
+        submissionSource: 'request_verification',
+        requestType: 'manual_verification_request',
         conflictType: 'manual_verification_request',
         severity: 'medium',
         confidenceScore: 50,
-        notes: `MANUAL REGISTRAR APPEAL (NO ID / UNLISTED): Alumnus requested manual identity confirmation. Degree: ${manualCourse.trim()}, Cohort: Class of ${manualBatch.trim()}, Phone: ${manualPhone.trim() || 'N/A'}. Details: "${manualNotes.trim() || 'No electronic student ID record on file. Academic archive verification requested.'}".`
+        selfieWithIdUrl: manualSelfieDataUrl,
+        selfieWithIdName: selfieFileName,
+        selfieWithIdUploadedAt: nowIso,
+        notes: `MANUAL REGISTRAR APPEAL (NO ID / UNLISTED): Alumnus requested manual identity confirmation. Degree: ${manualCourse.trim()}, Cohort: Class of ${manualBatch.trim()}, Phone: ${manualPhone.trim() || 'N/A'}. Details: "${trimmedNotes || 'No electronic student ID record on file. Academic archive verification requested.'}".`
       });
 
       await saveConflictRecordToFirestore(conflict);
 
+      // 3. Persist the actual Selfie with ID image securely on the backend verification store
+      try {
+        const res = await fetch('/api/alumni/verification-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: targetUid,
+            conflictId: conflict.id,
+            submissionSource: 'request_verification',
+            requestType: 'manual_verification_request',
+            name: manualFullName.trim(),
+            email: cleanEmail,
+            phone: manualPhone.trim() || existingByEmail?.phone,
+            studentId: provisionalStudentId,
+            batch: manualBatch.trim(),
+            course: manualCourse.trim(),
+            selfieWithIdName: selfieFileName,
+            selfieWithIdUrl: manualSelfieDataUrl,
+            notes: trimmedNotes || undefined
+          })
+        });
+        if (res.ok) {
+          const payload = await res.json().catch(() => null);
+          if (payload?.request?.id) {
+            updateAlumniProfile(targetUid, {
+              verificationRequestId: payload.request.id
+            }).catch(() => {});
+          }
+        }
+      } catch (serverErr) {
+        console.warn('Server verification request sync notice:', serverErr);
+      }
+
       addAuditLog({
         action: 'MANUAL_VERIFICATION_REQUEST_SUBMITTED',
-        actorId: existingByEmail?.uid || `appeal_${Date.now()}`,
+        actorId: targetUid,
         actorName: manualFullName.trim(),
         actorRole: 'alumni',
         category: 'alumni_registration',
-        details: `Manual verification appeal submitted for ${manualFullName.trim()} (${cleanEmail}) for Degree ${manualCourse.trim()}, Batch ${manualBatch.trim()}. Placed in Requests & Conflicts inbox.`,
+        details: `Manual verification appeal with Selfie with ID submitted for ${manualFullName.trim()} (${cleanEmail}) for Degree ${manualCourse.trim()}, Batch ${manualBatch.trim()}. Placed in Requests & Conflicts inbox.`,
         severity: 'info'
       });
 
       setManualReferenceId(conflict.id);
+      handleRemoveManualSelfie();
       showToast(`Verification appeal submitted! Case #${conflict.id}`, 'success');
     } finally {
       setIsSubmittingAppeal(false);
@@ -3676,7 +4007,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           onClick={() => setShowDisputeModal(false)}
         >
           <div
-            className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-lg w-full p-6 sm:p-7 relative overflow-hidden"
+            className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-6 sm:p-7 relative"
             onClick={(e) => e.stopPropagation()}
           >
             {disputeReferenceId ? (
@@ -3824,20 +4155,112 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     />
                   </div>
 
+                  {/* Required Selfie with ID Photo Upload Section (Dispute Student ID Claim) */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-700 block">
+                      Selfie with ID <span className="text-red-500">*</span>
+                    </label>
+                    <p className="text-[11px] text-stone-500 leading-relaxed">
+                      Upload a clear selfie of yourself holding your valid School ID or any valid government-issued ID. Ensure that your face and identification details are clearly visible. This photo is required to verify your identity and ownership of the disputed Student ID.
+                    </p>
+
+                    <input
+                      ref={disputeSelfieInputRef}
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                      onChange={handleDisputeSelfieFileChange}
+                      className="hidden"
+                      aria-label="Upload Selfie with ID"
+                    />
+
+                    {!disputeSelfieDataUrl ? (
+                      <button
+                        type="button"
+                        disabled={isProcessingDisputeSelfie || isSubmittingDispute}
+                        onClick={() => disputeSelfieInputRef.current?.click()}
+                        className={`w-full p-4 rounded-xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 ${
+                          disputeSelfieError
+                            ? 'border-red-300 bg-red-50/40 hover:bg-red-50/70'
+                            : 'border-stone-200 bg-stone-50 hover:border-[#8B181B]/40 hover:bg-stone-100/60'
+                        }`}
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-white border border-stone-200 text-[#8B181B] flex items-center justify-center shadow-2xs">
+                          <Camera className="w-4 h-4" strokeWidth={1.75} />
+                        </div>
+                        <span className="text-xs font-bold text-stone-800">
+                          {isProcessingDisputeSelfie ? 'Processing photo...' : 'Upload Selfie with ID'}
+                        </span>
+                        <span className="text-[10px] text-stone-500">
+                          JPG, JPEG, PNG, or WEBP (Max 5 MB)
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 space-y-2.5">
+                        <div className="relative rounded-lg overflow-hidden border border-stone-200 bg-stone-900/5 max-h-48 flex items-center justify-center">
+                          <img
+                            src={disputeSelfieDataUrl}
+                            alt="Selfie with ID preview"
+                            className="max-h-48 w-auto object-contain"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={1.75} />
+                            <span className="text-[11px] font-medium text-stone-700 truncate max-w-[180px]">
+                              {disputeSelfieFileName || 'Selfie with ID uploaded'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={isProcessingDisputeSelfie || isSubmittingDispute}
+                              onClick={() => disputeSelfieInputRef.current?.click()}
+                              className="px-2.5 py-1 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 text-stone-700 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                            >
+                              <Upload className="w-3 h-3" strokeWidth={1.75} />
+                              <span>Replace Photo</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isProcessingDisputeSelfie || isSubmittingDispute}
+                              onClick={handleRemoveDisputeSelfie}
+                              className="px-2.5 py-1 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-[#8B181B] text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                            >
+                              <Trash2 className="w-3 h-3" strokeWidth={1.75} />
+                              <span>Remove Photo</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {disputeSelfieError && (
+                      <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                        <span>{disputeSelfieError}</span>
+                      </p>
+                    )}
+                  </div>
+
                   <div className="pt-3 border-t border-stone-100 flex items-center justify-end gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setShowDisputeModal(false)}
-                      className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-xs font-semibold hover:bg-stone-50 cursor-pointer"
+                      disabled={isSubmittingDispute}
+                      onClick={() => {
+                        setShowDisputeModal(false);
+                        setDisputeSelfieError(null);
+                      }}
+                      className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-xs font-semibold hover:bg-stone-50 cursor-pointer disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                      disabled={isSubmittingDispute || isProcessingDisputeSelfie}
+                      className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
                     >
                       <Scale className="w-3.5 h-3.5" />
-                      <span>Submit ID Dispute</span>
+                      <span>{isSubmittingDispute ? 'Submitting...' : 'Submit ID Dispute'}</span>
                     </button>
                   </div>
                 </form>
@@ -3856,7 +4279,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           onClick={() => setShowManualVerificationModal(false)}
         >
           <div
-            className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-lg w-full p-6 sm:p-7 relative overflow-hidden"
+            className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-6 sm:p-7 relative"
             onClick={(e) => e.stopPropagation()}
           >
             {manualReferenceId ? (
@@ -4048,17 +4471,105 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     />
                   </div>
 
+                  {/* Required Selfie with ID Upload Section */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-stone-700 block">
+                      Selfie with ID <span className="text-red-500">*</span>
+                    </label>
+                    <p className="text-[11px] text-stone-500 leading-relaxed">
+                      Upload a selfie of yourself holding your valid School ID or any valid government-issued ID. Make sure your face and ID details are clearly visible. This is required to verify that you are the legitimate account owner.
+                    </p>
+
+                    <input
+                      ref={manualSelfieInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleManualSelfieFileChange}
+                      className="hidden"
+                      aria-label="Upload Selfie with ID"
+                    />
+
+                    {!manualSelfieDataUrl ? (
+                      <button
+                        type="button"
+                        disabled={isProcessingManualSelfie}
+                        onClick={() => manualSelfieInputRef.current?.click()}
+                        className={`w-full p-4 rounded-xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
+                          manualSelfieError
+                            ? 'border-red-300 bg-red-50/40 hover:bg-red-50/70'
+                            : 'border-stone-200 bg-stone-50 hover:border-[#8B181B]/40 hover:bg-stone-100/60'
+                        }`}
+                      >
+                        <div className="w-9 h-9 rounded-xl bg-white border border-stone-200 text-[#8B181B] flex items-center justify-center shadow-2xs">
+                          <Camera className="w-4 h-4" strokeWidth={1.75} />
+                        </div>
+                        <span className="text-xs font-bold text-stone-800">
+                          {isProcessingManualSelfie ? 'Processing image...' : 'Upload Selfie with ID'}
+                        </span>
+                        <span className="text-[10px] text-stone-500">
+                          JPG, PNG, or WebP up to 10MB
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 space-y-2.5">
+                        <div className="relative rounded-lg overflow-hidden border border-stone-200 bg-stone-900/5 max-h-48 flex items-center justify-center">
+                          <img
+                            src={manualSelfieDataUrl}
+                            alt="Selfie with ID preview"
+                            className="max-h-48 w-auto object-contain"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={1.75} />
+                            <span className="text-[11px] font-medium text-stone-700 truncate max-w-[180px]">
+                              {manualSelfieFileName || 'Selfie with ID uploaded'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => manualSelfieInputRef.current?.click()}
+                              className="px-2.5 py-1 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 text-stone-700 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <Upload className="w-3 h-3" strokeWidth={1.75} />
+                              <span>Replace</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRemoveManualSelfie}
+                              className="px-2.5 py-1 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-[#8B181B] text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" strokeWidth={1.75} />
+                              <span>Remove</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {manualSelfieError && (
+                      <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
+                        <span>{manualSelfieError}</span>
+                      </p>
+                    )}
+                  </div>
+
                   <div className="pt-3 border-t border-stone-100 flex items-center justify-end gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setShowManualVerificationModal(false)}
+                      onClick={() => {
+                        setShowManualVerificationModal(false);
+                        setManualSelfieError(null);
+                      }}
                       className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-xs font-semibold hover:bg-stone-50 cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      disabled={isSubmittingAppeal}
+                      disabled={isSubmittingAppeal || isProcessingManualSelfie}
                       className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                     >
                       <Send className="w-3.5 h-3.5" />

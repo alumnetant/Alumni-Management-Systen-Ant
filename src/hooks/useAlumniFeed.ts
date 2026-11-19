@@ -64,7 +64,7 @@ export function useAlumniFeed() {
     showToast
   } = useAlumni();
 
-  const [activeTab, setActiveTab] = useState<FeedTab>('foryou');
+  const [activeTab, setActiveTab] = useState<FeedTab>('recent');
   const [searchQuery, setSearchQuery] = useState('');
   const [visibleCount, setVisibleCount] = useState<number>(BATCH_SIZE);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
@@ -257,58 +257,10 @@ export function useAlumniFeed() {
     });
   }, [announcements, events, opportunities, currentUser, localSocial]);
 
-  // Compute Personalized Relevance Score for "For You" (FYP) Algorithm
-  const scoredFeedItems = useMemo(() => {
-    const userBatch = currentUser?.batch;
-    const userCourse = (currentUser?.course || '').toLowerCase().trim();
-    const now = Date.now();
-
-    return rawFeedItems.map((item) => {
-      let score = 0;
-
-      // Base time decay
-      const itemTime = new Date(item.timestamp).getTime();
-      const ageHours = Math.max(1, (now - itemTime) / (1000 * 60 * 60));
-      const recencyBoost = Math.max(0, 100 - ageHours * 0.8);
-      score += recencyBoost;
-
-      // Urgency & Pinned Items
-      if (item.metadata?.isUrgent) score += 120;
-      if (item.metadata?.isPinned) score += 80;
-
-      // Cohort & Program Affinity
-      if (item.author.batch && userBatch && item.author.batch === userBatch) {
-        score += 65;
-      }
-      if (item.author.course && userCourse && item.author.course.toLowerCase().includes(userCourse)) {
-        score += 55;
-      }
-
-      // Upcoming Events within 14 days
-      if (item.type === 'event' && item.metadata?.eventDate) {
-        const eventTime = new Date(item.metadata.eventDate).getTime();
-        const daysUntilEvent = (eventTime - now) / (1000 * 60 * 60 * 24);
-        if (daysUntilEvent >= 0 && daysUntilEvent <= 14) {
-          score += 70;
-        }
-      }
-
-      // Job Match Score
-      if (item.type === 'opportunity' && item.metadata?.matchScore) {
-        score += item.metadata.matchScore * 0.4;
-      }
-
-      return {
-        ...item,
-        relevanceScore: Math.round(score)
-      };
-    });
-  }, [rawFeedItems, currentUser]);
-
   // Filter and Sort by Selected Stream Tab and Search Query
   const filteredFeed = useMemo(() => {
     const interactedSet = new Set(localSocial.interactedEventIds || []);
-    let result = scoredFeedItems.filter((item) => {
+    let result = rawFeedItems.filter((item) => {
       if (item.type === 'event') {
         const rawEventId = item.id.replace('event_', '');
         if (interactedSet.has(rawEventId) || interactedSet.has(item.id)) {
@@ -331,21 +283,16 @@ export function useAlumniFeed() {
       );
     }
 
-    // Stream tab logic
-    if (activeTab === 'foryou') {
-      return [...result].sort((a, b) => b.relevanceScore - a.relevanceScore);
-    } else if (activeTab === 'recent') {
-      return [...result].sort(
-        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
-    } else if (activeTab === 'official') {
+    if (activeTab === 'official') {
       return result
         .filter((item) => item.type === 'announcement' || item.type === 'event')
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }
 
-    return result;
-  }, [scoredFeedItems, activeTab, searchQuery, localSocial.interactedEventIds]);
+    return [...result].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [rawFeedItems, activeTab, searchQuery, localSocial.interactedEventIds]);
 
   // Infinite Scroll Paginated Slice
   const visibleFeed = useMemo(() => {

@@ -162,6 +162,32 @@
       },
       "required": ["studentId", "fullName", "batchYear", "course"]
     },
+    "ConflictRecord": {
+      "title": "Registrar Request or Student ID Dispute Record",
+      "description": "Classified verification appeal or Student ID ownership dispute routed strictly by original submission source",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "applicantUid": { "type": "string" },
+        "applicantName": { "type": "string", "maxLength": 120 },
+        "applicantEmail": { "type": "string", "maxLength": 120 },
+        "applicantPhone": { "type": "string", "maxLength": 30 },
+        "applicantStudentId": { "type": "string", "maxLength": 50 },
+        "applicantBatch": { "type": "string", "maxLength": 10 },
+        "applicantCourse": { "type": "string", "maxLength": 120 },
+        "targetRegistryStudentId": { "type": "string", "maxLength": 50 },
+        "originalOwnerUid": { "type": "string" },
+        "originalOwnerName": { "type": "string", "maxLength": 120 },
+        "originalOwnerEmail": { "type": "string", "maxLength": 120 },
+        "originalOwnerStudentId": { "type": "string", "maxLength": 50 },
+        "submissionSource": { "type": "string", "enum": ["dispute_student_id_claim", "request_verification"] },
+        "requestType": { "type": "string", "enum": ["claimed_id_dispute", "manual_verification_request", "registration_conflict"] },
+        "conflictType": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "resolved_verified", "resolved_rejected", "dismissed", "expired"] },
+        "flaggedAt": { "type": "string" }
+      },
+      "required": ["id", "applicantName", "applicantEmail", "conflictType", "status", "flaggedAt"]
+    },
     "Conversation": {
       "title": "Conversation Thread",
       "description": "Direct conversation isolated by participant userIds",
@@ -334,6 +360,10 @@
     "/registry_records/{recordId}": {
       "schema": "RegistryRecord",
       "description": "Accredited student records uploaded by Registrar for auto-registration matching"
+    },
+    "/conflict_records/{recordId}": {
+      "schema": "ConflictRecord",
+      "description": "Classified Student ID ownership disputes (Alumni Claims) and Manual Verification Requests (Collisions & Appeals)"
     },
     "/friend_requests/{fromUid_toUid}": {
       "schema": "FriendRequest",
