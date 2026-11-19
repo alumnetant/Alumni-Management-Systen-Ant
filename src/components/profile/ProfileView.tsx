@@ -21,18 +21,11 @@ import {
   Clock,
   Megaphone,
   MoreHorizontal,
-  Send,
-  Image as ImageIcon,
-  EyeOff,
-  Loader2,
   FileDown,
-  Scale,
-  X
+  Scale
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { InstitutionalFeedPost } from '../../types';
-
-type PostVisibility = NonNullable<InstitutionalFeedPost['visibility']>;
 import { DigitalAlumniCard } from './DigitalAlumniCard';
 import { ContactMask } from '../common/ContactMask';
 import { RegistrarSelfVerificationModal } from './RegistrarSelfVerificationModal';
@@ -53,9 +46,10 @@ import {
   paginatePostsWithCursor,
   slugifyUsername
 } from '../../lib/postVisibility';
-import { apiFetch } from '../../services/apiClient';
+import { apiFetch, getAuthToken } from '../../services/apiClient';
 import { formatFullLocalDateTime, formatRelativeTime } from '../../lib/dateUtils';
 import { PostCard } from '../social/PostCard';
+import { UnifiedPostComposer } from '../social/UnifiedPostComposer';
 import { AppealPostModal } from '../social/AppealPostModal';
 import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
@@ -68,7 +62,6 @@ export const ProfileView: React.FC = () => {
     openEditProfile,
     openProfile,
     feedPosts,
-    createSocialPost,
     deepLinkTarget,
     clearDeepLinkTarget,
     highlightedItemId
@@ -83,16 +76,9 @@ export const ProfileView: React.FC = () => {
   const [profileViewTab, setProfileViewTab] = useState<'overview' | 'posts'>('overview');
   const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
 
-  // Timeline composer, pagination & private warnings state
-  const [composerTitle, setComposerTitle] = useState('');
-  const [composerContent, setComposerContent] = useState('');
-  const [composerCategory, setComposerCategory] = useState<'update' | 'gallery' | 'announcement'>('update');
-  const [composerVisibility, setComposerVisibility] = useState<PostVisibility>('alumni');
-  const [composerBatch, setComposerBatch] = useState('');
-  const [composerDepartment, setComposerDepartment] = useState('');
-  const [composerImageUrl, setComposerImageUrl] = useState('');
-  const [isComposerAnonymous, setIsComposerAnonymous] = useState(false);
-  const [isPublishingPost, setIsPublishingPost] = useState(false);
+  // Timeline pagination, server hydration & private warnings state
+  const [serverTimelinePosts, setServerTimelinePosts] = useState<InstitutionalFeedPost[]>([]);
+  const [locallyDeletedIds, setLocallyDeletedIds] = useState<Set<string>>(() => new Set());
   const [visibleLimit, setVisibleLimit] = useState(10);
   const [myWarnings, setMyWarnings] = useState<
     Array<{ id: string; postId: string; reason: string; message: string; createdAt: string; actionType?: 'warning' | 'deletion' }>
@@ -107,7 +93,6 @@ export const ProfileView: React.FC = () => {
   const avatarFileInputRef = useRef<HTMLInputElement>(null);
   const coverFileInputRef = useRef<HTMLInputElement>(null);
   const composerTitleRef = useRef<HTMLInputElement>(null);
-  const composerImageInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!currentUser?.uid) return;
@@ -124,6 +109,23 @@ export const ProfileView: React.FC = () => {
       cancelled = true;
     };
   }, [currentUser?.uid]);
+
+  useEffect(() => {
+    if (!currentUser?.uid || currentUser.role === 'employer' || !getAuthToken()) return;
+    let cancelled = false;
+    const slug = encodeURIComponent(currentUser.username || currentUser.uid);
+    apiFetch(`/api/profiles/${slug}/timeline?limit=50`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.posts)) {
+          setServerTimelinePosts(data.posts);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.uid, currentUser?.username, currentUser?.role, feedPosts.length]);
 
   // Automatically open the Edit Profile modal when triggered by external directives
   React.useEffect(() => {
@@ -206,8 +208,12 @@ export const ProfileView: React.FC = () => {
   // Apply the single shared visibility rule on profile surface (automatically excludes anonymous, drafts, deleted)
   const myTimelineOrdered = useMemo(() => {
     if (!currentUser || !viewerContext) return [];
+    const combinedSource = dedupePostsById([
+      ...(feedPosts || []),
+      ...serverTimelinePosts.filter((p) => !locallyDeletedIds.has(p.id))
+    ]);
     const visible = dedupePostsById(
-      (feedPosts || [])
+      combinedSource
         .filter((post) =>
           canUserViewPost(post, {
             surface: 'profile',
@@ -228,7 +234,7 @@ export const ProfileView: React.FC = () => {
       }
     }
     return visible;
-  }, [feedPosts, viewerContext, currentUser]);
+  }, [feedPosts, serverTimelinePosts, locallyDeletedIds, viewerContext, currentUser]);
 
   const myPostsPage = useMemo(() => {
     return paginatePostsWithCursor(myTimelineOrdered, null, visibleLimit);
@@ -319,55 +325,6 @@ export const ProfileView: React.FC = () => {
 
   const isVerifiedUser = !!(currentUser.isVerified || (currentUser as any).verified || currentUser.verificationStatus === 'verified');
   const roleDisplay = (currentUser.role || 'alumni').toUpperCase();
-
-  const handleComposerImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      showToast('Please select a JPEG, PNG, or WebP image.', 'error');
-      return;
-    }
-    try {
-      const compressed = await compressImage(file, 1080, 720, 0.85);
-      setComposerImageUrl(compressed);
-      showToast('Photo attached to post.', 'success');
-    } catch {
-      showToast('Could not process image.', 'error');
-    }
-    e.target.value = '';
-  };
-
-  const handlePublishPost = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!composerContent.trim()) {
-      showToast('Please write your post message before publishing.', 'error');
-      return;
-    }
-    setIsPublishingPost(true);
-    try {
-      const result = await createSocialPost({
-        title: composerTitle.trim() || 'Community Update',
-        content: composerContent.trim(),
-        postType: composerCategory,
-        visibility: composerVisibility,
-        targetBatch: composerVisibility === 'batch' ? composerBatch.trim() || currentUser.batch : undefined,
-        targetDepartment: composerVisibility === 'department' ? composerDepartment.trim() || currentUser.course : undefined,
-        imageUrl: composerImageUrl || undefined,
-        isAnonymous: isComposerAnonymous
-      });
-      const created = result?.success ? result.post : undefined;
-      if (created) {
-        setComposerTitle('');
-        setComposerContent('');
-        setComposerImageUrl('');
-        setIsComposerAnonymous(false);
-      }
-    } catch (err: any) {
-      showToast(err?.message || 'Could not publish post.', 'error');
-    } finally {
-      setIsPublishingPost(false);
-    }
-  };
 
   return (
     <div className="space-y-6 pb-16 max-w-7xl mx-auto">
@@ -1106,131 +1063,19 @@ export const ProfileView: React.FC = () => {
                 </div>
               )}
 
-              {/* Own Profile Composer */}
-              <form
-                onSubmit={handlePublishPost}
-                className="bg-stone-50/70 dark:bg-stone-800/40 rounded-2xl border border-stone-200/90 dark:border-stone-700/60 p-5 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-stone-700 dark:text-stone-300">
-                    Create Post
-                  </span>
-                  <span className="text-[11px] text-stone-400 dark:text-stone-500">
-                    Appears on main feed and your timeline immediately
-                  </span>
-                </div>
-
-                <input
-                  ref={composerTitleRef}
-                  type="text"
-                  value={composerTitle}
-                  onChange={(e) => setComposerTitle(e.target.value)}
-                  placeholder="Headline or post title (optional)"
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-sm font-semibold text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-1 focus:ring-[#8B181B]"
-                />
-
-                <textarea
-                  rows={3}
-                  value={composerContent}
-                  onChange={(e) => setComposerContent(e.target.value)}
-                  placeholder="Share an update, achievement, or mentorship offer with fellow Cecilians..."
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-sm text-stone-800 dark:text-stone-200 focus:outline-none focus:ring-1 focus:ring-[#8B181B] leading-relaxed"
-                />
-
-                {composerImageUrl && (
-                  <div className="relative rounded-xl overflow-hidden max-h-56 border border-stone-200 dark:border-stone-700">
-                    <img src={composerImageUrl} alt="Upload preview" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setComposerImageUrl('')}
-                      className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 text-white cursor-pointer"
-                      aria-label="Remove image"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <select
-                    value={composerCategory}
-                    onChange={(e) => setComposerCategory(e.target.value as 'update' | 'gallery' | 'announcement')}
-                    className="px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 min-h-[44px]"
-                  >
-                    <option value="update">Community Update</option>
-                    <option value="gallery">Campus Gallery</option>
-                    <option value="announcement">Announcement</option>
-                  </select>
-
-                  <select
-                    value={composerVisibility}
-                    onChange={(e) => setComposerVisibility(e.target.value as PostVisibility)}
-                    className="px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 min-h-[44px]"
-                  >
-                    <option value="alumni">Alumni Only</option>
-                    <option value="public">Public</option>
-                    <option value="batch">Batch Only</option>
-                    <option value="department">Department Only</option>
-                    <option value="private">Private (Only Me)</option>
-                  </select>
-
-                  {composerVisibility === 'batch' && (
-                    <input
-                      type="text"
-                      value={composerBatch}
-                      onChange={(e) => setComposerBatch(e.target.value)}
-                      placeholder={currentUser.batch || 'Batch year'}
-                      className="px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs text-stone-800 dark:text-stone-200 w-32 min-h-[44px]"
-                    />
-                  )}
-
-                  {composerVisibility === 'department' && (
-                    <input
-                      type="text"
-                      value={composerDepartment}
-                      onChange={(e) => setComposerDepartment(e.target.value)}
-                      placeholder={currentUser.course || 'Department'}
-                      className="px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs text-stone-800 dark:text-stone-200 w-40 min-h-[44px]"
-                    />
-                  )}
-
-                  <input
-                    ref={composerImageInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    className="hidden"
-                    onChange={handleComposerImageSelect}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => composerImageInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 cursor-pointer min-h-[44px]"
-                  >
-                    <ImageIcon className="w-4 h-4" />
-                    <span>Photo</span>
-                  </button>
-
-                  <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs text-stone-600 dark:text-stone-300 cursor-pointer min-h-[44px]">
-                    <input
-                      type="checkbox"
-                      checked={isComposerAnonymous}
-                      onChange={(e) => setIsComposerAnonymous(e.target.checked)}
-                      className="accent-[#8B181B]"
-                    />
-                    <EyeOff className="w-3.5 h-3.5" />
-                    <span>Anonymous</span>
-                  </label>
-
-                  <button
-                    type="submit"
-                    disabled={isPublishingPost || !composerContent.trim()}
-                    className="ml-auto inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#8B181B] hover:bg-[#721316] disabled:opacity-50 text-white rounded-xl text-xs font-bold cursor-pointer min-h-[44px]"
-                  >
-                    {isPublishingPost ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    <span>Publish</span>
-                  </button>
-                </div>
-              </form>
+              {/* Unified Post Composer (Shared with Alumni & Campus Feed) */}
+              <UnifiedPostComposer
+                mode="profile"
+                titleInputRef={composerTitleRef}
+                onPostCreated={(created) => {
+                  setLocallyDeletedIds((prev) => {
+                    if (!prev.has(created.id)) return prev;
+                    const next = new Set(prev);
+                    next.delete(created.id);
+                    return next;
+                  });
+                }}
+              />
 
               {myTimelineOrdered.length === 0 ? (
                 <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-dashed border-stone-300 dark:border-stone-700 p-10 text-center space-y-3">
@@ -1257,6 +1102,10 @@ export const ProfileView: React.FC = () => {
                       isPinnedOnProfile={currentUser.pinnedPostId === post.id}
                       highlighted={isHighlighted(post.id)}
                       onImageClick={(url, title) => setViewerImage({ url, title })}
+                      onPostDeleted={(pid) => {
+                        setLocallyDeletedIds((prev) => new Set(prev).add(pid));
+                        setServerTimelinePosts((prev) => prev.filter((item) => item.id !== pid));
+                      }}
                     />
                   ))}
 

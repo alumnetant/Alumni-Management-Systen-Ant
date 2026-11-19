@@ -6,31 +6,22 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Camera,
-  EyeOff,
   Globe,
-  Image as ImageIcon,
   Megaphone,
-  Pin,
   RefreshCw,
   Search,
-  Send,
   Sparkles,
-  Upload,
   Users,
-  X,
   AlertTriangle,
-  ArrowUp,
-  ChevronDown,
-  ChevronUp
+  ArrowUp
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { FeedPageResponse, InstitutionalFeedPost } from '../../types';
 import { apiFetch, getAuthToken } from '../../services/apiClient';
-import { validateUploadedFile } from '../../lib/security';
-import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { Skeleton } from '../common/BentoSkeleton';
 import { ImageViewerModal } from '../common/ImageViewerModal';
 import { PostCard } from '../social/PostCard';
+import { UnifiedPostComposer } from '../social/UnifiedPostComposer';
 import { useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 import {
   canUserViewPost,
@@ -40,13 +31,6 @@ import {
   isPinActive,
   paginatePostsWithCursor
 } from '../../lib/postVisibility';
-
-const PRESET_CAMPUS_PHOTOS = [
-  { name: "Academic Tower", url: '/assets/landing-building-2.jpg' },
-  { name: 'Campus Entrance', url: '/assets/landing-building-1.jpg' },
-  { name: 'Aerial Campus', url: '/assets/landing-building-3.jpg' },
-  { name: 'College Seal', url: '/assets/cecilians-seal.jpg' }
-];
 
 interface InstitutionalSocialFeedProps {
   alumniOnly?: boolean;
@@ -61,7 +45,6 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
     currentUser,
     users,
     feedPosts,
-    createSocialPost,
     showToast,
     isLoadingData,
     deepLinkTarget,
@@ -86,25 +69,10 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
   const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
   const missingPostNotifiedRef = useRef<string | null>(null);
 
-  // Inline Composer States
-  const [composerExpanded, setComposerExpanded] = useState(false);
-  const [composerType, setComposerType] = useState<'update' | 'gallery' | 'announcement'>('update');
-  const [postTitle, setPostTitle] = useState('');
-  const [postContent, setPostContent] = useState('');
-  const [postImageUrl, setPostImageUrl] = useState('');
-  const [postTags, setPostTags] = useState('');
-  const [visibility, setVisibility] = useState<'alumni' | 'public' | 'batch' | 'department' | 'private'>('alumni');
-  const [isAnonymous, setIsAnonymous] = useState(false);
-  const [isPinned, setIsPinned] = useState(false);
-  const [pinExpiresAt, setPinExpiresAt] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   const sentinelRef = useRef<HTMLDivElement>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const deletedIdsRef = useRef<Set<string>>(new Set());
 
-  const isAdminOrSuperAdmin =
-    currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
   const canPublishPost = Boolean(
     currentUser &&
       currentUser.role !== 'employer' &&
@@ -597,84 +565,19 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
     showToast
   ]);
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const validation = await validateUploadedFile(file, 'images');
-    if (!validation.valid) {
-      showToast(validation.error || 'Invalid photo format.', 'error');
-      return;
+  const handleComposerPostCreated = useCallback((created: InstitutionalFeedPost) => {
+    seenIdsRef.current.add(created.id);
+    if (created.isPinned && isPinActive(created)) {
+      setPinnedPosts((prev) =>
+        dedupePostsById([created, ...prev.filter((p) => p.id !== created.id)]).slice(0, 3)
+      );
+    } else {
+      setStreamPosts((prev) =>
+        dedupePostsById([created, ...prev.filter((p) => p.id !== created.id)])
+      );
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setPostImageUrl(event.target?.result as string);
-      showToast('Photo attached to your post.', 'success');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSubmitPost = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!postContent.trim()) {
-      showToast('Please write something to share with the community.', 'warning');
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const tagsArray = postTags
-        ? postTags
-            .split(',')
-            .map((t) => t.trim().replace(/^#/, ''))
-            .filter(Boolean)
-        : [
-            composerType === 'gallery'
-              ? 'CampusGallery'
-              : composerType === 'announcement'
-              ? 'Announcement'
-              : 'Update'
-          ];
-
-      const result = await createSocialPost({
-        postType: composerType,
-        title: postTitle.trim() || (composerType === 'announcement' ? 'Community Announcement' : ''),
-        content: postContent.trim(),
-        imageUrl: postImageUrl.trim() || undefined,
-        visibility,
-        targetBatch: visibility === 'batch' ? currentUser?.batch : undefined,
-        targetDepartment: visibility === 'department' ? (currentUser?.department || currentUser?.course) : undefined,
-        isAnonymous,
-        isPinned: isAdminOrSuperAdmin ? isPinned : false,
-        pinExpiresAt: isAdminOrSuperAdmin && isPinned && pinExpiresAt ? new Date(pinExpiresAt).toISOString() : undefined,
-        tags: tagsArray
-      });
-
-      const created = result?.success ? result.post : undefined;
-      if (created) {
-        seenIdsRef.current.add(created.id);
-        if (created.isPinned && isPinActive(created)) {
-          setPinnedPosts((prev) =>
-            dedupePostsById([created, ...prev.filter((p) => p.id !== created.id)]).slice(0, 3)
-          );
-        } else {
-          setStreamPosts((prev) =>
-            dedupePostsById([created, ...prev.filter((p) => p.id !== created.id)])
-          );
-        }
-        setLatestPostAt(created.createdAt);
-        setPostTitle('');
-        setPostContent('');
-        setPostImageUrl('');
-        setPostTags('');
-        setVisibility('alumni');
-        setIsAnonymous(false);
-        setIsPinned(false);
-        setPinExpiresAt('');
-        setComposerExpanded(false);
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    setLatestPostAt(created.createdAt);
+  }, []);
 
   const showSkeleton = (propIsLoading ?? isLoadingData) || (isFetchingFirst && streamPosts.length === 0 && pinnedPosts.length === 0);
 
@@ -738,196 +641,9 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
           })}
         </div>
 
-        {/* Inline Post Composer */}
+        {/* Unified Post Composer */}
         {canPublishPost ? (
-          <form onSubmit={handleSubmitPost} className="pt-3 border-t border-stone-100 dark:border-stone-800 space-y-3">
-            <div className="flex items-start gap-3">
-              <img
-                src={getUserAvatar(currentUser?.profilePictureUrl)}
-                alt={currentUser?.name || 'Member'}
-                onError={handleUserAvatarError}
-                className="w-10 h-10 rounded-2xl object-cover border border-stone-200 dark:border-stone-700 shrink-0"
-              />
-              <div className="flex-1 space-y-2">
-                {composerExpanded && (
-                  <input
-                    type="text"
-                    value={postTitle}
-                    onChange={(e) => setPostTitle(e.target.value)}
-                    placeholder="Headline or short title (optional)"
-                    className="w-full px-3.5 py-2 text-xs font-semibold bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white focus:outline-none focus:border-[#8B181B]"
-                  />
-                )}
-                <textarea
-                  rows={composerExpanded ? 3 : 2}
-                  value={postContent}
-                  onFocus={() => setComposerExpanded(true)}
-                  onChange={(e) => setPostContent(e.target.value)}
-                  placeholder={`Share a career update, achievement, or campus photo, ${currentUser?.name?.split(' ')[0] || 'Cecilian'}...`}
-                  className="w-full px-3.5 py-2.5 text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] resize-none leading-relaxed"
-                />
-              </div>
-            </div>
-
-            {composerExpanded && (
-              <div className="pl-0 sm:pl-13 space-y-3">
-                {/* Category & Visibility Row */}
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <select
-                    value={composerType}
-                    onChange={(e) => setComposerType(e.target.value as any)}
-                    className="px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 font-semibold min-h-[38px]"
-                    aria-label="Post Category"
-                  >
-                    <option value="update">Community Update</option>
-                    <option value="gallery">Campus Photo</option>
-                    <option value="announcement">Announcement</option>
-                  </select>
-
-                  <select
-                    value={visibility}
-                    onChange={(e) => setVisibility(e.target.value as any)}
-                    className="px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 font-semibold min-h-[38px]"
-                    aria-label="Post Visibility"
-                  >
-                    <option value="alumni">All Verified Alumni</option>
-                    <option value="public">Public</option>
-                    {currentUser?.batch && (
-                      <option value="batch">Batch {currentUser.batch} Only</option>
-                    )}
-                    {(currentUser?.department || currentUser?.course) && (
-                      <option value="department">
-                        {currentUser.department || currentUser.course} Only
-                      </option>
-                    )}
-                    <option value="private">Only Me (Private)</option>
-                  </select>
-
-                  {currentUser?.role === 'alumni' && (
-                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 cursor-pointer min-h-[38px]">
-                      <input
-                        type="checkbox"
-                        checked={isAnonymous}
-                        onChange={(e) => setIsAnonymous(e.target.checked)}
-                        className="rounded text-[#8B181B] focus:ring-[#8B181B]"
-                      />
-                      <EyeOff className="w-3.5 h-3.5 text-stone-500" />
-                      <span>Post Anonymously</span>
-                    </label>
-                  )}
-
-                  {isAdminOrSuperAdmin && (
-                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300 cursor-pointer min-h-[38px]">
-                      <input
-                        type="checkbox"
-                        checked={isPinned}
-                        onChange={(e) => setIsPinned(e.target.checked)}
-                        className="rounded text-[#8B181B] focus:ring-[#8B181B]"
-                      />
-                      <Pin className="w-3.5 h-3.5" />
-                      <span>Pin Announcement</span>
-                    </label>
-                  )}
-                </div>
-
-                {isAdminOrSuperAdmin && isPinned && (
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <label className="text-stone-600 dark:text-stone-400 font-medium">
-                      Pin expires on (optional):
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={pinExpiresAt}
-                      onChange={(e) => setPinExpiresAt(e.target.value)}
-                      className="px-3 py-1.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200"
-                    />
-                  </div>
-                )}
-
-                {/* Media Attachment Row */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-semibold text-stone-700 dark:text-stone-200 cursor-pointer min-h-[38px]">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Photo</span>
-                    <input
-                      type="file"
-                      accept="image/png, image/jpeg, image/webp"
-                      onChange={handlePhotoUpload}
-                      className="hidden"
-                    />
-                  </label>
-
-                  {PRESET_CAMPUS_PHOTOS.map((preset) => (
-                    <button
-                      key={preset.url}
-                      type="button"
-                      onClick={() => setPostImageUrl(preset.url)}
-                      className={`px-2.5 py-1.5 rounded-xl text-[11px] font-medium border cursor-pointer transition-colors min-h-[34px] ${
-                        postImageUrl === preset.url
-                          ? 'bg-red-50 border-[#8B181B] text-[#8B181B] dark:bg-red-950/40 dark:text-red-300'
-                          : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50'
-                      }`}
-                    >
-                      {preset.name}
-                    </button>
-                  ))}
-
-                  {postImageUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setPostImageUrl('')}
-                      className="text-xs text-red-600 hover:underline cursor-pointer ml-auto"
-                    >
-                      Remove image
-                    </button>
-                  )}
-                </div>
-
-                {postImageUrl && (
-                  <div className="rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 max-h-44 bg-stone-950">
-                    <img src={postImageUrl} alt="Attachment preview" className="w-full h-full object-cover" />
-                  </div>
-                )}
-
-                <input
-                  type="text"
-                  value={postTags}
-                  onChange={(e) => setPostTags(e.target.value)}
-                  placeholder="Tags (comma-separated, e.g. BSIT, Career, Homecoming)"
-                  className="w-full px-3.5 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-white"
-                />
-              </div>
-            )}
-
-            <div className="flex items-center justify-between pt-1">
-              <button
-                type="button"
-                onClick={() => setComposerExpanded((prev) => !prev)}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200 cursor-pointer min-h-[38px]"
-              >
-                {composerExpanded ? (
-                  <>
-                    <ChevronUp className="w-3.5 h-3.5" />
-                    <span>Fewer options</span>
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-3.5 h-3.5" />
-                    <span>Add photo, visibility &amp; options</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="submit"
-                disabled={isSubmitting || !postContent.trim()}
-                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#8B181B] hover:bg-[#721316] disabled:opacity-50 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer min-h-[40px]"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>{isSubmitting ? 'Posting...' : 'Publish Post'}</span>
-              </button>
-            </div>
-          </form>
+          <UnifiedPostComposer mode="feed" onPostCreated={handleComposerPostCreated} />
         ) : (
           <div className="pt-3 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">
             <span className="inline-flex items-center gap-1.5">

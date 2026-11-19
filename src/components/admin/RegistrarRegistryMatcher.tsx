@@ -39,6 +39,10 @@ import { useAlumni } from '../../context/AlumniContext';
 export const RegistrarRegistryMatcher: React.FC = () => {
   const { users, currentUser, showToast, addAuditLog, setSelectedUserIdForModal } = useAlumni();
 
+  const canSearchRegistry = ['superadmin', 'admin', 'moderator'].includes(
+    (currentUser?.role || '').toLowerCase()
+  );
+
   const [records, setRecords] = useState<StudentVerificationRecord[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBatch, setSelectedBatch] = useState<string>('all');
@@ -260,16 +264,37 @@ export const RegistrarRegistryMatcher: React.FC = () => {
 
   // Filtered and sorted records
   const filteredRecords = useMemo(() => {
+    const q = canSearchRegistry ? searchQuery.toLowerCase().trim() : '';
+    const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+
     return records
       .filter((r) => {
-        const q = searchQuery.toLowerCase().trim();
-        const matchesSearch =
-          !q ||
-          (r.studentId && r.studentId.toLowerCase().includes(q)) ||
-          (r.fullName && r.fullName.toLowerCase().includes(q)) ||
-          (r.batchYear && r.batchYear.toLowerCase().includes(q)) ||
-          (r.course && r.course.toLowerCase().includes(q)) ||
-          (r.email && r.email.toLowerCase().includes(q));
+        let matchesSearch = true;
+        if (tokens.length > 0) {
+          const verificationLabel = r.isRegistered ? 'verified alumni' : 'pre-accredited';
+          const searchableFields = [
+            r.studentId,
+            r.fullName,
+            r.course,
+            r.guardianName,
+            r.phone,
+            r.birthDate,
+            r.homeAddress,
+            r.batchYear,
+            r.email,
+            r.honors,
+            r.latinHonors,
+            r.status,
+            r.graduationStatus,
+            r.verification_status,
+            verificationLabel
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+          matchesSearch = tokens.every((token) => searchableFields.includes(token));
+        }
 
         const matchesBatch = selectedBatch === 'all' || r.batchYear === selectedBatch;
         const matchesStatus =
@@ -296,7 +321,12 @@ export const RegistrarRegistryMatcher: React.FC = () => {
         }
         return 0;
       });
-  }, [records, searchQuery, selectedBatch, selectedStatus, selectedCourse, sortBy]);
+  }, [records, searchQuery, canSearchRegistry, selectedBatch, selectedStatus, selectedCourse, sortBy]);
+
+  // Reset search independently when switching user/role sessions
+  useEffect(() => {
+    setSearchQuery('');
+  }, [currentUser?.uid, currentUser?.role]);
 
   // Reset pagination on filter or search changes
   useEffect(() => {
@@ -363,6 +393,61 @@ export const RegistrarRegistryMatcher: React.FC = () => {
           2. MASTER ROSTER DATA LEDGER
           ======================================================== */}
       <div className="bg-white rounded-[32px] border border-stone-200/90 shadow-2xs overflow-hidden">
+        {/* Role-Based Registry Search Bar (Super Admin, Admin, Moderator) */}
+        {canSearchRegistry && (
+          <div className="px-4 sm:px-6 py-3.5 border-b border-stone-200/80 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="relative flex-1 max-w-xl">
+              <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                id="registrar-registry-search"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && searchQuery) {
+                    setSearchQuery('');
+                  }
+                }}
+                placeholder="Search by Student ID, Full Name, Course, Guardian, Contact, Birthdate, Address..."
+                aria-label="Search Registrar Registry"
+                className="w-full pl-10 pr-9 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-900 placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] focus:bg-white transition-all"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                  title="Clear search"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-stone-400 hover:text-stone-700 rounded-md hover:bg-stone-200/70 transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            {searchQuery.trim() && (
+              <div className="flex items-center gap-2 text-xs text-stone-500 shrink-0">
+                <span>
+                  <strong className="font-mono tabular-nums text-stone-900 font-bold">
+                    {filteredRecords.length}
+                  </strong>{' '}
+                  of{' '}
+                  <strong className="font-mono tabular-nums text-stone-900 font-bold">
+                    {records.length}
+                  </strong>{' '}
+                  matching
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="text-xs font-semibold text-[#8B181B] hover:text-[#721316] hover:underline cursor-pointer"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Ledger Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">

@@ -1405,6 +1405,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     } catch {}
   }, [galleryItems]);
 
+  const pendingLocalPostsRef = useRef<Map<string, InstitutionalFeedPost>>(new Map());
+  const deletedFeedPostIdsRef = useRef<Set<string>>(new Set());
+
   const [feedPosts, setFeedPosts] = useState<InstitutionalFeedPost[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.FEED_POSTS);
@@ -2843,7 +2846,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     const unsubFeed = subscribeToFeedPosts((firestorePosts) => {
       if (isSubscribed) {
-        setFeedPosts(dedupePostsById((firestorePosts || []).filter((p) => !isSeedId(p.id))));
+        const cleanRemote = (firestorePosts || []).filter(
+          (p) => !isSeedId(p.id) && !deletedFeedPostIdsRef.current.has(p.id)
+        );
+        const remoteIds = new Set(cleanRemote.map((p) => p.id));
+        const pendingExtras: InstitutionalFeedPost[] = [];
+        pendingLocalPostsRef.current.forEach((pendingPost, id) => {
+          if (remoteIds.has(id)) {
+            pendingLocalPostsRef.current.delete(id);
+          } else if (!deletedFeedPostIdsRef.current.has(id)) {
+            pendingExtras.push(pendingPost);
+          }
+        });
+        setFeedPosts(dedupePostsById([...pendingExtras, ...cleanRemote]));
       }
     });
 
@@ -4999,9 +5014,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             ...(data?.post || optimisticPost),
             authorId: currentUser.uid
           };
+          deletedFeedPostIdsRef.current.delete(savedPost.id);
+          pendingLocalPostsRef.current.set(savedPost.id, savedPost);
           setFeedPosts((prev) => dedupePostsById([savedPost, ...prev.filter((p) => p.id !== savedPost.id)]));
           saveFeedPostToFirestore(savedPost).catch(() => {});
-          showToast('Post published to feed and profile timeline!', 'success');
+          showToast(
+            savedPost.isAnonymous
+              ? 'Anonymous post published to the main feed.'
+              : 'Post published to feed and profile timeline!',
+            'success'
+          );
           return { success: true, post: savedPost };
         }
         if (res.status === 403 || res.status === 400) {
@@ -5015,11 +5037,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
     }
 
+    deletedFeedPostIdsRef.current.delete(optimisticPost.id);
+    pendingLocalPostsRef.current.set(optimisticPost.id, optimisticPost);
     setFeedPosts((prev) => dedupePostsById([optimisticPost, ...prev.filter((p) => p.id !== optimisticPost.id)]));
     saveFeedPostToFirestore(optimisticPost).catch((err) => {
       console.warn('Failed to persist feed post in Firestore:', err);
     });
-    showToast('Post published to feed and profile timeline!', 'success');
+    showToast(
+      optimisticPost.isAnonymous
+        ? 'Anonymous post published to the main feed.'
+        : 'Post published to feed and profile timeline!',
+      'success'
+    );
     return { success: true, post: optimisticPost };
   }, [currentUser, showToast]);
 
@@ -5243,6 +5272,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('You do not have permission to delete this post.', 'error');
       return;
     }
+    deletedFeedPostIdsRef.current.add(postId);
+    pendingLocalPostsRef.current.delete(postId);
     setFeedPosts((prev) => prev.filter((p) => p.id !== postId));
     deleteFeedPostFromFirestore(postId).catch((err) => {
       console.warn('Failed to delete feed post from Firestore:', err);
@@ -5266,6 +5297,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       ? { ...post, ...safeUpdates, isEdited: true, updatedAt: new Date().toISOString() }
       : undefined;
     if (updatedPost) {
+      pendingLocalPostsRef.current.set(updatedPost.id, updatedPost);
       setFeedPosts((prev) => prev.map((p) => (p.id === postId ? updatedPost : p)));
       saveFeedPostToFirestore(updatedPost).catch((err) => {
         console.warn('Failed to update feed post in Firestore:', err);
