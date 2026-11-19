@@ -4,7 +4,6 @@ import fs from 'fs';
 import crypto from 'crypto';
 
 const __dirname = path.resolve();
-const IS_VERCEL = Boolean(process.env.VERCEL);
 import type { Opportunity, JobApplication, ApplicationStatus, ChatThread, ChatMessage } from './src/types';
 import { normalizeSystemRole } from './src/types';
 import { INITIAL_USERS, INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
@@ -243,7 +242,12 @@ function scrubPayload(obj: any): any {
 app.use((req: Request, _res: Response, next: NextFunction) => {
   if (req.path.startsWith('/api')) {
     const safeBody = scrubPayload(req.body);
-    console.info(`[SECURE AUDIT] ${req.method} ${req.path} from IP=${req.ip}`, Object.keys(safeBody).length > 0 ? safeBody : '');
+    const hasLoggableBody =
+      Boolean(safeBody) &&
+      typeof safeBody === 'object' &&
+      !Array.isArray(safeBody) &&
+      Object.keys(safeBody).length > 0;
+    console.info(`[SECURE AUDIT] ${req.method} ${req.path} from IP=${req.ip}`, hasLoggableBody ? safeBody : '');
   }
   next();
 });
@@ -407,29 +411,11 @@ const revokedTokens = new Set<string>();
 // ============================================================================
 // CRYPTOGRAPHIC AUTHENTICATION TOKEN SERVICE
 // ============================================================================
-const SERVER_AUTH_SECRET = (() => {
-  if (process.env.SERVER_AUTH_SECRET) {
-    return process.env.SERVER_AUTH_SECRET;
-  }
-  if (IS_VERCEL) {
-    console.warn(
-      '[Security Notice] SERVER_AUTH_SECRET is not set on Vercel; deriving deployment-scoped secret so tokens remain consistent across serverless instances.'
-    );
-    const seedMaterial =
-      process.env.VERCEL_PROJECT_ID ||
-      process.env.VERCEL_GIT_REPO_ID ||
-      process.env.VERCEL_ORG_ID ||
-      process.env.VERCEL_URL ||
-      'cecilian-alumnet-vercel';
-    return crypto
-      .createHmac('sha256', 'cecilian-alumnet-vercel-serverless-secret-v1')
-      .update(seedMaterial)
-      .digest('hex');
-  }
-  return IS_PROD
+const SERVER_AUTH_SECRET =
+  process.env.SERVER_AUTH_SECRET ||
+  (IS_PROD
     ? crypto.randomBytes(32).toString('hex')
-    : 'scc_alumnet_dev_only_secret_key_do_not_use_in_prod';
-})();
+    : 'scc_alumnet_dev_only_secret_key_do_not_use_in_prod');
 
 interface SignedSessionPayload {
   sessionId: string;
@@ -686,11 +672,13 @@ const seedUsers: StoredUserCredential[] = [
   }
 ];
 
-// Persistent Disk File for Credentials Store (use /tmp on Vercel read-only filesystem)
-const BUNDLED_DATA_DIR = path.join(process.cwd(), 'data');
-const WRITABLE_DATA_DIR = IS_VERCEL ? path.join('/tmp', 'cecilian_alumnet_data') : BUNDLED_DATA_DIR;
-const CREDENTIALS_DB_FILE = path.join(WRITABLE_DATA_DIR, 'credentials_db.json');
-const BUNDLED_CREDENTIALS_DB_FILE = path.join(BUNDLED_DATA_DIR, 'credentials_db.json');
+// Persistent Disk Directory (uses writable /tmp in Vercel serverless)
+const SERVER_DATA_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'alumnet_data')
+  : path.join(process.cwd(), 'data');
+
+// Persistent Disk File for Credentials Store
+const CREDENTIALS_DB_FILE = path.join(SERVER_DATA_DIR, 'credentials_db.json');
 
 function persistCredentialsToDisk(): void {
   try {
@@ -759,8 +747,7 @@ function registerCredentialInDb(u: StoredUserCredential, persist: boolean = true
   }
 }
 
-const DELETED_ACCOUNTS_FILE = path.join(WRITABLE_DATA_DIR, 'deleted_accounts.json');
-const BUNDLED_DELETED_ACCOUNTS_FILE = path.join(BUNDLED_DATA_DIR, 'deleted_accounts.json');
+const DELETED_ACCOUNTS_FILE = path.join(SERVER_DATA_DIR, 'deleted_accounts.json');
 const deletedAccountUids = new Set<string>();
 
 function persistDeletedAccountsToDisk(): void {
@@ -777,13 +764,8 @@ function persistDeletedAccountsToDisk(): void {
 
 function loadDeletedAccountsFromDisk(): void {
   try {
-    const sourceFile = fs.existsSync(DELETED_ACCOUNTS_FILE)
-      ? DELETED_ACCOUNTS_FILE
-      : IS_VERCEL && fs.existsSync(BUNDLED_DELETED_ACCOUNTS_FILE)
-      ? BUNDLED_DELETED_ACCOUNTS_FILE
-      : null;
-    if (sourceFile) {
-      const raw = fs.readFileSync(sourceFile, 'utf-8');
+    if (fs.existsSync(DELETED_ACCOUNTS_FILE)) {
+      const raw = fs.readFileSync(DELETED_ACCOUNTS_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         parsed.forEach((uid) => {
@@ -822,13 +804,8 @@ function deleteCredentialFromDb(uid: string, persist: boolean = true) {
 
 function loadCredentialsFromDisk(): boolean {
   try {
-    const sourceFile = fs.existsSync(CREDENTIALS_DB_FILE)
-      ? CREDENTIALS_DB_FILE
-      : IS_VERCEL && fs.existsSync(BUNDLED_CREDENTIALS_DB_FILE)
-      ? BUNDLED_CREDENTIALS_DB_FILE
-      : null;
-    if (sourceFile) {
-      const raw = fs.readFileSync(sourceFile, 'utf-8');
+    if (fs.existsSync(CREDENTIALS_DB_FILE)) {
+      const raw = fs.readFileSync(CREDENTIALS_DB_FILE, 'utf-8');
       const records: StoredUserCredential[] = JSON.parse(raw);
       if (Array.isArray(records) && records.length > 0) {
         records.forEach((cred) => {
@@ -2442,21 +2419,14 @@ function resolveServerSubmissionSource(input: {
   return { submissionSource: 'request_verification', requestType: 'manual_verification_request' };
 }
 
-const ALUMNI_VERIFICATION_REQUESTS_FILE = path.join(WRITABLE_DATA_DIR, 'alumni_verification_requests.json');
-const BUNDLED_VERIFICATION_REQUESTS_FILE = path.join(BUNDLED_DATA_DIR, 'alumni_verification_requests.json');
-const VERIFICATION_SELFIES_DIR = path.join(WRITABLE_DATA_DIR, 'verification_selfies');
-const BUNDLED_VERIFICATION_SELFIES_DIR = path.join(BUNDLED_DATA_DIR, 'verification_selfies');
+const ALUMNI_VERIFICATION_REQUESTS_FILE = path.join(SERVER_DATA_DIR, 'alumni_verification_requests.json');
+const VERIFICATION_SELFIES_DIR = path.join(SERVER_DATA_DIR, 'verification_selfies');
 const alumniVerificationRequests = new Map<string, AlumniVerificationRequest>();
 
 function loadAlumniVerificationRequestsFromDisk(): void {
   try {
-    const sourceFile = fs.existsSync(ALUMNI_VERIFICATION_REQUESTS_FILE)
-      ? ALUMNI_VERIFICATION_REQUESTS_FILE
-      : IS_VERCEL && fs.existsSync(BUNDLED_VERIFICATION_REQUESTS_FILE)
-      ? BUNDLED_VERIFICATION_REQUESTS_FILE
-      : null;
-    if (!sourceFile) return;
-    const raw = fs.readFileSync(sourceFile, 'utf-8');
+    if (!fs.existsSync(ALUMNI_VERIFICATION_REQUESTS_FILE)) return;
+    const raw = fs.readFileSync(ALUMNI_VERIFICATION_REQUESTS_FILE, 'utf-8');
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       parsed.forEach((item: AlumniVerificationRequest) => {
@@ -2530,19 +2500,14 @@ function saveSelfieImageToSecureStorage(
   if (!hasValidImageMagicBytes(buffer, mimeType)) {
     return null;
   }
+  if (!fs.existsSync(VERIFICATION_SELFIES_DIR)) {
+    fs.mkdirSync(VERIFICATION_SELFIES_DIR, { recursive: true });
+  }
   const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
   const safeId = requestId.replace(/[^a-zA-Z0-9_-]/g, '');
   const fileName = `${safeId}.${ext}`;
-  try {
-    if (!fs.existsSync(VERIFICATION_SELFIES_DIR)) {
-      fs.mkdirSync(VERIFICATION_SELFIES_DIR, { recursive: true });
-    }
-    const fullPath = path.join(VERIFICATION_SELFIES_DIR, fileName);
-    fs.writeFileSync(fullPath, buffer);
-  } catch (err) {
-    console.warn('[Verification Selfies] Could not write selfie to disk, keeping in-memory/payload reference:', err);
-    return { storagePath: '', mimeType };
-  }
+  const fullPath = path.join(VERIFICATION_SELFIES_DIR, fileName);
+  fs.writeFileSync(fullPath, buffer);
 
   // Remove stale file if extension changed to avoid orphaned uploads
   if (previousStoragePath) {
@@ -2566,20 +2531,10 @@ function readSelfieDataUrlFromRequest(reqRecord: AlumniVerificationRequest): str
   if (reqRecord.selfieStoragePath) {
     const safeFile = path.basename(reqRecord.selfieStoragePath);
     const fullPath = path.join(VERIFICATION_SELFIES_DIR, safeFile);
-    const bundledPath = path.join(BUNDLED_VERIFICATION_SELFIES_DIR, safeFile);
-    const targetPath = fs.existsSync(fullPath)
-      ? fullPath
-      : IS_VERCEL && fs.existsSync(bundledPath)
-      ? bundledPath
-      : null;
-    if (targetPath) {
-      try {
-        const buffer = fs.readFileSync(targetPath);
-        const mime = reqRecord.selfieMimeType || 'image/jpeg';
-        return `data:${mime};base64,${buffer.toString('base64')}`;
-      } catch {
-        // fall through to inline proofUrl
-      }
+    if (fs.existsSync(fullPath)) {
+      const buffer = fs.readFileSync(fullPath);
+      const mime = reqRecord.selfieMimeType || 'image/jpeg';
+      return `data:${mime};base64,${buffer.toString('base64')}`;
     }
   }
   if (reqRecord.proofUrl && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(reqRecord.proofUrl)) {
@@ -2729,7 +2684,6 @@ app.post('/api/alumni/verification-request', verificationRateLimiter, (req: Requ
     originalOwnerCourse: resolvedOwnerCourse,
     originalOwnerBatch: resolvedOwnerBatch,
     proofName: resolvedFileName || existingByConflict?.proofName,
-    proofUrl: (!savedImageMeta?.storagePath && rawImage) ? rawImage : existingByConflict?.proofUrl,
     selfieFileName: resolvedFileName || existingByConflict?.selfieFileName,
     selfieMimeType: savedImageMeta?.mimeType || existingByConflict?.selfieMimeType,
     selfieStoragePath: savedImageMeta?.storagePath || existingByConflict?.selfieStoragePath,
@@ -7337,27 +7291,32 @@ const postModerationRouter = createPostModerationRouter({
 
 app.use('/api', postModerationRouter);
 
-app.use('/api', (_req: Request, res: Response) => {
-  res.status(404).json({ error: 'API endpoint not found.', code: 'API_NOT_FOUND' });
+// API-level JSON error shield (active in both serverless Vercel handler and full server)
+app.use('/api', (err: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('[UNHANDLED API ERROR]', err?.message || err);
+  if (res.headersSent) return;
+  res.status(500).json({
+    error: 'An internal server error occurred. The incident has been recorded securely.',
+    code: 'SECURE_ERR_500'
+  });
 });
 
 // ============================================================================
 // 7. VITE MIDDLEWARE & SERVER BOOT + PRODUCTION ERROR SHIELDING
 // ============================================================================
 async function startServer() {
-  if (!IS_PROD && !IS_VERCEL) {
+  if (!IS_PROD) {
     process.env.DISABLE_HMR = 'true';
-    const vitePromise = (async () => {
-      const { createServer: createViteServer } = await import('vite');
-      return createViteServer({
+    const vitePromise = import('vite').then(({ createServer: createViteServer }) =>
+      createViteServer({
         server: {
           middlewareMode: true,
           hmr: false,
           watch: null
         },
         appType: 'spa'
-      });
-    })();
+      })
+    );
     vitePromise.catch((err) => {
       console.error('[VITE INIT ERROR]', err?.message || err);
     });

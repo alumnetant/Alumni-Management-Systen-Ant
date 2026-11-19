@@ -172,27 +172,19 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       }
 
       const [casesRes, reportersRes, banFlagsRes] = await Promise.all([
-        apiFetch(`/api/moderation/cases?${params.toString()}`, { method: 'GET' }, 12000),
-        apiFetch('/api/moderation/abuse/reporters', { method: 'GET' }, 10000),
+        apiFetch(`/api/moderation/cases?${params.toString()}`, { method: 'GET' }, 6000),
+        apiFetch('/api/moderation/abuse/reporters', { method: 'GET' }, 5000).catch(() => null),
         isAdmin
-          ? apiFetch('/api/moderation/abuse/ban-flags', { method: 'GET' }, 10000)
+          ? apiFetch('/api/moderation/abuse/ban-flags', { method: 'GET' }, 5000).catch(() => null)
           : Promise.resolve(null)
       ]);
 
       if (!casesRes.ok) {
-        const rawText = await casesRes.text().catch(() => '');
-        const errBody = (() => {
-          try {
-            return rawText ? JSON.parse(rawText) : null;
-          } catch {
-            return null;
-          }
-        })();
+        const errBody = await casesRes.json().catch(() => null);
         if (casesRes.status === 401 || casesRes.status === 403) {
           throw new Error(errBody?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
         }
-        const statusHint = casesRes.status ? ` (HTTP ${casesRes.status})` : '';
-        throw new Error(errBody?.error || `Failed to load moderation cases${statusHint}.`);
+        throw new Error(errBody?.error || `Failed to load moderation cases (HTTP ${casesRes.status}).`);
       }
 
       const data = await casesRes.json();
@@ -200,7 +192,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       setCasesTotal(Number(data.total) || 0);
       setPendingCount(Number(data.pendingCount) || 0);
 
-      if (reportersRes.ok) {
+      if (reportersRes && reportersRes.ok) {
         const repData = await reportersRes.json();
         setReporters(Array.isArray(repData.reporters) ? repData.reporters : []);
       } else {
@@ -228,10 +220,10 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setOverrideNote('');
     setSanctionReason('');
     try {
-      const res = await apiFetch(`/api/moderation/cases/${encodeURIComponent(caseId)}`, { method: 'GET' }, 12000);
+      const res = await apiFetch(`/api/moderation/cases/${encodeURIComponent(caseId)}`, { method: 'GET' }, 6000);
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
-        throw new Error(errBody?.error || `Unable to load case details (HTTP ${res.status}).`);
+        throw new Error(errBody?.error || 'Unable to load case details.');
       }
       const data: CaseDetailPayload = await res.json();
       setCaseDetail(data);
@@ -261,7 +253,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setAppealsLoading(true);
     setAppealsError(null);
     try {
-      const res = await apiFetch('/api/appeals', { method: 'GET' }, 12000);
+      const res = await apiFetch('/api/appeals', { method: 'GET' }, 6000);
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
         if (res.status === 401 || res.status === 403) {
@@ -294,8 +286,8 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setSettingsError(null);
     try {
       const [feedRes, modRes] = await Promise.all([
-        apiFetch('/api/feed/config', { method: 'GET' }, 10000),
-        apiFetch('/api/moderation/config', { method: 'GET' }, 10000)
+        apiFetch('/api/feed/config', { method: 'GET' }, 5000),
+        apiFetch('/api/moderation/config', { method: 'GET' }, 5000)
       ]);
       if (!feedRes.ok || !modRes.ok) {
         const feedErr = !feedRes.ok ? await feedRes.json().catch(() => null) : null;
@@ -327,7 +319,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setEmployersLoading(true);
     setEmployersError(null);
     try {
-      const res = await apiFetch('/api/employer/review-queue', { method: 'GET' }, 12000);
+      const res = await apiFetch('/api/employer/review-queue', { method: 'GET' }, 6000);
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
         if (res.status === 401 || res.status === 403) {
