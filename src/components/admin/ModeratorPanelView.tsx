@@ -1,6 +1,6 @@
 /**
- * Moderator Panel View — Unified Post & Content Moderation Desk, Appeals Queue,
- * Feed & Moderation Policy Settings, and Employer Accreditation Review Queue.
+ * Moderator Panel View — Unified Post & Content Moderation Desk and
+ * Employer Accreditation Review Queue.
  *
  * Strict RBAC Isolation: Never renders system audit logs, database metrics, or indexes
  * (those are strictly restricted to Superadmin views).
@@ -22,10 +22,6 @@ import {
   BadgeCheck,
   Ban,
   Flag,
-  Scale,
-  SlidersHorizontal,
-  UserCheck,
-  UserX,
   Eye,
   Trash2,
   RotateCcw,
@@ -37,11 +33,9 @@ import {
 import { useAlumni } from '../../context/AlumniContext';
 import {
   AbuseReporterTracking,
-  FeedRankingConfig,
   InstitutionalFeedPost,
   ModerationAppeal,
   ModerationCase,
-  ModerationConfig,
   ModerationWarning,
   POST_REPORT_REASONS,
   PostReport,
@@ -55,7 +49,7 @@ import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
 import { PaginationControl } from '../common/PaginationControl';
 import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 
-export type ModeratorSubTab = 'cases' | 'appeals' | 'settings' | 'employers';
+export type ModeratorSubTab = 'cases' | 'employers';
 
 export interface ModeratorPanelViewProps {
   initialSubTab?: ModeratorSubTab;
@@ -77,11 +71,6 @@ type CaseDetailPayload = {
   authorBanFlag: { userId: string; flaggedAt: string; activeWarnings: number; reason: string } | null;
   appeals: ModerationAppeal[];
   canAct: boolean;
-  conflictReason?: string;
-};
-
-type EnrichedAppeal = ModerationAppeal & {
-  canReview?: boolean;
   conflictReason?: string;
 };
 
@@ -147,10 +136,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   const [actionReason, setActionReason] = useState<string>(POST_REPORT_REASONS[0]);
   const [actionMessage, setActionMessage] = useState('');
   const [actionNote, setActionNote] = useState('');
-  const [overrideDecision, setOverrideDecision] = useState<'dismiss' | 'restore_post' | 'overturn_warning' | 'delete_post'>('restore_post');
-  const [overrideNote, setOverrideNote] = useState('');
-  const [sanctionReason, setSanctionReason] = useState('');
-  const [sanctionDays, setSanctionDays] = useState<number>(7);
   const [isMutatingCase, setIsMutatingCase] = useState(false);
   const [pendingClaimCaseId, setPendingClaimCaseId] = useState<string | null>(null);
 
@@ -217,8 +202,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setDetailError(null);
     setActionMessage('');
     setActionNote('');
-    setOverrideNote('');
-    setSanctionReason('');
     try {
       const res = await apiFetch(`/api/moderation/cases/${encodeURIComponent(caseId)}`, { method: 'GET' }, 6000);
       if (!res.ok) {
@@ -237,77 +220,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       setDetailLoading(false);
     }
   }, []);
-
-  // ---------------------------------------------------------------------------
-  // TAB 2: APPEALS QUEUE
-  // ---------------------------------------------------------------------------
-  const [appeals, setAppeals] = useState<EnrichedAppeal[]>([]);
-  const [appealsFilter, setAppealsFilter] = useState<'all' | 'pending' | 'reversed' | 'upheld'>('pending');
-  const [appealsLoading, setAppealsLoading] = useState(false);
-  const [appealsError, setAppealsError] = useState<string | null>(null);
-  const [appealNotes, setAppealNotes] = useState<Record<string, string>>({});
-  const [resolvingAppealId, setResolvingAppealId] = useState<string | null>(null);
-
-  const fetchAppeals = useCallback(async () => {
-    if (!hasModerationAccess) return;
-    setAppealsLoading(true);
-    setAppealsError(null);
-    try {
-      const res = await apiFetch('/api/appeals', { method: 'GET' }, 6000);
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => null);
-        if (res.status === 401 || res.status === 403) {
-          throw new Error(errBody?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
-        }
-        throw new Error(errBody?.error || `Failed to load appeals (HTTP ${res.status}).`);
-      }
-      const data = await res.json();
-      setAppeals(Array.isArray(data.appeals) ? data.appeals : []);
-    } catch (err: any) {
-      setAppealsError(err?.message || 'Failed to load appeals queue.');
-    } finally {
-      setAppealsLoading(false);
-    }
-  }, [hasModerationAccess]);
-
-  // ---------------------------------------------------------------------------
-  // TAB 3: FEED & POLICY SETTINGS
-  // ---------------------------------------------------------------------------
-  const [feedConfig, setFeedConfig] = useState<FeedRankingConfig | null>(null);
-  const [modConfig, setModConfig] = useState<ModerationConfig | null>(null);
-  const [settingsLoading, setSettingsLoading] = useState(false);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [savingFeedConfig, setSavingFeedConfig] = useState(false);
-  const [savingModConfig, setSavingModConfig] = useState(false);
-
-  const fetchSettings = useCallback(async () => {
-    if (!hasModerationAccess) return;
-    setSettingsLoading(true);
-    setSettingsError(null);
-    try {
-      const [feedRes, modRes] = await Promise.all([
-        apiFetch('/api/feed/config', { method: 'GET' }, 5000),
-        apiFetch('/api/moderation/config', { method: 'GET' }, 5000)
-      ]);
-      if (!feedRes.ok || !modRes.ok) {
-        const feedErr = !feedRes.ok ? await feedRes.json().catch(() => null) : null;
-        const modErr = !modRes.ok ? await modRes.json().catch(() => null) : null;
-        if (feedRes.status === 401 || feedRes.status === 403 || modRes.status === 401 || modRes.status === 403) {
-          throw new Error(modErr?.error || feedErr?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
-        }
-        const failedStatus = !modRes.ok ? modRes.status : feedRes.status;
-        throw new Error(modErr?.error || feedErr?.error || `Failed to load feed and moderation policy settings (HTTP ${failedStatus}).`);
-      }
-      const feedData = await feedRes.json();
-      const modData = await modRes.json();
-      setFeedConfig(feedData.config || null);
-      setModConfig(modData.config || null);
-    } catch (err: any) {
-      setSettingsError(err?.message || 'Unable to load policy configuration.');
-    } finally {
-      setSettingsLoading(false);
-    }
-  }, [hasModerationAccess]);
 
   const [employerQueue, setEmployerQueue] = useState<UserProfile[]>([]);
   const [employersLoading, setEmployersLoading] = useState(false);
@@ -341,21 +253,17 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     if (!hasModerationAccess) return;
     if (activeSubTab === 'cases') {
       void fetchCasesAndAbuse();
-    } else if (activeSubTab === 'appeals') {
-      void fetchAppeals();
-    } else if (activeSubTab === 'settings') {
-      void fetchSettings();
     } else if (activeSubTab === 'employers') {
       void fetchEmployerQueue();
     }
-  }, [hasModerationAccess, activeSubTab, fetchCasesAndAbuse, fetchAppeals, fetchSettings, fetchEmployerQueue]);
+  }, [hasModerationAccess, activeSubTab, fetchCasesAndAbuse, fetchEmployerQueue]);
 
   const missingTargetNotifiedRef = React.useRef<string | null>(null);
 
-  // Handle incoming deep links from Notifications (Moderation Queue, Appeals, Employer review)
+  // Handle incoming deep links from Notifications (Moderation Queue, Employer review)
   useEffect(() => {
     if (!deepLinkTarget) return;
-    if (deepLinkTarget.targetType === 'moderation_queue') {
+    if (deepLinkTarget.targetType === 'moderation_queue' || deepLinkTarget.targetType === 'moderation_appeal') {
       setActiveSubTab('cases');
       if (deepLinkTarget.subTab === 'resolved' || deepLinkTarget.targetId) {
         setCasesStatus('all');
@@ -364,10 +272,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
         setCasesSearch('');
         setCasesPage(1);
       }
-      clearDeepLinkTarget();
-    } else if (deepLinkTarget.targetType === 'moderation_appeal') {
-      setActiveSubTab('appeals');
-      setAppealsFilter('all');
       clearDeepLinkTarget();
     } else if (deepLinkTarget.targetType === 'employer') {
       setActiveSubTab('employers');
@@ -508,38 +412,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     }
   };
 
-  const handleOverrideCase = async () => {
-    if (!caseDetail || !isAdmin) return;
-    if (overrideNote.trim().length < 5) {
-      showToast('Administrative override requires a note of at least 5 characters.', 'warning');
-      return;
-    }
-    setIsMutatingCase(true);
-    try {
-      const res = await apiFetchWithCsrf(
-        `/api/moderation/cases/${encodeURIComponent(caseDetail.case.id)}/override`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ newDecision: overrideDecision, note: overrideNote.trim() })
-        },
-        6000
-      );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to override moderation decision.');
-      }
-      showToast('Administrative override applied.', 'success');
-      await loadCaseDetail(caseDetail.case.id);
-      await fetchCasesAndAbuse();
-      await refreshData().catch(() => {});
-    } catch (err: any) {
-      showToast(err?.message || 'Override failed.', 'error');
-    } finally {
-      setIsMutatingCase(false);
-    }
-  };
-
   const handleRestorePost = async () => {
     if (!caseDetail?.livePost) return;
     setIsMutatingCase(true);
@@ -550,7 +422,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            note: overrideNote.trim() || actionNote.trim() || 'Post restored after moderation review.',
+            note: actionNote.trim() || 'Post restored after moderation review.',
             adminApprovalGranted: isAdmin
           })
         },
@@ -586,8 +458,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action,
-            reason: customReason || sanctionReason.trim() || 'Administrative governance decision',
-            durationDays: action === 'suspend' ? sanctionDays : undefined
+            reason: customReason || 'Administrative governance decision'
           })
         },
         6000
@@ -608,97 +479,8 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     }
   };
 
-  const handleResolveAppeal = async (appealId: string, outcome: 'uphold' | 'reverse') => {
-    setResolvingAppealId(appealId);
-    try {
-      const res = await apiFetchWithCsrf(
-        `/api/appeals/${encodeURIComponent(appealId)}/resolve`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            outcome,
-            note: (appealNotes[appealId] || '').trim() || undefined
-          })
-        },
-        6000
-      );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to resolve appeal.');
-      }
-      showToast(
-        outcome === 'reverse'
-          ? 'Appeal approved. Original decision overturned and post restored.'
-          : 'Appeal reviewed and original moderation decision upheld.',
-        'success'
-      );
-      await fetchAppeals();
-      await fetchCasesAndAbuse();
-      await refreshData().catch(() => {});
-    } catch (err: any) {
-      showToast(err?.message || 'Unable to resolve appeal.', 'error');
-    } finally {
-      setResolvingAppealId(null);
-    }
-  };
-
-  const handleSaveFeedConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!feedConfig || !isAdmin) return;
-    setSavingFeedConfig(true);
-    try {
-      const res = await apiFetchWithCsrf(
-        '/api/feed/config',
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(feedConfig)
-        },
-        6000
-      );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to update feed settings.');
-      }
-      setFeedConfig(data.config);
-      showToast('Main feed ranking configuration saved.', 'success');
-    } catch (err: any) {
-      showToast(err?.message || 'Unable to save feed configuration.', 'error');
-    } finally {
-      setSavingFeedConfig(false);
-    }
-  };
-
-  const handleSaveModConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!modConfig || !isAdmin) return;
-    setSavingModConfig(true);
-    try {
-      const res = await apiFetchWithCsrf(
-        '/api/moderation/config',
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(modConfig)
-        },
-        6000
-      );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to update moderation thresholds.');
-      }
-      setModConfig(data.config);
-      showToast('Moderation & safety thresholds saved.', 'success');
-    } catch (err: any) {
-      showToast(err?.message || 'Unable to save moderation settings.', 'error');
-    } finally {
-      setSavingModConfig(false);
-    }
-  };
-
   // ---------------------------------------------------------------------------
-  // TAB 4: EMPLOYER ACCREDITATION QUEUE (PRESERVED WITHOUT AUDIT LOG VIEWER)
+  // TAB 2: EMPLOYER ACCREDITATION QUEUE (PRESERVED WITHOUT AUDIT LOG VIEWER)
   // ---------------------------------------------------------------------------
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'needs_review' | 'verified' | 'rejected'>('needs_review');
@@ -782,14 +564,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
         missingTargetNotifiedRef.current = highlightedItemId;
         showToast('This moderation case may have been resolved or archived.', 'info');
       }
-    } else if (activeSubTab === 'appeals' && !appealsLoading) {
-      const appealMatch = appeals.some((a) => a.id === highlightedItemId);
-      if (appealMatch && appealsFilter !== 'all') {
-        setAppealsFilter('all');
-      } else if (!appealMatch && appeals.length > 0 && missingTargetNotifiedRef.current !== highlightedItemId) {
-        missingTargetNotifiedRef.current = highlightedItemId;
-        showToast('This moderation appeal record is no longer available.', 'info');
-      }
     } else if (activeSubTab === 'employers') {
       const idx = filteredEmployers.findIndex((e) => e.uid === highlightedItemId);
       if (idx >= 0) {
@@ -810,9 +584,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     casesLoading,
     cases,
     casesStatus,
-    appealsLoading,
-    appeals,
-    appealsFilter,
     filteredEmployers,
     employers,
     currentPage,
@@ -823,12 +594,9 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   const { isHighlighted } = useDeepLinkHighlight(undefined, [
     activeSubTab,
     cases.length,
-    appeals.length,
-    appealsFilter,
     paginatedEmployers.length,
     currentPage,
-    casesLoading,
-    appealsLoading
+    casesLoading
   ]);
 
   const submitEmployerDecision = async (
@@ -917,16 +685,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setActionModal(null);
   };
 
-  const filteredAppeals = useMemo(() => {
-    if (appealsFilter === 'all') return appeals;
-    return appeals.filter((a) => a.status === appealsFilter);
-  }, [appeals, appealsFilter]);
-
-  const pendingAppealsCount = useMemo(
-    () => appeals.filter((a) => a.status === 'pending').length,
-    [appeals]
-  );
-
   const flaggedReporters = useMemo(
     () => reporters.filter((r) => r.flaggedAbusiveReporter || r.reportingRestricted || r.consecutiveDismissedCount > 0),
     [reporters]
@@ -999,7 +757,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                 Moderation & Content Governance Desk
               </h1>
               <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-                Review reported alumni posts, inspect content snapshots, resolve appeals, configure feed ranking, and accredit corporate partners.
+                Review reported alumni posts, inspect content snapshots, and accredit corporate partners.
               </p>
             </div>
           </div>
@@ -1009,8 +767,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
               type="button"
               onClick={() => {
                 if (activeSubTab === 'cases') void fetchCasesAndAbuse();
-                else if (activeSubTab === 'appeals') void fetchAppeals();
-                else if (activeSubTab === 'settings') void fetchSettings();
                 else void fetchEmployerQueue();
               }}
               className="inline-flex items-center justify-center gap-1.5 min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-200 border border-stone-200/80 dark:border-stone-700 transition-colors cursor-pointer whitespace-nowrap shrink-0"
@@ -1035,35 +791,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
             <Flag className="w-3.5 h-3.5" strokeWidth={1.75} />
             <span>Reported Posts</span>
             <span className="tabular-nums font-mono text-[11px] opacity-90">({pendingCount})</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('appeals')}
-            className={`inline-flex items-center gap-2 min-h-[44px] sm:min-h-[36px] px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-              activeSubTab === 'appeals'
-                ? 'bg-[#8B181B] text-white'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
-            }`}
-          >
-            <Scale className="w-3.5 h-3.5" strokeWidth={1.75} />
-            <span>Appeals Queue</span>
-            {pendingAppealsCount > 0 && (
-              <span className="tabular-nums font-mono text-[11px] opacity-90">({pendingAppealsCount})</span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('settings')}
-            className={`inline-flex items-center gap-2 min-h-[44px] sm:min-h-[36px] px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-              activeSubTab === 'settings'
-                ? 'bg-[#8B181B] text-white'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" strokeWidth={1.75} />
-            <span>Feed & Policy Settings</span>
           </button>
 
           <button
@@ -1499,494 +1226,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       )}
 
       {/* ===================================================================== */}
-      {/* SUB-TAB 2: APPEALS QUEUE                                              */}
-      {/* ===================================================================== */}
-      {activeSubTab === 'appeals' && (
-        <div className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl p-6 space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-stone-900 dark:text-white">
-                Moderation Appeals Queue
-              </h2>
-              <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-                Independent review of author appeals. The original moderator who issued the decision is blocked from resolving the appeal.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {(['pending', 'reversed', 'upheld', 'all'] as const).map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => setAppealsFilter(status)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize cursor-pointer whitespace-nowrap ${
-                    appealsFilter === status
-                      ? 'bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900'
-                      : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300'
-                  }`}
-                >
-                  {status}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {appealsLoading ? (
-            <div className="space-y-3">
-              {[1, 2].map((i) => (
-                <div key={i} className="h-28 rounded-xl bg-stone-100 dark:bg-stone-800/60 animate-pulse" />
-              ))}
-            </div>
-          ) : appealsError ? (
-            <div className="p-8 text-center border border-red-200 dark:border-red-900/50 rounded-xl space-y-3">
-              <p className="text-xs text-[#8B181B] dark:text-red-300">Failed to load, retry — {appealsError}</p>
-              <button
-                type="button"
-                onClick={() => void fetchAppeals()}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#8B181B] text-white cursor-pointer"
-              >
-                Retry
-              </button>
-            </div>
-          ) : filteredAppeals.length === 0 ? (
-            <div className="p-10 text-center text-xs text-stone-500 dark:text-stone-400 border border-dashed border-stone-200 dark:border-stone-800 rounded-xl">
-              No appeals matching "{appealsFilter}".
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredAppeals.map((appeal) => {
-                const isPending = appeal.status === 'pending';
-                const canReview = appeal.canReview !== false;
-                return (
-                  <div
-                    key={appeal.id}
-                    data-notify-target-id={appeal.id}
-                    className={`border rounded-xl p-5 space-y-3 bg-stone-50/40 dark:bg-stone-800/20 ${
-                      isHighlighted(appeal.id)
-                        ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
-                        : 'border-stone-200 dark:border-stone-800'
-                    }`}
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <button
-                          type="button"
-                          onClick={() => openProfile(appeal.authorId)}
-                          className="font-bold text-stone-900 dark:text-white hover:text-[#8B181B] cursor-pointer"
-                        >
-                          {appeal.authorName}
-                        </button>
-                        <span className="text-stone-400" aria-hidden="true">·</span>
-                        <span className="text-stone-600 dark:text-stone-300 capitalize">
-                          Appealed {appeal.actionType}
-                        </span>
-                        <span className="text-stone-400" aria-hidden="true">·</span>
-                        <span className="text-stone-500 dark:text-stone-400">
-                          Original decision by {appeal.originalModeratorName}
-                        </span>
-                        <span className="text-stone-400" aria-hidden="true">·</span>
-                        <span className="text-stone-500 dark:text-stone-400" title={formatFullLocalDateTime(appeal.createdAt)}>
-                          {formatRelativeTime(appeal.createdAt)}
-                        </span>
-                      </div>
-
-                      <div className="text-xs font-semibold">
-                        {appeal.status === 'pending' && (
-                          <span className="text-amber-700 dark:text-amber-400">Pending Review</span>
-                        )}
-                        {appeal.status === 'reversed' && (
-                          <span className="text-emerald-700 dark:text-emerald-400">Approved & Reversed</span>
-                        )}
-                        {appeal.status === 'upheld' && (
-                          <span className="text-stone-700 dark:text-stone-300">Decision Upheld</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="text-xs text-stone-700 dark:text-stone-200 leading-relaxed bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 rounded-lg p-3.5">
-                      {appeal.explanation}
-                    </div>
-
-                    {isPending ? (
-                      canReview ? (
-                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
-                          <input
-                            type="text"
-                            value={appealNotes[appeal.id] || ''}
-                            onChange={(e) =>
-                              setAppealNotes((prev) => ({ ...prev, [appeal.id]: e.target.value }))
-                            }
-                            placeholder="Optional decision note sent to the author..."
-                            className="flex-1 min-h-[40px] px-3 py-2 text-xs bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100"
-                          />
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              type="button"
-                              disabled={resolvingAppealId === appeal.id}
-                              onClick={() => void handleResolveAppeal(appeal.id, 'reverse')}
-                              className="inline-flex items-center gap-1.5 min-h-[40px] px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer whitespace-nowrap"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                              <span>Approve & Reverse</span>
-                            </button>
-                            <button
-                              type="button"
-                              disabled={resolvingAppealId === appeal.id}
-                              onClick={() => void handleResolveAppeal(appeal.id, 'uphold')}
-                              className="inline-flex items-center gap-1.5 min-h-[40px] px-4 py-2 rounded-xl text-xs font-semibold bg-stone-800 hover:bg-stone-900 text-white dark:bg-stone-700 dark:hover:bg-stone-600 cursor-pointer whitespace-nowrap"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Uphold Original</span>
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-xs font-medium text-amber-700 dark:text-amber-400">
-                          {appeal.conflictReason || 'Conflict of interest: another moderator or administrator must review this appeal.'}
-                        </div>
-                      )
-                    ) : (
-                      <div className="text-[11px] text-stone-500 dark:text-stone-400">
-                        Resolved by {appeal.reviewedByName || 'Moderator'}
-                        {appeal.decisionNote ? ` · Note: "${appeal.decisionNote}"` : ''}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* SUB-TAB 3: FEED & POLICY SETTINGS                                     */}
-      {/* ===================================================================== */}
-      {activeSubTab === 'settings' && (
-        <div className="space-y-6">
-          {!isAdmin && (
-            <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-800 dark:text-amber-300">
-              Read-only view: Only Administrators and Super Administrators may modify feed ranking weights and moderation thresholds.
-            </div>
-          )}
-
-          {settingsLoading ? (
-            <div className="h-64 rounded-2xl bg-stone-100 dark:bg-stone-800/60 animate-pulse" />
-          ) : settingsError ? (
-            <div className="p-8 text-center border border-red-200 dark:border-red-900/50 rounded-2xl space-y-3 bg-white dark:bg-stone-900">
-              <p className="text-xs text-[#8B181B] dark:text-red-300">Failed to load, retry — {settingsError}</p>
-              <button
-                type="button"
-                onClick={() => void fetchSettings()}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#8B181B] text-white cursor-pointer"
-              >
-                Retry
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-              {/* Main Feed Ranking Config */}
-              {feedConfig && (
-                <form
-                  onSubmit={handleSaveFeedConfig}
-                  className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl p-6 space-y-5"
-                >
-                  <div>
-                    <h2 className="text-base font-bold text-stone-900 dark:text-white">
-                      Main Social Feed Ranking & Pacing
-                    </h2>
-                    <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-                      Controls default chronological vs. deterministic relevance scoring without machine learning.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <div className="sm:col-span-2">
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                        Default Feed Sort Mode
-                      </label>
-                      <select
-                        disabled={!isAdmin}
-                        value={feedConfig.sortMode}
-                        onChange={(e) =>
-                          setFeedConfig({ ...feedConfig, sortMode: e.target.value as 'chronological' | 'relevance' })
-                        }
-                        className="w-full min-h-[40px] px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      >
-                        <option value="chronological">Chronological (Newest first by created date + ID)</option>
-                        <option value="relevance">Simple Relevance Score ((likes + 2*comments)/(hours+2)^1.5)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">Like Weight</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min={0}
-                        max={20}
-                        disabled={!isAdmin}
-                        value={feedConfig.likeWeight}
-                        onChange={(e) => setFeedConfig({ ...feedConfig, likeWeight: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">Comment Weight</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min={0}
-                        max={20}
-                        disabled={!isAdmin}
-                        value={feedConfig.commentWeight}
-                        onChange={(e) => setFeedConfig({ ...feedConfig, commentWeight: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">Decay Offset (Hours)</label>
-                      <input
-                        type="number"
-                        step="0.5"
-                        min={0.5}
-                        max={48}
-                        disabled={!isAdmin}
-                        value={feedConfig.decayOffsetHours}
-                        onChange={(e) => setFeedConfig({ ...feedConfig, decayOffsetHours: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">Decay Exponent</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min={0.2}
-                        max={5}
-                        disabled={!isAdmin}
-                        value={feedConfig.decayExponent}
-                        onChange={(e) => setFeedConfig({ ...feedConfig, decayExponent: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">Same-Batch Boost (×)</label>
-                      <input
-                        type="number"
-                        step="0.05"
-                        min={1}
-                        max={5}
-                        disabled={!isAdmin}
-                        value={feedConfig.sameBatchBoost}
-                        onChange={(e) => setFeedConfig({ ...feedConfig, sameBatchBoost: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">Same-Department Boost (×)</label>
-                      <input
-                        type="number"
-                        step="0.05"
-                        min={1}
-                        max={5}
-                        disabled={!isAdmin}
-                        value={feedConfig.sameDepartmentBoost}
-                        onChange={(e) => setFeedConfig({ ...feedConfig, sameDepartmentBoost: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">Max Pinned Announcements (1–3)</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={3}
-                        disabled={!isAdmin}
-                        value={feedConfig.maxPinnedAnnouncements}
-                        onChange={(e) => setFeedConfig({ ...feedConfig, maxPinnedAnnouncements: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">Max Consecutive Same-Author</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={10}
-                        disabled={!isAdmin}
-                        value={feedConfig.maxConsecutiveSameAuthor}
-                        onChange={(e) => setFeedConfig({ ...feedConfig, maxConsecutiveSameAuthor: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-                  </div>
-
-                  {isAdmin && (
-                    <div className="pt-2 flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={savingFeedConfig}
-                        className="min-h-[40px] px-5 py-2 rounded-xl text-xs font-semibold bg-[#8B181B] hover:bg-[#721316] text-white cursor-pointer disabled:opacity-60"
-                      >
-                        {savingFeedConfig ? 'Saving...' : 'Save Feed Settings'}
-                      </button>
-                    </div>
-                  )}
-                </form>
-              )}
-
-              {/* Moderation Policy Thresholds */}
-              {modConfig && (
-                <form
-                  onSubmit={handleSaveModConfig}
-                  className="bg-white dark:bg-stone-900 border border-stone-200/90 dark:border-stone-800 rounded-2xl p-6 space-y-5"
-                >
-                  <div>
-                    <h2 className="text-base font-bold text-stone-900 dark:text-white">
-                      Moderation Escalation & Abuse Guardrails
-                    </h2>
-                    <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-                      Automated thresholds for temporary hiding, priority escalation, warning suspensions, and reporter rate limits.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                    <div className="sm:col-span-2 flex items-center justify-between p-3.5 rounded-xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700">
-                      <div>
-                        <div className="font-semibold text-stone-900 dark:text-white">Personal Profile Timelines Enabled</div>
-                        <div className="text-[11px] text-stone-500 dark:text-stone-400">
-                          Allow alumni to view personal post timelines on profile pages.
-                        </div>
-                      </div>
-                      <input
-                        type="checkbox"
-                        disabled={!isAdmin}
-                        checked={modConfig.profileTimelineEnabled !== false}
-                        onChange={(e) =>
-                          setModConfig({ ...modConfig, profileTimelineEnabled: e.target.checked })
-                        }
-                        className="w-4 h-4 accent-[#8B181B]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                        Harassment Auto-Hide Reports
-                      </label>
-                      <input
-                        type="number"
-                        min={2}
-                        max={25}
-                        disabled={!isAdmin}
-                        value={modConfig.autoHideHarassmentThreshold}
-                        onChange={(e) => setModConfig({ ...modConfig, autoHideHarassmentThreshold: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                        Auto-Flag Priority Threshold
-                      </label>
-                      <input
-                        type="number"
-                        min={2}
-                        max={50}
-                        disabled={!isAdmin}
-                        value={modConfig.autoFlagReportThreshold}
-                        onChange={(e) => setModConfig({ ...modConfig, autoFlagReportThreshold: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                        Warnings Before Auto-Suspension
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        disabled={!isAdmin}
-                        value={modConfig.warningSuspensionThreshold}
-                        onChange={(e) => setModConfig({ ...modConfig, warningSuspensionThreshold: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                        Auto-Suspension Duration (Days)
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={365}
-                        disabled={!isAdmin}
-                        value={modConfig.suspensionDurationDays}
-                        onChange={(e) => setModConfig({ ...modConfig, suspensionDurationDays: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                        Warnings Before Ban Review Flag
-                      </label>
-                      <input
-                        type="number"
-                        min={2}
-                        max={30}
-                        disabled={!isAdmin}
-                        value={modConfig.banReviewThreshold}
-                        onChange={(e) => setModConfig({ ...modConfig, banReviewThreshold: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-stone-700 dark:text-stone-300 mb-1">
-                        Max Reports / Hour per User
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={100}
-                        disabled={!isAdmin}
-                        value={modConfig.maxReportsPerHour}
-                        onChange={(e) => setModConfig({ ...modConfig, maxReportsPerHour: Number(e.target.value) })}
-                        className="w-full min-h-[40px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 disabled:opacity-60"
-                      />
-                    </div>
-                  </div>
-
-                  {isAdmin && (
-                    <div className="pt-2 flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={savingModConfig}
-                        className="min-h-[40px] px-5 py-2 rounded-xl text-xs font-semibold bg-[#8B181B] hover:bg-[#721316] text-white cursor-pointer disabled:opacity-60"
-                      >
-                        {savingModConfig ? 'Saving...' : 'Save Moderation Thresholds'}
-                      </button>
-                    </div>
-                  )}
-                </form>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* SUB-TAB 4: EMPLOYER ACCREDITATION QUEUE                               */}
+      {/* SUB-TAB 2: EMPLOYER ACCREDITATION QUEUE                               */}
       {/* ===================================================================== */}
       {activeSubTab === 'employers' && (
         <div className="space-y-6">
@@ -2513,95 +1753,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                           <Trash2 className="w-3.5 h-3.5" />
                           <span>Remove Post</span>
                         </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Admin-Only Override & Account Sanction Controls */}
-                  {isAdmin && caseDetail.case.postAuthorId !== currentUser?.uid && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                      <div className="border border-stone-200 dark:border-stone-800 rounded-xl p-4 space-y-3">
-                        <h4 className="font-bold text-stone-900 dark:text-white">
-                          Administrative Decision Override
-                        </h4>
-                        <select
-                          value={overrideDecision}
-                          onChange={(e) => setOverrideDecision(e.target.value as any)}
-                          className="w-full min-h-[38px] px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100"
-                        >
-                          <option value="restore_post">Restore Post & Overturn Warnings</option>
-                          <option value="overturn_warning">Overturn Warning</option>
-                          <option value="dismiss">Override to Dismiss</option>
-                          <option value="delete_post">Override to Remove Post</option>
-                        </select>
-                        <input
-                          type="text"
-                          value={overrideNote}
-                          onChange={(e) => setOverrideNote(e.target.value)}
-                          placeholder="Required admin rationale (min 5 chars)..."
-                          className="w-full min-h-[38px] px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100"
-                        />
-                        <button
-                          type="button"
-                          disabled={isMutatingCase}
-                          onClick={() => void handleOverrideCase()}
-                          className="w-full min-h-[38px] px-4 py-2 rounded-xl font-semibold bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:text-stone-900 cursor-pointer"
-                        >
-                          Apply Admin Override
-                        </button>
-                      </div>
-
-                      <div className="border border-stone-200 dark:border-stone-800 rounded-xl p-4 space-y-3">
-                        <h4 className="font-bold text-stone-900 dark:text-white">
-                          Author Account Sanctions
-                        </h4>
-                        <div className="grid grid-cols-3 gap-2">
-                          <input
-                            type="number"
-                            min={1}
-                            max={365}
-                            value={sanctionDays}
-                            onChange={(e) => setSanctionDays(Number(e.target.value) || 7)}
-                            className="min-h-[38px] px-3 py-2 tabular-nums bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100"
-                            title="Suspension duration in days"
-                          />
-                          <input
-                            type="text"
-                            value={sanctionReason}
-                            onChange={(e) => setSanctionReason(e.target.value)}
-                            placeholder="Sanction reason..."
-                            className="col-span-2 min-h-[38px] px-3 py-2 bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100"
-                          />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            disabled={isMutatingCase}
-                            onClick={() => void handleSanctionUser(caseDetail.case.postAuthorId, 'suspend')}
-                            className="flex-1 inline-flex items-center justify-center gap-1 min-h-[38px] px-3 py-1.5 rounded-xl font-semibold bg-amber-600 hover:bg-amber-700 text-white cursor-pointer"
-                          >
-                            <UserX className="w-3.5 h-3.5" />
-                            <span>Suspend</span>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isMutatingCase}
-                            onClick={() => void handleSanctionUser(caseDetail.case.postAuthorId, 'ban')}
-                            className="flex-1 inline-flex items-center justify-center gap-1 min-h-[38px] px-3 py-1.5 rounded-xl font-semibold bg-[#8B181B] hover:bg-[#721316] text-white cursor-pointer"
-                          >
-                            <Ban className="w-3.5 h-3.5" />
-                            <span>Ban</span>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isMutatingCase}
-                            onClick={() => void handleSanctionUser(caseDetail.case.postAuthorId, 'lift_sanction')}
-                            className="flex-1 inline-flex items-center justify-center gap-1 min-h-[38px] px-3 py-1.5 rounded-xl font-semibold bg-emerald-700 hover:bg-emerald-800 text-white cursor-pointer"
-                          >
-                            <UserCheck className="w-3.5 h-3.5" />
-                            <span>Lift</span>
-                          </button>
-                        </div>
                       </div>
                     </div>
                   )}

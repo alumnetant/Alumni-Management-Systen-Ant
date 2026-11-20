@@ -189,7 +189,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
 
   const [jobSubTab, setJobSubTab] = useState<'jobs' | 'employers'>('jobs');
   const [conflictSubTab, setConflictSubTab] = useState<'requests' | 'conflicts'>('conflicts');
-  const [moderationSubTab, setModerationSubTab] = useState<'cases' | 'appeals' | 'settings' | 'employers'>('cases');
+  const [moderationSubTab, setModerationSubTab] = useState<'cases' | 'employers'>('cases');
 
   // Keep in sync with parent activeTab & deepLinkTarget when switched externally (e.g. from Notifications or direct URL)
   useEffect(() => {
@@ -230,11 +230,8 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
       setCurrentModule(activeTab as WorkspaceModuleId);
     }
 
-    if (deepLinkTarget?.targetType === 'moderation_queue') {
+    if (deepLinkTarget?.targetType === 'moderation_queue' || deepLinkTarget?.targetType === 'moderation_appeal') {
       setModerationSubTab('cases');
-      if (currentModule !== 'moderation') setCurrentModule('moderation');
-    } else if (deepLinkTarget?.targetType === 'moderation_appeal') {
-      setModerationSubTab('appeals');
       if (currentModule !== 'moderation') setCurrentModule('moderation');
     } else if (deepLinkTarget?.subTab === 'employers' || deepLinkTarget?.subTab === 'jobs') {
       setJobSubTab(deepLinkTarget.subTab);
@@ -1357,7 +1354,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               <AdminRequestsAndConflictsView initialSubTab={conflictSubTab} key={conflictSubTab} />
             )}
 
-            {/* MODULE: Post & Content Moderation / Appeals / Feed Config */}
+            {/* MODULE: Post & Content Moderation & Employer Accreditation */}
             {currentModule === 'moderation' && (
               <ModeratorPanelView initialSubTab={moderationSubTab} key={moderationSubTab} />
             )}
