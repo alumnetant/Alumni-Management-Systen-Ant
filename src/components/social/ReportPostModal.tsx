@@ -3,11 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Flag, X, AlertTriangle, Loader2, ShieldAlert } from 'lucide-react';
 import { InstitutionalFeedPost, POST_REPORT_REASONS, ReportReason } from '../../types';
 import { apiFetchWithCsrf, clearCsrfTokenCache } from '../../services/apiClient';
 import { saveActiveSession, useAlumni } from '../../context/AlumniContext';
+import {
+  saveFeedPostToFirestore,
+  saveModerationAuditRecordToFirestore,
+  saveModerationCaseToFirestore,
+  savePostReportToFirestore
+} from '../../lib/firebase';
 
 interface ReportPostModalProps {
   isOpen: boolean;
@@ -19,18 +25,26 @@ interface ReportPostModalProps {
   onReported?: (targetId: string) => void;
 }
 
+function stripLargeDataUri(val?: string): string | undefined {
+  if (typeof val !== 'string') return undefined;
+  if (val.startsWith('data:') && val.length > 25000) return undefined;
+  return val;
+}
+
 function buildCompactPostSnapshot(post?: InstitutionalFeedPost): InstitutionalFeedPost | undefined {
   if (!post || !post.id) return undefined;
-  const rawImage = post.imageUrl || post.mediaUrl;
-  const safeImageUrl =
-    typeof rawImage === 'string' && rawImage.startsWith('data:') && rawImage.length > 50000
-      ? undefined
-      : rawImage;
+  const safeImageUrl = stripLargeDataUri(post.imageUrl || post.mediaUrl);
   return {
     ...post,
+    authorAvatar: stripLargeDataUri(post.authorAvatar) || '',
     imageUrl: safeImageUrl,
     mediaUrl: safeImageUrl,
-    comments: Array.isArray(post.comments) ? post.comments.slice(0, 20) : []
+    comments: Array.isArray(post.comments)
+      ? post.comments.slice(0, 20).map((c) => ({
+          ...c,
+          authorAvatar: stripLargeDataUri(c.authorAvatar) || ''
+        }))
+      : []
   };
 }
 
@@ -48,11 +62,21 @@ export const ReportPostModal: React.FC<ReportPostModalProps> = ({
   const [details, setDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const submittingRef = useRef(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setErrorMsg(null);
+    }
+  }, [isOpen, targetId]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current || isSubmitting) return;
+
+    submittingRef.current = true;
     setErrorMsg(null);
     setIsSubmitting(true);
     try {
@@ -98,6 +122,25 @@ export const ReportPostModal: React.FC<ReportPostModalProps> = ({
         showToast(message, 'error');
         return;
       }
+
+      // Sync submitted report, grouped case, audit record, and snapshot post to Cloud Firestore
+      const firestoreWrites: Promise<unknown>[] = [];
+      if (data?.report) {
+        firestoreWrites.push(savePostReportToFirestore(data.report));
+      }
+      if (data?.modCase) {
+        firestoreWrites.push(saveModerationCaseToFirestore(data.modCase));
+      }
+      if (data?.auditRecord) {
+        firestoreWrites.push(saveModerationAuditRecordToFirestore(data.auditRecord));
+      }
+      if (data?.affectedPost) {
+        firestoreWrites.push(saveFeedPostToFirestore(data.affectedPost));
+      }
+      if (firestoreWrites.length > 0) {
+        await Promise.allSettled(firestoreWrites);
+      }
+
       showToast(
         data?.message || 'Report submitted to the Moderation Desk for review.',
         'success'
@@ -109,6 +152,7 @@ export const ReportPostModal: React.FC<ReportPostModalProps> = ({
       setErrorMsg('Network error while submitting report. Please try again.');
       showToast('Failed to submit report.', 'error');
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };

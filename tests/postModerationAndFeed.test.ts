@@ -855,4 +855,174 @@ describe('Alumni Feed, Profile Timeline, Moderation, Superadmin RBAC & Deep-Link
     expect(peerHeart.status).toBe(200);
     expect(peerHeart.json.post.hearts).toContain('usr_alumni_2');
   });
+
+  it('persists submitted post reports with optional details, syncs across cold-start engines, supports moderator/admin/superadmin open queue & claim, and records audit logs', async () => {
+    const postRes = await apiCall('/api/posts', {
+      method: 'POST',
+      uid: 'usr_alumni_1',
+      body: {
+        id: 'sync_test_post_1',
+        postType: 'update',
+        title: 'Alumni Meetup Notice',
+        content: 'Sharing suspicious external form link in post.',
+        visibility: 'alumni'
+      }
+    });
+    expect(postRes.status).toBe(201);
+
+    // 1. Alumni submits report with reason + optional details
+    const reportRes = await apiCall('/api/reports', {
+      method: 'POST',
+      uid: 'usr_alumni_2',
+      body: {
+        targetType: 'post',
+        targetId: 'sync_test_post_1',
+        reason: 'Spam',
+        details: 'This external link asks for alumni passwords.'
+      }
+    });
+    expect(reportRes.status).toBe(201);
+    expect(reportRes.json.report).toBeDefined();
+    expect(reportRes.json.report.reason).toBe('Spam');
+    expect(reportRes.json.report.details).toBe('This external link asks for alumni passwords.');
+    expect(reportRes.json.modCase).toBeDefined();
+    expect(reportRes.json.auditRecord).toBeDefined();
+    expect(reportRes.json.affectedPost).toBeDefined();
+
+    // 2. Duplicate report by same user returns 409
+    const dupRes = await apiCall('/api/reports', {
+      method: 'POST',
+      uid: 'usr_alumni_2',
+      body: {
+        targetType: 'post',
+        targetId: 'sync_test_post_1',
+        reason: 'Spam',
+        details: 'Clicking submit again'
+      }
+    });
+    expect(dupRes.status).toBe(409);
+
+    // 3. Simulate a cold-start serverless instance (fresh PostModerationEngine) syncing from Firestore
+    const freshEngine = new PostModerationEngine({ persistToDisk: false, emailEnabled: false });
+    freshEngine.setUserAccountAdapter({
+      getUserByUid: (uid) => usersMap.get(uid),
+      getAllUsers: () => Array.from(usersMap.values()),
+      getModeratorsAndAdmins: () =>
+        Array.from(usersMap.values()).filter((u) =>
+          ['moderator', 'admin', 'superadmin'].includes(String(u.role).toLowerCase())
+        ),
+      updateUserSuspension: () => {}
+    });
+    for (const u of usersMap.values()) {
+      freshEngine.upsertProfileRecord(u, false);
+    }
+
+    const coldApp = createTestServer(freshEngine, usersMap);
+    const coldServer = coldApp.listen(0);
+    const coldPort = (coldServer.address() as AddressInfo).port;
+    const coldBaseUrl = `http://127.0.0.1:${coldPort}`;
+
+    const coldCall = async (
+      url: string,
+      opts: { method?: string; uid?: string; body?: unknown } = {}
+    ) => {
+      const headers: Record<string, string> = {};
+      if (opts.uid) {
+        headers['x-test-uid'] = opts.uid;
+        if (opts.method && opts.method !== 'GET') {
+          headers['x-csrf-token'] = createCsrfTokenForUser(opts.uid, TEST_CSRF_SECRET);
+        }
+      }
+      if (opts.body !== undefined) {
+        headers['Content-Type'] = 'application/json';
+      }
+      const res = await fetch(`${coldBaseUrl}${url}`, {
+        method: opts.method || 'GET',
+        headers,
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+      });
+      const json = await res.json().catch(() => null);
+      return { status: res.status, json };
+    };
+
+    try {
+      const syncRes = await coldCall('/api/moderation/sync', {
+        method: 'POST',
+        uid: 'usr_mod_1',
+        body: {
+          posts: [reportRes.json.affectedPost],
+          reports: [reportRes.json.report],
+          cases: [reportRes.json.modCase],
+          auditLogs: [reportRes.json.auditRecord]
+        }
+      });
+      expect(syncRes.status).toBe(200);
+      expect(typeof syncRes.json.syncedAt).toBe('string');
+      expect(syncRes.json.casesCount).toBeGreaterThanOrEqual(1);
+      expect(syncRes.json.reportsCount).toBeGreaterThanOrEqual(1);
+
+      // Moderator, Admin, and Superadmin can all view open cases & details
+      for (const staffUid of ['usr_mod_1', 'usr_admin', 'usr_super']) {
+        const openRes = await coldCall('/api/moderation/cases?status=open', { uid: staffUid });
+        expect(openRes.status).toBe(200);
+        expect(openRes.json.total).toBe(1);
+        expect(openRes.json.pendingCount).toBe(1);
+        const target = openRes.json.cases.find((c: any) => c.targetId === 'sync_test_post_1');
+        expect(target).toBeDefined();
+        expect(target.reports[0].reporterName).toBe('Jose Rizal');
+        expect(target.reports[0].details).toBe('This external link asks for alumni passwords.');
+      }
+
+      // 4. Moderator claims case -> status becomes 'reviewed' and stays visible in status=open
+      const caseId = reportRes.json.caseId;
+      const claimRes = await coldCall(`/api/moderation/cases/${caseId}/claim`, {
+        method: 'POST',
+        uid: 'usr_mod_1',
+        body: {}
+      });
+      expect(claimRes.status).toBe(200);
+      expect(claimRes.json.case.status).toBe('reviewed');
+      expect(claimRes.json.auditRecord).toBeDefined();
+
+      const openAfterClaim = await coldCall('/api/moderation/cases?status=open', { uid: 'usr_admin' });
+      expect(openAfterClaim.status).toBe(200);
+      expect(openAfterClaim.json.total).toBe(1);
+      expect(openAfterClaim.json.cases[0].status).toBe('reviewed');
+
+      // 5. Inspect endpoint works cleanly with null-safe data
+      const detailRes = await coldCall(`/api/moderation/cases/${caseId}`, { uid: 'usr_admin' });
+      expect(detailRes.status).toBe(200);
+      expect(detailRes.json.reports[0].details).toBe('This external link asks for alumni passwords.');
+
+      // 6. Moderator resolves with warn -> status updates to 'action_taken', report becomes 'action_taken', removed from open queue
+      const actRes = await coldCall(`/api/moderation/cases/${caseId}/act`, {
+        method: 'POST',
+        uid: 'usr_mod_1',
+        body: {
+          action: 'warn',
+          reason: 'Spam',
+          message: 'Please avoid unverified external forms.'
+        }
+      });
+      expect(actRes.status).toBe(200);
+      expect(actRes.json.case.status).toBe('action_taken');
+      expect(actRes.json.updatedReports[0].status).toBe('action_taken');
+      expect(actRes.json.auditRecord).toBeDefined();
+
+      const openAfterResolve = await coldCall('/api/moderation/cases?status=open', { uid: 'usr_super' });
+      expect(openAfterResolve.status).toBe(200);
+      expect(openAfterResolve.json.total).toBe(0);
+
+      // 7. Superadmin sees immutable audit records for report, claim, and warn
+      const auditRes = await coldCall('/api/moderation/audit-logs', { uid: 'usr_super' });
+      expect(auditRes.status).toBe(200);
+      const actions = auditRes.json.auditLogs.map((l: any) => l.action);
+      expect(actions).toContain('REPORT_SUBMITTED');
+      expect(actions).toContain('CASE_CLAIMED');
+      expect(actions).toContain('POST_WARNED');
+    } finally {
+      await new Promise<void>((resolve) => coldServer.close(() => resolve()));
+    }
+  });
 });
+

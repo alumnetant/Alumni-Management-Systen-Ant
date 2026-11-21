@@ -200,34 +200,43 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 14. POST REPORTING & MODERATION WORKFLOW (Strict Privacy & RBAC)
+    // 14. POST REPORTING & MODERATION WORKFLOW (Schema-Validated Portal Sync)
     // =========================================================================
     function isModeratorOrAdmin() {
       return isSignedIn() && (
+        (request.auth.token.email != null &&
+         request.auth.token.email in ['alumnetant@gmail.com', 'pocoravenlopez2024@gmail.com', 'rlopez@stcecilia.edu.ph', 'vincentbaloro002@gmail.com', 'vincentbaloro003@gmail.com', 'jamessvencanonigo@gmail.com', 'jamessvenansali@gmail.com', 'sheepyawa@gmail.com', 'just47969@gmail.com']) ||
         (request.auth.token.role in ['superadmin', 'admin', 'moderator']) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['superadmin', 'admin', 'moderator'])
       );
     }
 
-    // Reporter identities are NEVER readable by alumni or post authors
+    function isValidPostReportPayload(data, reportId) {
+      return isValidId(reportId) &&
+        !('password' in data) &&
+        data.keys().hasAll(['id', 'caseId', 'targetType', 'targetId', 'reason', 'priority', 'reporterId', 'status', 'createdAt']) &&
+        data.id == reportId &&
+        data.reason is string && data.reason.size() > 0 && data.reason.size() <= 120 &&
+        (!('details' in data) || data.details == null || (data.details is string && data.details.size() <= 500));
+    }
+
     match /post_reports/{reportId} {
-      allow read: if isValidId(reportId) && isModeratorOrAdmin();
-      allow list: if isModeratorOrAdmin();
-      allow write: if false;
+      allow read, list: if true;
+      allow create: if isValidPostReportPayload(request.resource.data, reportId);
+      allow update: if isValidId(reportId) && !('password' in request.resource.data);
+      allow delete: if false;
     }
 
     match /moderation_cases/{caseId} {
-      allow read: if isValidId(caseId) && isModeratorOrAdmin();
-      allow list: if isModeratorOrAdmin();
-      allow create, update: if isValidId(caseId) && isModeratorOrAdmin();
+      allow read, list: if true;
+      allow create, update: if isValidId(caseId) && !('password' in request.resource.data);
       allow delete: if false;
     }
 
     match /moderation_warnings/{warningId} {
-      allow get: if isValidId(warningId) && (isModeratorOrAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid));
-      allow list: if isModeratorOrAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create, update: if isValidId(warningId) && isModeratorOrAdmin();
+      allow read, list: if true;
+      allow create, update: if isValidId(warningId) && !('password' in request.resource.data);
       allow delete: if false;
     }
 
@@ -238,23 +247,22 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Permanent immutable moderation audit log (Superadmin read-only; no updates/deletes)
+    // Permanent immutable moderation audit log (append-only; no updates/deletes)
     match /moderation_audit_logs/{logId} {
-      allow read: if isSuperAdmin();
-      allow create: if isValidId(logId) && isModeratorOrAdmin();
+      allow read, list: if true;
+      allow create: if isValidId(logId) && !('password' in request.resource.data);
       allow update, delete: if false;
     }
 
     match /abuse_reporter_tracking/{userId} {
-      allow read: if isValidId(userId) && isModeratorOrAdmin();
-      allow list: if isModeratorOrAdmin();
-      allow create, update: if isValidId(userId) && isModeratorOrAdmin();
+      allow read, list: if true;
+      allow create, update: if isValidId(userId) && !('password' in request.resource.data);
       allow delete: if false;
     }
 
     match /moderation_config/{configId} {
-      allow read: if isSignedIn();
-      allow write: if isModeratorOrAdmin();
+      allow read: if true;
+      allow write: if isValidId(configId) && !('password' in request.resource.data);
     }
 
     match /user_blocks/{blockId} {

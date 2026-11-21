@@ -331,12 +331,24 @@ export class PostModerationEngine {
           for (const [uid, prof] of Object.entries(parsed.profiles || {})) {
             loadedProfiles[uid] = decryptUserPiiFields(prof as StoredProfileRecord);
           }
-          this.state = {
+            this.state = {
             ...createInitialState(),
             ...parsed,
+            posts: parsed.posts || {},
             profiles: loadedProfiles,
             slugRedirects: parsed.slugRedirects || {},
             postMedia: parsed.postMedia || {},
+            reports: Array.isArray(parsed.reports) ? parsed.reports : [],
+            cases: Array.isArray(parsed.cases)
+              ? parsed.cases.map((c: any) => this.normalizeModCaseRecord(c))
+              : [],
+            warnings: Array.isArray(parsed.warnings) ? parsed.warnings : [],
+            appeals: Array.isArray(parsed.appeals) ? parsed.appeals : [],
+            auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : [],
+            reporterTracking: parsed.reporterTracking || {},
+            notifications: Array.isArray(parsed.notifications) ? parsed.notifications : [],
+            userRateWindows: parsed.userRateWindows || {},
+            flaggedForBanUsers: parsed.flaggedForBanUsers || {},
             config: { ...DEFAULT_MODERATION_CONFIG, ...(parsed.config || {}) },
             feedConfig: { ...DEFAULT_FEED_CONFIG, ...(parsed.feedConfig || {}) },
             legacyAuditReport: parsed.legacyAuditReport || { totalChecked: 0, normalizedCount: 0 }
@@ -479,24 +491,78 @@ export class PostModerationEngine {
     return { blocked: false };
   }
 
-  private buildSnapshot(post: InstitutionalFeedPost): PostContentSnapshot {
+  private buildSnapshot(post: Partial<InstitutionalFeedPost> | undefined | null): PostContentSnapshot {
+    const safePost = post || {};
     return {
-      title: post.title || '',
-      content: post.content || '',
-      imageUrl: post.imageUrl,
-      tags: post.tags ? [...post.tags] : undefined,
-      postType: post.postType,
-      authorId: post.authorId,
-      authorName: post.authorName,
+      title: safePost.title || '',
+      content: safePost.content || '',
+      imageUrl: safePost.imageUrl,
+      tags: Array.isArray(safePost.tags) ? [...safePost.tags] : undefined,
+      postType: safePost.postType,
+      authorId: safePost.authorId || 'unknown_author',
+      authorName: safePost.authorName || 'Cecilian Member',
       capturedAt: new Date().toISOString()
     };
   }
 
-  private checkSnapshotDiffers(snapshot: PostContentSnapshot, post: InstitutionalFeedPost): boolean {
+  private checkSnapshotDiffers(snapshot?: PostContentSnapshot | null, post?: InstitutionalFeedPost | null): boolean {
+    if (!snapshot || !post) return false;
     if ((snapshot.title || '') !== (post.title || '')) return true;
     if ((snapshot.content || '') !== (post.content || '')) return true;
     if ((snapshot.imageUrl || '') !== (post.imageUrl || '')) return true;
     return false;
+  }
+
+  private normalizeModCaseRecord(raw: any): ModerationCase {
+    const nowIso = new Date().toISOString();
+    const safeSnapshot: PostContentSnapshot = {
+      title: raw?.contentSnapshot?.title || 'Alumni Post',
+      content: raw?.contentSnapshot?.content || '',
+      imageUrl: raw?.contentSnapshot?.imageUrl,
+      tags: Array.isArray(raw?.contentSnapshot?.tags) ? raw.contentSnapshot.tags : undefined,
+      postType: raw?.contentSnapshot?.postType,
+      authorId: raw?.contentSnapshot?.authorId || raw?.postAuthorId || 'unknown_author',
+      authorName: raw?.contentSnapshot?.authorName || raw?.postAuthorName || 'Cecilian Member',
+      capturedAt: raw?.contentSnapshot?.capturedAt || raw?.createdAt || nowIso
+    };
+    const safeReportIds = Array.isArray(raw?.reportIds) ? raw.reportIds.filter((id: any) => typeof id === 'string') : [];
+    const safeReasons =
+      raw?.reasonsSummary && typeof raw.reasonsSummary === 'object' && !Array.isArray(raw.reasonsSummary)
+        ? { ...raw.reasonsSummary }
+        : {};
+    return {
+      ...raw,
+      id: String(raw?.id || `case_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`),
+      targetType: raw?.targetType === 'comment' ? 'comment' : 'post',
+      targetId: String(raw?.targetId || ''),
+      postAuthorId: String(raw?.postAuthorId || safeSnapshot.authorId || 'unknown_author'),
+      postAuthorName: String(raw?.postAuthorName || safeSnapshot.authorName || 'Cecilian Member'),
+      postAuthorRole: (raw?.postAuthorRole || 'alumni') as UserRole,
+      status: raw?.status || 'pending',
+      highestPriority: (raw?.highestPriority === 'high' || raw?.highestPriority === 'medium' || raw?.highestPriority === 'low')
+        ? raw.highestPriority
+        : 'medium',
+      reportCount: Math.max(0, Number(raw?.reportCount) || safeReportIds.length || 0),
+      highPriorityReportCount: Math.max(0, Number(raw?.highPriorityReportCount) || 0),
+      reasonsSummary: safeReasons,
+      contentSnapshot: safeSnapshot,
+      currentContent: raw?.currentContent ? { ...safeSnapshot, ...raw.currentContent } : safeSnapshot,
+      contentEditedSinceSnapshot: Boolean(raw?.contentEditedSinceSnapshot),
+      autoFlaggedForPriority: Boolean(raw?.autoFlaggedForPriority),
+      autoHiddenPendingReview: Boolean(raw?.autoHiddenPendingReview),
+      reportIds: safeReportIds,
+      cycleNumber: Math.max(1, Number(raw?.cycleNumber) || 1),
+      createdAt: raw?.createdAt || nowIso,
+      updatedAt: raw?.updatedAt || raw?.createdAt || nowIso
+    };
+  }
+
+  public getLatestAuditRecordForCase(caseId?: string, postId?: string): ModerationAuditRecord | null {
+    if (!Array.isArray(this.state.auditLogs)) return null;
+    const found = this.state.auditLogs.find(
+      (a) => (caseId && a.caseId === caseId) || (!caseId && postId && a.postId === postId)
+    );
+    return found || null;
   }
 
   private getAllKnownHandlesSet(excludeUid?: string): Set<string> {
@@ -2097,7 +2163,17 @@ export class PostModerationEngine {
       details?: string;
       postSnapshotFallback?: InstitutionalFeedPost;
     }
-  ): { success: true; message: string; reportId: string; priority: ReportPriority } {
+  ): {
+    success: true;
+    message: string;
+    reportId: string;
+    caseId: string;
+    priority: ReportPriority;
+    report: PostReport;
+    modCase: ModerationCase;
+    auditRecord: ModerationAuditRecord;
+    affectedPost: InstitutionalFeedPost;
+  } {
     const targetType: ReportTargetType = payload.targetType || 'post';
     if (targetType !== 'post') {
       throw new ModerationError(400, 'UNSUPPORTED_TARGET_TYPE', 'Currently only post reporting is enabled.');
@@ -2326,7 +2402,7 @@ export class PostModerationEngine {
       });
     }
 
-    this.appendAudit({
+    const reportAudit = this.appendAudit({
       action: 'REPORT_SUBMITTED',
       actorId: actor.uid,
       actorName: actor.name,
@@ -2345,12 +2421,17 @@ export class PostModerationEngine {
 
     this.persist();
 
-    // Privacy check: Return minimal confirmation only—never return reporter lists or case internals
+    // Return caller's own report and grouped case summary (without other reporters' PII) for Firestore sync
     return {
       success: true,
       message: 'Thanks, our moderators will review your report.',
       reportId: report.id,
-      priority
+      caseId: modCase.id,
+      priority,
+      report,
+      modCase: this.normalizeModCaseRecord(modCase),
+      auditRecord: reportAudit,
+      affectedPost: post
     };
   }
 
@@ -2458,7 +2539,12 @@ export class PostModerationEngine {
     const pageSize = Math.min(50, Math.max(1, Number(query.pageSize) || 10));
     const search = (query.search || '').toLowerCase().trim();
 
-    let filtered = this.state.cases.filter((c) => {
+    const safeCases = (Array.isArray(this.state.cases) ? this.state.cases : []).map((rawCase) =>
+      this.normalizeModCaseRecord(rawCase)
+    );
+    const safeReports = Array.isArray(this.state.reports) ? this.state.reports : [];
+
+    let filtered = safeCases.filter((c) => {
       // Conflict-of-interest protection: if a moderator authored the post or reported it,
       // route to another reviewer (exclude from their actionable list, or mark inaccessible to them;
       // admins also cannot act on their own post/report).
@@ -2468,23 +2554,37 @@ export class PostModerationEngine {
       }
 
       if (query.status && query.status !== 'all') {
-        if (c.status !== query.status) return false;
+        if (query.status === 'open') {
+          if (c.status !== 'pending' && c.status !== 'reviewed') return false;
+        } else if (c.status !== query.status) {
+          return false;
+        }
       }
       if (query.priority && query.priority !== 'all') {
         if (c.highestPriority !== query.priority) return false;
       }
       if (query.reason && query.reason !== 'all') {
-        if (!c.reasonsSummary[query.reason]) return false;
+        if (!c.reasonsSummary || !c.reasonsSummary[query.reason]) return false;
       }
       if (query.dateFrom) {
-        if (new Date(c.createdAt).getTime() < new Date(query.dateFrom).getTime()) return false;
+        const fromMs = new Date(query.dateFrom).getTime();
+        const createdMs = new Date(c.createdAt || 0).getTime();
+        if (Number.isFinite(fromMs) && createdMs < fromMs) return false;
       }
       if (query.dateTo) {
-        const endOfDay = new Date(query.dateTo).getTime() + 24 * 60 * 60 * 1000 - 1;
-        if (new Date(c.createdAt).getTime() > endOfDay) return false;
+        const toMs = new Date(query.dateTo).getTime();
+        const createdMs = new Date(c.createdAt || 0).getTime();
+        if (Number.isFinite(toMs)) {
+          const endOfDay = toMs + 24 * 60 * 60 * 1000 - 1;
+          if (createdMs > endOfDay) return false;
+        }
       }
       if (search) {
-        const text = `${c.postAuthorName} ${c.contentSnapshot.title} ${c.contentSnapshot.content} ${c.id}`.toLowerCase();
+        const caseReportText = safeReports
+          .filter((r) => r.caseId === c.id)
+          .map((r) => `${r.reporterName || ''} ${r.reason || ''} ${r.details || ''}`)
+          .join(' ');
+        const text = `${c.postAuthorName || ''} ${c.contentSnapshot?.title || ''} ${c.contentSnapshot?.content || ''} ${c.id || ''} ${caseReportText}`.toLowerCase();
         if (!text.includes(search)) return false;
       }
       return true;
@@ -2495,14 +2595,14 @@ export class PostModerationEngine {
       if (sortMode === 'priority') {
         const diff = priorityRank(b.highestPriority) - priorityRank(a.highestPriority);
         if (diff !== 0) return diff;
-        if (b.reportCount !== a.reportCount) return b.reportCount - a.reportCount;
-        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        if ((b.reportCount || 0) !== (a.reportCount || 0)) return (b.reportCount || 0) - (a.reportCount || 0);
+        return (new Date(b.updatedAt || b.createdAt || 0).getTime() || 0) - (new Date(a.updatedAt || a.createdAt || 0).getTime() || 0);
       }
       if (sortMode === 'most_reported') {
-        if (b.reportCount !== a.reportCount) return b.reportCount - a.reportCount;
-        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        if ((b.reportCount || 0) !== (a.reportCount || 0)) return (b.reportCount || 0) - (a.reportCount || 0);
+        return (new Date(b.updatedAt || b.createdAt || 0).getTime() || 0) - (new Date(a.updatedAt || a.createdAt || 0).getTime() || 0);
       }
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return (new Date(b.createdAt || 0).getTime() || 0) - (new Date(a.createdAt || 0).getTime() || 0);
     });
 
     const total = filtered.length;
@@ -2511,8 +2611,8 @@ export class PostModerationEngine {
 
     const enriched = sliced.map((c) => {
       const conflict = this.evaluateReviewerConflict(c, actor);
-      const caseReports = this.state.reports.filter((r) => r.caseId === c.id);
-      const livePost = this.state.posts[c.targetId] || null;
+      const caseReports = safeReports.filter((r) => r.caseId === c.id);
+      const livePost = (this.state.posts && this.state.posts[c.targetId]) || null;
       return {
         ...c,
         reports: caseReports,
@@ -2537,21 +2637,22 @@ export class PostModerationEngine {
       throw new ModerationError(403, 'FORBIDDEN', 'Only moderators and administrators can inspect report cases.');
     }
 
-    const modCase = this.state.cases.find((c) => c.id === caseId);
-    if (!modCase) {
+    const rawCase = (Array.isArray(this.state.cases) ? this.state.cases : []).find((c) => c.id === caseId);
+    if (!rawCase) {
       throw new ModerationError(404, 'CASE_NOT_FOUND', 'Moderation case not found.');
     }
+    const modCase = this.normalizeModCaseRecord(rawCase);
 
     const conflict = this.evaluateReviewerConflict(modCase, actor);
     if (!conflict.canAct && !isAdminRole(actor.role)) {
       throw new ModerationError(403, 'CONFLICT_OF_INTEREST', conflict.reason || 'Conflict of interest.');
     }
 
-    const reports = this.state.reports.filter((r) => r.caseId === caseId);
-    const livePost = this.state.posts[modCase.targetId] || null;
-    const authorWarnings = this.state.warnings.filter((w) => w.userId === modCase.postAuthorId);
-    const appeals = this.state.appeals.filter((a) => a.caseId === caseId);
-    const authorBanFlag = this.state.flaggedForBanUsers[modCase.postAuthorId] || null;
+    const reports = (Array.isArray(this.state.reports) ? this.state.reports : []).filter((r) => r.caseId === caseId);
+    const livePost = (this.state.posts && this.state.posts[modCase.targetId]) || null;
+    const authorWarnings = (Array.isArray(this.state.warnings) ? this.state.warnings : []).filter((w) => w.userId === modCase.postAuthorId);
+    const appeals = (Array.isArray(this.state.appeals) ? this.state.appeals : []).filter((a) => a.caseId === caseId);
+    const authorBanFlag = (this.state.flaggedForBanUsers && this.state.flaggedForBanUsers[modCase.postAuthorId]) || null;
 
     return {
       case: {
@@ -2669,7 +2770,10 @@ export class PostModerationEngine {
     }
   ): {
     case: ModerationCase;
+    updatedReports: PostReport[];
     warning?: ModerationWarning;
+    auditRecord?: ModerationAuditRecord | null;
+    post?: InstitutionalFeedPost;
     autoSuspended?: boolean;
     flaggedForBan?: boolean;
   } {
@@ -2773,7 +2877,7 @@ export class PostModerationEngine {
       if (!sanitizedMessage || sanitizedMessage.length < 3) {
         throw new ModerationError(400, 'WARNING_MESSAGE_REQUIRED', 'A custom warning message for the author is required.');
       }
-      const warningReason = sanitizedReason || Object.keys(modCase.reasonsSummary)[0] || 'Community policy violation';
+      const warningReason = sanitizedReason || Object.keys(modCase.reasonsSummary || {})[0] || 'Community policy violation';
 
       createdWarning = {
         id: `warn_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
@@ -2870,7 +2974,7 @@ export class PostModerationEngine {
       autoSuspended = escalation.autoSuspended;
       flaggedForBan = escalation.flaggedForBan;
     } else if (action === 'delete_post') {
-      const deletionReason = sanitizedReason || sanitizedMessage || Object.keys(modCase.reasonsSummary)[0] || 'Policy violation';
+      const deletionReason = sanitizedReason || sanitizedMessage || Object.keys(modCase.reasonsSummary || {})[0] || 'Policy violation';
       if (deletionReason.length < 3) {
         throw new ModerationError(400, 'DELETION_REASON_REQUIRED', 'A reason for removing this post is required.');
       }
@@ -2954,8 +3058,11 @@ export class PostModerationEngine {
 
     this.persist();
     return {
-      case: modCase,
+      case: this.normalizeModCaseRecord(modCase),
+      updatedReports: pendingReports.map((r) => ({ ...r })),
       warning: createdWarning,
+      auditRecord: this.getLatestAuditRecordForCase(modCase.id, modCase.targetId),
+      post: this.state.posts[modCase.targetId],
       autoSuspended,
       flaggedForBan
     };
@@ -3739,6 +3846,304 @@ export class PostModerationEngine {
         // Never leak internal moderator notes to the author
         note: undefined
       }));
+  }
+
+  public syncModerationStateFromCloud(
+    actor: ModerationActor,
+    payload: {
+      cases?: Partial<ModerationCase>[];
+      reports?: Partial<PostReport>[];
+      warnings?: Partial<ModerationWarning>[];
+      auditLogs?: Partial<ModerationAuditRecord>[];
+      reporterTracking?: Partial<AbuseReporterTracking>[];
+      posts?: Partial<InstitutionalFeedPost>[];
+    }
+  ): {
+    casesCount: number;
+    reportsCount: number;
+    warningsCount: number;
+    auditLogsCount: number;
+    syncedAt: string;
+    cases: ModerationCase[];
+    reports: PostReport[];
+    warnings: ModerationWarning[];
+    auditLogs: ModerationAuditRecord[];
+    reporterTracking: AbuseReporterTracking[];
+  } {
+    if (!isModeratorRole(actor.role)) {
+      throw new ModerationError(403, 'FORBIDDEN', 'Only moderators and administrators can synchronize moderation state.');
+    }
+
+    const toMs = (iso?: string) => {
+      if (!iso) return 0;
+      const t = new Date(iso).getTime();
+      return Number.isFinite(t) ? t : 0;
+    };
+    const isResolvedStatus = (st?: string) =>
+      st === 'dismissed' || st === 'action_taken' || st === 'post_removed';
+
+    // 1. Merge Posts first so cases can enrich snapshots
+    if (Array.isArray(payload.posts)) {
+      for (const rawPost of payload.posts.slice(0, 300)) {
+        if (!rawPost?.id) continue;
+        const existingPost = this.state.posts[rawPost.id];
+        if (!existingPost) {
+          this.state.posts[rawPost.id] = {
+            ...(rawPost as InstitutionalFeedPost),
+            id: rawPost.id,
+            authorId: rawPost.authorId || 'unknown_author',
+            authorName: rawPost.authorName || 'Cecilian Member',
+            authorRole: (rawPost.authorRole as UserRole) || 'alumni',
+            authorAvatar: rawPost.authorAvatar || '',
+            postType: (rawPost.postType as InstitutionalFeedPost['postType']) || 'update',
+            title: rawPost.title || '',
+            content: rawPost.content || '',
+            likes: Array.isArray(rawPost.likes) ? rawPost.likes : [],
+            hearts: Array.isArray(rawPost.hearts) ? rawPost.hearts : [],
+            comments: Array.isArray(rawPost.comments) ? rawPost.comments : [],
+            sharesCount: Number(rawPost.sharesCount) || 0,
+            createdAt: rawPost.createdAt || new Date().toISOString()
+          };
+        } else {
+          const incomingNewer =
+            toMs(rawPost.updatedAt || rawPost.softDeletedAt || rawPost.createdAt) >=
+            toMs(existingPost.updatedAt || existingPost.softDeletedAt || existingPost.createdAt);
+          if (incomingNewer) {
+            this.state.posts[rawPost.id] = {
+              ...existingPost,
+              ...(rawPost as InstitutionalFeedPost),
+              likes: Array.isArray(rawPost.likes) ? rawPost.likes : existingPost.likes,
+              hearts: Array.isArray(rawPost.hearts) ? rawPost.hearts : existingPost.hearts,
+              comments: Array.isArray(rawPost.comments) ? rawPost.comments : existingPost.comments
+            };
+          }
+        }
+      }
+    }
+
+    // 2. Merge Reports
+    const reportById = new Map<string, PostReport>();
+    for (const existing of this.state.reports) {
+      if (existing?.id) reportById.set(existing.id, existing);
+    }
+    if (Array.isArray(payload.reports)) {
+      for (const rawRep of payload.reports.slice(0, 500)) {
+        if (!rawRep?.id) continue;
+        const incoming: PostReport = {
+          id: String(rawRep.id),
+          caseId: String(rawRep.caseId || ''),
+          targetType: rawRep.targetType === 'comment' ? 'comment' : 'post',
+          targetId: String(rawRep.targetId || ''),
+          reason: (rawRep.reason as ReportReason) || 'Inappropriate content',
+          priority: rawRep.priority || getPriorityForReason((rawRep.reason as ReportReason) || 'Inappropriate content'),
+          details: typeof rawRep.details === 'string' ? rawRep.details : undefined,
+          reporterId: String(rawRep.reporterId || 'unknown_reporter'),
+          reporterName: String(rawRep.reporterName || 'Community Member'),
+          reporterRole: (rawRep.reporterRole as UserRole) || 'alumni',
+          status: rawRep.status || 'pending',
+          cycleNumber: Math.max(1, Number(rawRep.cycleNumber) || 1),
+          createdAt: rawRep.createdAt || new Date().toISOString(),
+          resolvedAt: rawRep.resolvedAt,
+          resolvedBy: rawRep.resolvedBy,
+          resolvedOutcome: rawRep.resolvedOutcome
+        };
+        const existing = reportById.get(incoming.id);
+        if (!existing) {
+          reportById.set(incoming.id, incoming);
+        } else {
+          const existingScore = (isResolvedStatus(existing.status) ? 10 : existing.status === 'reviewed' ? 5 : 0);
+          const incomingScore = (isResolvedStatus(incoming.status) ? 10 : incoming.status === 'reviewed' ? 5 : 0);
+          if (incomingScore > existingScore || toMs(incoming.resolvedAt) > toMs(existing.resolvedAt)) {
+            reportById.set(incoming.id, { ...existing, ...incoming });
+          }
+        }
+      }
+    }
+    this.state.reports = Array.from(reportById.values()).sort(
+      (a, b) => toMs(b.createdAt) - toMs(a.createdAt)
+    );
+
+    // 3. Merge Cases
+    const caseById = new Map<string, ModerationCase>();
+    for (const existing of this.state.cases) {
+      if (existing?.id) {
+        caseById.set(existing.id, this.normalizeModCaseRecord(existing));
+      }
+    }
+    if (Array.isArray(payload.cases)) {
+      for (const rawCase of payload.cases.slice(0, 500)) {
+        if (!rawCase?.id) continue;
+        const incoming = this.normalizeModCaseRecord(rawCase);
+        const existing = caseById.get(incoming.id);
+        if (!existing) {
+          caseById.set(incoming.id, incoming);
+        } else {
+          const incomingMs = toMs(incoming.updatedAt || incoming.resolvedAt || incoming.createdAt);
+          const existingMs = toMs(existing.updatedAt || existing.resolvedAt || existing.createdAt);
+          const mergedReportIds = Array.from(new Set([...(existing.reportIds || []), ...(incoming.reportIds || [])]));
+          if (incomingMs > existingMs || (isResolvedStatus(incoming.status) && !isResolvedStatus(existing.status))) {
+            caseById.set(incoming.id, this.normalizeModCaseRecord({
+              ...existing,
+              ...incoming,
+              reportIds: mergedReportIds
+            }));
+          } else {
+            caseById.set(existing.id, this.normalizeModCaseRecord({
+              ...incoming,
+              ...existing,
+              reportIds: mergedReportIds
+            }));
+          }
+        }
+      }
+    }
+
+    // Ensure every orphaned report has a valid ModerationCase so reports are never invisible
+    for (const rep of this.state.reports) {
+      let parent = (rep.caseId ? caseById.get(rep.caseId) : undefined) ||
+        Array.from(caseById.values()).find((c) => c.targetType === rep.targetType && c.targetId === rep.targetId);
+      if (!parent && rep.targetId) {
+        const post = this.state.posts[rep.targetId];
+        const caseId = rep.caseId || `case_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+        rep.caseId = caseId;
+        parent = this.normalizeModCaseRecord({
+          id: caseId,
+          targetType: rep.targetType || 'post',
+          targetId: rep.targetId,
+          postAuthorId: post?.authorId || 'unknown_author',
+          postAuthorName: post?.authorName || 'Cecilian Member',
+          postAuthorRole: post?.authorRole || 'alumni',
+          status: rep.status || 'pending',
+          highestPriority: rep.priority || 'medium',
+          reportCount: 1,
+          highPriorityReportCount: rep.priority === 'high' ? 1 : 0,
+          reasonsSummary: { [rep.reason]: 1 },
+          contentSnapshot: this.buildSnapshot(post),
+          currentContent: this.buildSnapshot(post),
+          reportIds: [rep.id],
+          cycleNumber: rep.cycleNumber || 1,
+          createdAt: rep.createdAt,
+          updatedAt: rep.resolvedAt || rep.createdAt
+        });
+        caseById.set(parent.id, parent);
+      } else if (parent) {
+        if (!rep.caseId) rep.caseId = parent.id;
+        if (!parent.reportIds.includes(rep.id)) {
+          parent.reportIds.push(rep.id);
+        }
+      }
+    }
+
+    // Recompute aggregate report stats cleanly for each case from reconciled reports
+    for (const modCase of caseById.values()) {
+      const linkedReports = this.state.reports.filter((r) => r.caseId === modCase.id);
+      if (linkedReports.length > 0) {
+        modCase.reportIds = linkedReports.map((r) => r.id);
+        modCase.reportCount = Math.max(modCase.reportCount, linkedReports.length);
+        let highCount = 0;
+        const summary: Record<string, number> = {};
+        let topPrio: ReportPriority = modCase.highestPriority || 'low';
+        for (const r of linkedReports) {
+          if (r.priority === 'high') highCount++;
+          topPrio = maxPriority(topPrio, r.priority || 'low');
+          summary[r.reason] = (summary[r.reason] || 0) + 1;
+        }
+        modCase.highPriorityReportCount = Math.max(modCase.highPriorityReportCount, highCount);
+        modCase.highestPriority = topPrio;
+        modCase.reasonsSummary = summary;
+      }
+      const livePost = this.state.posts[modCase.targetId];
+      if (livePost) {
+        modCase.currentContent = this.buildSnapshot(livePost);
+        modCase.contentEditedSinceSnapshot = this.checkSnapshotDiffers(modCase.contentSnapshot, livePost);
+      }
+    }
+
+    this.state.cases = Array.from(caseById.values()).sort(
+      (a, b) => toMs(b.updatedAt || b.createdAt) - toMs(a.updatedAt || a.createdAt)
+    );
+
+    // 4. Merge Warnings
+    const warningById = new Map<string, ModerationWarning>();
+    for (const w of this.state.warnings) {
+      if (w?.id) warningById.set(w.id, w);
+    }
+    if (Array.isArray(payload.warnings)) {
+      for (const w of payload.warnings.slice(0, 500)) {
+        if (!w?.id) continue;
+        const prev = warningById.get(w.id);
+        if (!prev || (w.overturned && !prev.overturned)) {
+          warningById.set(w.id, { ...(prev || {}), ...(w as ModerationWarning) });
+        }
+      }
+    }
+    this.state.warnings = Array.from(warningById.values()).sort(
+      (a, b) => toMs(b.createdAt) - toMs(a.createdAt)
+    );
+
+    // 5. Merge Immutable Audit Logs
+    const auditById = new Map<string, ModerationAuditRecord>();
+    for (const a of this.state.auditLogs) {
+      if (a?.id) auditById.set(a.id, a);
+    }
+    if (Array.isArray(payload.auditLogs)) {
+      for (const a of payload.auditLogs.slice(0, 500)) {
+        if (a?.id && !auditById.has(a.id)) {
+          auditById.set(a.id, a as ModerationAuditRecord);
+        }
+      }
+    }
+    this.state.auditLogs = Array.from(auditById.values()).sort(
+      (a, b) => toMs(b.createdAt) - toMs(a.createdAt)
+    );
+
+    // 6. Merge Reporter Tracking
+    if (Array.isArray(payload.reporterTracking)) {
+      for (const tr of payload.reporterTracking.slice(0, 300)) {
+        if (!tr?.userId) continue;
+        const existing = this.state.reporterTracking[tr.userId];
+        if (!existing) {
+          this.state.reporterTracking[tr.userId] = {
+            userId: tr.userId,
+            userName: tr.userName,
+            userRole: tr.userRole,
+            consecutiveDismissedCount: Number(tr.consecutiveDismissedCount) || 0,
+            totalDismissedCount: Number(tr.totalDismissedCount) || 0,
+            totalReportsCount: Number(tr.totalReportsCount) || 0,
+            flaggedAbusiveReporter: Boolean(tr.flaggedAbusiveReporter),
+            reportingRestricted: Boolean(tr.reportingRestricted),
+            restrictionReason: tr.restrictionReason,
+            restrictedAt: tr.restrictedAt,
+            restrictedBy: tr.restrictedBy,
+            flaggedAt: tr.flaggedAt,
+            warningIssuedAt: tr.warningIssuedAt
+          };
+        } else {
+          existing.totalReportsCount = Math.max(existing.totalReportsCount || 0, Number(tr.totalReportsCount) || 0);
+          existing.totalDismissedCount = Math.max(existing.totalDismissedCount || 0, Number(tr.totalDismissedCount) || 0);
+          existing.consecutiveDismissedCount = Math.max(existing.consecutiveDismissedCount || 0, Number(tr.consecutiveDismissedCount) || 0);
+          if (tr.flaggedAbusiveReporter) existing.flaggedAbusiveReporter = true;
+          if (tr.reportingRestricted) {
+            existing.reportingRestricted = true;
+            existing.restrictionReason = existing.restrictionReason || tr.restrictionReason;
+          }
+        }
+      }
+    }
+
+    this.persist();
+    return {
+      casesCount: this.state.cases.length,
+      reportsCount: this.state.reports.length,
+      warningsCount: this.state.warnings.length,
+      auditLogsCount: this.state.auditLogs.length,
+      syncedAt: new Date().toISOString(),
+      cases: this.state.cases,
+      reports: this.state.reports,
+      warnings: this.state.warnings,
+      auditLogs: isSuperAdminRole(actor.role) ? this.state.auditLogs : [],
+      reporterTracking: Object.values(this.state.reporterTracking)
+    };
   }
 }
 

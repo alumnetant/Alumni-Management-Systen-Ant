@@ -26,7 +26,7 @@
   },
   "firestore": [
     {
-      "database": "ai-studio-alumnet-c1f9166b-5db9-4770-bf10-8eba2ab51d7a",
+      "database": "ai-studio-alumnetant-92fb5716-8d56-4cfe-a603-629c0a70bf1a",
       "rules": "firestore.rules"
     }
   ]

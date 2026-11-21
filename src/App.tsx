@@ -15,28 +15,13 @@ import { CecilianLoader } from './components/common/CecilianLoader';
 import { PlatformRestrictedGuard } from './components/common/PlatformRestrictedGuard';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
-// Conservative Performance Optimization: Lazy-load heavy workspace layouts and modals
-const AdminWorkspaceLayout = React.lazy(() =>
-  import('./components/admin/AdminWorkspaceLayout').then((m) => ({ default: m.AdminWorkspaceLayout }))
-);
-const AlumniWorkspaceLayout = React.lazy(() =>
-  import('./components/alumni/AlumniWorkspaceLayout').then((m) => ({ default: m.AlumniWorkspaceLayout }))
-);
-const PublicProfileModal = React.lazy(() =>
-  import('./components/profile/PublicProfileModal').then((m) => ({ default: m.PublicProfileModal }))
-);
-const FirstTimeProfileSetupModal = React.lazy(() =>
-  import('./components/profile/FirstTimeProfileSetupModal').then((m) => ({ default: m.FirstTimeProfileSetupModal }))
-);
-const EditProfileModal = React.lazy(() =>
-  import('./components/profile/EditProfileModal').then((m) => ({ default: m.EditProfileModal }))
-);
-const BiometricAppLockModal = React.lazy(() =>
-  import('./components/auth/BiometricAppLockModal').then((m) => ({ default: m.BiometricAppLockModal }))
-);
-const AlumniCredentialVerificationView = React.lazy(() =>
-  import('./components/profile/AlumniCredentialVerificationView').then((m) => ({ default: m.AlumniCredentialVerificationView }))
-);
+import { EditProfileModal } from './components/profile/EditProfileModal';
+import { AdminWorkspaceLayout } from './components/admin/AdminWorkspaceLayout';
+import { AlumniWorkspaceLayout } from './components/alumni/AlumniWorkspaceLayout';
+import { PublicProfileModal } from './components/profile/PublicProfileModal';
+import { FirstTimeProfileSetupModal } from './components/profile/FirstTimeProfileSetupModal';
+import { BiometricAppLockModal } from './components/auth/BiometricAppLockModal';
+import { AlumniCredentialVerificationView } from './components/profile/AlumniCredentialVerificationView';
 import { SplashScreen } from '@capacitor/splash-screen';
 import {
   initPushNotificationListeners,
@@ -800,10 +785,12 @@ function AppContent() {
             <PublicProfileModal />
 
             {/* Global Edit Profile Modal */}
-            <EditProfileModal
-              isOpen={isEditProfileModalOpen}
-              onClose={closeEditProfile}
-            />
+            {isEditProfileModalOpen && (
+              <EditProfileModal
+                isOpen={isEditProfileModalOpen}
+                onClose={closeEditProfile}
+              />
+            )}
           </React.Suspense>
         </motion.div>
       ) : (
@@ -839,24 +826,28 @@ function AppContent() {
             <PublicProfileModal />
 
             {/* Global Edit Profile Modal */}
-            <EditProfileModal
-              isOpen={isEditProfileModalOpen}
-              onClose={closeEditProfile}
-            />
+            {isEditProfileModalOpen && (
+              <EditProfileModal
+                isOpen={isEditProfileModalOpen}
+                onClose={closeEditProfile}
+              />
+            )}
 
             {/* Priority First-Time Profile Setup Modal */}
-            <FirstTimeProfileSetupModal
-              isOpen={showProfileSetupModal}
-              onClose={() => {
-                setShowProfileSetupModal(false);
-                if (currentUser) {
-                  try {
-                    localStorage.setItem(`dismissed_setup_${currentUser.uid}`, 'true');
-                    sessionStorage.setItem(`dismissed_setup_${currentUser.uid}`, 'true');
-                  } catch {}
-                }
-              }}
-            />
+            {showProfileSetupModal && (
+              <FirstTimeProfileSetupModal
+                isOpen={showProfileSetupModal}
+                onClose={() => {
+                  setShowProfileSetupModal(false);
+                  if (currentUser) {
+                    try {
+                      localStorage.setItem(`dismissed_setup_${currentUser.uid}`, 'true');
+                      sessionStorage.setItem(`dismissed_setup_${currentUser.uid}`, 'true');
+                    } catch {}
+                  }
+                }}
+              />
+            )}
           </React.Suspense>
         </motion.div>
       ))}

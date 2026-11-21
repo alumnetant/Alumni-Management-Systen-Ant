@@ -22,7 +22,6 @@ import {
   Pin,
   PinOff,
   Repeat2,
-  Scale,
   Send,
   Share2,
   ShieldAlert,
@@ -38,7 +37,6 @@ import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { DoubleTapHeartOverlay, InteractiveHeartReaction } from '../common/InteractiveHeartReaction';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { ReportPostModal } from './ReportPostModal';
-import { AppealPostModal } from './AppealPostModal';
 import { HIGHLIGHT_RING_CLASS } from '../../hooks/useDeepLinkHighlight';
 
 interface PostCardProps {
@@ -89,7 +87,6 @@ export const PostCard: React.FC<PostCardProps> = ({
   const [editContent, setEditContent] = useState(post.content || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showAppealModal, setShowAppealModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareCommentary, setShareCommentary] = useState('');
   const [isSharing, setIsSharing] = useState(false);
@@ -346,16 +343,6 @@ export const PostCard: React.FC<PostCardProps> = ({
                 <span className="text-amber-800 dark:text-amber-300">{post.flaggedMessage}</span>
               </div>
             </div>
-            {isOwner && (
-              <button
-                type="button"
-                onClick={() => setShowAppealModal(true)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white dark:bg-stone-900 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 font-bold text-xs hover:bg-amber-100/60 cursor-pointer shrink-0 min-h-[36px]"
-              >
-                <Scale className="w-3.5 h-3.5" />
-                <span>Submit Appeal</span>
-              </button>
-            )}
           </div>
         )}
 
@@ -875,15 +862,6 @@ export const PostCard: React.FC<PostCardProps> = ({
           }
           if (onPostReported) onPostReported(pid);
         }}
-      />
-
-      {/* Appeal Post Modal */}
-      <AppealPostModal
-        isOpen={showAppealModal}
-        postId={post.id}
-        actionType={post.isSoftDeleted ? 'deletion' : 'warning'}
-        reasonSummary={post.flaggedMessage}
-        onClose={() => setShowAppealModal(false)}
       />
     </>
   );

@@ -30,7 +30,22 @@ import {
   X,
   MessageSquareWarning
 } from 'lucide-react';
-import { useAlumni } from '../../context/AlumniContext';
+import { apiFetch, apiFetchWithCsrf, clearCsrfTokenCache } from '../../services/apiClient';
+import { formatFullLocalDateTime, formatRelativeTime } from '../../lib/dateUtils';
+import { saveActiveSession, useAlumni } from '../../context/AlumniContext';
+import {
+  getFeedPostsFromFirestore,
+  loadModerationAuditRecordsFromFirestore,
+  loadModerationCasesFromFirestore,
+  loadModerationWarningsFromFirestore,
+  loadPostReportsFromFirestore,
+  loadReporterTrackingFromFirestore,
+  saveFeedPostToFirestore,
+  saveModerationAuditRecordToFirestore,
+  saveModerationCaseToFirestore,
+  saveModerationWarningToFirestore,
+  savePostReportToFirestore
+} from '../../lib/firebase';
 import {
   AbuseReporterTracking,
   InstitutionalFeedPost,
@@ -42,8 +57,6 @@ import {
   UserProfile,
   normalizeSystemRole
 } from '../../types';
-import { apiFetch, apiFetchWithCsrf } from '../../services/apiClient';
-import { formatFullLocalDateTime, formatRelativeTime } from '../../lib/dateUtils';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
 import { PaginationControl } from '../common/PaginationControl';
@@ -86,6 +99,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
 }) => {
   const {
     users,
+    feedPosts,
     currentUser,
     verifyEmployer,
     showToast,
@@ -115,7 +129,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   const [casesTotal, setCasesTotal] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [casesPage, setCasesPage] = useState(1);
-  const [casesStatus, setCasesStatus] = useState<string>('pending');
+  const [casesStatus, setCasesStatus] = useState<string>('open');
   const [casesPriority, setCasesPriority] = useState<string>('all');
   const [casesReason, setCasesReason] = useState<string>('all');
   const [casesSort, setCasesSort] = useState<'priority' | 'most_reported' | 'newest'>('priority');
@@ -139,11 +153,106 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   const [isMutatingCase, setIsMutatingCase] = useState(false);
   const [pendingClaimCaseId, setPendingClaimCaseId] = useState<string | null>(null);
 
+  const syncCloudToServerModeration = useCallback(async () => {
+    try {
+      const [cloudCases, cloudReports, cloudWarnings, cloudAudits, cloudTrackers, cloudPosts] = await Promise.all([
+        loadModerationCasesFromFirestore(),
+        loadPostReportsFromFirestore(),
+        loadModerationWarningsFromFirestore(),
+        loadModerationAuditRecordsFromFirestore(),
+        loadReporterTrackingFromFirestore(),
+        getFeedPostsFromFirestore()
+      ]);
+
+      const compactPostsMap = new Map<string, InstitutionalFeedPost>();
+      [...cloudPosts, ...feedPosts].forEach((p) => {
+        if (!p?.id) return;
+        const safeImg =
+          typeof p.imageUrl === 'string' && p.imageUrl.startsWith('data:') && p.imageUrl.length > 25000
+            ? undefined
+            : p.imageUrl;
+        compactPostsMap.set(p.id, {
+          ...p,
+          authorAvatar:
+            typeof p.authorAvatar === 'string' && p.authorAvatar.startsWith('data:') && p.authorAvatar.length > 25000
+              ? ''
+              : p.authorAvatar,
+          imageUrl: safeImg,
+          mediaUrl: safeImg,
+          comments: Array.isArray(p.comments) ? p.comments.slice(0, 15) : []
+        });
+      });
+
+      const syncPayload = JSON.stringify({
+        cases: cloudCases,
+        reports: cloudReports,
+        warnings: cloudWarnings,
+        auditLogs: cloudAudits,
+        reporterTracking: cloudTrackers,
+        posts: Array.from(compactPostsMap.values()).slice(0, 250)
+      });
+
+      let syncRes = await apiFetchWithCsrf(
+        '/api/moderation/sync',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: syncPayload
+        },
+        8000
+      );
+
+      if (syncRes.status === 401 && currentUser) {
+        saveActiveSession(currentUser, undefined, true);
+        clearCsrfTokenCache();
+        syncRes = await apiFetchWithCsrf(
+          '/api/moderation/sync',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: syncPayload
+          },
+          8000
+        );
+      }
+
+      if (syncRes.ok) {
+        const merged = await syncRes.json().catch(() => null);
+        if (merged) {
+          const writes: Promise<unknown>[] = [];
+          const cloudCaseIds = new Set(cloudCases.map((c) => c.id));
+          const cloudReportIds = new Set(cloudReports.map((r) => r.id));
+          if (Array.isArray(merged.cases)) {
+            merged.cases.slice(0, 100).forEach((c: ModerationCase) => {
+              if (!cloudCaseIds.has(c.id)) {
+                writes.push(saveModerationCaseToFirestore(c));
+              }
+            });
+          }
+          if (Array.isArray(merged.reports)) {
+            merged.reports.slice(0, 100).forEach((r: PostReport) => {
+              if (!cloudReportIds.has(r.id)) {
+                writes.push(savePostReportToFirestore(r));
+              }
+            });
+          }
+          if (writes.length > 0) {
+            void Promise.allSettled(writes);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Cloud moderation sync notice:', err);
+    }
+  }, [feedPosts, currentUser]);
+
   const fetchCasesAndAbuse = useCallback(async () => {
     if (!hasModerationAccess) return;
     setCasesLoading(true);
     setCasesError(null);
     try {
+      await syncCloudToServerModeration();
+
       const params = new URLSearchParams({
         page: String(casesPage),
         pageSize: '10',
@@ -156,8 +265,17 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
         params.set('search', casesSearch.trim());
       }
 
-      const [casesRes, reportersRes, banFlagsRes] = await Promise.all([
-        apiFetch(`/api/moderation/cases?${params.toString()}`, { method: 'GET' }, 6000),
+      let casesRes = await apiFetch(`/api/moderation/cases?${params.toString()}`, { method: 'GET' }, 7000);
+      if (casesRes.status === 401 && currentUser) {
+        const errBody = await casesRes.clone().json().catch(() => null);
+        if (errBody?.code !== 'SESSION_TERMINATED') {
+          saveActiveSession(currentUser, undefined, true);
+          clearCsrfTokenCache();
+          casesRes = await apiFetch(`/api/moderation/cases?${params.toString()}`, { method: 'GET' }, 7000);
+        }
+      }
+
+      const [reportersRes, banFlagsRes] = await Promise.all([
         apiFetch('/api/moderation/abuse/reporters', { method: 'GET' }, 5000).catch(() => null),
         isAdmin
           ? apiFetch('/api/moderation/abuse/ban-flags', { method: 'GET' }, 5000).catch(() => null)
@@ -194,7 +312,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     } finally {
       setCasesLoading(false);
     }
-  }, [hasModerationAccess, casesPage, casesStatus, casesPriority, casesReason, casesSort, casesSearch, isAdmin]);
+  }, [hasModerationAccess, syncCloudToServerModeration, casesPage, casesStatus, casesPriority, casesReason, casesSort, casesSearch, isAdmin, currentUser]);
 
   const loadCaseDetail = useCallback(async (caseId: string) => {
     setSelectedCaseId(caseId);
@@ -203,7 +321,15 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setActionMessage('');
     setActionNote('');
     try {
-      const res = await apiFetch(`/api/moderation/cases/${encodeURIComponent(caseId)}`, { method: 'GET' }, 6000);
+      let res = await apiFetch(`/api/moderation/cases/${encodeURIComponent(caseId)}`, { method: 'GET' }, 6000);
+      if (res.status === 401 && currentUser) {
+        const errBody = await res.clone().json().catch(() => null);
+        if (errBody?.code !== 'SESSION_TERMINATED') {
+          saveActiveSession(currentUser, undefined, true);
+          clearCsrfTokenCache();
+          res = await apiFetch(`/api/moderation/cases/${encodeURIComponent(caseId)}`, { method: 'GET' }, 6000);
+        }
+      }
       if (!res.ok) {
         const errBody = await res.json().catch(() => null);
         throw new Error(errBody?.error || 'Unable to load case details.');
@@ -219,7 +345,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     } finally {
       setDetailLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   const [employerQueue, setEmployerQueue] = useState<UserProfile[]>([]);
   const [employersLoading, setEmployersLoading] = useState(false);
@@ -305,6 +431,11 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       }
       if (data?.case) {
         const updatedCase = data.case as ModerationCase;
+        const syncWrites: Promise<unknown>[] = [saveModerationCaseToFirestore(updatedCase)];
+        if (data?.auditRecord) {
+          syncWrites.push(saveModerationAuditRecordToFirestore(data.auditRecord));
+        }
+        await Promise.allSettled(syncWrites);
         setCases((prev) =>
           prev.map((item) =>
             item.id === caseId
@@ -387,6 +518,29 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       if (!res.ok) {
         throw new Error(data?.error || 'Moderation action failed.');
       }
+
+      const firestoreWrites: Promise<unknown>[] = [];
+      if (data?.case) {
+        firestoreWrites.push(saveModerationCaseToFirestore(data.case));
+      }
+      if (Array.isArray(data?.updatedReports)) {
+        data.updatedReports.forEach((rep: PostReport) => {
+          firestoreWrites.push(savePostReportToFirestore(rep));
+        });
+      }
+      if (data?.warning) {
+        firestoreWrites.push(saveModerationWarningToFirestore(data.warning));
+      }
+      if (data?.auditRecord) {
+        firestoreWrites.push(saveModerationAuditRecordToFirestore(data.auditRecord));
+      }
+      if (data?.post) {
+        firestoreWrites.push(saveFeedPostToFirestore(data.post));
+      }
+      if (firestoreWrites.length > 0) {
+        await Promise.allSettled(firestoreWrites);
+      }
+
       if (data?.autoSuspended) {
         showToast('Action recorded. Author reached warning threshold and was automatically suspended.', 'warning');
       } else if (data?.flaggedForBan) {
@@ -432,6 +586,10 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       if (!res.ok) {
         throw new Error(data?.error || 'Failed to restore post.');
       }
+      const restoreWrites: Promise<unknown>[] = [];
+      if (data?.post) restoreWrites.push(saveFeedPostToFirestore(data.post));
+      if (data?.auditRecord) restoreWrites.push(saveModerationAuditRecordToFirestore(data.auditRecord));
+      if (restoreWrites.length > 0) await Promise.allSettled(restoreWrites);
       showToast('Post restored to feeds.', 'success');
       await loadCaseDetail(caseDetail.case.id);
       await fetchCasesAndAbuse();
@@ -846,18 +1004,19 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                 <label className="block text-[11px] font-semibold text-stone-500 dark:text-stone-400 mb-1">
                   Case Status
                 </label>
-                <select
-                  value={casesStatus}
-                  onChange={(e) => { setCasesStatus(e.target.value); setCasesPage(1); }}
-                  className="w-full min-h-[44px] sm:min-h-[38px] px-3 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100"
-                >
-                  <option value="pending">Pending Review</option>
-                  <option value="reviewed">Claimed / In Review</option>
-                  <option value="action_taken">Action Taken</option>
-                  <option value="dismissed">Dismissed</option>
-                  <option value="post_removed">Post Removed</option>
-                  <option value="all">All Statuses</option>
-                </select>
+                  <select
+                    value={casesStatus}
+                    onChange={(e) => { setCasesStatus(e.target.value); setCasesPage(1); }}
+                    className="w-full min-h-[44px] sm:min-h-[38px] px-3 py-2 text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100"
+                  >
+                    <option value="open">Open Queue (Pending & In Review)</option>
+                    <option value="pending">Pending Review</option>
+                    <option value="reviewed">Claimed / In Review</option>
+                    <option value="action_taken">Action Taken</option>
+                    <option value="dismissed">Dismissed</option>
+                    <option value="post_removed">Post Removed</option>
+                    <option value="all">All Statuses</option>
+                  </select>
               </div>
 
               <div>
@@ -974,6 +1133,8 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                         .join(' · ');
                       const isOpen = modCase.status === 'pending' || modCase.status === 'reviewed';
                       const isClaimedByMe = modCase.claimedBy === currentUser?.uid;
+                      const latestReport = modCase.reports?.[0];
+                      const additionalContext = modCase.reports?.find((r) => Boolean(r.details?.trim()))?.details;
 
                       const caseHighlighted = isHighlighted(modCase.id) || isHighlighted(modCase.targetId);
                       const caseNotifyId =
@@ -993,10 +1154,10 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                         >
                           <td className="py-3.5 px-4 max-w-sm">
                             <div className="font-semibold text-stone-900 dark:text-white truncate">
-                              {modCase.contentSnapshot.title || 'Alumni Post'}
+                              {modCase.contentSnapshot?.title || 'Alumni Post'}
                             </div>
                             <p className="text-stone-600 dark:text-stone-300 line-clamp-2 mt-0.5 leading-relaxed">
-                              {modCase.contentSnapshot.content}
+                              {modCase.contentSnapshot?.content || ''}
                             </p>
                             <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-500 dark:text-stone-400 mt-1.5">
                               <button
@@ -1008,7 +1169,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                               </button>
                               <span aria-hidden="true">·</span>
                               <span title={formatFullLocalDateTime(modCase.createdAt)}>
-                                {formatRelativeTime(modCase.createdAt)}
+                                {formatFullLocalDateTime(modCase.createdAt)} ({formatRelativeTime(modCase.createdAt)})
                               </span>
                               {modCase.contentEditedSinceSnapshot && (
                                 <>
@@ -1029,11 +1190,23 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                             </div>
                           </td>
 
-                          <td className="py-3.5 px-4">
+                          <td className="py-3.5 px-4 max-w-xs">
                             <div>{renderPriorityBadge(modCase.highestPriority)}</div>
-                            <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
+                            <div className="text-[11px] text-stone-700 dark:text-stone-300 font-medium mt-1">
                               {reasonsText || 'Community report'}
                             </div>
+                            {latestReport && (
+                              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-0.5">
+                                Reporter: <span className="font-medium text-stone-700 dark:text-stone-200">{latestReport.reporterName}</span>
+                                <span className="capitalize"> ({latestReport.reporterRole})</span>
+                                {modCase.reports.length > 1 ? ` +${modCase.reports.length - 1} more` : ''}
+                              </div>
+                            )}
+                            {additionalContext && (
+                              <p className="text-[11px] text-stone-500 dark:text-stone-400 line-clamp-2 mt-0.5 italic">
+                                &ldquo;{additionalContext}&rdquo;
+                              </p>
+                            )}
                           </td>
 
                           <td className="py-3.5 px-4 tabular-nums font-mono font-semibold text-stone-800 dark:text-stone-200">
@@ -1665,7 +1838,7 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
                               {rep.reporterName} <span className="font-normal text-stone-500">({rep.reporterRole})</span>
                             </span>
                             <span className="text-[11px] text-stone-500">
-                              {rep.reason} · {formatRelativeTime(rep.createdAt)}
+                              {rep.reason} · {formatStatusLabel(rep.status)} · {formatFullLocalDateTime(rep.createdAt)}
                             </span>
                           </div>
                           {rep.details && (

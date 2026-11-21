@@ -29,9 +29,27 @@ import { hashTokenHmac, verifyTokenHmac } from './src/server/security/cryptoUtil
 const app = express();
 const PORT = 3000;
 const IS_PROD = process.env.NODE_ENV === 'production';
+const DEPLOYMENT_SECRET_SEED = [
+  process.env.VERCEL_PROJECT_ID,
+  process.env.VITE_FIREBASE_PROJECT_ID,
+  process.env.VITE_FIREBASE_APP_ID,
+  process.env.APP_URL,
+  process.env.VERCEL_URL,
+  'gen-lang-client-0856157514'
+]
+  .filter(Boolean)
+  .join('|');
+
+function deriveDeploymentSecret(purpose: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(`scc_alumnet:${purpose}:${DEPLOYMENT_SECRET_SEED}`)
+    .digest('hex');
+}
+
 const WEBHOOK_SECRET =
   process.env.WEBHOOK_SECRET ||
-  (IS_PROD ? crypto.randomBytes(32).toString('hex') : 'institutional-secure-webhook-key-2026');
+  (IS_PROD ? deriveDeploymentSecret('webhook') : 'institutional-secure-webhook-key-2026');
 
 // Parse JSON bodies with an appropriate limit for base64 post photos and profile sync
 app.use(express.json({ limit: '15mb' }));
@@ -414,7 +432,7 @@ const revokedTokens = new Set<string>();
 const SERVER_AUTH_SECRET =
   process.env.SERVER_AUTH_SECRET ||
   (IS_PROD
-    ? crypto.randomBytes(32).toString('hex')
+    ? deriveDeploymentSecret('auth')
     : 'scc_alumnet_dev_only_secret_key_do_not_use_in_prod');
 
 interface SignedSessionPayload {
@@ -7290,6 +7308,13 @@ const postModerationRouter = createPostModerationRouter({
 });
 
 app.use('/api', postModerationRouter);
+
+app.use('/api', (_req: Request, res: Response) => {
+  res.status(404).json({
+    error: 'API endpoint not found.',
+    code: 'API_NOT_FOUND'
+  });
+});
 
 // API-level JSON error shield (active in both serverless Vercel handler and full server)
 app.use('/api', (err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -265,7 +265,13 @@
         "priority": { "type": "string", "enum": ["high", "medium", "low"] },
         "details": { "type": "string", "maxLength": 500 },
         "reporterId": { "type": "string" },
+        "reporterName": { "type": "string" },
+        "reporterRole": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "reviewed", "dismissed", "action_taken", "post_removed"] },
+        "cycleNumber": { "type": "number" },
+        "resolvedAt": { "type": "string" },
+        "resolvedBy": { "type": "string" },
+        "resolvedOutcome": { "type": "string", "enum": ["no_violation", "action_taken"] },
         "createdAt": { "type": "string" }
       },
       "required": ["id", "caseId", "targetType", "targetId", "reason", "priority", "reporterId", "status", "createdAt"]
@@ -279,11 +285,29 @@
         "targetType": { "type": "string", "enum": ["post", "comment"] },
         "targetId": { "type": "string" },
         "postAuthorId": { "type": "string" },
+        "postAuthorName": { "type": "string" },
+        "postAuthorRole": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "reviewed", "dismissed", "action_taken", "post_removed"] },
         "highestPriority": { "type": "string", "enum": ["high", "medium", "low"] },
         "reportCount": { "type": "number" },
+        "highPriorityReportCount": { "type": "number" },
+        "reasonsSummary": { "type": "object" },
+        "contentSnapshot": { "type": "object" },
+        "currentContent": { "type": "object" },
+        "contentEditedSinceSnapshot": { "type": "boolean" },
+        "autoFlaggedForPriority": { "type": "boolean" },
+        "autoHiddenPendingReview": { "type": "boolean" },
+        "reportIds": { "type": "array", "items": { "type": "string" } },
+        "cycleNumber": { "type": "number" },
         "claimedBy": { "type": "string" },
+        "claimedByName": { "type": "string" },
+        "claimedAt": { "type": "string" },
         "resolvedBy": { "type": "string" },
+        "resolvedByName": { "type": "string" },
+        "resolvedByRole": { "type": "string" },
+        "resolvedAt": { "type": "string" },
+        "resolvedAction": { "type": "string" },
+        "resolutionNote": { "type": "string" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
@@ -296,11 +320,16 @@
       "properties": {
         "id": { "type": "string" },
         "userId": { "type": "string" },
+        "userName": { "type": "string" },
         "caseId": { "type": "string" },
         "postId": { "type": "string" },
+        "targetType": { "type": "string" },
         "issuedBy": { "type": "string" },
+        "issuedByName": { "type": "string" },
+        "issuedByRole": { "type": "string" },
         "reason": { "type": "string" },
         "message": { "type": "string", "maxLength": 1000 },
+        "note": { "type": "string", "maxLength": 1000 },
         "overturned": { "type": "boolean" },
         "createdAt": { "type": "string" }
       },
@@ -331,13 +360,34 @@
         "id": { "type": "string" },
         "action": { "type": "string" },
         "actorId": { "type": "string" },
+        "actorName": { "type": "string" },
         "actorRole": { "type": "string" },
+        "targetType": { "type": "string" },
         "postId": { "type": "string" },
         "caseId": { "type": "string" },
+        "reportIds": { "type": "array", "items": { "type": "string" } },
+        "targetUserId": { "type": "string" },
         "note": { "type": "string", "maxLength": 1000 },
+        "metadata": { "type": "object" },
         "createdAt": { "type": "string" }
       },
       "required": ["id", "action", "actorId", "actorRole", "createdAt"]
+    },
+    "AbuseReporterTracking": {
+      "title": "Abuse Reporter Tracking",
+      "description": "Abuse tracking counters for dismissed reports and reporting restrictions",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "consecutiveDismissedCount": { "type": "number" },
+        "totalDismissedCount": { "type": "number" },
+        "totalReportsCount": { "type": "number" },
+        "flaggedAbusiveReporter": { "type": "boolean" },
+        "reportingRestricted": { "type": "boolean" }
+      },
+      "required": ["userId", "consecutiveDismissedCount", "totalDismissedCount", "totalReportsCount"]
     },
     "UserBlock": {
       "title": "User Block",
@@ -436,6 +486,10 @@
     "/moderation_audit_logs/{logId}": {
       "schema": "ModerationAuditLog",
       "description": "Immutable permanent moderation audit log"
+    },
+    "/abuse_reporter_tracking/{userId}": {
+      "schema": "AbuseReporterTracking",
+      "description": "Reporter abuse counters and restriction status"
     },
     "/user_blocks/{blockId}": {
       "schema": "UserBlock",

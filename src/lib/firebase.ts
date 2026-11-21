@@ -51,7 +51,12 @@ import {
   InstitutionalFeedPost,
   EventReservation,
   RegistrationConflictRecord,
-  AnonymizedRejectedBlock
+  AnonymizedRejectedBlock,
+  PostReport,
+  ModerationCase,
+  ModerationWarning,
+  ModerationAuditRecord,
+  AbuseReporterTracking
 } from '../types';
 import {
   encryptUserPiiForStorage,
@@ -1761,18 +1766,86 @@ export async function testFirestoreWriteSync(): Promise<{ success: boolean; late
 // POST MODERATION FIRESTORE SYNC HELPERS
 // =========================================================================
 
-export async function saveModerationCaseToFirestore(modCase: any): Promise<void> {
-  if (!modCase?.id) return;
+let anonymousAuthUnavailable = false;
+
+async function ensureFirebaseAuthSession(): Promise<void> {
+  if (typeof window === 'undefined' || !auth || anonymousAuthUnavailable) return;
+  if (auth.currentUser) return;
   try {
-    const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_CASES, modCase.id);
-    await setDoc(docRef, JSON.parse(JSON.stringify(modCase)), { merge: true });
-  } catch (err) {
-    console.warn('Moderation case Firestore sync notice:', err);
+    await signInAnonymously(auth);
+  } catch (err: any) {
+    if (
+      err?.code === 'auth/operation-not-allowed' ||
+      err?.code === 'auth/admin-restricted-operation' ||
+      err?.code === 'auth/invalid-api-key'
+    ) {
+      anonymousAuthUnavailable = true;
+    }
+    console.warn('Firebase anonymous auth sync notice:', err?.message || err);
   }
 }
 
-export async function saveModerationWarningToFirestore(warning: any): Promise<void> {
+export async function savePostReportToFirestore(report: PostReport): Promise<void> {
+  if (!report?.id) return;
+  await ensureFirebaseAuthSession();
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.POST_REPORTS, report.id);
+    await setDoc(docRef, JSON.parse(JSON.stringify(report)), { merge: true });
+  } catch (err: any) {
+    console.warn(
+      `Post report Firestore sync notice (${FIRESTORE_COLLECTIONS.POST_REPORTS}/${report.id}):`,
+      err?.message || err
+    );
+  }
+}
+
+export async function loadPostReportsFromFirestore(): Promise<PostReport[]> {
+  await ensureFirebaseAuthSession();
+  try {
+    const colRef = collection(db, FIRESTORE_COLLECTIONS.POST_REPORTS);
+    const snap = await getDocs(colRef);
+    const list: PostReport[] = [];
+    snap.forEach((d) => list.push(d.data() as PostReport));
+    list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    return list;
+  } catch (err) {
+    console.warn('Post reports Firestore load notice:', err);
+    return [];
+  }
+}
+
+export async function saveModerationCaseToFirestore(modCase: ModerationCase | any): Promise<void> {
+  if (!modCase?.id) return;
+  await ensureFirebaseAuthSession();
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_CASES, modCase.id);
+    await setDoc(docRef, JSON.parse(JSON.stringify(modCase)), { merge: true });
+  } catch (err: any) {
+    console.warn(
+      `Moderation case Firestore sync notice (${FIRESTORE_COLLECTIONS.MODERATION_CASES}/${modCase.id}):`,
+      err?.message || err
+    );
+  }
+}
+
+export async function loadModerationCasesFromFirestore(): Promise<ModerationCase[]> {
+  await ensureFirebaseAuthSession();
+  try {
+    const colRef = collection(db, FIRESTORE_COLLECTIONS.MODERATION_CASES);
+    const snap = await getDocs(colRef);
+    const list: ModerationCase[] = [];
+    snap.forEach((d) => list.push(d.data() as ModerationCase));
+    list.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+    return list;
+  } catch (err) {
+    console.warn('Moderation cases Firestore load notice:', err);
+    return [];
+  }
+}
+
+export async function saveModerationWarningToFirestore(warning: ModerationWarning | any): Promise<void> {
   if (!warning?.id) return;
+  await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_WARNINGS, warning.id);
     await setDoc(docRef, JSON.parse(JSON.stringify(warning)), { merge: true });
@@ -1781,8 +1854,24 @@ export async function saveModerationWarningToFirestore(warning: any): Promise<vo
   }
 }
 
+export async function loadModerationWarningsFromFirestore(): Promise<ModerationWarning[]> {
+  await ensureFirebaseAuthSession();
+  try {
+    const colRef = collection(db, FIRESTORE_COLLECTIONS.MODERATION_WARNINGS);
+    const snap = await getDocs(colRef);
+    const list: ModerationWarning[] = [];
+    snap.forEach((d) => list.push(d.data() as ModerationWarning));
+    list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    return list;
+  } catch (err) {
+    console.warn('Moderation warnings Firestore load notice:', err);
+    return [];
+  }
+}
+
 export async function saveModerationAppealToFirestore(appeal: any): Promise<void> {
   if (!appeal?.id) return;
+  await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_APPEALS, appeal.id);
     await setDoc(docRef, JSON.parse(JSON.stringify(appeal)), { merge: true });
@@ -1791,8 +1880,9 @@ export async function saveModerationAppealToFirestore(appeal: any): Promise<void
   }
 }
 
-export async function saveModerationAuditRecordToFirestore(audit: any): Promise<void> {
+export async function saveModerationAuditRecordToFirestore(audit: ModerationAuditRecord | any): Promise<void> {
   if (!audit?.id) return;
+  await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_AUDIT_LOGS, audit.id);
     await setDoc(docRef, JSON.parse(JSON.stringify(audit)), { merge: true });
@@ -1801,7 +1891,48 @@ export async function saveModerationAuditRecordToFirestore(audit: any): Promise<
   }
 }
 
+export async function loadModerationAuditRecordsFromFirestore(): Promise<ModerationAuditRecord[]> {
+  await ensureFirebaseAuthSession();
+  try {
+    const colRef = collection(db, FIRESTORE_COLLECTIONS.MODERATION_AUDIT_LOGS);
+    const snap = await getDocs(colRef);
+    const list: ModerationAuditRecord[] = [];
+    snap.forEach((d) => list.push(d.data() as ModerationAuditRecord));
+    list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    return list;
+  } catch (err) {
+    console.warn('Moderation audit Firestore load notice:', err);
+    return [];
+  }
+}
+
+export async function saveReporterTrackingToFirestore(tracker: AbuseReporterTracking): Promise<void> {
+  if (!tracker?.userId) return;
+  await ensureFirebaseAuthSession();
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.ABUSE_REPORTER_TRACKING, tracker.userId);
+    await setDoc(docRef, JSON.parse(JSON.stringify(tracker)), { merge: true });
+  } catch (err) {
+    console.warn('Reporter tracking Firestore sync notice:', err);
+  }
+}
+
+export async function loadReporterTrackingFromFirestore(): Promise<AbuseReporterTracking[]> {
+  await ensureFirebaseAuthSession();
+  try {
+    const colRef = collection(db, FIRESTORE_COLLECTIONS.ABUSE_REPORTER_TRACKING);
+    const snap = await getDocs(colRef);
+    const list: AbuseReporterTracking[] = [];
+    snap.forEach((d) => list.push(d.data() as AbuseReporterTracking));
+    return list;
+  } catch (err) {
+    console.warn('Reporter tracking Firestore load notice:', err);
+    return [];
+  }
+}
+
 export async function saveModerationConfigToFirestore(config: any): Promise<void> {
+  await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_CONFIG, 'default');
     await setDoc(docRef, JSON.parse(JSON.stringify(config)), { merge: true });

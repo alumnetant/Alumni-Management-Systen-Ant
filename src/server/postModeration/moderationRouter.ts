@@ -600,6 +600,22 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
   );
 
   router.post(
+    '/moderation/sync',
+    deps.requireServerAuth,
+    deps.requireRole(['moderator', 'admin', 'superadmin']),
+    requireCsrf,
+    (req: Request, res: Response) => {
+      try {
+        const actor = toActor(req);
+        const result = engine.syncModerationStateFromCloud(actor, req.body || {});
+        res.json(result);
+      } catch (err) {
+        handleError(err, res);
+      }
+    }
+  );
+
+  router.post(
     '/moderation/cases/:caseId/claim',
     deps.requireServerAuth,
     deps.requireRole(['moderator', 'admin', 'superadmin']),
@@ -608,7 +624,8 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
       try {
         const actor = toActor(req);
         const updated = engine.claimModerationCase(req.params.caseId, actor);
-        res.json({ case: updated });
+        const auditRecord = engine.getLatestAuditRecordForCase(updated.id, updated.targetId);
+        res.json({ case: updated, auditRecord });
       } catch (err) {
         handleError(err, res);
       }
@@ -624,7 +641,8 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
       try {
         const actor = toActor(req);
         const updated = engine.releaseModerationCase(req.params.caseId, actor);
-        res.json({ case: updated });
+        const auditRecord = engine.getLatestAuditRecordForCase(updated.id, updated.targetId);
+        res.json({ case: updated, auditRecord });
       } catch (err) {
         handleError(err, res);
       }
@@ -683,7 +701,8 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
         const actor = toActor(req);
         const { note, adminApprovalGranted } = req.body || {};
         const post = engine.restoreSoftDeletedPost(req.params.postId, actor, note, !!adminApprovalGranted);
-        res.json({ post });
+        const auditRecord = engine.getLatestAuditRecordForCase(undefined, req.params.postId);
+        res.json({ post, auditRecord });
       } catch (err) {
         handleError(err, res);
       }

@@ -27,7 +27,6 @@ import {
   Phone,
   Pin,
   RefreshCw,
-  Scale,
   Send,
   ShieldAlert,
   ShieldCheck,
@@ -57,7 +56,6 @@ import { formatFullLocalDateTime, formatRelativeTime } from '../../lib/dateUtils
 import { getCoverPhoto, getUserAvatar, handleCoverPhotoError, handleUserAvatarError } from '../../lib/defaultImages';
 import { compressImage } from '../../lib/utils';
 import { PostCard } from '../social/PostCard';
-import { AppealPostModal } from '../social/AppealPostModal';
 import { ImageViewerModal } from '../common/ImageViewerModal';
 import { ConfirmationModal } from '../common/ConfirmationModal';
 
@@ -149,12 +147,6 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
   const [postsError, setPostsError] = useState<string | null>(null);
 
   const [myWarnings, setMyWarnings] = useState<ModerationWarningItem[]>([]);
-  const [appealTarget, setAppealTarget] = useState<{
-    postId: string;
-    warningId?: string;
-    actionType: 'warning' | 'deletion';
-    reason?: string;
-  } | null>(null);
 
   // Own profile composer state
   const [composerTitle, setComposerTitle] = useState('');
@@ -1031,21 +1023,6 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
                     Issued {formatRelativeTime(w.createdAt)}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setAppealTarget({
-                      postId: w.postId,
-                      warningId: w.id,
-                      actionType: w.actionType || 'warning',
-                      reason: w.reason
-                    })
-                  }
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-900 dark:bg-stone-800 hover:bg-stone-800 text-white text-xs font-semibold shrink-0 cursor-pointer min-h-[44px]"
-                >
-                  <Scale className="w-3.5 h-3.5" />
-                  <span>Appeal Decision</span>
-                </button>
               </div>
             ))}
           </div>
@@ -1366,17 +1343,6 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
         title={viewerImage?.title || 'Image Viewer'}
         onClose={() => setViewerImage(null)}
       />
-
-      {appealTarget && (
-        <AppealPostModal
-          isOpen={true}
-          postId={appealTarget.postId}
-          warningId={appealTarget.warningId}
-          actionType={appealTarget.actionType}
-          reasonSummary={appealTarget.reason}
-          onClose={() => setAppealTarget(null)}
-        />
-      )}
 
       <ConfirmationModal
         isOpen={showBlockConfirm}

@@ -71,6 +71,21 @@ export class ErrorBoundary extends Component<Props, State> {
     if (error?.name === 'QuotaExceededError' || /quota/i.test(msg)) {
       this.pruneBloatedStorageCaches(true);
     }
+    const isDynamicChunkError =
+      /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk [\d]+ failed|ChunkLoadError/i.test(
+        msg
+      );
+    if (isDynamicChunkError && typeof window !== 'undefined') {
+      try {
+        const lastReloadRaw = sessionStorage.getItem('alumnet_chunk_reload_at');
+        const lastReload = lastReloadRaw ? Number(lastReloadRaw) : 0;
+        if (!Number.isFinite(lastReload) || Date.now() - lastReload > 15_000) {
+          sessionStorage.setItem('alumnet_chunk_reload_at', String(Date.now()));
+          window.location.reload();
+          return;
+        }
+      } catch {}
+    }
     this.setState({ errorInfo });
   }
 
