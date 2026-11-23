@@ -55,7 +55,9 @@ import {
   PostReport,
   ModerationCase,
   ModerationWarning,
+  ModerationAppeal,
   ModerationAuditRecord,
+  ModerationConfig,
   AbuseReporterTracking
 } from '../types';
 import {
@@ -930,12 +932,17 @@ export async function getAnnouncementsFromFirestore(): Promise<Announcement[]> {
 /**
  * Save social feed post to Firestore
  */
-export async function saveFeedPostToFirestore(post: InstitutionalFeedPost): Promise<void> {
+export async function saveFeedPostToFirestore(post: InstitutionalFeedPost): Promise<boolean> {
+  if (!post?.id) return false;
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.FEED_POSTS, post.id);
-    await setDoc(docRef, JSON.parse(JSON.stringify(post)), { merge: true });
+    const sanitized = JSON.parse(JSON.stringify(post));
+    delete sanitized.password;
+    await setDoc(docRef, sanitized, { merge: true });
+    return true;
   } catch (err) {
     console.warn('Failed to save feed post to Firestore:', err);
+    return false;
   }
 }
 
@@ -1785,17 +1792,27 @@ async function ensureFirebaseAuthSession(): Promise<void> {
   }
 }
 
-export async function savePostReportToFirestore(report: PostReport): Promise<void> {
-  if (!report?.id) return;
+export async function savePostReportToFirestore(report: PostReport): Promise<boolean> {
+  if (!report?.id) return false;
   await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.POST_REPORTS, report.id);
-    await setDoc(docRef, JSON.parse(JSON.stringify(report)), { merge: true });
+    const sanitized = JSON.parse(JSON.stringify(report));
+    delete sanitized.password;
+    if (typeof sanitized.details === 'string') {
+      sanitized.details = sanitized.details.slice(0, 500);
+    }
+    if (typeof sanitized.reason === 'string') {
+      sanitized.reason = sanitized.reason.slice(0, 120);
+    }
+    await setDoc(docRef, sanitized, { merge: true });
+    return true;
   } catch (err: any) {
     console.warn(
       `Post report Firestore sync notice (${FIRESTORE_COLLECTIONS.POST_REPORTS}/${report.id}):`,
       err?.message || err
     );
+    return false;
   }
 }
 
@@ -1814,17 +1831,21 @@ export async function loadPostReportsFromFirestore(): Promise<PostReport[]> {
   }
 }
 
-export async function saveModerationCaseToFirestore(modCase: ModerationCase | any): Promise<void> {
-  if (!modCase?.id) return;
+export async function saveModerationCaseToFirestore(modCase: ModerationCase | any): Promise<boolean> {
+  if (!modCase?.id) return false;
   await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_CASES, modCase.id);
-    await setDoc(docRef, JSON.parse(JSON.stringify(modCase)), { merge: true });
+    const sanitized = JSON.parse(JSON.stringify(modCase));
+    delete sanitized.password;
+    await setDoc(docRef, sanitized, { merge: true });
+    return true;
   } catch (err: any) {
     console.warn(
       `Moderation case Firestore sync notice (${FIRESTORE_COLLECTIONS.MODERATION_CASES}/${modCase.id}):`,
       err?.message || err
     );
+    return false;
   }
 }
 
@@ -1843,14 +1864,18 @@ export async function loadModerationCasesFromFirestore(): Promise<ModerationCase
   }
 }
 
-export async function saveModerationWarningToFirestore(warning: ModerationWarning | any): Promise<void> {
-  if (!warning?.id) return;
+export async function saveModerationWarningToFirestore(warning: ModerationWarning | any): Promise<boolean> {
+  if (!warning?.id) return false;
   await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_WARNINGS, warning.id);
-    await setDoc(docRef, JSON.parse(JSON.stringify(warning)), { merge: true });
+    const sanitized = JSON.parse(JSON.stringify(warning));
+    delete sanitized.password;
+    await setDoc(docRef, sanitized, { merge: true });
+    return true;
   } catch (err) {
     console.warn('Moderation warning Firestore sync notice:', err);
+    return false;
   }
 }
 
@@ -1869,25 +1894,48 @@ export async function loadModerationWarningsFromFirestore(): Promise<ModerationW
   }
 }
 
-export async function saveModerationAppealToFirestore(appeal: any): Promise<void> {
-  if (!appeal?.id) return;
+export async function saveModerationAppealToFirestore(appeal: ModerationAppeal | any): Promise<boolean> {
+  if (!appeal?.id) return false;
   await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_APPEALS, appeal.id);
-    await setDoc(docRef, JSON.parse(JSON.stringify(appeal)), { merge: true });
+    const sanitized = JSON.parse(JSON.stringify(appeal));
+    delete sanitized.password;
+    await setDoc(docRef, sanitized, { merge: true });
+    return true;
   } catch (err) {
     console.warn('Moderation appeal Firestore sync notice:', err);
+    return false;
   }
 }
 
-export async function saveModerationAuditRecordToFirestore(audit: ModerationAuditRecord | any): Promise<void> {
-  if (!audit?.id) return;
+export async function loadModerationAppealsFromFirestore(): Promise<ModerationAppeal[]> {
+  await ensureFirebaseAuthSession();
+  try {
+    const colRef = collection(db, FIRESTORE_COLLECTIONS.MODERATION_APPEALS);
+    const snap = await getDocs(colRef);
+    const list: ModerationAppeal[] = [];
+    snap.forEach((d) => list.push(d.data() as ModerationAppeal));
+    list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+export async function saveModerationAuditRecordToFirestore(audit: ModerationAuditRecord | any): Promise<boolean> {
+  if (!audit?.id) return false;
   await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_AUDIT_LOGS, audit.id);
-    await setDoc(docRef, JSON.parse(JSON.stringify(audit)), { merge: true });
-  } catch (err) {
-    console.warn('Moderation audit Firestore sync notice:', err);
+    const sanitized = JSON.parse(JSON.stringify(audit));
+    delete sanitized.password;
+    // Immutable append-only collection (allow update: if false) -> create without merge
+    await setDoc(docRef, sanitized);
+    return true;
+  } catch (err: any) {
+    console.warn('Moderation audit Firestore sync notice:', err?.message || err);
+    return false;
   }
 }
 
@@ -1906,14 +1954,18 @@ export async function loadModerationAuditRecordsFromFirestore(): Promise<Moderat
   }
 }
 
-export async function saveReporterTrackingToFirestore(tracker: AbuseReporterTracking): Promise<void> {
-  if (!tracker?.userId) return;
+export async function saveReporterTrackingToFirestore(tracker: AbuseReporterTracking): Promise<boolean> {
+  if (!tracker?.userId) return false;
   await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.ABUSE_REPORTER_TRACKING, tracker.userId);
-    await setDoc(docRef, JSON.parse(JSON.stringify(tracker)), { merge: true });
+    const sanitized = JSON.parse(JSON.stringify(tracker));
+    delete sanitized.password;
+    await setDoc(docRef, sanitized, { merge: true });
+    return true;
   } catch (err) {
     console.warn('Reporter tracking Firestore sync notice:', err);
+    return false;
   }
 }
 
@@ -1931,13 +1983,32 @@ export async function loadReporterTrackingFromFirestore(): Promise<AbuseReporter
   }
 }
 
-export async function saveModerationConfigToFirestore(config: any): Promise<void> {
+export async function saveModerationConfigToFirestore(config: any): Promise<boolean> {
   await ensureFirebaseAuthSession();
   try {
     const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_CONFIG, 'default');
-    await setDoc(docRef, JSON.parse(JSON.stringify(config)), { merge: true });
+    const sanitized = JSON.parse(JSON.stringify(config));
+    delete sanitized.password;
+    await setDoc(docRef, sanitized, { merge: true });
+    return true;
   } catch (err) {
     console.warn('Moderation config Firestore sync notice:', err);
+    return false;
+  }
+}
+
+export async function loadModerationConfigFromFirestore(): Promise<ModerationConfig | null> {
+  await ensureFirebaseAuthSession();
+  try {
+    const docRef = doc(db, FIRESTORE_COLLECTIONS.MODERATION_CONFIG, 'default');
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as ModerationConfig;
+    }
+    return null;
+  } catch (err) {
+    console.warn('Moderation config Firestore load notice:', err);
+    return null;
   }
 }
 

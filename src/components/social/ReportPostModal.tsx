@@ -6,14 +6,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Flag, X, AlertTriangle, Loader2, ShieldAlert } from 'lucide-react';
 import { InstitutionalFeedPost, POST_REPORT_REASONS, ReportReason } from '../../types';
-import { apiFetchWithCsrf, clearCsrfTokenCache } from '../../services/apiClient';
-import { saveActiveSession, useAlumni } from '../../context/AlumniContext';
-import {
-  saveFeedPostToFirestore,
-  saveModerationAuditRecordToFirestore,
-  saveModerationCaseToFirestore,
-  savePostReportToFirestore
-} from '../../lib/firebase';
+import { useAlumni } from '../../context/AlumniContext';
+import { canReportPost } from '../../lib/postVisibility';
+import { submitPostReportPrimary } from '../../services/postModerationService';
 
 interface ReportPostModalProps {
   isOpen: boolean;
@@ -57,7 +52,7 @@ export const ReportPostModal: React.FC<ReportPostModalProps> = ({
   onClose,
   onReported
 }) => {
-  const { currentUser, showToast } = useAlumni();
+  const { currentUser, users, feedPosts, showToast } = useAlumni();
   const [reason, setReason] = useState<ReportReason>('Inappropriate content');
   const [details, setDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,82 +70,52 @@ export const ReportPostModal: React.FC<ReportPostModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submittingRef.current || isSubmitting) return;
+    if (!currentUser) {
+      setErrorMsg('Please sign in to report a post.');
+      return;
+    }
+
+    const compactSnapshot = buildCompactPostSnapshot(postSnapshot);
+    const resolvedPost = compactSnapshot || feedPosts.find((p) => p.id === targetId);
+    if (resolvedPost) {
+      const authorAccount =
+        resolvedPost.authorId &&
+        resolvedPost.authorId !== 'anonymous' &&
+        resolvedPost.authorId !== 'former_alumni'
+          ? users.find((u) => u.uid === resolvedPost.authorId)
+          : undefined;
+      if (!canReportPost(resolvedPost, currentUser, authorAccount)) {
+        const msg = 'Only posts created by alumni or employers can be reported.';
+        setErrorMsg(msg);
+        showToast(msg, 'error');
+        return;
+      }
+    }
 
     submittingRef.current = true;
     setErrorMsg(null);
     setIsSubmitting(true);
     try {
-      const payload = JSON.stringify({
-        targetType,
-        targetId,
-        reason,
-        details: details.trim().slice(0, 500) || undefined,
-        postSnapshotFallback: buildCompactPostSnapshot(postSnapshot)
-      });
-
-      let res = await apiFetchWithCsrf(
-        '/api/reports',
+      const result = await submitPostReportPrimary(
+        currentUser,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payload
+          targetType,
+          targetId,
+          reason,
+          details: details.trim().slice(0, 500) || undefined,
+          postSnapshot: compactSnapshot
         },
-        10000
+        { users, feedPosts }
       );
 
-      if (res.status === 401 && currentUser) {
-        const errBody = await res.clone().json().catch(() => null);
-        if (errBody?.code !== 'SESSION_TERMINATED') {
-          saveActiveSession(currentUser, undefined, true);
-          clearCsrfTokenCache();
-          res = await apiFetchWithCsrf(
-            '/api/reports',
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: payload
-            },
-            10000
-          );
-        }
-      }
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        const message = data?.error || 'Could not submit report. Please try again.';
-        setErrorMsg(message);
-        showToast(message, 'error');
-        return;
-      }
-
-      // Sync submitted report, grouped case, audit record, and snapshot post to Cloud Firestore
-      const firestoreWrites: Promise<unknown>[] = [];
-      if (data?.report) {
-        firestoreWrites.push(savePostReportToFirestore(data.report));
-      }
-      if (data?.modCase) {
-        firestoreWrites.push(saveModerationCaseToFirestore(data.modCase));
-      }
-      if (data?.auditRecord) {
-        firestoreWrites.push(saveModerationAuditRecordToFirestore(data.auditRecord));
-      }
-      if (data?.affectedPost) {
-        firestoreWrites.push(saveFeedPostToFirestore(data.affectedPost));
-      }
-      if (firestoreWrites.length > 0) {
-        await Promise.allSettled(firestoreWrites);
-      }
-
-      showToast(
-        data?.message || 'Report submitted to the Moderation Desk for review.',
-        'success'
-      );
+      showToast(result.message || 'Thanks, our moderators will review your report.', 'success');
       setDetails('');
       if (onReported) onReported(targetId);
       onClose();
-    } catch {
-      setErrorMsg('Network error while submitting report. Please try again.');
-      showToast('Failed to submit report.', 'error');
+    } catch (err: any) {
+      const message = err?.message || 'Could not submit report. Please try again.';
+      setErrorMsg(message);
+      showToast(message, 'error');
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);

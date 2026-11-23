@@ -38,6 +38,7 @@ import { DoubleTapHeartOverlay, InteractiveHeartReaction } from '../common/Inter
 import { ConfirmationModal } from '../common/ConfirmationModal';
 import { ReportPostModal } from './ReportPostModal';
 import { HIGHLIGHT_RING_CLASS } from '../../hooks/useDeepLinkHighlight';
+import { canReportPost } from '../../lib/postVisibility';
 
 interface PostCardProps {
   post: InstitutionalFeedPost;
@@ -94,7 +95,11 @@ export const PostCard: React.FC<PostCardProps> = ({
   const isOwner = Boolean(currentUser?.uid && post.authorId === currentUser.uid && !post.authorDeleted);
   const isStaff = ['admin', 'superadmin', 'moderator'].includes(currentUser?.role || '');
   const canEditOrDelete = isOwner || (isStaff && !post.authorDeleted);
-  const canReport = Boolean(currentUser && !isOwner);
+  const authorForRole =
+    post.authorId && post.authorId !== 'anonymous' && post.authorId !== 'former_alumni'
+      ? users.find((u) => u.uid === post.authorId)
+      : undefined;
+  const canReport = canReportPost(post, currentUser, authorForRole);
   const canClickAuthor = Boolean(
     !post.isAnonymous &&
       !post.authorDeleted &&
@@ -103,9 +108,7 @@ export const PostCard: React.FC<PostCardProps> = ({
       post.authorId !== 'former_alumni'
   );
 
-  const liveAuthor = canClickAuthor
-    ? users.find((u) => u.uid === post.authorId)
-    : undefined;
+  const liveAuthor = canClickAuthor ? authorForRole : undefined;
   const displayName = post.isAnonymous
     ? 'Anonymous Alumnus'
     : post.authorDeleted
@@ -849,20 +852,22 @@ export const PostCard: React.FC<PostCardProps> = ({
       />
 
       {/* Report Post Modal */}
-      <ReportPostModal
-        isOpen={showReportModal}
-        targetType="post"
-        targetId={post.id}
-        targetTitle={post.title || post.content}
-        postSnapshot={post}
-        onClose={() => setShowReportModal(false)}
-        onReported={(pid) => {
-          if (onPostUpdated) {
-            onPostUpdated({ ...post, viewerHasReported: true });
-          }
-          if (onPostReported) onPostReported(pid);
-        }}
-      />
+      {canReport && (
+        <ReportPostModal
+          isOpen={showReportModal}
+          targetType="post"
+          targetId={post.id}
+          targetTitle={post.title || post.content}
+          postSnapshot={post}
+          onClose={() => setShowReportModal(false)}
+          onReported={(pid) => {
+            if (onPostUpdated) {
+              onPostUpdated({ ...post, viewerHasReported: true });
+            }
+            if (onPostReported) onPostReported(pid);
+          }}
+        />
+      )}
     </>
   );
 };

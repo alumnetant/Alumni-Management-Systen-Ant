@@ -12,6 +12,7 @@ import {
 } from '../src/server/postModeration/moderationRouter';
 import { calculateFeedRelevanceScore, DEFAULT_FEED_CONFIG } from '../src/config/feedConfig';
 import { resolveNotificationDeepLink } from '../src/lib/notificationDeepLink';
+import { canReportPost, isReportableAuthorRole } from '../src/lib/postVisibility';
 import type { AppNotification, InstitutionalFeedPost } from '../src/types';
 
 const TEST_CSRF_SECRET = 'test-csrf-secret-key-for-vitest';
@@ -1023,6 +1024,169 @@ describe('Alumni Feed, Profile Timeline, Moderation, Superadmin RBAC & Deep-Link
     } finally {
       await new Promise<void>((resolve) => coldServer.close(() => resolve()));
     }
+  });
+
+  it('restricts post reporting strictly to alumni and employer posts across helper & API, and honors operationId idempotency', async () => {
+    // 1. Helper checks across roles and anonymous/legacy posts
+    const viewer = { uid: 'usr_alumni_2' };
+    expect(isReportableAuthorRole('alumni')).toBe(true);
+    expect(isReportableAuthorRole('employer')).toBe(true);
+    expect(isReportableAuthorRole('admin')).toBe(false);
+    expect(isReportableAuthorRole('superadmin')).toBe(false);
+    expect(isReportableAuthorRole('moderator')).toBe(false);
+    expect(isReportableAuthorRole('registrar')).toBe(false);
+    expect(isReportableAuthorRole('staff')).toBe(false);
+    expect(isReportableAuthorRole(undefined)).toBe(false);
+
+    expect(canReportPost({ authorId: 'usr_alumni_1', authorRole: 'alumni' }, viewer)).toBe(true);
+    expect(canReportPost({ authorId: 'emp_1', authorRole: 'employer' }, viewer)).toBe(true);
+    expect(canReportPost({ authorId: 'usr_admin', authorRole: 'admin' }, viewer)).toBe(false);
+    expect(canReportPost({ authorId: 'usr_super', authorRole: 'superadmin' }, viewer)).toBe(false);
+    expect(canReportPost({ authorId: 'usr_mod_1', authorRole: 'moderator' }, viewer)).toBe(false);
+    expect(canReportPost({ authorId: 'anonymous', authorRole: 'alumni' }, viewer)).toBe(true);
+    expect(canReportPost({ authorId: 'anonymous', authorRole: undefined as any }, viewer)).toBe(false);
+    expect(canReportPost({ authorId: 'usr_admin', authorRole: 'alumni' }, viewer, { role: 'admin' })).toBe(false);
+
+    // 2. Seed an admin post and a missing-role post fallback, plus an alumni post
+    engine.upsertPost({
+      id: 'post_by_admin',
+      authorId: 'usr_admin',
+      authorName: 'Campus Admin',
+      authorRole: 'admin',
+      authorAvatar: '',
+      postType: 'announcement',
+      title: 'Official Campus Circular',
+      content: 'Admin notice content',
+      likes: [],
+      comments: [],
+      sharesCount: 0,
+      createdAt: new Date().toISOString(),
+      status: 'published',
+      visibility: 'alumni'
+    });
+
+    engine.upsertPost({
+      id: 'post_by_mod',
+      authorId: 'usr_mod_1',
+      authorName: 'Moderator One',
+      authorRole: 'moderator',
+      authorAvatar: '',
+      postType: 'update',
+      title: 'Mod Reminder',
+      content: 'Moderation notice',
+      likes: [],
+      comments: [],
+      sharesCount: 0,
+      createdAt: new Date().toISOString(),
+      status: 'published',
+      visibility: 'alumni'
+    });
+
+    const rejectAdminPost = await apiCall('/api/reports', {
+      method: 'POST',
+      uid: 'usr_alumni_2',
+      body: { targetType: 'post', targetId: 'post_by_admin', reason: 'Spam' }
+    });
+    expect(rejectAdminPost.status).toBe(403);
+    expect(rejectAdminPost.json.code).toBe('POST_ROLE_NOT_REPORTABLE');
+
+    const rejectModPost = await apiCall('/api/reports', {
+      method: 'POST',
+      uid: 'usr_alumni_2',
+      body: { targetType: 'post', targetId: 'post_by_mod', reason: 'Spam' }
+    });
+    expect(rejectModPost.status).toBe(403);
+    expect(rejectModPost.json.code).toBe('POST_ROLE_NOT_REPORTABLE');
+
+    const rejectMissingRolePost = await apiCall('/api/reports', {
+      method: 'POST',
+      uid: 'usr_alumni_2',
+      body: {
+        targetType: 'post',
+        targetId: 'legacy_missing_role_post',
+        reason: 'Spam',
+        postSnapshotFallback: {
+          id: 'legacy_missing_role_post',
+          authorId: 'anonymous',
+          authorName: 'Anonymous Alumnus',
+          content: 'Legacy post without role'
+        }
+      }
+    });
+    expect(rejectMissingRolePost.status).toBe(403);
+    expect(rejectMissingRolePost.json.code).toBe('POST_ROLE_NOT_REPORTABLE');
+
+    // 3. Employer & Alumni fallback posts succeed and respect operationId idempotency
+    const employerReport1 = await apiCall('/api/reports', {
+      method: 'POST',
+      uid: 'usr_alumni_2',
+      body: {
+        targetType: 'post',
+        targetId: 'post_by_emp_1',
+        reason: 'Spam',
+        operationId: 'op_idem_rep_1',
+        postSnapshotFallback: {
+          id: 'post_by_emp_1',
+          authorId: 'emp_uid_1',
+          authorName: 'Partner Corp',
+          authorRole: 'employer',
+          authorAvatar: '',
+          postType: 'update',
+          title: 'Hiring Now',
+          content: 'Apply here',
+          likes: [],
+          comments: [],
+          sharesCount: 0,
+          createdAt: new Date().toISOString()
+        }
+      }
+    });
+    expect(employerReport1.status).toBe(201);
+
+    // Repeating with same operationId returns cached response without 409 or duplicating counts
+    const employerReportRetry = await apiCall('/api/reports', {
+      method: 'POST',
+      uid: 'usr_alumni_2',
+      body: {
+        targetType: 'post',
+        targetId: 'post_by_emp_1',
+        reason: 'Spam',
+        operationId: 'op_idem_rep_1'
+      }
+    });
+    expect(employerReportRetry.status).toBe(201);
+    expect(employerReportRetry.json.reportId).toBe(employerReport1.json.reportId);
+    expect(employerReportRetry.json.modCase.reportCount).toBe(1);
+
+    // Idempotent claim & act
+    const caseId = employerReport1.json.caseId;
+    const claim1 = await apiCall(`/api/moderation/cases/${caseId}/claim`, {
+      method: 'POST',
+      uid: 'usr_mod_1',
+      body: { operationId: 'op_idem_claim_1' }
+    });
+    const claim2 = await apiCall(`/api/moderation/cases/${caseId}/claim`, {
+      method: 'POST',
+      uid: 'usr_mod_1',
+      body: { operationId: 'op_idem_claim_1' }
+    });
+    expect(claim1.status).toBe(200);
+    expect(claim2.status).toBe(200);
+    expect(claim2.json.case.claimedAt).toBe(claim1.json.case.claimedAt);
+
+    const act1 = await apiCall(`/api/moderation/cases/${caseId}/act`, {
+      method: 'POST',
+      uid: 'usr_mod_1',
+      body: { action: 'dismiss', note: 'Clear', operationId: 'op_idem_act_1' }
+    });
+    const act2 = await apiCall(`/api/moderation/cases/${caseId}/act`, {
+      method: 'POST',
+      uid: 'usr_mod_1',
+      body: { action: 'dismiss', note: 'Clear', operationId: 'op_idem_act_1' }
+    });
+    expect(act1.status).toBe(200);
+    expect(act2.status).toBe(200);
+    expect(act2.json.case.resolvedAt).toBe(act1.json.case.resolvedAt);
   });
 });
 

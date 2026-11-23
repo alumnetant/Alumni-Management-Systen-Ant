@@ -58,12 +58,60 @@ function toActor(req: Request): ModerationActor {
   };
 }
 
-function handleError(err: unknown, res: Response) {
-  if (err instanceof ModerationError) {
-    return res.status(err.status).json({ error: err.message, code: err.code });
+function extractRequestId(req?: Request): string {
+  const headerId = req?.headers?.['x-request-id'];
+  if (typeof headerId === 'string' && headerId.trim()) {
+    return headerId.trim().slice(0, 64);
   }
-  console.error('[PostModeration API Error]', err);
-  return res.status(500).json({ error: 'An unexpected moderation error occurred.', code: 'INTERNAL_ERROR' });
+  return crypto.randomBytes(6).toString('hex');
+}
+
+function extractOperationId(req?: Request): string | undefined {
+  const headerOp = req?.headers?.['x-idempotency-key'];
+  if (typeof headerOp === 'string' && headerOp.trim()) {
+    return headerOp.trim().slice(0, 128);
+  }
+  const bodyOp = (req?.body as any)?.operationId;
+  if (typeof bodyOp === 'string' && bodyOp.trim()) {
+    return bodyOp.trim().slice(0, 128);
+  }
+  return undefined;
+}
+
+function handleError(err: unknown, res: Response, req?: Request, targetMeta?: Record<string, unknown>) {
+  const requestId = extractRequestId(req);
+  if (err instanceof ModerationError) {
+    if (err.status >= 500) {
+      const actor = req ? toActor(req) : undefined;
+      console.error('[PostModeration API Error]', {
+        requestId,
+        code: err.code,
+        status: err.status,
+        actorId: actor?.uid || 'anonymous',
+        operationId: extractOperationId(req),
+        path: req?.originalUrl || req?.path,
+        method: req?.method,
+        ...targetMeta,
+        message: err.message
+      });
+    }
+    return res.status(err.status).json({ error: err.message, code: err.code, requestId });
+  }
+  const actor = req ? toActor(req) : undefined;
+  console.error('[PostModeration API Unhandled 500]', {
+    requestId,
+    actorId: actor?.uid || 'anonymous',
+    operationId: extractOperationId(req),
+    path: req?.originalUrl || req?.path,
+    method: req?.method,
+    ...targetMeta,
+    error: err instanceof Error ? err.message : String(err)
+  });
+  return res.status(500).json({
+    error: 'An unexpected moderation error occurred.',
+    code: 'INTERNAL_ERROR',
+    requestId
+  });
 }
 
 export function createPostModerationRouter(deps: ModerationRouterDependencies): Router {
@@ -526,6 +574,7 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
   // ALUMNI: REPORT A POST
   // -------------------------------------------------------------------------
   router.post('/reports', deps.requireServerAuth, requireCsrf, (req: Request, res: Response) => {
+    const operationId = extractOperationId(req);
     try {
       const actor = toActor(req);
       const { targetType, targetId, reason, details, postSnapshotFallback } = req.body || {};
@@ -534,11 +583,12 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
         targetId,
         reason,
         details,
-        postSnapshotFallback
+        postSnapshotFallback,
+        operationId
       });
       res.status(201).json(result);
     } catch (err) {
-      handleError(err, res);
+      handleError(err, res, req, { targetId: req.body?.targetId, operationId });
     }
   });
 
@@ -621,13 +671,14 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     deps.requireRole(['moderator', 'admin', 'superadmin']),
     requireCsrf,
     (req: Request, res: Response) => {
+      const operationId = extractOperationId(req);
       try {
         const actor = toActor(req);
-        const updated = engine.claimModerationCase(req.params.caseId, actor);
+        const updated = engine.claimModerationCase(req.params.caseId, actor, operationId);
         const auditRecord = engine.getLatestAuditRecordForCase(updated.id, updated.targetId);
         res.json({ case: updated, auditRecord });
       } catch (err) {
-        handleError(err, res);
+        handleError(err, res, req, { caseId: req.params.caseId, operationId });
       }
     }
   );
@@ -638,13 +689,14 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     deps.requireRole(['moderator', 'admin', 'superadmin']),
     requireCsrf,
     (req: Request, res: Response) => {
+      const operationId = extractOperationId(req);
       try {
         const actor = toActor(req);
-        const updated = engine.releaseModerationCase(req.params.caseId, actor);
+        const updated = engine.releaseModerationCase(req.params.caseId, actor, operationId);
         const auditRecord = engine.getLatestAuditRecordForCase(updated.id, updated.targetId);
         res.json({ case: updated, auditRecord });
       } catch (err) {
-        handleError(err, res);
+        handleError(err, res, req, { caseId: req.params.caseId, operationId });
       }
     }
   );
@@ -655,6 +707,7 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     deps.requireRole(['moderator', 'admin', 'superadmin']),
     requireCsrf,
     (req: Request, res: Response) => {
+      const operationId = extractOperationId(req);
       try {
         const actor = toActor(req);
         const { action, message, reason, note } = req.body || {};
@@ -662,11 +715,12 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
           action,
           message,
           reason,
-          note
+          note,
+          operationId
         });
         res.json(result);
       } catch (err) {
-        handleError(err, res);
+        handleError(err, res, req, { caseId: req.params.caseId, operationId });
       }
     }
   );
@@ -686,7 +740,7 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
         });
         res.json({ case: updated });
       } catch (err) {
-        handleError(err, res);
+        handleError(err, res, req, { caseId: req.params.caseId });
       }
     }
   );
@@ -697,14 +751,15 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     deps.requireRole(['moderator', 'admin', 'superadmin']),
     requireCsrf,
     (req: Request, res: Response) => {
+      const operationId = extractOperationId(req);
       try {
         const actor = toActor(req);
         const { note, adminApprovalGranted } = req.body || {};
-        const post = engine.restoreSoftDeletedPost(req.params.postId, actor, note, !!adminApprovalGranted);
+        const post = engine.restoreSoftDeletedPost(req.params.postId, actor, note, !!adminApprovalGranted, operationId);
         const auditRecord = engine.getLatestAuditRecordForCase(undefined, req.params.postId);
         res.json({ post, auditRecord });
       } catch (err) {
-        handleError(err, res);
+        handleError(err, res, req, { postId: req.params.postId, operationId });
       }
     }
   );
@@ -715,17 +770,19 @@ export function createPostModerationRouter(deps: ModerationRouterDependencies): 
     deps.requireRole(['admin', 'superadmin']),
     requireCsrf,
     (req: Request, res: Response) => {
+      const operationId = extractOperationId(req);
       try {
         const actor = toActor(req);
         const { action, reason, durationDays } = req.body || {};
         const result = engine.applyOrLiftSanction(actor, req.params.userId, {
           action,
           reason,
-          durationDays
+          durationDays,
+          operationId
         });
         res.json(result);
       } catch (err) {
-        handleError(err, res);
+        handleError(err, res, req, { userId: req.params.userId, operationId });
       }
     }
   );

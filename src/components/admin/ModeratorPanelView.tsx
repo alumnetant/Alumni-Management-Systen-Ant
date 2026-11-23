@@ -30,30 +30,30 @@ import {
   X,
   MessageSquareWarning
 } from 'lucide-react';
-import { apiFetch, apiFetchWithCsrf, clearCsrfTokenCache } from '../../services/apiClient';
+import { apiFetch, apiFetchWithCsrf } from '../../services/apiClient';
 import { formatFullLocalDateTime, formatRelativeTime } from '../../lib/dateUtils';
-import { saveActiveSession, useAlumni } from '../../context/AlumniContext';
+import { useAlumni } from '../../context/AlumniContext';
 import {
-  getFeedPostsFromFirestore,
-  loadModerationAuditRecordsFromFirestore,
-  loadModerationCasesFromFirestore,
-  loadModerationWarningsFromFirestore,
-  loadPostReportsFromFirestore,
-  loadReporterTrackingFromFirestore,
-  saveFeedPostToFirestore,
-  saveModerationAuditRecordToFirestore,
-  saveModerationCaseToFirestore,
-  saveModerationWarningToFirestore,
-  savePostReportToFirestore
-} from '../../lib/firebase';
+  actOnCasePrimary,
+  claimOrReleaseCasePrimary,
+  EnrichedModerationCase,
+  getModerationCaseDetailPrimary,
+  getModerationSyncStatus,
+  loadModerationStatePrimary,
+  ModerationBanFlagItem,
+  ModerationCaseDetailPayload,
+  ModerationServiceActor,
+  ModerationStateCache,
+  ModerationSyncStatus,
+  queryModerationCases,
+  restorePostPrimary,
+  retryQueuedModerationSync,
+  sanctionUserPrimary,
+  subscribeToModerationSyncStatus
+} from '../../services/postModerationService';
 import {
   AbuseReporterTracking,
-  InstitutionalFeedPost,
-  ModerationAppeal,
-  ModerationCase,
-  ModerationWarning,
   POST_REPORT_REASONS,
-  PostReport,
   UserProfile,
   normalizeSystemRole
 } from '../../types';
@@ -67,32 +67,6 @@ export type ModeratorSubTab = 'cases' | 'employers';
 export interface ModeratorPanelViewProps {
   initialSubTab?: ModeratorSubTab;
 }
-
-type EnrichedModerationCase = ModerationCase & {
-  reports: PostReport[];
-  livePost: InstitutionalFeedPost | null;
-  canAct: boolean;
-  conflictReason?: string;
-};
-
-type CaseDetailPayload = {
-  case: ModerationCase;
-  livePost: InstitutionalFeedPost | null;
-  reports: PostReport[];
-  authorWarningHistory: ModerationWarning[];
-  activeWarningsCount: number;
-  authorBanFlag: { userId: string; flaggedAt: string; activeWarnings: number; reason: string } | null;
-  appeals: ModerationAppeal[];
-  canAct: boolean;
-  conflictReason?: string;
-};
-
-type BanFlagItem = {
-  userId: string;
-  flaggedAt: string;
-  activeWarnings: number;
-  reason: string;
-};
 
 export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   initialSubTab = 'cases'
@@ -122,9 +96,24 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     setActiveSubTab(initialSubTab);
   }, [initialSubTab]);
 
+  const modActor = useMemo<ModerationServiceActor>(
+    () => ({
+      uid: currentUser?.uid || '',
+      name: currentUser?.name || currentUser?.email || 'Moderator',
+      email: currentUser?.email,
+      role: currentUser?.role || 'alumni'
+    }),
+    [currentUser?.uid, currentUser?.name, currentUser?.email, currentUser?.role]
+  );
+
   // ---------------------------------------------------------------------------
-  // TAB 1: REPORTED POSTS QUEUE & ABUSE TRACKING
+  // TAB 1: REPORTED POSTS QUEUE & ABUSE TRACKING (CLOUD FIRESTORE PRIMARY)
   // ---------------------------------------------------------------------------
+  const [moderationSnapshot, setModerationSnapshot] = useState<ModerationStateCache | null>(null);
+  const snapshotRef = React.useRef<ModerationStateCache | null>(null);
+  const [syncStatus, setSyncStatus] = useState<ModerationSyncStatus>(() => getModerationSyncStatus());
+  const [isRetryingSync, setIsRetryingSync] = useState(false);
+
   const [cases, setCases] = useState<EnrichedModerationCase[]>([]);
   const [casesTotal, setCasesTotal] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
@@ -138,11 +127,11 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   const [casesError, setCasesError] = useState<string | null>(null);
 
   const [reporters, setReporters] = useState<AbuseReporterTracking[]>([]);
-  const [banFlags, setBanFlags] = useState<BanFlagItem[]>([]);
+  const [banFlags, setBanFlags] = useState<ModerationBanFlagItem[]>([]);
 
   // Case inspection drawer/modal state
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
-  const [caseDetail, setCaseDetail] = useState<CaseDetailPayload | null>(null);
+  const [caseDetail, setCaseDetail] = useState<ModerationCaseDetailPayload | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
@@ -153,199 +142,88 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   const [isMutatingCase, setIsMutatingCase] = useState(false);
   const [pendingClaimCaseId, setPendingClaimCaseId] = useState<string | null>(null);
 
-  const syncCloudToServerModeration = useCallback(async () => {
-    try {
-      const [cloudCases, cloudReports, cloudWarnings, cloudAudits, cloudTrackers, cloudPosts] = await Promise.all([
-        loadModerationCasesFromFirestore(),
-        loadPostReportsFromFirestore(),
-        loadModerationWarningsFromFirestore(),
-        loadModerationAuditRecordsFromFirestore(),
-        loadReporterTrackingFromFirestore(),
-        getFeedPostsFromFirestore()
-      ]);
+  useEffect(() => {
+    return subscribeToModerationSyncStatus(setSyncStatus);
+  }, []);
 
-      const compactPostsMap = new Map<string, InstitutionalFeedPost>();
-      [...cloudPosts, ...feedPosts].forEach((p) => {
-        if (!p?.id) return;
-        const safeImg =
-          typeof p.imageUrl === 'string' && p.imageUrl.startsWith('data:') && p.imageUrl.length > 25000
-            ? undefined
-            : p.imageUrl;
-        compactPostsMap.set(p.id, {
-          ...p,
-          authorAvatar:
-            typeof p.authorAvatar === 'string' && p.authorAvatar.startsWith('data:') && p.authorAvatar.length > 25000
-              ? ''
-              : p.authorAvatar,
-          imageUrl: safeImg,
-          mediaUrl: safeImg,
-          comments: Array.isArray(p.comments) ? p.comments.slice(0, 15) : []
-        });
-      });
+  const applySnapshotToState = useCallback(
+    (nextSnap: ModerationStateCache) => {
+      snapshotRef.current = nextSnap;
+      setModerationSnapshot(nextSnap);
+      setReporters(Array.isArray(nextSnap.reporterTracking) ? nextSnap.reporterTracking : []);
+      setBanFlags(isAdmin ? Object.values(nextSnap.banFlags || {}) : []);
+    },
+    [isAdmin]
+  );
 
-      const syncPayload = JSON.stringify({
-        cases: cloudCases,
-        reports: cloudReports,
-        warnings: cloudWarnings,
-        auditLogs: cloudAudits,
-        reporterTracking: cloudTrackers,
-        posts: Array.from(compactPostsMap.values()).slice(0, 250)
-      });
-
-      let syncRes = await apiFetchWithCsrf(
-        '/api/moderation/sync',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: syncPayload
-        },
-        8000
-      );
-
-      if (syncRes.status === 401 && currentUser) {
-        saveActiveSession(currentUser, undefined, true);
-        clearCsrfTokenCache();
-        syncRes = await apiFetchWithCsrf(
-          '/api/moderation/sync',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: syncPayload
-          },
-          8000
-        );
-      }
-
-      if (syncRes.ok) {
-        const merged = await syncRes.json().catch(() => null);
-        if (merged) {
-          const writes: Promise<unknown>[] = [];
-          const cloudCaseIds = new Set(cloudCases.map((c) => c.id));
-          const cloudReportIds = new Set(cloudReports.map((r) => r.id));
-          if (Array.isArray(merged.cases)) {
-            merged.cases.slice(0, 100).forEach((c: ModerationCase) => {
-              if (!cloudCaseIds.has(c.id)) {
-                writes.push(saveModerationCaseToFirestore(c));
-              }
-            });
-          }
-          if (Array.isArray(merged.reports)) {
-            merged.reports.slice(0, 100).forEach((r: PostReport) => {
-              if (!cloudReportIds.has(r.id)) {
-                writes.push(savePostReportToFirestore(r));
-              }
-            });
-          }
-          if (writes.length > 0) {
-            void Promise.allSettled(writes);
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Cloud moderation sync notice:', err);
-    }
-  }, [feedPosts, currentUser]);
+  // Recompute filtered cases & counts synchronously whenever snapshot or filters change
+  useEffect(() => {
+    if (!moderationSnapshot || !hasModerationAccess) return;
+    const result = queryModerationCases(moderationSnapshot, modActor, {
+      page: casesPage,
+      pageSize: 10,
+      status: casesStatus,
+      priority: casesPriority,
+      reason: casesReason,
+      sort: casesSort,
+      search: casesSearch
+    });
+    setCases(result.cases);
+    setCasesTotal(result.total);
+    setPendingCount(result.pendingCount);
+  }, [
+    moderationSnapshot,
+    hasModerationAccess,
+    modActor,
+    casesPage,
+    casesStatus,
+    casesPriority,
+    casesReason,
+    casesSort,
+    casesSearch
+  ]);
 
   const fetchCasesAndAbuse = useCallback(async () => {
     if (!hasModerationAccess) return;
     setCasesLoading(true);
     setCasesError(null);
     try {
-      await syncCloudToServerModeration();
-
-      const params = new URLSearchParams({
-        page: String(casesPage),
-        pageSize: '10',
-        status: casesStatus,
-        priority: casesPriority,
-        reason: casesReason,
-        sort: casesSort
-      });
-      if (casesSearch.trim()) {
-        params.set('search', casesSearch.trim());
-      }
-
-      let casesRes = await apiFetch(`/api/moderation/cases?${params.toString()}`, { method: 'GET' }, 7000);
-      if (casesRes.status === 401 && currentUser) {
-        const errBody = await casesRes.clone().json().catch(() => null);
-        if (errBody?.code !== 'SESSION_TERMINATED') {
-          saveActiveSession(currentUser, undefined, true);
-          clearCsrfTokenCache();
-          casesRes = await apiFetch(`/api/moderation/cases?${params.toString()}`, { method: 'GET' }, 7000);
-        }
-      }
-
-      const [reportersRes, banFlagsRes] = await Promise.all([
-        apiFetch('/api/moderation/abuse/reporters', { method: 'GET' }, 5000).catch(() => null),
-        isAdmin
-          ? apiFetch('/api/moderation/abuse/ban-flags', { method: 'GET' }, 5000).catch(() => null)
-          : Promise.resolve(null)
-      ]);
-
-      if (!casesRes.ok) {
-        const errBody = await casesRes.json().catch(() => null);
-        if (casesRes.status === 401 || casesRes.status === 403) {
-          throw new Error(errBody?.error || 'Your session expired or lacks moderation permissions. Please sign in again.');
-        }
-        throw new Error(errBody?.error || `Failed to load moderation cases (HTTP ${casesRes.status}).`);
-      }
-
-      const data = await casesRes.json();
-      setCases(Array.isArray(data.cases) ? data.cases : []);
-      setCasesTotal(Number(data.total) || 0);
-      setPendingCount(Number(data.pendingCount) || 0);
-
-      if (reportersRes && reportersRes.ok) {
-        const repData = await reportersRes.json();
-        setReporters(Array.isArray(repData.reporters) ? repData.reporters : []);
-      } else {
-        setReporters([]);
-      }
-      if (banFlagsRes && banFlagsRes.ok) {
-        const banData = await banFlagsRes.json();
-        setBanFlags(Array.isArray(banData.banFlags) ? banData.banFlags : []);
-      } else if (!isAdmin) {
-        setBanFlags([]);
-      }
+      const loadedSnapshot = await loadModerationStatePrimary(users, feedPosts);
+      applySnapshotToState(loadedSnapshot);
     } catch (err: any) {
       setCasesError(err?.message || 'Failed to load moderation queue.');
     } finally {
       setCasesLoading(false);
     }
-  }, [hasModerationAccess, syncCloudToServerModeration, casesPage, casesStatus, casesPriority, casesReason, casesSort, casesSearch, isAdmin, currentUser]);
+  }, [hasModerationAccess, users, feedPosts, applySnapshotToState]);
 
-  const loadCaseDetail = useCallback(async (caseId: string) => {
-    setSelectedCaseId(caseId);
-    setDetailLoading(true);
-    setDetailError(null);
-    setActionMessage('');
-    setActionNote('');
-    try {
-      let res = await apiFetch(`/api/moderation/cases/${encodeURIComponent(caseId)}`, { method: 'GET' }, 6000);
-      if (res.status === 401 && currentUser) {
-        const errBody = await res.clone().json().catch(() => null);
-        if (errBody?.code !== 'SESSION_TERMINATED') {
-          saveActiveSession(currentUser, undefined, true);
-          clearCsrfTokenCache();
-          res = await apiFetch(`/api/moderation/cases/${encodeURIComponent(caseId)}`, { method: 'GET' }, 6000);
+  const loadCaseDetail = useCallback(
+    async (caseId: string) => {
+      setSelectedCaseId(caseId);
+      setDetailLoading(true);
+      setDetailError(null);
+      setActionMessage('');
+      setActionNote('');
+      try {
+        let activeSnap = snapshotRef.current;
+        if (!activeSnap) {
+          activeSnap = await loadModerationStatePrimary(users, feedPosts);
+          applySnapshotToState(activeSnap);
         }
+        const detail = getModerationCaseDetailPrimary(activeSnap, caseId, modActor);
+        setCaseDetail(detail);
+        const topReason = Object.keys(detail.case.reasonsSummary || {})[0];
+        if (topReason && (POST_REPORT_REASONS as readonly string[]).includes(topReason)) {
+          setActionReason(topReason);
+        }
+      } catch (err: any) {
+        setDetailError(err?.message || 'Failed to load case inspection details.');
+      } finally {
+        setDetailLoading(false);
       }
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => null);
-        throw new Error(errBody?.error || 'Unable to load case details.');
-      }
-      const data: CaseDetailPayload = await res.json();
-      setCaseDetail(data);
-      const topReason = Object.keys(data.case.reasonsSummary || {})[0];
-      if (topReason && (POST_REPORT_REASONS as readonly string[]).includes(topReason)) {
-        setActionReason(topReason);
-      }
-    } catch (err: any) {
-      setDetailError(err?.message || 'Failed to load case inspection details.');
-    } finally {
-      setDetailLoading(false);
-    }
-  }, [currentUser]);
+    },
+    [users, feedPosts, applySnapshotToState, modActor]
+  );
 
   const [employerQueue, setEmployerQueue] = useState<UserProfile[]>([]);
   const [employersLoading, setEmployersLoading] = useState(false);
@@ -408,71 +286,19 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
   }, [deepLinkTarget, clearDeepLinkTarget]);
 
   // ---------------------------------------------------------------------------
-  // CASE MUTATION HANDLERS
+  // CASE MUTATION HANDLERS (CLOUD FIRESTORE PRIMARY + IDEMPOTENT SYNC QUEUE)
   // ---------------------------------------------------------------------------
   const handleClaimOrRelease = async (caseId: string, mode: 'claim' | 'release') => {
     if (isMutatingCase) return;
     setIsMutatingCase(true);
     try {
-      const res = await apiFetchWithCsrf(
-        `/api/moderation/cases/${encodeURIComponent(caseId)}/${mode}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
-        6000
-      );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        if (res.status === 409) {
-          await fetchCasesAndAbuse();
-          if (selectedCaseId === caseId) {
-            await loadCaseDetail(caseId);
-          }
-        }
-        throw new Error(data?.error || `Failed to ${mode} case.`);
-      }
-      if (data?.case) {
-        const updatedCase = data.case as ModerationCase;
-        const syncWrites: Promise<unknown>[] = [saveModerationCaseToFirestore(updatedCase)];
-        if (data?.auditRecord) {
-          syncWrites.push(saveModerationAuditRecordToFirestore(data.auditRecord));
-        }
-        await Promise.allSettled(syncWrites);
-        setCases((prev) =>
-          prev.map((item) =>
-            item.id === caseId
-              ? {
-                  ...item,
-                  status: updatedCase.status,
-                  claimedBy: updatedCase.claimedBy,
-                  claimedByName: updatedCase.claimedByName,
-                  claimedAt: updatedCase.claimedAt,
-                  updatedAt: updatedCase.updatedAt
-                }
-              : item
-          )
-        );
-        if (selectedCaseId === caseId) {
-          setCaseDetail((prev) =>
-            prev && prev.case.id === caseId
-              ? {
-                  ...prev,
-                  case: {
-                    ...prev.case,
-                    status: updatedCase.status,
-                    claimedBy: updatedCase.claimedBy,
-                    claimedByName: updatedCase.claimedByName,
-                    claimedAt: updatedCase.claimedAt,
-                    updatedAt: updatedCase.updatedAt
-                  }
-                }
-              : prev
-          );
-        }
+      const activeSnap = snapshotRef.current || (await loadModerationStatePrimary(users, feedPosts));
+      const result = await claimOrReleaseCasePrimary(modActor, caseId, mode, activeSnap);
+      applySnapshotToState(result.snapshot);
+      if (selectedCaseId === caseId) {
+        setCaseDetail(getModerationCaseDetailPrimary(result.snapshot, caseId, modActor));
       }
       showToast(mode === 'claim' ? 'Case claimed for review.' : 'Case released back to queue.', 'success');
-      await fetchCasesAndAbuse();
-      if (selectedCaseId === caseId) {
-        await loadCaseDetail(caseId);
-      }
     } catch (err: any) {
       showToast(err?.message || 'Unable to update case lock.', 'error');
     } finally {
@@ -500,50 +326,25 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
 
     setIsMutatingCase(true);
     try {
-      const res = await apiFetchWithCsrf(
-        `/api/moderation/cases/${encodeURIComponent(caseDetail.case.id)}/act`,
+      const activeSnap = snapshotRef.current || (await loadModerationStatePrimary(users, feedPosts));
+      const result = await actOnCasePrimary(
+        modActor,
+        caseDetail.case.id,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action,
-            reason: actionReason,
-            message: actionMessage.trim() || undefined,
-            note: actionNote.trim() || undefined
-          })
+          action,
+          reason: actionReason,
+          message: actionMessage.trim() || undefined,
+          note: actionNote.trim() || undefined
         },
-        6000
+        activeSnap,
+        users
       );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || 'Moderation action failed.');
-      }
 
-      const firestoreWrites: Promise<unknown>[] = [];
-      if (data?.case) {
-        firestoreWrites.push(saveModerationCaseToFirestore(data.case));
-      }
-      if (Array.isArray(data?.updatedReports)) {
-        data.updatedReports.forEach((rep: PostReport) => {
-          firestoreWrites.push(savePostReportToFirestore(rep));
-        });
-      }
-      if (data?.warning) {
-        firestoreWrites.push(saveModerationWarningToFirestore(data.warning));
-      }
-      if (data?.auditRecord) {
-        firestoreWrites.push(saveModerationAuditRecordToFirestore(data.auditRecord));
-      }
-      if (data?.post) {
-        firestoreWrites.push(saveFeedPostToFirestore(data.post));
-      }
-      if (firestoreWrites.length > 0) {
-        await Promise.allSettled(firestoreWrites);
-      }
+      applySnapshotToState(result.snapshot);
 
-      if (data?.autoSuspended) {
+      if (result.autoSuspended) {
         showToast('Action recorded. Author reached warning threshold and was automatically suspended.', 'warning');
-      } else if (data?.flaggedForBan) {
+      } else if (result.flaggedForBan) {
         showToast('Action recorded. Author account flagged for Administrator ban review.', 'warning');
       } else {
         showToast(
@@ -557,7 +358,6 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
       }
       setSelectedCaseId(null);
       setCaseDetail(null);
-      await fetchCasesAndAbuse();
       await refreshData().catch(() => {});
     } catch (err: any) {
       showToast(err?.message || 'Unable to execute moderation action.', 'error');
@@ -570,29 +370,17 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     if (!caseDetail?.livePost) return;
     setIsMutatingCase(true);
     try {
-      const res = await apiFetchWithCsrf(
-        `/api/moderation/posts/${encodeURIComponent(caseDetail.livePost.id)}/restore`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            note: actionNote.trim() || 'Post restored after moderation review.',
-            adminApprovalGranted: isAdmin
-          })
-        },
-        6000
+      const activeSnap = snapshotRef.current || (await loadModerationStatePrimary(users, feedPosts));
+      const result = await restorePostPrimary(
+        modActor,
+        caseDetail.livePost.id,
+        actionNote.trim() || 'Post restored after moderation review.',
+        isAdmin,
+        activeSnap
       );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to restore post.');
-      }
-      const restoreWrites: Promise<unknown>[] = [];
-      if (data?.post) restoreWrites.push(saveFeedPostToFirestore(data.post));
-      if (data?.auditRecord) restoreWrites.push(saveModerationAuditRecordToFirestore(data.auditRecord));
-      if (restoreWrites.length > 0) await Promise.allSettled(restoreWrites);
+      applySnapshotToState(result.snapshot);
+      setCaseDetail(getModerationCaseDetailPrimary(result.snapshot, caseDetail.case.id, modActor));
       showToast('Post restored to feeds.', 'success');
-      await loadCaseDetail(caseDetail.case.id);
-      await fetchCasesAndAbuse();
       await refreshData().catch(() => {});
     } catch (err: any) {
       showToast(err?.message || 'Unable to restore post.', 'error');
@@ -609,31 +397,43 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
     if (!isAdmin) return;
     setIsMutatingCase(true);
     try {
-      const res = await apiFetchWithCsrf(
-        `/api/moderation/users/${encodeURIComponent(targetUserId)}/sanction`,
+      const activeSnap = snapshotRef.current || (await loadModerationStatePrimary(users, feedPosts));
+      const targetUser = users.find((u) => u.uid === targetUserId);
+      const result = await sanctionUserPrimary(
+        modActor,
+        targetUserId,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action,
-            reason: customReason || 'Administrative governance decision'
-          })
+          action,
+          reason: customReason || 'Administrative governance decision'
         },
-        6000
+        activeSnap,
+        targetUser
       );
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to update account sanction.');
+      applySnapshotToState(result.snapshot);
+      if (selectedCaseId) {
+        setCaseDetail(getModerationCaseDetailPrimary(result.snapshot, selectedCaseId, modActor));
       }
       showToast(`Account action (${action.replace(/_/g, ' ')}) applied.`, 'success');
-      if (selectedCaseId) {
-        await loadCaseDetail(selectedCaseId);
+      if (action === 'suspend' || action === 'ban' || action === 'lift_sanction') {
+        await refreshData().catch(() => {});
       }
-      await fetchCasesAndAbuse();
     } catch (err: any) {
       showToast(err?.message || 'Unable to apply sanction.', 'error');
     } finally {
       setIsMutatingCase(false);
+    }
+  };
+
+  const handleRetrySync = async () => {
+    if (isRetryingSync) return;
+    setIsRetryingSync(true);
+    try {
+      const next = await retryQueuedModerationSync();
+      if (!next.syncDegradedAfterRetry && next.pendingCount === 0) {
+        showToast('Background moderation sync completed.', 'success');
+      }
+    } finally {
+      setIsRetryingSync(false);
     }
   };
 
@@ -924,8 +724,12 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                if (activeSubTab === 'cases') void fetchCasesAndAbuse();
-                else void fetchEmployerQueue();
+                if (activeSubTab === 'cases') {
+                  void fetchCasesAndAbuse();
+                  if (syncStatus.pendingCount > 0) void handleRetrySync();
+                } else {
+                  void fetchEmployerQueue();
+                }
               }}
               className="inline-flex items-center justify-center gap-1.5 min-h-[44px] sm:min-h-[38px] px-4 py-2 rounded-xl text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 dark:bg-stone-800 dark:hover:bg-stone-700 dark:text-stone-200 border border-stone-200/80 dark:border-stone-700 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
@@ -935,34 +739,60 @@ export const ModeratorPanelView: React.FC<ModeratorPanelViewProps> = ({
           </div>
         </div>
 
-        {/* Sub-tab Switcher */}
-        <div className="flex flex-wrap items-center gap-1.5 mt-5 pt-4 border-t border-stone-100 dark:border-stone-800">
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('cases')}
-            className={`inline-flex items-center gap-2 min-h-[44px] sm:min-h-[36px] px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-              activeSubTab === 'cases'
-                ? 'bg-[#8B181B] text-white'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
-            }`}
-          >
-            <Flag className="w-3.5 h-3.5" strokeWidth={1.75} />
-            <span>Reported Posts</span>
-            <span className="tabular-nums font-mono text-[11px] opacity-90">({pendingCount})</span>
-          </button>
+        {/* Sub-tab Switcher & Non-blocking Background Sync Pill */}
+        <div className="flex flex-wrap items-center justify-between gap-2 mt-5 pt-4 border-t border-stone-100 dark:border-stone-800">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('cases')}
+              className={`inline-flex items-center gap-2 min-h-[44px] sm:min-h-[36px] px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                activeSubTab === 'cases'
+                  ? 'bg-[#8B181B] text-white'
+                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
+              }`}
+            >
+              <Flag className="w-3.5 h-3.5" strokeWidth={1.75} />
+              <span>Reported Posts</span>
+              <span className="tabular-nums font-mono text-[11px] opacity-90">({pendingCount})</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveSubTab('employers')}
-            className={`inline-flex items-center gap-2 min-h-[44px] sm:min-h-[36px] px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-              activeSubTab === 'employers'
-                ? 'bg-[#8B181B] text-white'
-                : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
-            }`}
-          >
-            <Building2 className="w-3.5 h-3.5" strokeWidth={1.75} />
-            <span>Employer Accreditation</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('employers')}
+              className={`inline-flex items-center gap-2 min-h-[44px] sm:min-h-[36px] px-4 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                activeSubTab === 'employers'
+                  ? 'bg-[#8B181B] text-white'
+                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+              <span>Employer Accreditation</span>
+            </button>
+          </div>
+
+          {activeSubTab === 'cases' && syncStatus.syncDegradedAfterRetry && (
+            <div
+              role="status"
+              className="inline-flex flex-wrap items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/70 text-[11px] text-amber-800 dark:text-amber-300"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" strokeWidth={1.75} />
+              <span>
+                Live queue loaded; background sync delayed
+                {syncStatus.failedOperations.length > 0
+                  ? ` (${syncStatus.failedOperations.map((op) => op.label).slice(0, 2).join(', ')})`
+                  : ''}
+                —some changes may retry shortly.
+              </span>
+              <button
+                type="button"
+                disabled={isRetryingSync}
+                onClick={() => void handleRetrySync()}
+                className="font-semibold underline hover:text-amber-950 dark:hover:text-amber-100 disabled:opacity-50 cursor-pointer"
+              >
+                {isRetryingSync ? 'Retrying...' : 'Retry Sync'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

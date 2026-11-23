@@ -38,6 +38,44 @@ export function isStaffOrModeratorRole(role?: string): boolean {
   return canonical === 'moderator' || canonical === 'admin' || canonical === 'superadmin';
 }
 
+/**
+ * Only posts published by Alumni or Employers can be reported.
+ * Any post by Admin, Superadmin, Moderator (including legacy registrar/staff/faculty),
+ * or missing/unverified author roles cannot be reported.
+ */
+export function isReportableAuthorRole(role?: string | null): boolean {
+  if (!role || typeof role !== 'string') return false;
+  const raw = role.toLowerCase().trim();
+  if (!raw) return false;
+  return raw === 'alumni' || raw === 'employer';
+}
+
+export function resolvePostAuthorRole(
+  post: Pick<InstitutionalFeedPost, 'authorId' | 'authorRole'>,
+  authorAccount?: Pick<AuthorAccountLike, 'role'> | null
+): string | undefined {
+  if (authorAccount?.role && typeof authorAccount.role === 'string' && authorAccount.role.trim()) {
+    return authorAccount.role.trim();
+  }
+  if (post.authorRole && typeof post.authorRole === 'string' && post.authorRole.trim()) {
+    return post.authorRole.trim();
+  }
+  return undefined;
+}
+
+export function canReportPost(
+  post: Pick<InstitutionalFeedPost, 'authorId' | 'authorRole' | 'authorDeleted' | 'isSoftDeleted'>,
+  currentUser?: { uid?: string } | null,
+  authorAccount?: Pick<AuthorAccountLike, 'role'> | null
+): boolean {
+  if (!currentUser?.uid) return false;
+  if (post.isSoftDeleted) return false;
+  const isOwner = Boolean(post.authorId && post.authorId === currentUser.uid && !post.authorDeleted);
+  if (isOwner) return false;
+  const resolvedRole = resolvePostAuthorRole(post, authorAccount);
+  return isReportableAuthorRole(resolvedRole);
+}
+
 export function slugifyUsername(raw: string): string {
   const cleaned = (raw || '')
     .toLowerCase()
@@ -88,6 +126,18 @@ export function isAccountSuspendedOrBanned(account?: AuthorAccountLike | Partial
     if (!endDate) return true;
     const endMs = new Date(endDate).getTime();
     return Number.isNaN(endMs) || endMs > Date.now();
+  }
+  return false;
+}
+
+export function isAccountBannedOrLocked(account?: AuthorAccountLike | Partial<UserProfile> | null): boolean {
+  if (!account) return false;
+  const st = (account.accountStatus || account.status || '').toUpperCase().trim();
+  if (st === 'LOCKED' || st === 'BANNED' || account.isBanned) {
+    return true;
+  }
+  if (st === 'SUSPENDED' && account.suspensionInfo?.isPermanentLock) {
+    return true;
   }
   return false;
 }
@@ -284,13 +334,18 @@ export function hydratePostWithLiveAuthor(
   const isAuthor = Boolean(viewer?.uid && viewer.uid === post.authorId);
 
   if (post.isAnonymous) {
+    const resolvedAnonRole = authorAccount?.role
+      ? normalizeSystemRole(authorAccount.role)
+      : post.authorRole
+      ? normalizeSystemRole(post.authorRole)
+      : undefined;
     return {
       ...post,
       authorId: isMod || isAuthor ? post.authorId : 'anonymous',
       authorName: 'Anonymous Alumnus',
       authorAvatar: '',
       authorUsername: undefined,
-      authorRole: 'alumni'
+      authorRole: resolvedAnonRole as UserRole
     };
   }
 

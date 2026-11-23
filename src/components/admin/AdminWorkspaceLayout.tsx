@@ -63,7 +63,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni, STORAGE_KEYS } from '../../context/AlumniContext';
 import { useTheme } from '../../lib/theme';
 import { UserRole, UserProfile, normalizeSystemRole } from '../../types';
-import { apiFetch } from '../../services/apiClient';
+import { getPendingCountPrimary, loadModerationStatePrimary } from '../../services/postModerationService';
 import { AdminDashboardOverview } from './AdminDashboardOverview';
 import { AdminUsersTable } from './AdminUsersTable';
 import { RegistrarRegistryMatcher } from './RegistrarRegistryMatcher';
@@ -141,6 +141,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
     opportunities,
     announcements,
     events,
+    feedPosts,
     syncAllDataToCloud,
     refreshData,
     isOnline,
@@ -371,18 +372,23 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
   const [pendingModerationCount, setPendingModerationCount] = useState<number>(0);
 
   useEffect(() => {
-    if (!hasModerationAccess) {
+    if (!hasModerationAccess || !currentUser?.uid) {
       setPendingModerationCount(0);
       return;
     }
     let cancelled = false;
     const loadPendingModCount = async () => {
       try {
-        const res = await apiFetch('/api/moderation/pending-count', { method: 'GET' }, 5000);
-        if (!res.ok) return;
-        const data = await res.json().catch(() => null);
-        if (!cancelled && typeof data?.pendingCount === 'number') {
-          setPendingModerationCount(data.pendingCount);
+        const snapshot = await loadModerationStatePrimary(users, feedPosts);
+        if (!cancelled) {
+          setPendingModerationCount(
+            getPendingCountPrimary(snapshot, {
+              uid: currentUser.uid,
+              name: currentUser.name || currentUser.email || 'Moderator',
+              email: currentUser.email,
+              role: currentUser.role
+            })
+          );
         }
       } catch {
         // ignore transient polling failure
@@ -394,7 +400,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [hasModerationAccess, currentModule]);
+  }, [hasModerationAccess, currentModule, currentUser?.uid, currentUser?.name, currentUser?.email, currentUser?.role, users, feedPosts]);
 
   const pendingUsersCount = useMemo(() => {
     return (users || []).filter((u) => !u.isVerified && u.role === 'alumni').length;

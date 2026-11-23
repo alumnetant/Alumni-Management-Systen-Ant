@@ -1004,14 +1004,16 @@ function checkAndRestoreExpiredSuspensions(targetUser?: StoredUserCredential): {
   return { restoredCount, restoredUsers };
 }
 
-// Background sweep for expired suspensions every 30 seconds
-setInterval(() => {
-  try {
-    checkAndRestoreExpiredSuspensions();
-  } catch (err) {
-    console.warn('[Suspension Scheduler Error]', err);
-  }
-}, 30000);
+// Background sweep for expired suspensions every 30 seconds (disabled in serverless / Vitest)
+if (!process.env.VERCEL && !process.env.VITEST) {
+  setInterval(() => {
+    try {
+      checkAndRestoreExpiredSuspensions();
+    } catch (err) {
+      console.warn('[Suspension Scheduler Error]', err);
+    }
+  }, 30000);
+}
 
 // Parameter & Search Sanitizer to prevent NoSQL / ReDoS / Prototype Pollution
 function sanitizeQueryParam(param: any): string {
@@ -7317,12 +7319,23 @@ app.use('/api', (_req: Request, res: Response) => {
 });
 
 // API-level JSON error shield (active in both serverless Vercel handler and full server)
-app.use('/api', (err: any, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('[UNHANDLED API ERROR]', err?.message || err);
+app.use('/api', (err: any, req: Request, res: Response, _next: NextFunction) => {
+  const requestId =
+    (typeof req?.headers?.['x-request-id'] === 'string' && req.headers['x-request-id']) ||
+    crypto.randomBytes(6).toString('hex');
+  console.error('[UNHANDLED API ERROR]', {
+    requestId,
+    actorId: (req as any)?.user?.uid || 'anonymous',
+    operationId: req?.headers?.['x-idempotency-key'] || (req?.body as any)?.operationId,
+    path: req?.originalUrl || req?.path,
+    method: req?.method,
+    message: err?.message || String(err)
+  });
   if (res.headersSent) return;
   res.status(500).json({
     error: 'An internal server error occurred. The incident has been recorded securely.',
-    code: 'SECURE_ERR_500'
+    code: 'SECURE_ERR_500',
+    requestId
   });
 });
 

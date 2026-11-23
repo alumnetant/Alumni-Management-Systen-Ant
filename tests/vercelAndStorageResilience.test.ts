@@ -4,12 +4,27 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { saveRegistrationConflicts } from '../src/services/studentVerificationService';
+import {
+  actOnCasePrimary,
+  claimOrReleaseCasePrimary,
+  clearModerationSyncQueueForTests,
+  getModerationCaseDetailPrimary,
+  getModerationSyncStatus,
+  loadModerationStatePrimary,
+  queryModerationCases,
+  retryQueuedModerationSync,
+  setModerationPersistenceHooksForTests,
+  submitPostReportPrimary
+} from '../src/services/postModerationService';
 
 describe('Vercel Serverless & Browser Storage Quota Resilience', () => {
   const bundleOut = path.resolve(process.cwd(), 'dist', `vercel-api-test-${process.pid}.cjs`);
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    setModerationPersistenceHooksForTests(null);
+    clearModerationSyncQueueForTests();
     if (fs.existsSync(bundleOut)) {
       try {
         fs.unlinkSync(bundleOut);
@@ -133,5 +148,196 @@ describe('Vercel Serverless & Browser Storage Quota Resilience', () => {
       )
     ).not.toThrow();
     expect(store.has('alumni_gallery_v5')).toBe(false);
+  });
+
+  it('loads and mutates moderation cases from Cloud Firestore primary even when Express returns HTTP 500, debouncing sync warnings until retry fails', async () => {
+    const store = new Map<string, string>();
+    store.set('alumni_server_auth_token', 'mock-jwt-token');
+    const mockLocalStorage = {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => store.set(k, v),
+      removeItem: (k: string) => store.delete(k),
+      clear: () => store.clear(),
+      key: (i: number) => Array.from(store.keys())[i] ?? null,
+      get length() {
+        return store.size;
+      }
+    };
+    vi.stubGlobal('window', globalThis);
+    vi.stubGlobal('localStorage', mockLocalStorage);
+    clearModerationSyncQueueForTests();
+
+    const dbCases = new Map<string, any>();
+    const dbReports = new Map<string, any>();
+    const dbWarnings = new Map<string, any>();
+    const dbAudits = new Map<string, any>();
+    const dbTrackers = new Map<string, any>();
+    const dbPosts = new Map<string, any>();
+
+    const alumniAuthor: any = {
+      uid: 'alu_author_1',
+      name: 'Cecilian Alumnus',
+      email: 'alumnus@stcecilia.edu.ph',
+      role: 'alumni',
+      accountStatus: 'ACTIVE',
+      isVerified: true
+    };
+    const alumniReporter: any = {
+      uid: 'alu_rep_1',
+      name: 'Cecilian Reporter',
+      email: 'reporter@stcecilia.edu.ph',
+      role: 'alumni',
+      accountStatus: 'ACTIVE',
+      isVerified: true
+    };
+    const adminActor: any = {
+      uid: 'admin_1',
+      name: 'Campus Admin',
+      email: 'admin@stcecilia.edu.ph',
+      role: 'admin',
+      accountStatus: 'ACTIVE',
+      isVerified: true
+    };
+
+    const alumniPost: any = {
+      id: 'post_fs_1',
+      authorId: alumniAuthor.uid,
+      authorName: alumniAuthor.name,
+      authorRole: 'alumni',
+      authorAvatar: '',
+      postType: 'update',
+      title: 'Community Question',
+      content: 'Looking for batchmates',
+      likes: [],
+      comments: [],
+      sharesCount: 0,
+      createdAt: new Date().toISOString(),
+      status: 'published',
+      visibility: 'alumni'
+    };
+    const adminPost: any = {
+      ...alumniPost,
+      id: 'post_admin_1',
+      authorId: adminActor.uid,
+      authorName: adminActor.name,
+      authorRole: 'admin',
+      postType: 'announcement',
+      title: 'Admin Circular'
+    };
+    dbPosts.set(alumniPost.id, alumniPost);
+    dbPosts.set(adminPost.id, adminPost);
+
+    let apiMode: 'fail_500' | 'ok' = 'fail_500';
+    const capturedOps: Array<{ url: string; idempotencyKey: string | null }> = [];
+
+    setModerationPersistenceHooksForTests({
+      loadCases: async () => Array.from(dbCases.values()),
+      loadReports: async () => Array.from(dbReports.values()),
+      loadWarnings: async () => Array.from(dbWarnings.values()),
+      loadAuditLogs: async () => Array.from(dbAudits.values()),
+      loadTrackers: async () => Array.from(dbTrackers.values()),
+      loadAppeals: async () => [],
+      loadPosts: async () => Array.from(dbPosts.values()),
+      loadConfig: async () => null,
+      saveCase: async (c) => { dbCases.set(c.id, c); return true; },
+      saveReport: async (r) => { dbReports.set(r.id, r); return true; },
+      saveWarning: async (w) => { dbWarnings.set(w.id, w); return true; },
+      saveAudit: async (a) => { dbAudits.set(a.id, a); return true; },
+      saveTracker: async (t) => { dbTrackers.set(t.userId, t); return true; },
+      savePost: async (p) => { dbPosts.set(p.id, p); return true; },
+      saveNotification: async () => {},
+      saveUser: async () => true,
+      apiRequest: async (url, init) => {
+        const headers = new Headers(init?.headers || {});
+        capturedOps.push({ url, idempotencyKey: headers.get('X-Idempotency-Key') });
+        if (apiMode === 'fail_500') {
+          return new Response(JSON.stringify({ error: 'Serverless 500' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    });
+
+    // 1. Read loads cleanly from Firestore without showing any error or degraded banner
+    const initialSnap = await loadModerationStatePrimary([alumniAuthor, alumniReporter, adminActor], [alumniPost, adminPost]);
+    expect(initialSnap.cases.length).toBe(0);
+    expect(getModerationSyncStatus().syncDegradedAfterRetry).toBe(false);
+
+    // 2. Non-reportable Admin post is blocked client-side before Firestore write
+    await expect(
+      submitPostReportPrimary(
+        alumniReporter,
+        { targetType: 'post', targetId: adminPost.id, reason: 'Spam', postSnapshot: adminPost },
+        { users: [alumniAuthor, alumniReporter, adminActor], feedPosts: [alumniPost, adminPost] }
+      )
+    ).rejects.toThrow(/Only posts created by alumni or employers/i);
+
+    // 3. Report Alumni post -> persists to Firestore even when Express returns 500
+    const repResult = await submitPostReportPrimary(
+      alumniReporter,
+      {
+        targetType: 'post',
+        targetId: alumniPost.id,
+        reason: 'Spam',
+        details: 'Suspicious link',
+        postSnapshot: alumniPost
+      },
+      { users: [alumniAuthor, alumniReporter, adminActor], feedPosts: [alumniPost, adminPost] }
+    );
+    expect(repResult.firestoreSaved).toBe(true);
+    expect(dbCases.size).toBe(1);
+    expect(dbReports.size).toBe(1);
+
+    // Wait briefly for initial fire-and-forget Express sync attempt (attempt #1 fails -> still NOT degraded!)
+    await new Promise((r) => setTimeout(r, 30));
+    expect(getModerationSyncStatus().pendingCount).toBe(1);
+    expect(getModerationSyncStatus().syncDegradedAfterRetry).toBe(false);
+
+    // 4. Retry #1 fails (attempts === 2) -> debounced sync warning becomes visible
+    await retryQueuedModerationSync();
+    const afterRetryStatus = getModerationSyncStatus();
+    expect(afterRetryStatus.syncDegradedAfterRetry).toBe(true);
+    expect(afterRetryStatus.failedOperations[0].label).toBe('Submit Post Report');
+
+    // 5. Queue remains interactive & reloads cleanly from Firestore primary
+    const reloadedSnap = await loadModerationStatePrimary([alumniAuthor, alumniReporter, adminActor], [alumniPost, adminPost]);
+    const queued = queryModerationCases(reloadedSnap, adminActor, { status: 'open' });
+    expect(queued.total).toBe(1);
+    expect(queued.pendingCount).toBe(1);
+    expect(queued.cases[0].reports[0].details).toBe('Suspicious link');
+
+    const detail = getModerationCaseDetailPrimary(reloadedSnap, queued.cases[0].id, adminActor);
+    expect(detail.canAct).toBe(true);
+
+    // 6. Moderator claims and resolves directly in Firestore
+    const claimed = await claimOrReleaseCasePrimary(adminActor, queued.cases[0].id, 'claim', reloadedSnap);
+    expect(claimed.case.status).toBe('reviewed');
+
+    const acted = await actOnCasePrimary(
+      adminActor,
+      queued.cases[0].id,
+      { action: 'warn', reason: 'Spam', message: 'Please do not post suspicious links.' },
+      claimed.snapshot,
+      [alumniAuthor, alumniReporter, adminActor]
+    );
+    expect(acted.case.status).toBe('action_taken');
+    expect(dbWarnings.size).toBe(1);
+
+    // 7. When Express recovers, queued retries drain with the exact original idempotency key and clear the degraded banner
+    apiMode = 'ok';
+    await retryQueuedModerationSync();
+    expect(getModerationSyncStatus().pendingCount).toBe(0);
+    expect(getModerationSyncStatus().syncDegradedAfterRetry).toBe(false);
+
+    const reportSyncKeys = capturedOps
+      .filter((op) => op.url === '/api/reports')
+      .map((op) => op.idempotencyKey);
+    expect(reportSyncKeys.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(reportSyncKeys).size).toBe(1);
   });
 });

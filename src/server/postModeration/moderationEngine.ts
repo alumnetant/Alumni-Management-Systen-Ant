@@ -37,6 +37,7 @@ import {
   isAccountDeleted,
   isAccountUnavailable,
   isPinActive,
+  isReportableAuthorRole,
   normalizeLegacyPostAuthor,
   paginatePostsWithCursor,
   slugifyUsername
@@ -278,6 +279,7 @@ export class PostModerationEngine {
   private emailEnabled: boolean;
   private timelineCache = new Map<string, { expiresAt: number; value: any }>();
   private feedSessionSnapshots = new Map<string, FeedSessionSnapshot>();
+  private processedOperations = new Map<string, { createdAt: number; result: any }>();
 
   constructor(options?: { persistToDisk?: boolean; emailEnabled?: boolean }) {
     this.persistenceEnabled = options?.persistToDisk ?? (process.env.NODE_ENV !== 'test' && !process.env.VITEST);
@@ -302,14 +304,30 @@ export class PostModerationEngine {
     this.state = createInitialState();
     this.timelineCache.clear();
     this.feedSessionSnapshots.clear();
+    this.processedOperations.clear();
   }
 
   public resetToSuperadminOnly(): void {
     this.state = createInitialState();
     this.timelineCache.clear();
     this.feedSessionSnapshots.clear();
+    this.processedOperations.clear();
     this.syncProfilesFromAdapter();
     this.persist();
+  }
+
+  private getProcessedOperation<T>(opKey: string | undefined): T | undefined {
+    if (!opKey) return undefined;
+    return this.processedOperations.get(opKey)?.result as T | undefined;
+  }
+
+  private rememberOperation(opKey: string | undefined, result: any): void {
+    if (!opKey) return;
+    if (this.processedOperations.size >= 1000) {
+      const oldestKey = this.processedOperations.keys().next().value;
+      if (oldestKey) this.processedOperations.delete(oldestKey);
+    }
+    this.processedOperations.set(opKey, { createdAt: Date.now(), result });
   }
 
   private invalidateCaches(): void {
@@ -2162,6 +2180,7 @@ export class PostModerationEngine {
       reason: ReportReason;
       details?: string;
       postSnapshotFallback?: InstitutionalFeedPost;
+      operationId?: string;
     }
   ): {
     success: true;
@@ -2174,6 +2193,12 @@ export class PostModerationEngine {
     auditRecord: ModerationAuditRecord;
     affectedPost: InstitutionalFeedPost;
   } {
+    const opKey = payload.operationId ? `report:${actor.uid}:${payload.operationId}` : undefined;
+    const cached = this.getProcessedOperation<any>(opKey);
+    if (cached) {
+      return cached;
+    }
+
     const targetType: ReportTargetType = payload.targetType || 'post';
     if (targetType !== 'post') {
       throw new ModerationError(400, 'UNSUPPORTED_TARGET_TYPE', 'Currently only post reporting is enabled.');
@@ -2200,7 +2225,7 @@ export class PostModerationEngine {
         id: fallback.id,
         authorId: fallback.authorId || 'unknown_author',
         authorName: sanitizeModerationText(fallback.authorName || 'Cecilian Member', 120) || 'Cecilian Member',
-        authorRole: fallback.authorRole || 'alumni',
+        authorRole: fallback.authorRole,
         postType: fallback.postType || 'update',
         title: sanitizeModerationText(fallback.title || '', 200),
         content: sanitizeModerationText(fallback.content || '', 5000),
@@ -2222,6 +2247,24 @@ export class PostModerationEngine {
     }
     if (post.authorId === actor.uid) {
       throw new ModerationError(403, 'OWN_POST_REPORT_BLOCKED', 'You cannot report your own post.');
+    }
+
+    const authorProfileRole =
+      post.authorId && post.authorId !== 'anonymous' && post.authorId !== 'former_alumni'
+        ? this.accountAdapter?.getUserByUid(post.authorId)?.role || this.state.profiles?.[post.authorId]?.role
+        : undefined;
+    const resolvedAuthorRole =
+      typeof authorProfileRole === 'string' && authorProfileRole.trim()
+        ? authorProfileRole.trim()
+        : typeof post.authorRole === 'string' && post.authorRole.trim()
+        ? post.authorRole.trim()
+        : undefined;
+    if (!isReportableAuthorRole(resolvedAuthorRole)) {
+      throw new ModerationError(
+        403,
+        'POST_ROLE_NOT_REPORTABLE',
+        'Only posts created by alumni or employers can be reported.'
+      );
     }
 
     // Duplicate check: user can only report the same post once
@@ -2422,8 +2465,8 @@ export class PostModerationEngine {
     this.persist();
 
     // Return caller's own report and grouped case summary (without other reporters' PII) for Firestore sync
-    return {
-      success: true,
+    const result = {
+      success: true as const,
       message: 'Thanks, our moderators will review your report.',
       reportId: report.id,
       caseId: modCase.id,
@@ -2433,6 +2476,8 @@ export class PostModerationEngine {
       auditRecord: reportAudit,
       affectedPost: post
     };
+    this.rememberOperation(opKey, result);
+    return result;
   }
 
   private notifyModeratorsHighPriority(modCase: ModerationCase, post: InstitutionalFeedPost): void {
@@ -2672,7 +2717,11 @@ export class PostModerationEngine {
     };
   }
 
-  public claimModerationCase(caseId: string, actor: ModerationActor): ModerationCase {
+  public claimModerationCase(caseId: string, actor: ModerationActor, operationId?: string): ModerationCase {
+    const opKey = operationId ? `claim:${caseId}:${actor.uid}:${operationId}` : undefined;
+    const cached = this.getProcessedOperation<ModerationCase>(opKey);
+    if (cached) return cached;
+
     if (!isModeratorRole(actor.role)) {
       throw new ModerationError(403, 'FORBIDDEN', 'Only moderators and administrators can claim cases.');
     }
@@ -2715,10 +2764,15 @@ export class PostModerationEngine {
     });
 
     this.persist();
+    this.rememberOperation(opKey, modCase);
     return modCase;
   }
 
-  public releaseModerationCase(caseId: string, actor: ModerationActor): ModerationCase {
+  public releaseModerationCase(caseId: string, actor: ModerationActor, operationId?: string): ModerationCase {
+    const opKey = operationId ? `release:${caseId}:${actor.uid}:${operationId}` : undefined;
+    const cached = this.getProcessedOperation<ModerationCase>(opKey);
+    if (cached) return cached;
+
     if (!isModeratorRole(actor.role)) {
       throw new ModerationError(403, 'FORBIDDEN', 'Unauthorized.');
     }
@@ -2752,6 +2806,7 @@ export class PostModerationEngine {
     });
 
     this.persist();
+    this.rememberOperation(opKey, modCase);
     return modCase;
   }
 
@@ -2767,6 +2822,7 @@ export class PostModerationEngine {
       message?: string;
       reason?: string;
       note?: string;
+      operationId?: string;
     }
   ): {
     case: ModerationCase;
@@ -2777,6 +2833,10 @@ export class PostModerationEngine {
     autoSuspended?: boolean;
     flaggedForBan?: boolean;
   } {
+    const opKey = payload.operationId ? `act:${caseId}:${actor.uid}:${payload.operationId}` : undefined;
+    const cached = this.getProcessedOperation<any>(opKey);
+    if (cached) return cached;
+
     if (!isModeratorRole(actor.role)) {
       throw new ModerationError(403, 'FORBIDDEN', 'Only moderators and administrators can act on moderation cases.');
     }
@@ -3057,7 +3117,7 @@ export class PostModerationEngine {
     }
 
     this.persist();
-    return {
+    const result = {
       case: this.normalizeModCaseRecord(modCase),
       updatedReports: pendingReports.map((r) => ({ ...r })),
       warning: createdWarning,
@@ -3066,6 +3126,8 @@ export class PostModerationEngine {
       autoSuspended,
       flaggedForBan
     };
+    this.rememberOperation(opKey, result);
+    return result;
   }
 
   private evaluateWarningEscalation(userId: string, actor: ModerationActor): { autoSuspended: boolean; flaggedForBan: boolean } {
@@ -3314,7 +3376,17 @@ export class PostModerationEngine {
     return modCase;
   }
 
-  public restoreSoftDeletedPost(postId: string, actor: ModerationActor, note: string, adminApprovalGranted = false): InstitutionalFeedPost {
+  public restoreSoftDeletedPost(
+    postId: string,
+    actor: ModerationActor,
+    note: string,
+    adminApprovalGranted = false,
+    operationId?: string
+  ): InstitutionalFeedPost {
+    const opKey = operationId ? `restore:${postId}:${actor.uid}:${operationId}` : undefined;
+    const cached = this.getProcessedOperation<InstitutionalFeedPost>(opKey);
+    if (cached) return cached;
+
     if (!isAdminRole(actor.role) && !(isModeratorRole(actor.role) && adminApprovalGranted)) {
       throw new ModerationError(
         403,
@@ -3351,7 +3423,9 @@ export class PostModerationEngine {
     });
 
     this.persist();
-    return this.projectPostForViewer(post, actor);
+    const projected = this.projectPostForViewer(post, actor);
+    this.rememberOperation(opKey, projected);
+    return projected;
   }
 
   public applyOrLiftSanction(
@@ -3361,8 +3435,13 @@ export class PostModerationEngine {
       action: 'suspend' | 'ban' | 'lift_sanction' | 'restrict_reporting' | 'unrestrict_reporting';
       reason?: string;
       durationDays?: number;
+      operationId?: string;
     }
   ) {
+    const opKey = payload.operationId ? `sanction:${targetUserId}:${adminActor.uid}:${payload.operationId}` : undefined;
+    const cached = this.getProcessedOperation<{ success: true }>(opKey);
+    if (cached) return cached;
+
     if (!isAdminRole(adminActor.role)) {
       throw new ModerationError(403, 'ADMIN_REQUIRED', 'Only Administrators can apply or lift suspensions, bans, or reporting restrictions.');
     }
@@ -3482,7 +3561,9 @@ export class PostModerationEngine {
     }
 
     this.persist();
-    return { success: true };
+    const res = { success: true as const };
+    this.rememberOperation(opKey, res);
+    return res;
   }
 
   // ===========================================================================
