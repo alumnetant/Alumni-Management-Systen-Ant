@@ -282,11 +282,11 @@ export const AdminAnnouncementsManager: React.FC = () => {
               Campus News & Announcements
             </h1>
             <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-              <span>Total Announcements: <strong className="text-stone-900 font-semibold">{totalCount}</strong></span>
+              <span>Total Announcements: <strong className="text-stone-900 font-semibold font-mono tabular-nums">{totalCount}</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
-              <span>Urgent Alerts: <strong className={urgentCount > 0 ? 'text-rose-600 font-semibold' : 'text-stone-700'}>{urgentCount}</strong></span>
+              <span>Urgent Alerts: <strong className={`font-mono tabular-nums ${urgentCount > 0 ? 'text-rose-600 font-semibold' : 'text-stone-700'}`}>{urgentCount}</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
-              <span>Important Bulletins: <strong className="text-stone-900 font-semibold">{importantCount}</strong></span>
+              <span>Important Bulletins: <strong className="text-stone-900 font-semibold font-mono tabular-nums">{importantCount}</strong></span>
             </div>
           </div>
 
@@ -298,7 +298,7 @@ export const AdminAnnouncementsManager: React.FC = () => {
                 setIsImportant(false);
                 setShowAuthoringStudio(true);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] shadow-sm transition-colors cursor-pointer"
+              className="ds-btn-primary min-h-[44px] sm:min-h-[38px]"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>New Announcement</span>
@@ -307,13 +307,12 @@ export const AdminAnnouncementsManager: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. PANORAMIC BROADCAST BILLBOARD (ASYMMETRIC NEWSROOM MONITOR) */}
       {/* 2. PANORAMIC BROADCAST BILLBOARD */}
       <div className="w-full bg-white border border-stone-200/80 rounded-2xl p-6 shadow-2xs flex flex-col justify-between space-y-4">
         <div className="space-y-3">
           <div className="flex items-center justify-between border-b border-stone-100 pb-3">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-stone-900">
-              <Radio className="w-4 h-4 text-[#8B181B] animate-pulse" />
+              <Radio className="w-4 h-4 text-[#8B181B]" />
               <span>Featured Campus Broadcast</span>
             </div>
             {spotlightDispatch?.urgent ? (
@@ -374,15 +373,15 @@ export const AdminAnnouncementsManager: React.FC = () => {
                 key={ch.id}
                 type="button"
                 onClick={() => setSelectedChannel(ch.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer flex items-center gap-1.5 min-h-[44px] sm:min-h-[36px] ${
                   selectedChannel === ch.id
-                    ? 'bg-stone-900 text-white'
-                    : 'text-stone-600 hover:bg-stone-100'
+                    ? 'bg-rose-50 text-[#8B181B] border-rose-200/80'
+                    : 'border-transparent text-stone-600 hover:bg-stone-100'
                 }`}
               >
                 <span>{ch.label}</span>
-                <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-md ${
-                  selectedChannel === ch.id ? 'bg-stone-800 text-stone-300' : 'bg-stone-100 text-stone-600'
+                <span className={`text-[10px] font-mono tabular-nums font-semibold px-1.5 py-0.2 rounded-md ${
+                  selectedChannel === ch.id ? 'bg-white text-[#8B181B] border border-rose-200/70' : 'bg-stone-100 text-stone-600'
                 }`}>
                   {ch.count}
                 </span>
@@ -763,13 +762,13 @@ export const AdminAnnouncementsManager: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowAuthoringStudio(false)}
-                  className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-semibold cursor-pointer"
+                  className="ds-btn-secondary min-h-[44px] sm:min-h-[38px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-white bg-[#8B181B] hover:bg-[#721316] font-semibold shadow-sm cursor-pointer"
+                  className="ds-btn-primary min-h-[44px] sm:min-h-[38px]"
                 >
                   Broadcast Dispatch
                 </button>
@@ -820,7 +819,7 @@ export const AdminAnnouncementsManager: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setInspectingDispatch(null)}
-                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl font-semibold cursor-pointer"
+                className="ds-btn-secondary min-h-[44px] sm:min-h-[36px]"
               >
                 Close Dispatch
               </button>
@@ -844,14 +843,14 @@ export const AdminAnnouncementsManager: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setDeletingId(null)}
-                className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-semibold cursor-pointer"
+                className="ds-btn-secondary min-h-[44px] sm:min-h-[36px]"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-xl text-white bg-rose-700 hover:bg-rose-800 font-semibold cursor-pointer"
+                className="ds-btn-primary min-h-[44px] sm:min-h-[36px]"
               >
                 Delete Dispatch
               </button>

@@ -280,7 +280,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   const renderPostTypeBadge = () => {
     if (post.postType === 'announcement') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-red-50 dark:bg-red-950/40 text-[#8B181B] dark:text-red-300 border border-red-200/70 dark:border-red-900/50">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#8B181B] dark:text-rose-400">
           <Megaphone className="w-3 h-3" />
           <span>Announcement</span>
         </span>
@@ -288,14 +288,14 @@ export const PostCard: React.FC<PostCardProps> = ({
     }
     if (post.postType === 'gallery') {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200/70 dark:border-stone-700">
+        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-stone-600 dark:text-stone-300">
           <ImageIcon className="w-3 h-3" />
           <span>Gallery</span>
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200/70 dark:border-amber-900/50">
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-400">
         <Award className="w-3 h-3" />
         <span>Community Update</span>
       </span>
@@ -309,23 +309,23 @@ export const PostCard: React.FC<PostCardProps> = ({
       <article
         id={`feed-${post.id}`}
         data-notify-target-id={post.id}
-        className={`bg-white dark:bg-stone-900 rounded-2xl border transition-all duration-200 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] ${
+        className={`bg-white dark:bg-[#000000] lg:dark:bg-stone-900 rounded-none lg:rounded-2xl border-0 border-b lg:border transition-all duration-200 overflow-hidden shadow-none lg:shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] ${
           highlighted
             ? `border-[#8B181B] ${HIGHLIGHT_RING_CLASS}`
-            : 'border-stone-200/80 dark:border-stone-800'
+            : 'border-[#E5E7EB] dark:border-[#27272A] lg:border-stone-200/80 lg:dark:border-stone-800'
         }`}
       >
         {/* Top Shared / Pinned Strip */}
         {(post.sharedFromPostId || post.sharedLabel || post.isPinned || isPinnedOnProfile) && (
-          <div className="px-4 sm:px-5 pt-3 pb-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-stone-500 dark:text-stone-400">
+          <div className="px-4 sm:px-5 pt-3 pb-1 flex flex-wrap items-center gap-2.5 text-[11px] font-semibold text-stone-500 dark:text-stone-400">
             {(post.isPinned || isPinnedOnProfile) && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200/70 dark:border-amber-900/50">
+              <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
                 <Pin className="w-3 h-3" />
                 <span>{isPinnedOnProfile ? 'Pinned Post' : 'Pinned Announcement'}</span>
               </span>
             )}
             {(post.sharedFromPostId || post.sharedLabel) && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200/70 dark:border-stone-700">
+              <span className="inline-flex items-center gap-1 text-stone-600 dark:text-stone-300">
                 <Repeat2 className="w-3 h-3 text-[#8B181B] dark:text-red-400" />
                 <span>
                   {post.sharedLabel || 'Shared'}
@@ -380,7 +380,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                   alt={displayName}
                   onError={handleUserAvatarError}
                   referrerPolicy="no-referrer"
-                  className="w-11 h-11 rounded-2xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 group-hover:ring-[#8B181B] transition-all"
+                  className="w-10 h-10 lg:w-11 lg:h-11 rounded-full lg:rounded-2xl object-cover ring-1 ring-stone-200 dark:ring-stone-700 group-hover:ring-[#8B181B] transition-all"
                 />
                 {liveAuthor?.isVerified && (
                   <span
@@ -408,11 +408,11 @@ export const PostCard: React.FC<PostCardProps> = ({
                     {displayName}
                   </span>
                 )}
-
-                {renderPostTypeBadge()}
               </div>
 
-              <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mt-0.5 flex-wrap">
+              <div className="flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400 mt-0.5 flex-wrap tabular-nums">
+                {renderPostTypeBadge()}
+                <span aria-hidden="true">·</span>
                 <button
                   type="button"
                   onClick={() => openPostPermalink(post.id)}
@@ -564,7 +564,7 @@ export const PostCard: React.FC<PostCardProps> = ({
         )}
 
         {/* Engagement Stats Strip (No raw emojis) */}
-        <div className="px-4 sm:px-5 py-2.5 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 border-t border-b border-stone-100 dark:border-stone-800">
+        <div className="px-4 sm:px-5 py-2.5 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 border-t border-b border-stone-100 dark:border-stone-800 tabular-nums">
           <div className="flex items-center gap-1.5">
             <span className="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-2xs">
               <Heart className="w-3 h-3 fill-current" />
@@ -604,7 +604,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <button
             type="button"
             onClick={() => setShowComments((prev) => !prev)}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded-xl transition-colors cursor-pointer min-h-[42px] ${
+            className={`flex items-center justify-center gap-1.5 py-2 rounded-xl transition-colors cursor-pointer min-h-[44px] ${
               showComments
                 ? 'bg-red-50 dark:bg-red-950/40 text-[#8B181B] dark:text-red-300 font-bold'
                 : 'hover:bg-stone-100 dark:hover:bg-stone-800'
@@ -617,7 +617,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <button
             type="button"
             onClick={() => setShowShareModal(true)}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer min-h-[42px]"
+            className="flex items-center justify-center gap-1.5 py-2 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer min-h-[44px]"
           >
             <Share2 className="w-4 h-4" />
             <span>Share</span>
@@ -687,14 +687,15 @@ export const PostCard: React.FC<PostCardProps> = ({
                   value={commentText}
                   onChange={(e) => setCommentText(e.target.value)}
                   placeholder="Write a comment..."
-                  className="flex-1 px-3 py-2 text-xs bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] min-h-[40px]"
+                  className="flex-1 px-3.5 py-2 text-base lg:text-xs bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-xl text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] min-h-[44px] lg:min-h-[40px]"
                 />
                 <button
                   type="submit"
                   disabled={!commentText.trim()}
-                  className="px-3.5 py-2 rounded-xl bg-[#8B181B] hover:bg-[#721316] disabled:opacity-50 text-white text-xs font-bold inline-flex items-center gap-1 cursor-pointer min-h-[40px]"
+                  aria-label="Send comment"
+                  className="px-3.5 py-2 rounded-xl bg-[#8B181B] hover:bg-[#721316] disabled:opacity-50 text-white text-xs font-bold inline-flex items-center justify-center gap-1 cursor-pointer min-h-[44px] min-w-[44px] lg:min-h-[40px]"
                 >
-                  <Send className="w-3.5 h-3.5" />
+                  <Send className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                   <span className="hidden sm:inline">Send</span>
                 </button>
               </form>

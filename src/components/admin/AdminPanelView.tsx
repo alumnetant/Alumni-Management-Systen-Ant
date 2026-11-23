@@ -23,7 +23,8 @@ import {
   ChevronDown,
   Camera,
   Check,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 import { useAlumni } from '../../context/AlumniContext';
 import { UserRole, normalizeSystemRole } from '../../types';
@@ -365,7 +366,7 @@ export const AdminPanelView: React.FC = () => {
                   onClick={() => syncAllDataToCloud()}
                   disabled={isFirestoreSyncing}
                   title="Synchronize database with Firestore cloud"
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+                  className="flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] sm:min-h-[38px] bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Loader2 className={`w-3.5 h-3.5 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
                   <span>{isFirestoreSyncing ? 'Syncing...' : 'Sync Cloud'}</span>
@@ -375,7 +376,7 @@ export const AdminPanelView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleExportCsv}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                className="ds-btn-secondary flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
               >
                 <Upload className="w-3.5 h-3.5 rotate-180" />
                 <span>Export Roster</span>
@@ -490,19 +491,19 @@ export const AdminPanelView: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all cursor-pointer min-h-[42px] active:scale-95 ${
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer min-h-[44px] active:scale-95 border ${
                     isActive
-                      ? 'bg-[#8B181B] text-white shadow-xs font-extrabold'
-                      : 'bg-white text-stone-700 hover:text-stone-950 hover:bg-stone-50 border border-stone-200/90'
+                      ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 shadow-2xs font-bold'
+                      : 'bg-white text-stone-700 hover:text-stone-950 hover:bg-stone-50 border-stone-200/90'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-stone-500'}`} />
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#8B181B]' : 'text-stone-500'}`} />
                   <span>{item.shortLabel}</span>
                   {item.badge !== null && item.badge !== undefined && (
                     <span
-                      className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      className={`ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums ${
                         isActive
-                          ? 'bg-white text-[#8B181B]'
+                          ? 'bg-[#8B181B] text-white'
                           : item.badgeColor || 'bg-stone-100 text-stone-700'
                       }`}
                     >
@@ -536,21 +537,21 @@ export const AdminPanelView: React.FC = () => {
                       <button
                         key={item.id}
                         onClick={() => setActiveTab(item.id)}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-3 py-2 min-h-[38px] rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
                           isActive
-                            ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                            : 'text-stone-700 hover:text-stone-950 hover:bg-stone-100'
+                            ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-bold'
+                            : 'text-stone-700 hover:text-stone-950 hover:bg-stone-100 border-transparent'
                         }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-stone-400'}`} />
+                          <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#8B181B]' : 'text-stone-400'}`} />
                           <span className="truncate">{item.label}</span>
                         </div>
                         {item.badge !== null && item.badge !== undefined && (
                           <span
-                            className={`ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold shrink-0 ${
+                            className={`ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold shrink-0 tabular-nums ${
                               isActive
-                                ? 'bg-white text-[#8B181B]'
+                                ? 'bg-[#8B181B] text-white'
                                 : item.badgeColor || 'bg-stone-100 text-stone-700 border border-stone-200'
                             }`}
                           >
@@ -569,11 +570,11 @@ export const AdminPanelView: React.FC = () => {
           <div className="pt-3 border-t border-stone-100">
             <div className="grid grid-cols-2 gap-2 text-center">
               <div className="bg-stone-50 p-2 rounded-lg border border-stone-100">
-                <span className="text-sm font-bold text-stone-900 block">{users.length}</span>
+                <span className="text-sm font-bold text-stone-900 block tabular-nums">{users.length}</span>
                 <span className="text-[9px] text-stone-500 uppercase font-semibold">Total Roster</span>
               </div>
               <div className="bg-stone-50 p-2 rounded-lg border border-stone-100">
-                <span className="text-sm font-bold text-stone-900 block">
+                <span className="text-sm font-bold text-stone-900 block tabular-nums">
                   {users.filter((u) => u.isVerified).length}
                 </span>
                 <span className="text-[9px] text-stone-500 uppercase font-semibold">Verified</span>
@@ -713,7 +714,7 @@ export const AdminPanelView: React.FC = () => {
                   {permissions.canUploadGallery && (
                     <button
                       onClick={() => setShowGalleryUploadModal(true)}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-[0_2px_8px_rgba(139,24,27,0.25)] cursor-pointer active:scale-95 shrink-0"
+                      className="ds-btn-primary flex items-center gap-2 px-4 py-2.5 min-h-[44px] sm:min-h-[38px] text-xs shrink-0"
                     >
                       <Upload className="w-4 h-4" />
                       <span>Upload Photo</span>
@@ -725,19 +726,19 @@ export const AdminPanelView: React.FC = () => {
                 <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-stone-200/70">
                   <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Archived Photos</span>
-                    <span className="text-2xl font-bold text-stone-900 mt-1 block">{galleryItems.length}</span>
+                    <span className="text-2xl font-bold text-stone-900 mt-1 block tabular-nums">{galleryItems.length}</span>
                     <span className="text-[10px] text-stone-500 mt-0.5 block">Curated historical prints</span>
                   </div>
                   <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Commencements</span>
-                    <span className="text-2xl font-bold text-[#8B181B] mt-1 block">
+                    <span className="text-2xl font-bold text-[#8B181B] mt-1 block tabular-nums">
                       {galleryItems.filter(g => g.category?.toLowerCase().includes('commencement') || g.category?.toLowerCase().includes('graduation')).length}
                     </span>
                     <span className="text-[10px] text-stone-500 mt-0.5 block">Graduation memories</span>
                   </div>
                   <div className="p-3.5 bg-stone-50/80 rounded-xl border border-stone-200/60 shadow-2xs">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">Historical Eras</span>
-                    <span className="text-2xl font-bold text-amber-800 mt-1 block">
+                    <span className="text-2xl font-bold text-amber-800 mt-1 block tabular-nums">
                       {new Set(galleryItems.map(g => g.year)).size} Years
                     </span>
                     <span className="text-[10px] text-stone-500 mt-0.5 block">Documented eras</span>
@@ -822,7 +823,7 @@ export const AdminPanelView: React.FC = () => {
 
       {/* PROVISION USER MODAL */}
       {showCreateUserModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 text-xs">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
               <div className="flex items-center gap-2">
@@ -835,10 +836,12 @@ export const AdminPanelView: React.FC = () => {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowCreateUserModal(false)}
-                className="text-stone-400 hover:text-stone-700 text-sm"
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 cursor-pointer"
+                aria-label="Close modal"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -941,13 +944,13 @@ export const AdminPanelView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowCreateUserModal(false)}
-                  className="px-3.5 py-1.5 bg-stone-100 text-stone-700 rounded-lg font-semibold"
+                  className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white font-semibold rounded-lg shadow-xs"
+                  className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Provision
                 </button>
@@ -959,7 +962,7 @@ export const AdminPanelView: React.FC = () => {
 
       {/* GALLERY UPLOAD MODAL */}
       {showGalleryUploadModal && permissions.canUploadGallery && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-stone-200 text-xs">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
               <div className="flex items-center gap-2">
@@ -972,10 +975,12 @@ export const AdminPanelView: React.FC = () => {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setShowGalleryUploadModal(false)}
-                className="text-stone-400 hover:text-stone-700 text-sm"
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 cursor-pointer"
+                aria-label="Close modal"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1086,7 +1091,7 @@ export const AdminPanelView: React.FC = () => {
                       <span>Ready for Database</span>
                     </div>
                     {galPhotoFileName && (
-                      <div className="absolute bottom-2 left-2 right-2 px-2 py-0.5 bg-black/60 backdrop-blur-xs text-white rounded-md text-[10px] truncate">
+                      <div className="absolute bottom-2 left-2 right-2 px-2 py-0.5 bg-stone-950/70 backdrop-blur-xs text-white rounded-md text-[10px] truncate">
                         {galPhotoFileName}
                       </div>
                     )}
@@ -1196,13 +1201,13 @@ export const AdminPanelView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowGalleryUploadModal(false)}
-                  className="px-3.5 py-1.5 bg-stone-100 text-stone-700 rounded-lg font-semibold"
+                  className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white font-semibold rounded-lg shadow-xs"
+                  className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Publish Photo
                 </button>

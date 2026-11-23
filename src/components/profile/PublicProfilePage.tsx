@@ -58,6 +58,7 @@ import { compressImage } from '../../lib/utils';
 import { PostCard } from '../social/PostCard';
 import { ImageViewerModal } from '../common/ImageViewerModal';
 import { ConfirmationModal } from '../common/ConfirmationModal';
+import { MobileButton, MobileSegmentedTabs } from '../mobile/MobilePrimitives';
 
 interface PublicProfileSummary {
   uid: string;
@@ -704,9 +705,9 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-16">
-      {/* Back Navigation Bar */}
-      <div className="flex items-center justify-between gap-3">
+    <div className="max-w-4xl mx-auto space-y-4 lg:space-y-6 pb-8 lg:pb-16">
+      {/* Desktop Back Navigation Bar */}
+      <div className="hidden lg:flex items-center justify-between gap-3">
         <button
           type="button"
           onClick={closeSubRoute}
@@ -726,8 +727,169 @@ export const PublicProfilePage: React.FC<PublicProfilePageProps> = ({ identifier
         </button>
       </div>
 
-      {/* Hero Profile Header */}
-      <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200/90 dark:border-stone-800 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)]">
+      {/* Mobile Instagram-Style Public Profile Header (<1024px) */}
+      <div className="lg:hidden bg-white dark:bg-[#000000] border-b border-[#EFEFEF] dark:border-[#262626] px-4 pt-4 pb-3 space-y-3.5">
+        <div className="flex items-center gap-5">
+          <img
+            src={getUserAvatar(profile.profilePictureUrl)}
+            alt={profile.name}
+            onError={handleUserAvatarError}
+            onClick={() =>
+              setViewerImage({
+                url: getUserAvatar(profile.profilePictureUrl),
+                title: `${profile.name} — Profile Photo`
+              })
+            }
+            className="w-20 h-20 rounded-full object-cover border border-[#EFEFEF] dark:border-[#262626] bg-[#F3F4F6] dark:bg-[#121212] shrink-0"
+          />
+
+          <div className={`flex-1 grid ${profile.role === 'employer' ? 'grid-cols-2' : 'grid-cols-3'} text-center tabular-nums`}>
+            {profile.role !== 'employer' && (
+              <div className="py-1">
+                <div className="text-[16px] font-bold text-[#111827] dark:text-[#FAFAFA]">
+                  {totalCount || profile.postsCount || 0}
+                </div>
+                <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Posts</div>
+              </div>
+            )}
+            <div className="py-1">
+              <div className="text-[16px] font-bold text-[#111827] dark:text-[#FAFAFA]">
+                {profile.connectionsCount || 0}
+              </div>
+              <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Connections</div>
+            </div>
+            <div className="py-1">
+              <div className="text-[16px] font-bold text-[#8B181B] dark:text-[#FB7185]">
+                {profile.batch || '—'}
+              </div>
+              <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">
+                {profile.role === 'employer' ? 'Partner' : 'Batch'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Name, Verified & Bio */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h1 className="text-[16px] font-bold text-[#111827] dark:text-[#FAFAFA] tracking-tight">
+              {profile.name}
+            </h1>
+            {profile.isVerified && (
+              <ShieldCheck className="w-4 h-4 text-[#8B181B] dark:text-[#FB7185]" />
+            )}
+          </div>
+          <p className="text-[12px] text-[#737373] dark:text-[#A8A8A8] font-medium">
+            {[profile.role?.toUpperCase(), profile.course, profile.location].filter(Boolean).join(' · ')}
+          </p>
+          {profile.headline && (
+            <p className="text-[14px] text-[#111827] dark:text-[#FAFAFA] leading-snug">
+              {profile.headline}
+            </p>
+          )}
+        </div>
+
+        {/* Mobile Dual CTAs */}
+        <div className="flex items-center gap-2 pt-0.5">
+          {isSelf ? (
+            <MobileButton variant="primary" size="md" fullWidth onClick={() => openEditProfile()}>
+              Edit Profile
+            </MobileButton>
+          ) : connected ? (
+            <>
+              <MobileButton
+                variant="primary"
+                size="md"
+                fullWidth
+                onClick={() => {
+                  closeSubRoute();
+                  getOrCreateChat(profile.uid);
+                  setActiveTab('messages');
+                }}
+              >
+                Message
+              </MobileButton>
+              <MobileButton variant="secondary" size="md" fullWidth disabled>
+                Connected
+              </MobileButton>
+            </>
+          ) : reqState === 'sent' ? (
+            <MobileButton
+              variant="secondary"
+              size="md"
+              fullWidth
+              onClick={() => setShowCancelRequestConfirm(true)}
+            >
+              Request Sent
+            </MobileButton>
+          ) : reqState === 'received' ? (
+            <>
+              <MobileButton
+                variant="primary"
+                size="md"
+                fullWidth
+                onClick={() => pendingReq && acceptFriendRequest(pendingReq.id)}
+              >
+                Accept Request
+              </MobileButton>
+              <MobileButton
+                variant="secondary"
+                size="md"
+                fullWidth
+                onClick={() => pendingReq && declineFriendRequest(pendingReq.id)}
+              >
+                Decline
+              </MobileButton>
+            </>
+          ) : (
+            <MobileButton
+              variant="primary"
+              size="md"
+              fullWidth
+              onClick={() => sendFriendRequest(profile.uid)}
+            >
+              Connect
+            </MobileButton>
+          )}
+
+          <button
+            type="button"
+            onClick={handleCopyProfileLink}
+            aria-label="Copy profile link"
+            className="min-w-[44px] min-h-[44px] rounded-xl bg-[#F3F4F6] dark:bg-[#262626] text-[#111827] dark:text-[#FAFAFA] flex items-center justify-center shrink-0 active:opacity-75"
+          >
+            <Copy className="w-4 h-4" />
+          </button>
+          {!isSelf && (
+            <button
+              type="button"
+              onClick={() => setShowBlockConfirm(true)}
+              aria-label="Block user"
+              className="min-w-[44px] min-h-[44px] rounded-xl bg-[#F3F4F6] dark:bg-[#262626] text-[#737373] dark:text-[#A8A8A8] active:text-red-600 flex items-center justify-center shrink-0"
+            >
+              <Ban className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Mobile Segmented Tabs */}
+        <MobileSegmentedTabs
+          value={profile.role === 'employer' ? 'about' : subTab}
+          onChange={(v) => setSubTab(v as 'posts' | 'media' | 'about')}
+          options={
+            profile.role === 'employer'
+              ? [{ id: 'about', label: 'About' }]
+              : [
+                  { id: 'posts', label: 'Posts' },
+                  { id: 'media', label: 'Media' },
+                  { id: 'about', label: 'About' }
+                ]
+          }
+        />
+      </div>
+
+      {/* Desktop Hero Profile Header */}
+      <div className="hidden lg:block bg-white dark:bg-stone-900 rounded-3xl border border-stone-200/90 dark:border-stone-800 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)]">
         <div className="relative h-44 sm:h-60 bg-stone-900 overflow-hidden">
           <img
             src={getCoverPhoto(profile.coverPhotoUrl)}

@@ -441,17 +441,17 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
             <button
               type="button"
               onClick={() => setShowAdvancedFilters((prev) => !prev)}
-              className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`min-h-[38px] px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                 showAdvancedFilters || secondaryFiltersCount > 0
-                  ? 'bg-[#8B181B]/10 border-[#8B181B]/40 text-[#8B181B] dark:text-red-400'
-                  : 'bg-stone-50 dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700/70'
+                  ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800 text-[#8B181B] dark:text-rose-300'
+                  : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-700/70'
               }`}
               title="Toggle filter criteria"
             >
               <SlidersHorizontal className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Filters</span>
               {secondaryFiltersCount > 0 && (
-                <span className="w-4 h-4 rounded-full bg-[#8B181B] text-white text-[10px] flex items-center justify-center font-mono font-bold">
+                <span className="w-4 h-4 rounded-full bg-rose-100 dark:bg-rose-900/60 text-[#8B181B] dark:text-rose-200 text-[10px] flex items-center justify-center font-mono tabular-nums font-bold">
                   {secondaryFiltersCount}
                 </span>
               )}
@@ -465,7 +465,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                 exportAlumniRosterCsv(target, 'st_cecilia_alumni_directory');
                 showToast(`Exported ${target.length} directory records to CSV!`, 'success');
               }}
-              className="px-2.5 py-2 rounded-xl border border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700/70 text-stone-700 dark:text-stone-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              className="ds-btn-secondary min-h-[38px] px-2.5 py-2"
               title="Export Alumni Directory to CSV (7-column format)"
             >
               <Download className="w-3.5 h-3.5" />
@@ -478,10 +478,10 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
                 exportAlumniRosterExcel(target, 'st_cecilia_alumni_directory');
                 showToast(`Exported ${target.length} directory records to Excel (.xlsx)!`, 'success');
               }}
-              className="px-2.5 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800/70 bg-emerald-50/60 dark:bg-emerald-950/40 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              className="ds-btn-secondary min-h-[38px] px-2.5 py-2"
               title="Export Alumni Directory to Excel (.xlsx) (7-column format)"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
               <span className="hidden md:inline">Excel</span>
             </button>
 
@@ -605,8 +605,8 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
         {selectedUids.length > 0 && (
           <div className="p-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200/80 dark:border-red-900/60 rounded-xl flex items-center justify-between gap-3 animate-in fade-in duration-150">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#8B181B] animate-pulse" />
-              <p className="text-xs font-bold text-red-950 dark:text-red-200">
+              <span className="w-2 h-2 rounded-full bg-[#8B181B]" />
+              <p className="text-xs font-bold text-red-950 dark:text-red-200 tabular-nums">
                 {selectedUids.length} member{selectedUids.length > 1 ? 's' : ''} selected
               </p>
             </div>
@@ -645,7 +645,7 @@ export const AdminUsersTable: React.FC<AdminUsersTableProps> = ({ onOpenCreateUs
           <button
             type="button"
             onClick={handleClearAllFilters}
-            className="mt-4 px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer inline-flex items-center gap-1.5"
+            className="mt-4 ds-btn-primary inline-flex px-4 py-2 min-h-[40px]"
           >
             <RotateCcw className="w-3.5 h-3.5 stroke-[2]" />
             <span>Clear Filters</span>

@@ -55,6 +55,7 @@ import { UserRoleBadge } from '../common/UserRoleBadge';
 import { UserRole } from '../../types';
 import { PlatformOnly } from '../common/PlatformOnly';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
+import { MobileButton, MobileListItem, MobileSegmentedTabs } from '../mobile/MobilePrimitives';
 import {
   checkBiometricAvailability,
   isBiometricLoginEnabled,
@@ -528,11 +529,236 @@ export const SettingsView: React.FC = () => {
   const activeChannelsCount = [pushEnabled, emailEnabled, messagesEnabled, eventsEnabled, jobsEnabled].filter(Boolean).length;
 
   return (
-    <div className="w-full space-y-6 antialiased pb-28 lg:pb-12">
+    <div className="w-full lg:space-y-6 antialiased pb-10 lg:pb-12">
       {/* ========================================================================= */}
-      {/* HEADER: CLEAN INSTITUTIONAL SETTINGS HEADER                              */}
+      {/* MOBILE INSTAGRAM-CLEAN SETTINGS LIST (<1024px)                            */}
       {/* ========================================================================= */}
-      <div className="pb-5 border-b border-stone-200/80 dark:border-stone-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="lg:hidden bg-white dark:bg-[#000000] divide-y divide-[#EFEFEF] dark:divide-[#262626]">
+        {/* Group 1: Appearance */}
+        <section className="px-4 py-4 space-y-2.5">
+          <h2 className="text-[12px] font-semibold uppercase tracking-wider text-[#737373] dark:text-[#A8A8A8]">
+            Appearance
+          </h2>
+          <MobileSegmentedTabs
+            value={themeMode}
+            onChange={(v) => handleThemeChange(v as ThemeMode)}
+            options={[
+              { id: 'light', label: 'Light' },
+              { id: 'dark', label: 'Dark' },
+              { id: 'system', label: 'System' }
+            ]}
+          />
+        </section>
+
+        {/* Group 2: Notifications */}
+        <section className="py-2">
+          <h2 className="px-4 pt-2 pb-1 text-[12px] font-semibold uppercase tracking-wider text-[#737373] dark:text-[#A8A8A8]">
+            Notifications
+          </h2>
+          <div className="divide-y divide-[#EFEFEF] dark:divide-[#262626]">
+            <PlatformOnly client="mobile">
+              <div className="px-4 py-3 flex items-center justify-between gap-3 min-h-[52px]">
+                <div className="min-w-0">
+                  <div className="text-[14px] font-medium text-[#111827] dark:text-[#FAFAFA]">Push Alerts</div>
+                  <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Instant alerts on your device</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={pushEnabled}
+                    onChange={async (e) => {
+                      const checked = e.target.checked;
+                      setPushEnabled(checked);
+                      handleToggle('push', checked);
+                      if (checked) {
+                        const res = await requestPushNotifications(currentUser?.uid);
+                        if (res.granted) {
+                          showToast('Phone notifications turned on!', 'success');
+                        } else if (res.error) {
+                          showToast(res.error, 'error');
+                        }
+                      }
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-[#E5E7EB] dark:bg-[#262626] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B] dark:peer-checked:bg-[#E11D48]" />
+                </label>
+              </div>
+            </PlatformOnly>
+
+            <div className="px-4 py-3 flex items-center justify-between gap-3 min-h-[52px]">
+              <div className="min-w-0">
+                <div className="text-[14px] font-medium text-[#111827] dark:text-[#FAFAFA]">Direct Messages</div>
+                <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Replies from alumni &amp; staff</div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={messagesEnabled}
+                  onChange={(e) => handleToggle('messages', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[#E5E7EB] dark:bg-[#262626] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B] dark:peer-checked:bg-[#E11D48]" />
+              </label>
+            </div>
+
+            <div className="px-4 py-3 flex items-center justify-between gap-3 min-h-[52px]">
+              <div className="min-w-0">
+                <div className="text-[14px] font-medium text-[#111827] dark:text-[#FAFAFA]">Campus Events</div>
+                <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Reminders for RSVPs</div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={eventsEnabled}
+                  onChange={(e) => handleToggle('events', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[#E5E7EB] dark:bg-[#262626] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B] dark:peer-checked:bg-[#E11D48]" />
+              </label>
+            </div>
+
+            <div className="px-4 py-3 flex items-center justify-between gap-3 min-h-[52px]">
+              <div className="min-w-0">
+                <div className="text-[14px] font-medium text-[#111827] dark:text-[#FAFAFA]">Job Opportunities</div>
+                <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Matching career openings</div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={jobsEnabled}
+                  onChange={(e) => handleToggle('jobs', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[#E5E7EB] dark:bg-[#262626] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B] dark:peer-checked:bg-[#E11D48]" />
+              </label>
+            </div>
+
+            <div className="px-4 py-3 flex items-center justify-between gap-3 min-h-[52px]">
+              <div className="min-w-0">
+                <div className="text-[14px] font-medium text-[#111827] dark:text-[#FAFAFA]">Email Digest</div>
+                <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Monthly campus circulars</div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={emailEnabled}
+                  onChange={(e) => handleToggle('email', e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[#E5E7EB] dark:bg-[#262626] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B] dark:peer-checked:bg-[#E11D48]" />
+              </label>
+            </div>
+          </div>
+        </section>
+
+        {/* Group 3: Privacy & Security */}
+        <section className="py-2">
+          <h2 className="px-4 pt-2 pb-1 text-[12px] font-semibold uppercase tracking-wider text-[#737373] dark:text-[#A8A8A8]">
+            Privacy &amp; Security
+          </h2>
+          <div className="divide-y divide-[#EFEFEF] dark:divide-[#262626]">
+            <MobileListItem
+              leading={<Mail className="w-5 h-5" strokeWidth={1.75} />}
+              title="Email Address"
+              subtitle={currentUser.email}
+              onClick={() => setShowEmailModal(true)}
+            />
+            <MobileListItem
+              leading={<KeyRound className="w-5 h-5" strokeWidth={1.75} />}
+              title="Change Password"
+              subtitle="Update your sign-in password"
+              onClick={openPasswordModal}
+            />
+            <div className="px-4 py-3 flex items-center justify-between gap-3 min-h-[52px]">
+              <div className="min-w-0">
+                <div className="text-[14px] font-medium text-[#111827] dark:text-[#FAFAFA]">Biometric Sign-In</div>
+                <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Face ID / Fingerprint quick login</div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={biometricEnabled}
+                  onChange={(e) => handleToggleBiometrics(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[#E5E7EB] dark:bg-[#262626] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B] dark:peer-checked:bg-[#E11D48]" />
+              </label>
+            </div>
+            <div className="px-4 py-3 flex items-center justify-between gap-3 min-h-[52px]">
+              <div className="min-w-0">
+                <div className="text-[14px] font-medium text-[#111827] dark:text-[#FAFAFA]">Dashboard App Lock</div>
+                <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Require biometric unlock on resume</div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={appLockEnabled}
+                  onChange={(e) => handleToggleAppLock(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-[#E5E7EB] dark:bg-[#262626] rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B181B] dark:peer-checked:bg-[#E11D48]" />
+              </label>
+            </div>
+          </div>
+        </section>
+
+        {/* Group 4: Support & About */}
+        <section className="py-2">
+          <h2 className="px-4 pt-2 pb-1 text-[12px] font-semibold uppercase tracking-wider text-[#737373] dark:text-[#A8A8A8]">
+            Support &amp; About
+          </h2>
+          <div className="divide-y divide-[#EFEFEF] dark:divide-[#262626]">
+            <MobileListItem
+              leading={<Share2 className="w-5 h-5" strokeWidth={1.75} />}
+              title="Share App with Alumni"
+              onClick={handleShareApp}
+            />
+            <MobileListItem
+              leading={<HelpCircle className="w-5 h-5" strokeWidth={1.75} />}
+              title="Frequently Asked Questions"
+              onClick={() => setShowFaqModal(true)}
+            />
+            <MobileListItem
+              leading={<ShieldCheck className="w-5 h-5" strokeWidth={1.75} />}
+              title="Directory Privacy Policy"
+              onClick={() => setShowPrivacyModal(true)}
+            />
+            <MobileListItem
+              leading={<Info className="w-5 h-5" strokeWidth={1.75} />}
+              title="About Alumni Network"
+              onClick={() => setShowAboutModal(true)}
+            />
+          </div>
+        </section>
+
+        {/* Group 5: Account Actions */}
+        <section className="px-4 py-5 space-y-2.5">
+          <MobileButton
+            variant="destructive"
+            size="lg"
+            fullWidth
+            onClick={() => setShowLogoutConfirm(true)}
+            icon={<LogOut className="w-4 h-4" />}
+          >
+            Sign Out
+          </MobileButton>
+          {!isAdminRole && (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full min-h-[44px] text-[13px] font-semibold text-[#DC2626] dark:text-[#F87171] active:opacity-70"
+            >
+              Delete Account
+            </button>
+          )}
+        </section>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* DESKTOP HEADER: CLEAN INSTITUTIONAL SETTINGS HEADER                       */}
+      {/* ========================================================================= */}
+      <div className="hidden lg:flex pb-5 border-b border-stone-200/80 dark:border-stone-800 flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2.5 mb-1 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-bold text-stone-900 dark:text-stone-100 tracking-tight font-sans">
@@ -557,131 +783,58 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* MOBILE SEGMENTED FILTER TABS (< lg) */}
-      <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 no-scrollbar">
-        <button
-          type="button"
-          onClick={() => setActiveFilterPill('all')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-            activeFilterPill === 'all'
-              ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-              : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200/80 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
-          }`}
-        >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span>All Settings</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveFilterPill('security')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-            activeFilterPill === 'security'
-              ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-              : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200/80 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
-          }`}
-        >
-          <ShieldCheck className="w-3.5 h-3.5" />
-          <span>Security & Access</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveFilterPill('notifications')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-            activeFilterPill === 'notifications'
-              ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-              : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200/80 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
-          }`}
-        >
-          <Bell className="w-3.5 h-3.5" />
-          <span>Notifications</span>
-          <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-            activeFilterPill === 'notifications' ? 'bg-white/20 text-white' : 'bg-stone-200 dark:bg-stone-700 text-stone-700 dark:text-stone-200'
-          }`}>
-            {activeChannelsCount}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveFilterPill('appearance')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-            activeFilterPill === 'appearance'
-              ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-              : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200/80 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
-          }`}
-        >
-          <Palette className="w-3.5 h-3.5" />
-          <span>Appearance</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveFilterPill('compliance')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
-            activeFilterPill === 'compliance'
-              ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-              : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200/80 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300'
-          }`}
-        >
-          <HelpCircle className="w-3.5 h-3.5" />
-          <span>Governance</span>
-        </button>
-      </div>
-
-      {/* MASTER-DETAIL LAYOUT: SIDEBAR ON DESKTOP + CONTENT ON RIGHT */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {/* MASTER-DETAIL LAYOUT: DESKTOP ONLY */}
+      <div className="hidden lg:grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* DESKTOP SIDEBAR NAVIGATION (lg:col-span-4 xl:col-span-3) */}
         <aside className="hidden lg:block lg:col-span-4 xl:col-span-3 sticky top-6 space-y-4">
           <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-2 shadow-2xs space-y-1">
             <button
               type="button"
               onClick={() => setActiveFilterPill('all')}
-              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer border ${
                 activeFilterPill === 'all'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white'
+                  ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 border-rose-200/70 dark:border-rose-900/50 font-bold'
+                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white border-transparent'
               }`}
             >
               <div className="flex items-center gap-2.5">
                 <SlidersHorizontal className="w-4 h-4 shrink-0" />
                 <span>All Settings</span>
               </div>
-              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'all' ? 'text-white/80' : 'text-stone-400'}`} />
+              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'all' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-400'}`} />
             </button>
 
             <button
               type="button"
               onClick={() => setActiveFilterPill('security')}
-              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer border ${
                 activeFilterPill === 'security'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white'
+                  ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 border-rose-200/70 dark:border-rose-900/50 font-bold'
+                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white border-transparent'
               }`}
             >
               <div className="flex items-center gap-2.5">
                 <ShieldCheck className="w-4 h-4 shrink-0" />
                 <span>Security & Access</span>
               </div>
-              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'security' ? 'text-white/80' : 'text-stone-400'}`} />
+              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'security' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-400'}`} />
             </button>
 
             <button
               type="button"
               onClick={() => setActiveFilterPill('notifications')}
-              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer border ${
                 activeFilterPill === 'notifications'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white'
+                  ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 border-rose-200/70 dark:border-rose-900/50 font-bold'
+                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white border-transparent'
               }`}
             >
               <div className="flex items-center gap-2.5">
                 <Bell className="w-4 h-4 shrink-0" />
                 <span>Notifications</span>
               </div>
-              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
-                activeFilterPill === 'notifications' ? 'bg-white/20 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
+              <span className={`text-[10px] font-mono tabular-nums px-2 py-0.5 rounded-full font-bold ${
+                activeFilterPill === 'notifications' ? 'bg-[#8B181B]/10 text-[#8B181B] dark:text-rose-300' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
               }`}>
                 {activeChannelsCount}
               </span>
@@ -690,33 +843,33 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveFilterPill('appearance')}
-              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer border ${
                 activeFilterPill === 'appearance'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white'
+                  ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 border-rose-200/70 dark:border-rose-900/50 font-bold'
+                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white border-transparent'
               }`}
             >
               <div className="flex items-center gap-2.5">
                 <Palette className="w-4 h-4 shrink-0" />
                 <span>Appearance</span>
               </div>
-              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'appearance' ? 'text-white/80' : 'text-stone-400'}`} />
+              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'appearance' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-400'}`} />
             </button>
 
             <button
               type="button"
               onClick={() => setActiveFilterPill('compliance')}
-              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
+              className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-colors flex items-center justify-between cursor-pointer border ${
                 activeFilterPill === 'compliance'
-                  ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white'
+                  ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 border-rose-200/70 dark:border-rose-900/50 font-bold'
+                  : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 hover:text-stone-900 dark:hover:text-white border-transparent'
               }`}
             >
               <div className="flex items-center gap-2.5">
                 <HelpCircle className="w-4 h-4 shrink-0" />
                 <span>Governance & Info</span>
               </div>
-              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'compliance' ? 'text-white/80' : 'text-stone-400'}`} />
+              <ChevronRight className={`w-3.5 h-3.5 ${activeFilterPill === 'compliance' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-400'}`} />
             </button>
           </div>
 

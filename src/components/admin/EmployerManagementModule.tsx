@@ -165,7 +165,7 @@ export const EmployerManagementModule: React.FC = () => {
 
           <div className="flex items-center gap-2 shrink-0">
             <div className="text-right sm:border-l sm:border-stone-700 sm:pl-4">
-              <div className="text-2xl font-black text-white">{pendingCount}</div>
+              <div className="text-2xl font-black text-white tabular-nums">{pendingCount}</div>
               <div className="text-[11px] text-amber-400 font-semibold">Pending Accreditations</div>
             </div>
           </div>
@@ -175,15 +175,15 @@ export const EmployerManagementModule: React.FC = () => {
         <div className="mt-5 pt-4 border-t border-stone-800 grid grid-cols-3 gap-3 text-center text-xs">
           <div className="bg-stone-800/50 p-2.5 rounded-xl border border-stone-700/60">
             <span className="text-stone-400 text-[10px] uppercase font-bold block">Total Employers</span>
-            <span className="text-base font-bold text-white mt-0.5 block">{allEmployers.length}</span>
+            <span className="text-base font-bold text-white mt-0.5 block tabular-nums">{allEmployers.length}</span>
           </div>
           <div className="bg-stone-800/50 p-2.5 rounded-xl border border-stone-700/60">
             <span className="text-emerald-400 text-[10px] uppercase font-bold block">Accredited Active</span>
-            <span className="text-base font-bold text-emerald-300 mt-0.5 block">{verifiedCount}</span>
+            <span className="text-base font-bold text-emerald-300 mt-0.5 block tabular-nums">{verifiedCount}</span>
           </div>
           <div className="bg-stone-800/50 p-2.5 rounded-xl border border-stone-700/60">
             <span className="text-rose-400 text-[10px] uppercase font-bold block">Declined / Revoked</span>
-            <span className="text-base font-bold text-rose-300 mt-0.5 block">{rejectedCount}</span>
+            <span className="text-base font-bold text-rose-300 mt-0.5 block tabular-nums">{rejectedCount}</span>
           </div>
         </div>
       </div>
@@ -195,10 +195,10 @@ export const EmployerManagementModule: React.FC = () => {
           <button
             type="button"
             onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+            className={`px-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs transition-all shrink-0 cursor-pointer border tabular-nums ${
               statusFilter === 'all'
-                ? 'bg-stone-900 text-white'
-                : 'text-stone-600 hover:bg-stone-100'
+                ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                : 'text-stone-600 border-transparent hover:bg-stone-100 font-medium'
             }`}
           >
             All Companies ({allEmployers.length})
@@ -206,10 +206,10 @@ export const EmployerManagementModule: React.FC = () => {
           <button
             type="button"
             onClick={() => setStatusFilter('pending')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border tabular-nums ${
               statusFilter === 'pending'
-                ? 'bg-amber-600 text-white'
-                : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200'
+                ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                : 'text-stone-600 border-transparent hover:bg-stone-100 font-medium'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
@@ -218,10 +218,10 @@ export const EmployerManagementModule: React.FC = () => {
           <button
             type="button"
             onClick={() => setStatusFilter('verified')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border tabular-nums ${
               statusFilter === 'verified'
-                ? 'bg-emerald-700 text-white'
-                : 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
+                ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                : 'text-stone-600 border-transparent hover:bg-stone-100 font-medium'
             }`}
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -230,10 +230,10 @@ export const EmployerManagementModule: React.FC = () => {
           <button
             type="button"
             onClick={() => setStatusFilter('rejected')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border tabular-nums ${
               statusFilter === 'rejected'
-                ? 'bg-rose-700 text-white'
-                : 'text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200'
+                ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                : 'text-stone-600 border-transparent hover:bg-stone-100 font-medium'
             }`}
           >
             <XCircle className="w-3.5 h-3.5" />
@@ -242,10 +242,10 @@ export const EmployerManagementModule: React.FC = () => {
           <button
             type="button"
             onClick={() => setStatusFilter('renewal')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border tabular-nums ${
               statusFilter === 'renewal'
-                ? 'bg-blue-600 text-white'
-                : 'text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200'
+                ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                : 'text-stone-600 border-transparent hover:bg-stone-100 font-medium'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
@@ -254,10 +254,10 @@ export const EmployerManagementModule: React.FC = () => {
           <button
             type="button"
             onClick={() => setStatusFilter('expired')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+            className={`px-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border tabular-nums ${
               statusFilter === 'expired'
-                ? 'bg-stone-800 text-white'
-                : 'text-stone-700 bg-stone-100 hover:bg-stone-200 border border-stone-200'
+                ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                : 'text-stone-600 border-transparent hover:bg-stone-100 font-medium'
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
@@ -273,7 +273,7 @@ export const EmployerManagementModule: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search company, recruiter, or industry..."
-            className="w-full pl-9 pr-3.5 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-medium"
+            className="w-full pl-9 pr-3.5 py-2 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#8B181B]/25 focus:border-[#8B181B] font-medium"
           />
         </div>
       </div>
@@ -310,7 +310,7 @@ export const EmployerManagementModule: React.FC = () => {
                   isPending
                     ? 'border-amber-300 ring-1 ring-amber-200/50 bg-amber-50/20'
                     : isRenewalRequested
-                    ? 'border-blue-300 ring-1 ring-blue-200/50 bg-blue-50/10'
+                    ? 'border-amber-300 ring-1 ring-amber-200/50 bg-amber-50/15'
                     : isExpired
                     ? 'border-rose-200 bg-rose-50/10'
                     : isVerified
@@ -360,8 +360,8 @@ export const EmployerManagementModule: React.FC = () => {
                     {/* Status Badge */}
                     <div className="shrink-0 flex items-center gap-1.5 flex-wrap justify-end">
                       {isRenewalRequested && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
-                          <Sparkles className="w-3 h-3 text-blue-700" />
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                          <Sparkles className="w-3 h-3 text-amber-700" />
                           Renewal Req.
                         </span>
                       )}
@@ -401,20 +401,20 @@ export const EmployerManagementModule: React.FC = () => {
 
                   {/* Renewal Request Callout */}
                   {isRenewalRequested && (
-                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="mt-3 p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-stone-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                       <div>
-                        <span className="font-bold flex items-center gap-1.5 text-blue-900">
-                          <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="font-bold flex items-center gap-1.5 text-amber-900">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-700" />
                           Accreditation Renewal Requested
                         </span>
                         {emp.employerRenewalNotes && (
-                          <p className="text-[11px] text-blue-800 mt-1">"{emp.employerRenewalNotes}"</p>
+                          <p className="text-[11px] text-amber-800 mt-1">"{emp.employerRenewalNotes}"</p>
                         )}
                       </div>
                       <button
                         type="button"
                         onClick={() => renewEmployerAccount(emp.uid, 12)}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold shrink-0 transition-colors flex items-center gap-1.5 cursor-pointer"
                       >
                         <Check className="w-3.5 h-3.5" />
                         <span>Approve Renewal (+12 Mo)</span>
@@ -447,7 +447,7 @@ export const EmployerManagementModule: React.FC = () => {
                           href={emp.companyWebsite.startsWith('http') ? emp.companyWebsite : `https://${emp.companyWebsite}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline truncate"
+                          className="text-[#8B181B] hover:underline truncate"
                         >
                           {emp.companyWebsite.replace(/^https?:\/\//, '')}
                         </a>
@@ -497,11 +497,11 @@ export const EmployerManagementModule: React.FC = () => {
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex items-center justify-end gap-2 shrink-0">
+                  <div className="flex items-center justify-end gap-2 shrink-0 flex-wrap">
                     <button
                       type="button"
                       onClick={() => setAuditEmployer(emp)}
-                      className="px-3 py-1.5 text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                      className="ds-btn-secondary px-3 py-1.5 text-xs font-semibold rounded-xl flex items-center gap-1 cursor-pointer"
                       title="Inspect read-only credentials and verification audit"
                     >
                       <FileText className="w-3.5 h-3.5 text-stone-500" />
@@ -512,14 +512,14 @@ export const EmployerManagementModule: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleOpenRejectModal(emp)}
-                          className="px-3 py-1.5 text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-rose-50 hover:text-rose-700 rounded-xl transition-colors cursor-pointer"
+                          className="ds-btn-secondary px-3 py-1.5 text-xs font-semibold hover:text-rose-700 rounded-xl cursor-pointer"
                         >
                           Decline
                         </button>
                         <button
                           type="button"
                           onClick={() => handleApprove(emp)}
-                          className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                          className="px-3.5 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>Accredit & Approve</span>
@@ -539,14 +539,14 @@ export const EmployerManagementModule: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleOpenRejectModal(emp)}
-                          className="px-3 py-1.5 text-xs font-semibold text-stone-600 hover:text-rose-700 hover:bg-stone-100 rounded-xl transition-colors cursor-pointer"
+                          className="ds-btn-ghost px-3 py-1.5 text-xs font-semibold hover:text-rose-700 rounded-xl cursor-pointer"
                         >
                           Revoke Status
                         </button>
                         <button
                           type="button"
                           onClick={() => setSelectedUserIdForModal(emp.uid)}
-                          className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer"
+                          className="px-3 py-1.5 text-xs font-semibold text-[#8B181B] bg-rose-50 hover:bg-rose-100 border border-rose-200/80 rounded-xl transition-colors cursor-pointer"
                         >
                           View Profile
                         </button>
@@ -565,7 +565,7 @@ export const EmployerManagementModule: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleApprove(emp)}
-                          className="px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                          className="px-3.5 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>Re-approve Company</span>
@@ -592,7 +592,7 @@ export const EmployerManagementModule: React.FC = () => {
       {rejectingEmployer && (
         <div
           id="employer-rejection-modal-overlay"
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
         >
           <div
             id="employer-rejection-modal-container"
@@ -646,14 +646,14 @@ export const EmployerManagementModule: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setRejectingEmployer(null)}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl"
+                  className="ds-btn-secondary px-3.5 py-2 min-h-[44px] sm:min-h-[38px] text-xs font-semibold rounded-xl cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !rejectNotes.trim()}
-                  className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                  className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
                 >
                   {isSubmitting ? 'Updating Status...' : 'Confirm Non-Accreditation'}
                 </button>

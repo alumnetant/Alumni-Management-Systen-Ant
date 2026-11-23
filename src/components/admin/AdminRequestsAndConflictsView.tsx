@@ -1941,15 +1941,15 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
           <button
             type="button"
             onClick={() => setActiveTab('alumni')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 min-h-[40px] sm:min-h-[34px] rounded-xl text-xs transition-all cursor-pointer flex items-center gap-2 border ${
               activeTab === 'alumni'
-                ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                ? 'bg-white text-[#8B181B] border-rose-200/80 shadow-2xs font-bold'
+                : 'text-stone-600 border-transparent hover:text-stone-900 hover:bg-white/60 font-semibold'
             }`}
           >
             <span>Alumni Claims</span>
-            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
-              activeTab === 'alumni' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
+            <span className={`text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-full font-bold ${
+              activeTab === 'alumni' ? 'bg-rose-50 text-[#8B181B] border border-rose-200/70' : 'bg-stone-200/80 text-stone-600'
             }`}>
               {totalAlumniClaimsPendingCount}
             </span>
@@ -1958,16 +1958,16 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
           <button
             type="button"
             onClick={() => setActiveTab('conflicts')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 min-h-[40px] sm:min-h-[34px] rounded-xl text-xs transition-all cursor-pointer flex items-center gap-2 border ${
               activeTab === 'conflicts'
-                ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                ? 'bg-white text-[#8B181B] border-rose-200/80 shadow-2xs font-bold'
+                : 'text-stone-600 border-transparent hover:text-stone-900 hover:bg-white/60 font-semibold'
             }`}
           >
             <span>Collisions & Appeals</span>
-            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
+            <span className={`text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-full font-bold ${
               activeTab === 'conflicts'
-                ? 'bg-white/20 text-white'
+                ? 'bg-rose-50 text-[#8B181B] border border-rose-200/70'
                 : pendingConflicts.length > 0
                 ? 'bg-rose-100 text-rose-800'
                 : 'bg-stone-200/80 text-stone-600'
@@ -1979,15 +1979,15 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
           <button
             type="button"
             onClick={() => setActiveTab('employers')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 min-h-[40px] sm:min-h-[34px] rounded-xl text-xs transition-all cursor-pointer flex items-center gap-2 border ${
               activeTab === 'employers'
-                ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                ? 'bg-white text-[#8B181B] border-rose-200/80 shadow-2xs font-bold'
+                : 'text-stone-600 border-transparent hover:text-stone-900 hover:bg-white/60 font-semibold'
             }`}
           >
             <span>Employer Requests</span>
-            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
-              activeTab === 'employers' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
+            <span className={`text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-full font-bold ${
+              activeTab === 'employers' ? 'bg-rose-50 text-[#8B181B] border border-rose-200/70' : 'bg-stone-200/80 text-stone-600'
             }`}>
               {pendingEmployers.length}
             </span>
@@ -1996,15 +1996,15 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
           <button
             type="button"
             onClick={() => setActiveTab('jobs')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-2 ${
+            className={`px-3.5 py-1.5 min-h-[40px] sm:min-h-[34px] rounded-xl text-xs transition-all cursor-pointer flex items-center gap-2 border ${
               activeTab === 'jobs'
-                ? 'bg-[#8B181B] text-white shadow-xs font-bold'
-                : 'text-stone-600 hover:text-stone-900 hover:bg-white/60'
+                ? 'bg-white text-[#8B181B] border-rose-200/80 shadow-2xs font-bold'
+                : 'text-stone-600 border-transparent hover:text-stone-900 hover:bg-white/60 font-semibold'
             }`}
           >
             <span>Job Approvals</span>
-            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
-              activeTab === 'jobs' ? 'bg-white/20 text-white' : 'bg-stone-200/80 text-stone-600'
+            <span className={`text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-full font-bold ${
+              activeTab === 'jobs' ? 'bg-rose-50 text-[#8B181B] border border-rose-200/70' : 'bg-stone-200/80 text-stone-600'
             }`}>
               {pendingJobs.length}
             </span>
@@ -2111,7 +2111,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                         type="button"
                         disabled={isProcessingBulk}
                         onClick={() => handleBulkResolveConflicts('resolved_verified')}
-                        className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                        className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
                       >
                         <UserCheck className="w-3.5 h-3.5" />
                         <span>Approve Selected</span>
@@ -2120,7 +2120,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                         type="button"
                         disabled={isProcessingBulk}
                         onClick={() => handleBulkResolveConflicts('resolved_rejected')}
-                        className="px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+                        className="ds-btn-secondary px-3.5 py-1.5 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
                         <UserX className="w-3.5 h-3.5" />
                         <span>Reject Selected</span>
@@ -2441,21 +2441,21 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                                   <button
                                     type="button"
                                     onClick={() => handleResolveConflict(claim, 'resolved_rejected')}
-                                    className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                    className="ds-btn-secondary px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer"
                                   >
                                     Reject
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleResolveConflict(claim, 'dismissed')}
-                                    className="px-3 py-1.5 text-stone-500 hover:text-stone-800 text-xs font-medium cursor-pointer"
+                                    className="ds-btn-ghost px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer"
                                   >
                                     Dismiss
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleResolveConflict(claim, 'resolved_verified')}
-                                    className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                                    className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-[#8B181B] border border-rose-200/80 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
                                   >
                                     <UserCheck className="w-3.5 h-3.5" />
                                     <span>Approve & Verify</span>
@@ -2720,7 +2720,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                                   <button
                                     type="button"
                                     onClick={() => handleResolveConflict(conflict, 'resolved_rejected')}
-                                    className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                    className="ds-btn-secondary px-2.5 py-1.5 text-xs font-bold rounded-lg cursor-pointer"
                                     title="Keep original account 1 and reject applicant 2"
                                   >
                                     Keep Original (Reject)
@@ -2728,7 +2728,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                                   <button
                                     type="button"
                                     onClick={() => handleMergeConflict(conflict)}
-                                    className="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                    className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                                     title="Merge applicant contact data into primary verified account"
                                   >
                                     Merge Accounts
@@ -2739,7 +2739,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                                       setReassignModalConflict(conflict);
                                       setNewReassignedId(conflict.applicantStudentId || 'SCC-2024-');
                                     }}
-                                    className="px-3 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-[#8B181B] border border-rose-200/80 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
                                     title="Fix clerical ID typo and verify applicant"
                                   >
                                     <KeyRound className="w-3.5 h-3.5" />
@@ -2751,21 +2751,21 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                                   <button
                                     type="button"
                                     onClick={() => handleResolveConflict(conflict, 'resolved_rejected')}
-                                    className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                                    className="ds-btn-secondary px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer"
                                   >
                                     Reject
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleResolveConflict(conflict, 'dismissed')}
-                                    className="px-3 py-1.5 text-stone-500 hover:text-stone-800 text-xs font-medium cursor-pointer"
+                                    className="ds-btn-ghost px-3 py-1.5 text-xs font-medium rounded-lg cursor-pointer"
                                   >
                                     Dismiss
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleResolveConflict(conflict, 'resolved_verified')}
-                                    className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                                    className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-[#8B181B] border border-rose-200/80 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
                                   >
                                     <UserCheck className="w-3.5 h-3.5" />
                                     <span>Approve & Verify</span>
@@ -2826,7 +2826,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                             verifyEmployer(emp.uid, false);
                             showToast(`Declined employer registration for ${emp.companyName || emp.name}`, 'info');
                           }}
-                          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                          className="ds-btn-secondary px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer"
                         >
                           Decline
                         </button>
@@ -2834,11 +2834,11 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                           type="button"
                           onClick={() => {
                             verifyEmployer(emp.uid, true);
-                            showToast(`✓ Accredited ${emp.companyName || emp.name} as verified employer!`, 'success');
+                            showToast(`Accredited ${emp.companyName || emp.name} as verified employer!`, 'success');
                           }}
-                          className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                          className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
                         >
-                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <Check className="w-3.5 h-3.5 stroke-[2.25]" />
                           <span>Accredit Partner</span>
                         </button>
                       </div>
@@ -2891,7 +2891,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                             rejectOpportunity(job.id, 'Does not meet career compliance guidelines');
                             showToast(`Rejected job listing: ${job.title}`, 'info');
                           }}
-                          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                          className="ds-btn-secondary px-3 py-1.5 text-xs font-semibold rounded-lg cursor-pointer"
                         >
                           Decline
                         </button>
@@ -2899,11 +2899,11 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                           type="button"
                           onClick={() => {
                             approveOpportunity(job.id);
-                            showToast(`✓ Published job opportunity to alumni: ${job.title}`, 'success');
+                            showToast(`Published job opportunity to alumni: ${job.title}`, 'success');
                           }}
-                          className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                          className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
                         >
-                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <Check className="w-3.5 h-3.5 stroke-[2.25]" />
                           <span>Approve & Publish</span>
                         </button>
                       </div>
@@ -2973,14 +2973,14 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                 <button
                   type="button"
                   onClick={() => setReassignModalConflict(null)}
-                  className="px-3.5 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-semibold cursor-pointer"
+                  className="ds-btn-secondary px-3.5 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={executeReassignAndApprove}
-                  className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] font-bold rounded-xl text-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                   <span>Reassign & Approve</span>
@@ -3223,7 +3223,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
               <button
                 type="button"
                 onClick={() => setSelfieViewerTarget(null)}
-                className="px-4 py-2 rounded-xl border border-stone-200 bg-white hover:bg-stone-100 text-stone-700 text-xs font-semibold transition-colors cursor-pointer"
+                className="ds-btn-ghost px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer"
               >
                 Close Viewer
               </button>
@@ -3233,14 +3233,14 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                   <button
                     type="button"
                     onClick={() => openRejectConfirmation(selfieViewerTarget)}
-                    className="px-3.5 py-2 bg-stone-200 hover:bg-stone-300 text-stone-900 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                    className="ds-btn-secondary px-3.5 py-2 min-h-[44px] sm:min-h-[38px] text-xs font-bold rounded-xl cursor-pointer"
                   >
                     Reject
                   </button>
                   <button
                     type="button"
                     onClick={() => openApproveConfirmation(selfieViewerTarget)}
-                    className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                    className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5"
                   >
                     <UserCheck className="w-3.5 h-3.5" />
                     <span>Approve & Verify</span>
@@ -3345,7 +3345,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                   type="button"
                   disabled={isSubmittingDecision}
                   onClick={() => setApproveConfirmTarget(null)}
-                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-700 hover:bg-stone-100 font-semibold cursor-pointer disabled:opacity-50"
+                  className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -3353,7 +3353,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                   type="button"
                   disabled={isSubmittingDecision}
                   onClick={handleConfirmApproveAndVerify}
-                  className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] font-bold rounded-xl text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
                   <span>{isSubmittingDecision ? 'Verifying...' : 'Confirm Approval'}</span>
@@ -3431,7 +3431,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                   type="button"
                   disabled={isSubmittingDecision}
                   onClick={() => setRejectConfirmTarget(null)}
-                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-700 hover:bg-stone-100 font-semibold cursor-pointer disabled:opacity-50"
+                  className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -3439,7 +3439,7 @@ export const AdminRequestsAndConflictsView: React.FC<AdminRequestsAndConflictsVi
                   type="button"
                   disabled={isSubmittingDecision}
                   onClick={handleConfirmRejectRequest}
-                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white font-bold rounded-xl shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] font-bold rounded-xl text-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <XCircle className="w-3.5 h-3.5" />
                   <span>{isSubmittingDecision ? 'Rejecting...' : 'Confirm Rejection'}</span>

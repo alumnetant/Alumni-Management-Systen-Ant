@@ -358,12 +358,12 @@ export const RegistrarRegistryMatcher: React.FC = () => {
         </div>
 
         {/* Action Toolbar with Upload CSV */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             id="registrar-upload-csv-btn"
             onClick={() => setIsImportModalOpen(true)}
-            className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+            className="ds-btn-primary min-h-[44px] sm:min-h-[38px]"
             title="Upload and bulk-import student records from CSV or Excel file"
           >
             <Upload className="w-3.5 h-3.5" />
@@ -373,7 +373,7 @@ export const RegistrarRegistryMatcher: React.FC = () => {
           <button
             type="button"
             onClick={handleExportCsv}
-            className="px-3.5 py-2 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="ds-btn-secondary min-h-[44px] sm:min-h-[38px]"
             title="Export accredited roster to 7-column CSV spreadsheet"
           >
             <Download className="w-3.5 h-3.5 text-stone-500" />
@@ -383,7 +383,7 @@ export const RegistrarRegistryMatcher: React.FC = () => {
           <button
             type="button"
             onClick={handleExportExcel}
-            className="px-3.5 py-2 bg-emerald-50/70 border border-emerald-200 hover:bg-emerald-100/70 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-50/70 border border-emerald-200 hover:bg-emerald-100/70 text-emerald-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer min-h-[44px] sm:min-h-[38px]"
             title="Export accredited roster to 7-column Excel (.xlsx) workbook"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
@@ -497,7 +497,7 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setIsImportModalOpen(true)}
-                        className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
+                        className="ds-btn-primary min-h-[44px] sm:min-h-[38px]"
                       >
                         <Upload className="w-3.5 h-3.5" />
                         <span>Upload Student CSV / Excel</span>
@@ -505,7 +505,7 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                       <button
                         type="button"
                         onClick={downloadSampleCsvTemplate}
-                        className="px-3.5 py-2 bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        className="ds-btn-secondary min-h-[44px] sm:min-h-[38px]"
                       >
                         <FileDown className="w-3.5 h-3.5 text-stone-500" />
                         <span>Sample CSV</span>
@@ -513,7 +513,7 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                       <button
                         type="button"
                         onClick={downloadSampleExcelTemplate}
-                        className="px-3.5 py-2 bg-emerald-50/70 border border-emerald-200 hover:bg-emerald-100/70 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-50/70 border border-emerald-200 hover:bg-emerald-100/70 text-emerald-800 rounded-xl text-xs font-semibold transition-colors cursor-pointer min-h-[44px] sm:min-h-[38px]"
                       >
                         <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
                         <span>Sample Excel (.xlsx)</span>
@@ -631,20 +631,20 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1.5 rounded-lg border border-stone-200 bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 transition-colors cursor-pointer flex items-center gap-1 font-semibold text-stone-700"
+                className="ds-btn-secondary px-3 py-1.5 min-h-[44px] sm:min-h-[36px] disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Previous page"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 <span>Prev</span>
               </button>
-              <span className="px-3 py-1 font-mono font-medium text-xs bg-white border border-stone-200 rounded-lg">
+              <span className="px-3 py-1.5 font-mono tabular-nums font-medium text-xs bg-white border border-stone-200 rounded-lg">
                 Page {currentPage} of {totalPages}
               </span>
               <button
                 type="button"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="px-3 py-1.5 rounded-lg border border-stone-200 bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-stone-100 transition-colors cursor-pointer flex items-center gap-1 font-semibold text-stone-700"
+                className="ds-btn-secondary px-3 py-1.5 min-h-[44px] sm:min-h-[36px] disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Next page"
               >
                 <span>Next</span>
@@ -788,13 +788,13 @@ export const RegistrarRegistryMatcher: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAccreditModalOpen(false)}
-                  className="px-4 py-2 border border-stone-200 hover:bg-stone-50 text-stone-600 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                  className="ds-btn-secondary min-h-[44px] sm:min-h-[38px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  className="ds-btn-primary min-h-[44px] sm:min-h-[38px]"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>Accredit & Save to Roster</span>

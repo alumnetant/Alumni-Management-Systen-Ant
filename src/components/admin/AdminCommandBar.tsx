@@ -421,7 +421,7 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
       {/* 2. Spotlight Command Palette Modal */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-xs flex items-start justify-center p-3 sm:p-6 pt-16 sm:pt-20 animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 bg-stone-950/50 backdrop-blur-xs flex items-start justify-center p-3 sm:p-6 pt-16 sm:pt-20 animate-in fade-in duration-150"
           onClick={() => setIsOpen(false)}
         >
           <div
@@ -465,7 +465,7 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
               {matchingMembers.length > 0 && (
                 <div>
                   <div className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-stone-400 flex items-center justify-between">
-                    <span>Members & Candidates ({matchingMembers.length})</span>
+                    <span className="tabular-nums">Members & Candidates ({matchingMembers.length})</span>
                     <span className="text-[10px] font-normal lowercase">Press Enter to view</span>
                   </div>
                   <div className="space-y-1 mt-1">
@@ -527,7 +527,7 @@ export const AdminCommandBar: React.FC<AdminCommandBarProps> = ({
                                 type="button"
                                 onClick={(e) => handleQuickVerify(member, e)}
                                 title="Instantly verify alumni record"
-                                className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-2xs flex items-center gap-1 cursor-pointer active:scale-95"
+                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
                               >
                                 <CheckCircle className="w-3.5 h-3.5" />
                                 <span>Verify</span>

@@ -80,14 +80,14 @@ export const FloatingQuickDock: React.FC<FloatingQuickDockProps> = ({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.9 }}
           transition={{ duration: 0.2, ease: [0.25, 1, 0.5, 1] }}
-          className="fixed right-4 sm:right-6 bottom-20 lg:bottom-6 z-40 select-none"
+          className="hidden lg:block fixed right-4 sm:right-6 bottom-20 lg:bottom-6 z-40 select-none"
         >
           <div className="flex items-center gap-1 p-1.5 rounded-full bg-white/95 dark:bg-[#1c1917]/95 backdrop-blur-md border border-stone-200/90 dark:border-stone-800 shadow-[0_8px_30px_rgba(0,0,0,0.12),0_2px_8px_rgba(0,0,0,0.06)]">
             {/* Quick Digital Pass */}
             <button
               type="button"
               onClick={handleTriggerPass}
-              className="p-2 sm:px-3 sm:py-2 rounded-full text-stone-700 dark:text-stone-300 hover:text-[#8B181B] dark:hover:text-rose-400 hover:bg-rose-50/80 dark:hover:bg-rose-950/40 transition-colors flex items-center gap-1.5 cursor-pointer active:scale-95"
+              className="min-w-[40px] min-h-[40px] p-2 sm:px-3 sm:py-2 rounded-full text-stone-700 dark:text-stone-300 hover:text-[#8B181B] dark:hover:text-rose-400 hover:bg-rose-50/80 dark:hover:bg-rose-950/40 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               title="Show Digital Alumni ID Pass"
               aria-label="Digital Alumni Pass"
             >
@@ -101,7 +101,7 @@ export const FloatingQuickDock: React.FC<FloatingQuickDockProps> = ({
             <button
               type="button"
               onClick={handleTriggerSearch}
-              className="p-2 sm:px-3 sm:py-2 rounded-full text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors flex items-center gap-1.5 cursor-pointer active:scale-95"
+              className="min-w-[40px] min-h-[40px] p-2 sm:px-3 sm:py-2 rounded-full text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               title="Quick Search (⌘K)"
               aria-label="Search"
             >
@@ -115,11 +115,11 @@ export const FloatingQuickDock: React.FC<FloatingQuickDockProps> = ({
             <button
               type="button"
               onClick={handleScrollToTop}
-              className="p-2 rounded-full bg-[#8B181B] text-white hover:bg-[#721316] transition-colors shadow-xs flex items-center justify-center cursor-pointer active:scale-90"
+              className="min-w-[40px] min-h-[40px] p-2 rounded-full bg-stone-900 dark:bg-stone-700 text-white hover:bg-stone-800 dark:hover:bg-stone-600 transition-colors shadow-xs flex items-center justify-center cursor-pointer"
               title="Back to Top"
               aria-label="Back to top"
             >
-              <ArrowUp className="w-4 h-4 stroke-[2.2]" />
+              <ArrowUp className="w-4 h-4 stroke-[2]" />
             </button>
           </div>
         </motion.div>

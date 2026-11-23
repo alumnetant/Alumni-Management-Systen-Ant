@@ -79,8 +79,8 @@ export const PostPermalinkView: React.FC<PostPermalinkViewProps> = ({ postId }) 
   }, [loadPost]);
 
   return (
-    <div className="w-full max-w-3xl mx-auto py-4 space-y-5">
-      <div className="flex items-center justify-between">
+    <div className="w-full max-w-3xl mx-auto lg:py-4 lg:space-y-5">
+      <div className="hidden lg:flex items-center justify-between">
         <button
           type="button"
           onClick={closeSubRoute}

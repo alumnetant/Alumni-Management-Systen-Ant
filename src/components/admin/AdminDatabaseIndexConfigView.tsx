@@ -518,12 +518,12 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
               type="button"
               onClick={pingDatabase}
               disabled={isPinging}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold border border-stone-200 dark:border-stone-700 transition-colors cursor-pointer shadow-2xs"
+              className="ds-btn-secondary inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer shadow-2xs"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isPinging ? 'animate-spin text-[#8B181B]' : 'text-stone-500'}`} />
               <span>{isPinging ? 'Pinging...' : 'Ping Latency'}</span>
               {connectionLatency !== null && (
-                <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold">
+                <span className="ml-1 text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold">
                   {connectionLatency}ms
                 </span>
               )}
@@ -532,7 +532,7 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
             <button
               type="button"
               onClick={handleExportIndexesJson}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-[0_2px_8px_rgba(139,24,27,0.25)] cursor-pointer active:scale-95"
+              className="ds-btn-primary inline-flex items-center gap-2 px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-bold cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Export firestore.indexes.json</span>
@@ -574,7 +574,7 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
               Composite Indexes
             </span>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-xl font-extrabold text-stone-900 dark:text-stone-100">
+              <span className="text-xl font-extrabold text-stone-900 dark:text-stone-100 tabular-nums">
                 {INDEX_CONFIGURATIONS.length} Active
               </span>
               <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
@@ -594,7 +594,7 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
               <span className="text-xs font-bold text-stone-900 dark:text-stone-100">
                 Force Long-Polling RPC
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 font-bold">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border border-stone-200 dark:border-stone-700 font-bold">
                 ABAC Rules v2
               </span>
             </div>
@@ -612,10 +612,10 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
         <button
           type="button"
           onClick={() => setActiveTab('indexes')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+          className={`flex items-center gap-2 px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs transition-all cursor-pointer shrink-0 border tabular-nums ${
             activeTab === 'indexes'
-              ? 'bg-[#8B181B] text-white shadow-xs'
-              : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800'
+              ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-300 border-rose-200/80 dark:border-rose-800 font-semibold shadow-2xs'
+              : 'text-stone-600 dark:text-stone-400 border-transparent hover:bg-stone-100 dark:hover:bg-stone-800 font-medium'
           }`}
         >
           <Sliders className="w-3.5 h-3.5 stroke-[2]" />
@@ -625,10 +625,10 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
         <button
           type="button"
           onClick={() => setActiveTab('collections')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+          className={`flex items-center gap-2 px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs transition-all cursor-pointer shrink-0 border tabular-nums ${
             activeTab === 'collections'
-              ? 'bg-[#8B181B] text-white shadow-xs'
-              : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800'
+              ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-300 border-rose-200/80 dark:border-rose-800 font-semibold shadow-2xs'
+              : 'text-stone-600 dark:text-stone-400 border-transparent hover:bg-stone-100 dark:hover:bg-stone-800 font-medium'
           }`}
         >
           <Layers className="w-3.5 h-3.5 stroke-[2]" />
@@ -638,10 +638,10 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
         <button
           type="button"
           onClick={() => setActiveTab('rules')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+          className={`flex items-center gap-2 px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs transition-all cursor-pointer shrink-0 border ${
             activeTab === 'rules'
-              ? 'bg-[#8B181B] text-white shadow-xs'
-              : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800'
+              ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-300 border-rose-200/80 dark:border-rose-800 font-semibold shadow-2xs'
+              : 'text-stone-600 dark:text-stone-400 border-transparent hover:bg-stone-100 dark:hover:bg-stone-800 font-medium'
           }`}
         >
           <Shield className="w-3.5 h-3.5 stroke-[2]" />
@@ -651,10 +651,10 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
         <button
           type="button"
           onClick={() => setActiveTab('maintenance')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+          className={`flex items-center gap-2 px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs transition-all cursor-pointer shrink-0 border ${
             activeTab === 'maintenance'
-              ? 'bg-[#8B181B] text-white shadow-xs'
-              : 'text-stone-600 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800'
+              ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-300 border-rose-200/80 dark:border-rose-800 font-semibold shadow-2xs'
+              : 'text-stone-600 dark:text-stone-400 border-transparent hover:bg-stone-100 dark:hover:bg-stone-800 font-medium'
           }`}
         >
           <HardDrive className="w-3.5 h-3.5 stroke-[2]" />
@@ -677,12 +677,12 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
               </p>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button
                 type="button"
                 onClick={handleTestAllIndexes}
                 disabled={isTestingIndexes}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white dark:bg-stone-800 hover:bg-stone-100 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 rounded-xl text-xs font-semibold border border-stone-200 dark:border-stone-700 cursor-pointer shadow-2xs transition-colors"
+                className="ds-btn-secondary inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs font-semibold cursor-pointer shadow-2xs"
               >
                 <Activity className={`w-3.5 h-3.5 ${isTestingIndexes ? 'animate-spin text-[#8B181B]' : 'text-stone-500'}`} />
                 <span>{isTestingIndexes ? 'Verifying Queries...' : 'Run Query Health Check'}</span>
@@ -691,9 +691,9 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
               <button
                 type="button"
                 onClick={handleExportIndexesJson}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold cursor-pointer shadow-2xs"
+                className="ds-btn-secondary inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs font-semibold cursor-pointer shadow-2xs"
               >
-                <Download className="w-3.5 h-3.5" />
+                <Download className="w-3.5 h-3.5 text-[#8B181B]" />
                 <span>Download firestore.indexes.json</span>
               </button>
             </div>
@@ -772,7 +772,7 @@ export const AdminDatabaseIndexConfigView: React.FC<AdminDatabaseIndexConfigView
               </div>
               <span className="text-[11px] text-stone-400 font-mono">firebase.json integration</span>
             </div>
-            <pre className="text-[11px] font-mono bg-black/50 p-3 rounded-xl overflow-x-auto text-emerald-400">
+            <pre className="text-[11px] font-mono bg-stone-950/75 p-3 rounded-xl overflow-x-auto text-emerald-400">
               {`# Deploy composite index definitions to authoritative database:\nfirebase deploy --only firestore:indexes --project ${firebaseConfig.projectId}`}
             </pre>
           </div>
@@ -1014,9 +1014,9 @@ service cloud.firestore {
               <button
                 type="button"
                 onClick={handleExportDatabaseBlueprint}
-                className="w-full py-2.5 px-4 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                className="ds-btn-secondary w-full py-2.5 px-4 min-h-[44px] sm:min-h-[40px] rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-2"
               >
-                <Download className="w-3.5 h-3.5" />
+                <Download className="w-3.5 h-3.5 text-[#8B181B]" />
                 <span>Export Blueprint JSON</span>
               </button>
             </div>
@@ -1051,7 +1051,7 @@ service cloud.firestore {
                     showToast(`Sync failed: ${err?.message}`, 'error');
                   }
                 }}
-                className="w-full py-2.5 px-4 bg-stone-900 dark:bg-stone-800 hover:bg-black dark:hover:bg-stone-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                className="ds-btn-primary w-full py-2.5 px-4 min-h-[44px] sm:min-h-[40px] rounded-xl text-xs font-bold cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
                 <span>{isFirestoreSyncing ? 'Syncing to Cloud...' : 'Synchronize All Collections'}</span>
@@ -1162,7 +1162,7 @@ service cloud.firestore {
                     type="button"
                     disabled={isPurging}
                     onClick={() => setConfirmPurge(false)}
-                    className="px-3 py-1.5 bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-200 rounded-lg text-xs font-semibold cursor-pointer"
+                    className="ds-btn-secondary px-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-lg text-xs font-semibold cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -1178,7 +1178,7 @@ service cloud.firestore {
                         setIsPurging(false);
                       }
                     }}
-                    className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50"
+                    className="ds-btn-primary px-3.5 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50"
                   >
                     {isPurging ? 'Purging...' : 'Confirm Purge'}
                   </button>

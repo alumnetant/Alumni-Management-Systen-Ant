@@ -67,6 +67,18 @@ import { PublicProfilePage } from '../profile/PublicProfilePage';
 import { PostPermalinkView } from '../social/PostPermalinkView';
 import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
 import { buildPortalUrlForTab, isSuperAdminRestrictedTarget } from '../../lib/notificationDeepLink';
+import {
+  MobileTopBar,
+  MobileTabBar,
+  MobileTopBarActionIcon,
+  MobileSegmentedTabs,
+  MobilePrimaryTab,
+  Bell as MobileBellIcon,
+  MessageCircle as MobileDmIcon,
+  QrCode as MobileQrIcon,
+  Settings as MobileSettingsIcon
+} from '../mobile/MobilePrimitives';
+import { MobileCreateSheet } from '../mobile/MobileCreateSheet';
 
 export type AlumniModuleId =
   | 'dashboard'
@@ -116,7 +128,9 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     viewedPostId,
     closeSubRoute,
     showToast,
-    reportUnauthorizedSuperAdminAccess
+    reportUnauthorizedSuperAdminAccess,
+    activeChatId,
+    setActiveChatId
   } = useAlumni();
 
   const { isDark, toggleTheme } = useTheme();
@@ -239,7 +253,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Modals state
+  // Modals & Mobile Create Sheet state
   const [showMobileNav, setShowMobileNav] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -247,7 +261,29 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
   const [showDigitalPassModal, setShowDigitalPassModal] = useState(false);
   const [showGalleryModal, setShowGalleryModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showMobileCreateSheet, setShowMobileCreateSheet] = useState(false);
+  const [lastExploreModule, setLastExploreModule] = useState<'network' | 'events' | 'announcements'>('network');
+  const lastMainModuleRef = useRef<AlumniModuleId>('dashboard');
   const [searchFilter, setSearchFilter] = useState('');
+
+  useEffect(() => {
+    if (['network', 'events', 'announcements'].includes(currentModule)) {
+      setLastExploreModule(currentModule as 'network' | 'events' | 'announcements');
+    }
+    if (
+      ['dashboard', 'network', 'events', 'announcements', 'opportunities', 'profile'].includes(currentModule) &&
+      !viewedProfileIdentifier &&
+      !viewedPostId
+    ) {
+      lastMainModuleRef.current = currentModule;
+    }
+  }, [currentModule, viewedProfileIdentifier, viewedPostId]);
+
+  useEffect(() => {
+    const handleOpenMobileCreate = () => setShowMobileCreateSheet(true);
+    window.addEventListener('applet:open-mobile-create', handleOpenMobileCreate);
+    return () => window.removeEventListener('applet:open-mobile-create', handleOpenMobileCreate);
+  }, []);
 
   // Hardware Back Button action stack: Closes topmost modals/drawers first, then navigates back to dashboard
   useEffect(() => {
@@ -466,12 +502,140 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     };
   }, []);
 
+  const isMainMobileScreen =
+    !viewedProfileIdentifier &&
+    !viewedPostId &&
+    ['dashboard', 'network', 'events', 'announcements', 'opportunities', 'profile'].includes(currentModule);
+  const isExploreMobileScreen =
+    !viewedProfileIdentifier &&
+    !viewedPostId &&
+    ['network', 'events', 'announcements'].includes(currentModule);
+  const isMobileChatThreadOpen =
+    !viewedProfileIdentifier &&
+    !viewedPostId &&
+    currentModule === 'messages' &&
+    Boolean(activeChatId);
+
+  const activeMobileTab: MobilePrimaryTab = useMemo(() => {
+    if (isExploreMobileScreen) return 'explore';
+    if (currentModule === 'opportunities') return 'jobs';
+    if (currentModule === 'profile') return 'profile';
+    return 'home';
+  }, [isExploreMobileScreen, currentModule]);
+
+  const mobileTopTitle = useMemo(() => {
+    if (viewedProfileIdentifier) return 'Profile';
+    if (viewedPostId) return 'Post';
+    if (currentModule === 'dashboard') return 'ALUMNET';
+    if (isExploreMobileScreen) return 'Explore';
+    if (currentModule === 'opportunities') return 'Jobs';
+    if (currentModule === 'profile') {
+      return currentUser?.username ? `@${currentUser.username}` : currentUser?.name?.split(' ')[0] || 'Profile';
+    }
+    if (currentModule === 'notifications') return 'Notifications';
+    if (currentModule === 'messages') return 'Messages';
+    if (currentModule === 'settings') return 'Settings';
+    return 'ALUMNET';
+  }, [viewedProfileIdentifier, viewedPostId, currentModule, isExploreMobileScreen, currentUser]);
+
+  const handleMobileBack = () => {
+    if (viewedProfileIdentifier || viewedPostId) {
+      closeSubRoute();
+      return;
+    }
+    if (currentModule === 'messages' && activeChatId) {
+      setActiveChatId(null);
+      return;
+    }
+    handleSelectModule(lastMainModuleRef.current || 'dashboard');
+  };
+
   return (
-    <div className="min-h-screen bg-[#F9FAFB] dark:bg-[#121316] flex flex-col font-sans text-stone-900 dark:text-stone-100 antialiased selection:bg-[#8B181B] selection:text-white">
+    <div className="min-h-screen bg-white dark:bg-[#000000] lg:bg-[#F9FAFB] lg:dark:bg-[#121316] flex flex-col font-sans text-stone-900 dark:text-stone-100 antialiased selection:bg-[#8B181B] selection:text-white">
       {/* ========================================================
-          ALUMNI TOP BAR (Matching Admin Workspace Specification)
+          MOBILE INSTAGRAM-STYLE TOP BAR (< 1024px)
           ======================================================== */}
-      <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-[#181615]/95 backdrop-blur-md border-b border-stone-200/90 dark:border-stone-800 shadow-2xs pt-safe">
+      {!isMobileChatThreadOpen && (
+        <MobileTopBar
+          title={mobileTopTitle}
+          showBack={!isMainMobileScreen}
+          onBack={handleMobileBack}
+          leadingVisual={
+            isMainMobileScreen && currentModule === 'dashboard' ? (
+              <img
+                src="/assets/cecilians-seal.jpg"
+                alt="St. Cecilia's Seal"
+                referrerPolicy="no-referrer"
+                className="w-7 h-7 rounded-full object-cover border border-[#E5E7EB] dark:border-[#27272A]"
+              />
+            ) : undefined
+          }
+          rightActions={
+            viewedProfileIdentifier || viewedPostId ? undefined : currentModule === 'notifications' ? (
+              unreadNotificationsCount > 0 ? (
+                <MobileTopBarActionIcon
+                  icon={<Check className="w-5 h-5" />}
+                  label="Mark all notifications read"
+                  onClick={() => {
+                    markAllNotificationsAsRead();
+                    showToast('All notifications marked read.', 'success');
+                  }}
+                />
+              ) : undefined
+            ) : currentModule === 'profile' ? (
+              <>
+                <MobileTopBarActionIcon
+                  icon={<MobileQrIcon className="w-[22px] h-[22px] stroke-[1.85]" />}
+                  label="Digital Alumni ID Pass"
+                  onClick={() => setShowDigitalPassModal(true)}
+                />
+                <MobileTopBarActionIcon
+                  icon={<MobileSettingsIcon className="w-[22px] h-[22px] stroke-[1.85]" />}
+                  label="Settings"
+                  onClick={() => handleSelectModule('settings')}
+                />
+              </>
+            ) : isMainMobileScreen ? (
+              <>
+                <MobileTopBarActionIcon
+                  icon={<MobileBellIcon className="w-[22px] h-[22px] stroke-[1.85]" />}
+                  label="Notifications"
+                  badgeCount={unreadNotificationsCount}
+                  onClick={() => handleSelectModule('notifications')}
+                />
+                <MobileTopBarActionIcon
+                  icon={<MobileDmIcon className="w-[22px] h-[22px] stroke-[1.85]" />}
+                  label="Messages"
+                  badgeCount={unreadMessagesCount}
+                  onClick={() => handleSelectModule('messages')}
+                />
+              </>
+            ) : undefined
+          }
+        />
+      )}
+
+      {/* ========================================================
+          MOBILE EXPLORE SEGMENTED BAR (People | Events | Bulletins)
+          ======================================================== */}
+      {isExploreMobileScreen && (
+        <div className="lg:hidden sticky top-[calc(52px+env(safe-area-inset-top,0px))] z-30">
+          <MobileSegmentedTabs<'network' | 'events' | 'announcements'>
+            value={currentModule as 'network' | 'events' | 'announcements'}
+            onChange={(next) => handleSelectModule(next)}
+            options={[
+              ...(!isEmployer ? [{ id: 'network' as const, label: 'People' }] : []),
+              { id: 'events' as const, label: 'Events', badge: upcomingEventsCount > 0 ? upcomingEventsCount : undefined },
+              { id: 'announcements' as const, label: 'Bulletins', badge: announcements.length > 0 ? announcements.length : undefined }
+            ]}
+          />
+        </div>
+      )}
+
+      {/* ========================================================
+          DESKTOP ALUMNI TOP BAR (>= 1024px INTACT)
+          ======================================================== */}
+      <header className="hidden lg:block sticky top-0 z-40 w-full bg-white/95 dark:bg-[#181615]/95 backdrop-blur-md border-b border-stone-200/90 dark:border-stone-800 shadow-2xs pt-safe">
         {/* Institutional St. Cecilia Crimson Accent Line */}
         <div className="h-[2px] w-full bg-[#8B181B] absolute bottom-0 left-0 right-0 pointer-events-none" />
 
@@ -506,16 +670,17 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 className="w-9 h-9 rounded-full object-cover border border-stone-200/80 dark:border-stone-700 shadow-2xs shrink-0 group-hover:scale-105 transition-transform"
               />
               <div className="hidden sm:block">
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-stone-100 tracking-tight font-sans">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-sm sm:text-base text-stone-900 dark:text-stone-100 tracking-tight font-sans">
                     St. Cecilia's College
                   </span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 border border-rose-200 dark:border-rose-900/60">
+                  <span className="text-stone-300 dark:text-stone-600" aria-hidden="true">·</span>
+                  <span className="text-xs font-semibold text-[#8B181B] dark:text-rose-400">
                     Alumni Hub
                   </span>
                 </div>
-                <p className="text-[11px] text-stone-500 dark:text-stone-400 font-medium -mt-0.5">
-                  Official Global Alumni Network • Class of {currentUser?.batch || '2023'}
+                <p className="text-[11px] text-stone-500 dark:text-stone-400 font-medium -mt-0.5 tabular-nums">
+                  Official Global Alumni Network · Class of {currentUser?.batch || '2023'}
                 </p>
               </div>
             </div>
@@ -527,7 +692,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
             <button
               type="button"
               onClick={toggleTheme}
-              className="p-2 rounded-xl text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700 shadow-2xs"
+              className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700 shadow-2xs"
               title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               aria-label="Toggle Theme"
             >
@@ -546,7 +711,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                   setShowNotifications(!showNotifications);
                   setShowProfileMenu(false);
                 }}
-                className={`relative p-2 rounded-xl transition-colors cursor-pointer border ${
+                className={`relative p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-colors cursor-pointer border ${
                   showNotifications
                     ? 'text-[#8B181B] dark:text-rose-400 bg-red-50 dark:bg-rose-950/50 border-red-200 dark:border-rose-900/60 shadow-2xs'
                     : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200/80 dark:border-stone-700 shadow-2xs'
@@ -556,7 +721,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
               >
                 <Bell className="w-4 h-4 stroke-[1.75]" />
                 {unreadNotificationsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#8B181B] text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-[#181615] shadow-xs">
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#8B181B] text-white text-[10px] font-bold tabular-nums flex items-center justify-center ring-2 ring-white dark:ring-[#181615] shadow-xs">
                     {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
                   </span>
                 )}
@@ -784,7 +949,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                     <span className="truncate">Events & Reunions</span>
                   </div>
                   {upcomingEventsCount > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-mono font-bold">
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-mono font-bold tabular-nums">
                       {upcomingEventsCount}
                     </span>
                   )}
@@ -813,7 +978,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                     <span className="truncate">Job Board</span>
                   </div>
                   {displayJobsBadgeCount > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono font-bold">
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono font-bold tabular-nums">
                       {displayJobsBadgeCount}
                     </span>
                   )}
@@ -836,7 +1001,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                     <span className="truncate">Messages</span>
                   </div>
                   {unreadMessagesCount > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#8B181B] text-white font-mono font-bold">
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-stone-200 dark:bg-stone-800 text-stone-800 dark:text-stone-200 font-mono font-bold tabular-nums">
                       {unreadMessagesCount}
                     </span>
                   )}
@@ -859,7 +1024,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                     <span className="truncate">Announcements</span>
                   </div>
                   {announcements.length > 0 && (
-                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">
+                    <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono tabular-nums">
                       {announcements.length}
                     </span>
                   )}
@@ -1162,7 +1327,11 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
         {/* ======================================================
             PRIMARY ALUMNI CONTENT VIEWPORT
             ====================================================== */}
-        <main className="flex-1 min-w-0 w-full max-w-full px-3 sm:px-6 lg:px-8 py-6 pb-32 lg:pb-10">
+        <main
+          className={`flex-1 min-w-0 w-full max-w-full px-0 lg:px-8 py-0 lg:py-6 lg:pb-10 ${
+            isMainMobileScreen ? 'pb-[calc(64px+env(safe-area-inset-bottom,0px))]' : 'pb-[max(1rem,env(safe-area-inset-bottom,0px))]'
+          }`}
+        >
           <PullToRefreshWrapper onRefresh={refreshData} isOnline={isOnline}>
             <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto">
               {viewedProfileIdentifier ? (
@@ -1248,124 +1417,55 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
       </div>
 
       {/* ======================================================
-          CLEAN, BALANCED MOBILE & TABLET BOTTOM BAR NAVIGATION
-          - No "More" Button (Requirement 1)
-          - Centered "Events" Tab (Requirement 1)
-          - Jobs Notification Badge Clears on Visit (Requirement 3)
+          INSTAGRAM-INSPIRED MOBILE 5-TAB BOTTOM BAR (< 1024px)
+          Home | Explore | Create (+) | Jobs | Profile
           ====================================================== */}
-      <nav
-        aria-label="Mobile Navigation"
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#181615]/95 backdrop-blur-md border-t border-stone-200/90 dark:border-stone-800 shadow-[0_-4px_20px_rgba(0,0,0,0.06),0_-1px_3px_rgba(0,0,0,0.02)] px-2 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-colors"
-      >
-        <div className="flex items-center justify-around max-w-lg mx-auto">
-          {/* 1. Home */}
-          <button
-            type="button"
-            onClick={() => {
-              handleSelectModule('dashboard');
-              window.dispatchEvent(new CustomEvent('applet:reset-dashboard'));
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-              const mainElem = document.querySelector('main');
-              if (mainElem) mainElem.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none ${
-              currentModule === 'dashboard'
-                ? 'text-[#8B181B] dark:text-rose-400 font-bold'
-                : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-            }`}
-          >
-            <div className={`p-1 rounded-lg transition-colors ${currentModule === 'dashboard' ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
-              <LayoutDashboard className="w-5 h-5 stroke-[1.8]" />
-            </div>
-            <span className="text-[10px] mt-0.5 tracking-tight font-medium">Home</span>
-          </button>
-
-          {/* 2. Alumni Directory */}
-          <button
-            type="button"
-            onClick={() => handleSelectModule('network')}
-            className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none ${
-              currentModule === 'network'
-                ? 'text-[#8B181B] dark:text-rose-400 font-bold'
-                : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-            }`}
-          >
-            <div className={`p-1 rounded-lg transition-colors ${currentModule === 'network' ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
-              <Users className="w-5 h-5 stroke-[1.8]" />
-            </div>
-            <span className="text-[10px] mt-0.5 tracking-tight font-medium">Directory</span>
-          </button>
-
-          {/* 3. Events (CENTERED TAB IN PRIMARY NAVIGATION BAR) */}
-          <button
-            type="button"
-            onClick={() => handleSelectModule('events')}
-            className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none relative ${
-              currentModule === 'events'
-                ? 'text-[#8B181B] dark:text-rose-400 font-bold'
-                : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-            }`}
-          >
-            <div className={`relative p-1 rounded-lg transition-colors ${currentModule === 'events' ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
-              <Calendar className="w-5 h-5 stroke-[1.8]" />
-              {upcomingEventsCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-amber-600 text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-[#181615]">
-                  {upcomingEventsCount}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] mt-0.5 tracking-tight font-bold">Events</span>
-          </button>
-
-          {/* 4. Job Board (Notification badge automatically clears on visit) */}
-          <button
-            type="button"
-            onClick={() => {
+      {isMainMobileScreen && (
+        <MobileTabBar
+          activeTab={activeMobileTab}
+          avatarUrl={currentUser?.profilePictureUrl}
+          userName={currentUser?.name}
+          jobsBadgeCount={displayJobsBadgeCount}
+          onSelectTab={(tab) => {
+            if (tab === 'create') {
+              setShowMobileCreateSheet(true);
+              return;
+            }
+            if (tab === 'home') {
+              if (currentModule === 'dashboard') {
+                window.dispatchEvent(new CustomEvent('applet:reset-dashboard'));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              } else {
+                handleSelectModule('dashboard');
+              }
+              return;
+            }
+            if (tab === 'explore') {
+              handleSelectModule(isEmployer ? 'events' : lastExploreModule);
+              return;
+            }
+            if (tab === 'jobs') {
               setHasDismissedJobsBadge(true);
               try {
                 localStorage.setItem('scc_jobs_badge_dismissed_v1', 'true');
               } catch {}
               handleSelectModule('opportunities');
-            }}
-            className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none relative ${
-              currentModule === 'opportunities'
-                ? 'text-[#8B181B] dark:text-rose-400 font-bold'
-                : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-            }`}
-          >
-            <div className={`relative p-1 rounded-lg transition-colors ${currentModule === 'opportunities' ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
-              <Briefcase className="w-5 h-5 stroke-[1.8]" />
-              {displayJobsBadgeCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-emerald-600 text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-[#181615]">
-                  {displayJobsBadgeCount}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] mt-0.5 tracking-tight font-medium">Jobs</span>
-          </button>
+              return;
+            }
+            if (tab === 'profile') {
+              handleSelectModule('profile');
+            }
+          }}
+        />
+      )}
 
-          {/* 5. Messages */}
-          <button
-            type="button"
-            onClick={() => handleSelectModule('messages')}
-            className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all duration-200 cursor-pointer min-h-[46px] select-none relative ${
-              currentModule === 'messages'
-                ? 'text-[#8B181B] dark:text-rose-400 font-bold'
-                : 'text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-            }`}
-          >
-            <div className={`relative p-1 rounded-lg transition-colors ${currentModule === 'messages' ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400' : ''}`}>
-              <MessageSquare className="w-5 h-5 stroke-[1.8]" />
-              {unreadMessagesCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#8B181B] text-white text-[9px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-[#181615]">
-                  {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
-                </span>
-              )}
-            </div>
-            <span className="text-[10px] mt-0.5 tracking-tight font-medium">Messages</span>
-          </button>
-        </div>
-      </nav>
+      {/* Thumb-reachable Mobile Create Sheet (+ Tab & Quick Composer Trigger) */}
+      <MobileCreateSheet
+        isOpen={showMobileCreateSheet}
+        onClose={() => setShowMobileCreateSheet(false)}
+        onOpenEvents={() => handleSelectModule('events')}
+        onOpenAnnouncements={() => handleSelectModule('announcements')}
+      />
 
       {/* Digital Alumni Pass Modal */}
       {showDigitalPassModal && (

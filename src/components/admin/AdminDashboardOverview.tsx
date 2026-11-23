@@ -654,7 +654,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                         {dynamicHeroData.chip1Sub}
                       </span>
                     </div>
-                    <span className="text-sm font-extrabold text-stone-900 dark:text-white font-mono">
+                    <span className="text-sm font-extrabold text-stone-900 dark:text-white font-mono tabular-nums">
                       {dynamicHeroData.chip1Count}
                     </span>
                   </button>
@@ -727,7 +727,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                     <button
                       type="button"
                       onClick={() => onNavigateTab(dynamicHeroData.chip1Tab)}
-                      className="px-2.5 py-1 bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg text-[10px] font-bold shrink-0 cursor-pointer shadow-2xs"
+                      className="ds-btn-secondary px-2.5 py-1 text-[11px] shrink-0"
                     >
                       View Roster
                     </button>
@@ -744,13 +744,10 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                           {/* Live Telemetry Header */}
                           <div className="w-full flex items-center justify-between pb-1.5 px-1 text-[11px]">
                             <div className="flex items-center gap-1.5">
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                              </span>
+                              <span className="inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                               <span className="font-bold text-stone-800 dark:text-stone-200 tracking-tight">Live Operations Telemetry</span>
                             </div>
-                            <span className="font-mono text-[10px] text-[#8B181B] font-bold bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded-full border border-red-200/60">
+                            <span className="font-mono tabular-nums text-[10px] text-[#8B181B] font-bold bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded-full border border-red-200/60">
                               {activityGraphData.currentThroughput}
                             </span>
                           </div>
@@ -842,15 +839,14 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                                       />
                                     )}
 
-                                    {/* Today Live Telemetry Ping Ring */}
+                                    {/* Today Live Telemetry Halo Ring */}
                                     {pt.isToday && (
                                       <circle
                                         cx={pt.x}
                                         cy={pt.y}
-                                        r="9"
+                                        r="8"
                                         fill="#8B181B"
-                                        className="animate-ping"
-                                        opacity="0.4"
+                                        opacity="0.18"
                                       />
                                     )}
 
@@ -884,7 +880,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                                 <div className="flex items-center justify-between w-full text-[10px] text-stone-400">
                                   <span>Hover any node for operational breakdown</span>
                                   <span className="flex items-center gap-1 font-mono text-emerald-600 font-semibold">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                                     Security stream synced
                                   </span>
                                 </div>
@@ -1202,15 +1198,15 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                 <button
                   type="button"
                   onClick={onOpenCreateEvent}
-                  className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-98"
+                  className="ds-btn-secondary px-3.5 py-2 min-h-[38px]"
                 >
-                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <Plus className="w-3.5 h-3.5 text-[#8B181B]" />
                   <span>Post Gathering</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onNavigateTab('events')}
-                  className="px-3.5 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                  className="ds-btn-ghost px-3 py-2 min-h-[38px] tabular-nums"
                 >
                   View All ({events.length})
                 </button>
@@ -1262,7 +1258,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                   <button
                     type="button"
                     onClick={onOpenCreateEvent}
-                    className="mt-2 px-4 py-1.5 bg-[#8B181B] text-white rounded-xl text-xs font-bold shadow-2xs"
+                    className="mt-2 ds-btn-secondary inline-flex px-4 py-1.5"
                   >
                     + Post Gathering
                   </button>
@@ -1416,10 +1412,10 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
               <div className="bg-stone-50 dark:bg-stone-800/80 rounded-2xl p-3.5 my-2 border border-stone-200/90 dark:border-stone-700 space-y-2">
                 <div className="flex items-center justify-between text-[11px] font-bold text-stone-700 dark:text-stone-200">
                   <span className="flex items-center gap-1.5">
-                    <span className={`w-2 h-2 rounded-full ${totalPendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-emerald-600'}`} />
+                    <span className={`w-2 h-2 rounded-full ${totalPendingCount > 0 ? 'bg-amber-500' : 'bg-emerald-600'}`} />
                     Review Queues
                   </span>
-                  <span className="font-mono text-[10px] text-stone-500 font-bold">
+                  <span className="font-mono tabular-nums text-[10px] text-stone-500 font-bold">
                     {verifiedRate}% verified
                   </span>
                 </div>
@@ -1488,7 +1484,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigateTab(totalPendingCount > 0 ? 'conflicts' : 'registry')}
-                  className="px-3 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-[11px] font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95"
+                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white border border-white/15 rounded-xl text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
                 >
                   <span>{totalPendingCount > 0 ? 'Triage Queue' : 'Registry'}</span>
                   <ArrowRight className="w-3.5 h-3.5 stroke-[2]" />
@@ -1576,7 +1572,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
             {/* Stylized Silhouette Contour (Exact styling from reference image) */}
             <div className="w-24 h-24 mx-auto mb-3 rounded-full bg-stone-50 dark:bg-stone-800 border-2 border-dashed border-stone-200 dark:border-stone-700 flex items-center justify-center relative">
               <Users className="w-10 h-10 text-stone-300 dark:text-stone-600" />
-              <div className="absolute inset-0 rounded-full border-t-2 border-[#8B181B]/40 animate-pulse pointer-events-none" />
+              <div className="absolute inset-0 rounded-full border-t-2 border-[#8B181B]/30 pointer-events-none" />
             </div>
 
             <h4 className="text-lg font-extrabold text-stone-900 dark:text-white tracking-tight">
@@ -1729,7 +1725,7 @@ export const AdminDashboardOverview: React.FC<AdminDashboardOverviewProps> = ({
           <div className="bg-stone-950 text-white rounded-[32px] p-6 shadow-md relative overflow-hidden">
             {/* The 17/60 Arc progress header */}
             <div className="flex items-center justify-between mb-4">
-              <span className="text-3xl font-extrabold tracking-tight font-mono">
+              <span className="text-3xl font-extrabold tracking-tight font-mono tabular-nums">
                 {verifiedCount}
                 <span className="text-stone-500 text-lg font-normal"> / {users.length}</span>
               </span>

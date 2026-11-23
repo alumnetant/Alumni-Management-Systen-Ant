@@ -56,6 +56,7 @@ import { shareEventViaCapacitor } from '../../services/nativeShareService';
 import { EventCheckInModal } from './EventCheckInModal';
 import { PaginationControl } from '../common/PaginationControl';
 import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
+import { MobileBottomSheet, MobileInput } from '../mobile/MobilePrimitives';
 
 export const EventsView: React.FC = () => {
   const {
@@ -414,10 +415,105 @@ export const EventsView: React.FC = () => {
     }
   };
 
+  const [showMobileFilterSheet, setShowMobileFilterSheet] = useState(false);
+
   return (
-    <div className="space-y-6 pb-16">
-      {/* Institutional Collegiate Events Header */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden">
+    <div className="space-y-4 lg:space-y-6 px-4 lg:px-0 pt-3 lg:pt-0 pb-16">
+      {/* MOBILE (<1024px) COMPACT EVENTS SEARCH & FILTER BAR */}
+      <div className="lg:hidden space-y-2.5">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <MobileInput
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onClear={() => setSearchQuery('')}
+              placeholder="Search events, venues, or topics..."
+              leftIcon={<Search className="w-4 h-4" />}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMobileFilterSheet(true)}
+            aria-label="Filter events"
+            className={`w-[46px] h-[46px] rounded-xl flex items-center justify-center shrink-0 border transition-colors cursor-pointer ${
+              categoryFilter !== 'all'
+                ? 'bg-[#FEF2F2] dark:bg-[#E11D48]/15 border-[#8B181B] dark:border-[#FB7185] text-[#8B181B] dark:text-[#FB7185]'
+                : 'bg-[#F3F4F6] dark:bg-[#262626] border-transparent text-[#111827] dark:text-[#FAFAFA]'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+          </button>
+          {permissions.canCreateEvents && (
+            <button
+              type="button"
+              onClick={openCreateModal}
+              aria-label="Create event"
+              className="w-[46px] h-[46px] rounded-xl bg-[#8B181B] dark:bg-[#E11D48] text-white flex items-center justify-center shrink-0 cursor-pointer"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+          {[
+            { id: 'upcoming', label: `Upcoming (${events.filter((e) => getEventLifecycleStatus(e, now).status === 'upcoming').length})` },
+            { id: 'ongoing', label: `Ongoing (${events.filter((e) => getEventLifecycleStatus(e, now).status === 'ongoing').length})` },
+            { id: 'past', label: `Ended (${events.filter((e) => getEventLifecycleStatus(e, now).status === 'completed').length})` },
+            { id: 'all', label: `All (${events.length})` }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setFilterType(tab.id as any)}
+              className={`min-h-[34px] px-3.5 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+                filterType === tab.id
+                  ? 'bg-[#8B181B] dark:bg-[#E11D48] text-white'
+                  : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#111827] dark:text-[#FAFAFA]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Mobile Format Filter Sheet (<1024px) */}
+      <MobileBottomSheet
+        isOpen={showMobileFilterSheet}
+        onClose={() => setShowMobileFilterSheet(false)}
+        title="Event Format"
+      >
+        <div className="p-4 grid grid-cols-2 gap-2.5">
+          {[
+            { id: 'all', label: 'All Formats' },
+            { id: 'reunion', label: 'Reunions' },
+            { id: 'workshop', label: 'Workshops' },
+            { id: 'networking', label: 'Networking' },
+            { id: 'webinar', label: 'Webinars' },
+            { id: 'social', label: 'Socials' }
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => {
+                setCategoryFilter(cat.id as any);
+                setShowMobileFilterSheet(false);
+              }}
+              className={`min-h-[46px] px-4 rounded-xl text-[14px] font-semibold cursor-pointer border transition-colors ${
+                categoryFilter === cat.id
+                  ? 'bg-[#8B181B] dark:bg-[#E11D48] text-white border-transparent'
+                  : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#111827] dark:text-[#FAFAFA] border-transparent'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </MobileBottomSheet>
+
+      {/* DESKTOP Institutional Collegiate Events Header (>=1024px INTACT) */}
+      <div className="hidden lg:block bg-white rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden">
         <div className="h-1.5 w-full bg-gradient-to-r from-[#8B181B] via-[#991B1B] to-[#B45309]" />
         
         <div className="p-5 sm:p-6 lg:p-7">
@@ -443,7 +539,7 @@ export const EventsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={openCreateModal}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-98 cursor-pointer"
+                  className="ds-btn-primary px-4 py-2.5 min-h-[40px]"
                 >
                   <Plus className="w-4 h-4 stroke-[2.2]" />
                   <span>Post Gathering / Reunion</span>
@@ -455,8 +551,8 @@ export const EventsView: React.FC = () => {
       </div>
 
 
-      {/* Filter, Search and View Controls Bar */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-4">
+      {/* DESKTOP Filter, Search and View Controls Bar (>=1024px) */}
+      <div className="hidden lg:block bg-white rounded-2xl border border-stone-200/90 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-4">
         {/* Top Controls Row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3.5">
           {/* Timeframe Segment Tabs */}
@@ -471,7 +567,7 @@ export const EventsView: React.FC = () => {
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>Upcoming ({events.filter((e) => getEventLifecycleStatus(e, now).status === 'upcoming').length})</span>
+              <span className="tabular-nums">Upcoming ({events.filter((e) => getEventLifecycleStatus(e, now).status === 'upcoming').length})</span>
             </button>
 
             <button
@@ -483,8 +579,8 @@ export const EventsView: React.FC = () => {
                   : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
-              <span>Ongoing ({events.filter((e) => getEventLifecycleStatus(e, now).status === 'ongoing').length})</span>
+              <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+              <span className="tabular-nums">Ongoing ({events.filter((e) => getEventLifecycleStatus(e, now).status === 'ongoing').length})</span>
             </button>
 
             <button
@@ -497,7 +593,7 @@ export const EventsView: React.FC = () => {
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
-              <span>Ended ({events.filter((e) => getEventLifecycleStatus(e, now).status === 'completed').length})</span>
+              <span className="tabular-nums">Ended ({events.filter((e) => getEventLifecycleStatus(e, now).status === 'completed').length})</span>
             </button>
 
             <button
@@ -509,7 +605,7 @@ export const EventsView: React.FC = () => {
                   : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              <span>All ({events.length})</span>
+              <span className="tabular-nums">All ({events.length})</span>
             </button>
           </div>
 
@@ -580,10 +676,10 @@ export const EventsView: React.FC = () => {
                 key={cat.id}
                 type="button"
                 onClick={() => setCategoryFilter(cat.id as any)}
-                className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 min-h-[34px] rounded-lg font-semibold transition-all cursor-pointer shrink-0 border ${
                   isSelected
-                    ? 'bg-[#8B181B] text-white shadow-2xs'
-                    : 'bg-stone-50 text-stone-600 hover:bg-stone-100 hover:text-stone-900 border border-stone-200/80'
+                    ? 'bg-rose-50 text-[#8B181B] border-rose-200/90 font-bold shadow-2xs'
+                    : 'bg-stone-50 text-stone-600 hover:bg-stone-100 hover:text-stone-900 border-stone-200/80'
                 }`}
               >
                 {cat.label}
@@ -595,10 +691,12 @@ export const EventsView: React.FC = () => {
 
       {/* Events Grid or Timeline View */}
       {filteredEvents.length === 0 ? (
-        <div className="bg-white p-12 text-center rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)]">
-          <Calendar className="w-12 h-12 text-stone-300 mx-auto mb-2" />
-          <p className="text-sm font-bold text-stone-700">No gatherings found</p>
-          <p className="text-xs text-stone-500 mt-1">
+        <div className="bg-white p-10 sm:p-12 text-center rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)]">
+          <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 flex items-center justify-center mx-auto mb-3">
+            <Calendar className="w-6 h-6 stroke-[1.75]" />
+          </div>
+          <p className="text-sm font-bold text-stone-800">No gatherings found</p>
+          <p className="text-xs text-stone-500 mt-1 max-w-sm mx-auto leading-relaxed">
             {searchQuery
               ? `No gatherings match your search "${searchQuery}".`
               : `There are no ${filterType} gatherings scheduled in this format.`}
@@ -607,9 +705,9 @@ export const EventsView: React.FC = () => {
             <button
               type="button"
               onClick={openCreateModal}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#8B181B] text-white text-xs font-bold rounded-xl shadow-sm hover:bg-[#721316] transition-all cursor-pointer"
+              className="mt-4 ds-btn-secondary inline-flex px-4 py-2 min-h-[40px]"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 text-[#8B181B]" />
               <span>Post a Gathering or Reunion</span>
             </button>
           )}
@@ -924,10 +1022,10 @@ export const EventsView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleRsvpClick(evt)}
-                        className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs min-h-[38px] ${
+                        className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer min-h-[40px] border ${
                           evt.userRsvp === 'going'
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            : 'bg-[#8B181B] hover:bg-[#721316] text-white active:scale-98'
+                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 shadow-xs'
+                            : 'bg-rose-50/90 hover:bg-[#8B181B] text-[#8B181B] hover:text-white border-rose-200/90 hover:border-[#8B181B]'
                         }`}
                       >
                         <Check className="w-3.5 h-3.5" />
@@ -937,7 +1035,7 @@ export const EventsView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedEventForDetail(evt)}
-                        className="py-2 px-3 rounded-xl text-xs font-semibold bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors cursor-pointer min-h-[38px] flex items-center justify-center text-center"
+                        className="ds-btn-secondary py-2 px-3 min-h-[40px] justify-center text-center"
                         title="View Full Gathering Details"
                       >
                         Details
@@ -1535,10 +1633,12 @@ export const EventsView: React.FC = () => {
                 {editingEventId ? 'Edit Event Details' : 'Create New Alumni Event'}
               </h3>
               <button
+                type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="text-stone-400 hover:text-stone-600"
+                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 cursor-pointer"
+                aria-label="Close modal"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1769,13 +1869,13 @@ export const EventsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium"
+                  className="ds-btn-secondary px-4 py-2 min-h-[40px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold shadow-xs"
+                  className="ds-btn-primary px-4 py-2 min-h-[40px]"
                 >
                   {editingEventId ? 'Save Changes' : 'Publish Event'}
                 </button>

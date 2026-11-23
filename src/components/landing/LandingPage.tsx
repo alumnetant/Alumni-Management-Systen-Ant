@@ -410,7 +410,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <button
                   type="button"
                   onClick={() => onNavigateToAuth('login')}
-                  className="bg-[#8B181B] hover:bg-[#721316] text-white px-4 sm:px-5 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-xs transition-all hover:scale-102 active:scale-98 cursor-pointer"
+                  className="ds-btn-primary px-4 sm:px-5 py-2 min-h-[38px]"
                 >
                   Return to Portal
                 </button>
@@ -431,7 +431,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <button
                     type="button"
                     onClick={() => onNavigateToAuth('register', 'alumni')}
-                    className="bg-[#8B181B] hover:bg-[#721316] text-white px-4 sm:px-5 py-2 rounded-xl font-bold text-xs sm:text-sm shadow-xs transition-all hover:scale-102 active:scale-98 cursor-pointer"
+                    className={`px-4 sm:px-5 py-2 rounded-xl font-semibold text-xs sm:text-sm transition-all cursor-pointer ${
+                      isScrolled
+                        ? 'bg-[#8B181B] hover:bg-[#721316] text-white shadow-xs'
+                        : 'bg-white/15 hover:bg-white/25 text-white border border-white/25'
+                    }`}
                   >
                     Join Network
                   </button>
@@ -828,7 +832,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     transition={{ duration: 0.3 }}
                     className="hidden sm:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/15 bg-black/30 backdrop-blur-md text-[11px] font-semibold text-stone-300"
                   >
-                    <span className="w-2 h-2 rounded-full bg-[#ef4444] animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-[#ef4444]" />
                     <span>{CAMPUS_SLIDES[currentSlideIndex].badge}</span>
                   </motion.div>
                 </AnimatePresence>
@@ -1047,13 +1051,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <div className="flex items-center gap-3">
               <button
                 onClick={() => onNavigateToAuth('register', 'alumni')}
-                className="bg-[#8B181B] hover:bg-[#721316] text-white px-7 py-3 rounded-xl text-xs font-bold uppercase tracking-[0.18em] transition-all shadow-sm cursor-pointer"
+                className="ds-btn-secondary px-6 py-3 min-h-[42px] uppercase tracking-[0.14em]"
               >
                 Join Alumni Directory
               </button>
               <button
                 onClick={() => setShowGalleryModal(true)}
-                className="bg-white border border-stone-300 hover:border-stone-400 text-stone-800 px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-[0.18em] transition-all cursor-pointer"
+                className="ds-btn-ghost px-5 py-3 min-h-[42px] uppercase tracking-[0.14em]"
               >
                 View Archives
               </button>

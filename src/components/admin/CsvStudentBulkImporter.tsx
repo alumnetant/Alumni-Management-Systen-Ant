@@ -310,7 +310,7 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
             <h2 className="text-lg font-extrabold text-stone-900">
               Registrar CSV / Excel Student Bulk Importer
             </h2>
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-700 border border-stone-200">
               Firestore Cloud
             </span>
           </div>
@@ -323,7 +323,7 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={downloadSampleCsvTemplate}
-            className="px-3 py-1.5 rounded-xl border border-stone-300 hover:bg-stone-50 text-stone-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="ds-btn-secondary px-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
             title="Download formatted CSV file with ready-to-test student records"
           >
             <Download className="w-3.5 h-3.5 text-stone-500" />
@@ -332,26 +332,26 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
 
           <button
             onClick={downloadSampleExcelTemplate}
-            className="px-3 py-1.5 rounded-xl border border-emerald-300 bg-emerald-50/50 hover:bg-emerald-100/60 text-emerald-800 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="px-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Download formatted Excel workbook (.xlsx) with ready-to-test student records"
           >
-            <FileDown className="w-3.5 h-3.5 text-emerald-600" />
+            <FileDown className="w-3.5 h-3.5 text-emerald-700" />
             <span>Sample Excel (.xlsx)</span>
           </button>
 
           <button
             onClick={handleLoadSampleDataset}
-            className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="px-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-xl bg-rose-50 hover:bg-rose-100 text-[#8B181B] border border-rose-200/80 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Directly load test students into the parser for testing"
           >
-            <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+            <Sparkles className="w-3.5 h-3.5 text-[#8B181B]" />
             <span>Quick Load Sample</span>
           </button>
 
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1.5 text-stone-400 hover:text-stone-600 rounded-lg hover:bg-stone-100 transition-colors"
+              className="p-1.5 text-stone-400 hover:text-stone-600 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -367,8 +367,8 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
         onClick={() => fileInputRef.current?.click()}
         className={`relative rounded-2xl border-2 border-dashed transition-all p-6 sm:p-8 text-center cursor-pointer ${
           isDragging
-            ? 'border-blue-500 bg-blue-50/70 scale-[0.99]'
-            : 'border-stone-300 hover:border-blue-400 bg-stone-50/60 hover:bg-blue-50/30'
+            ? 'border-[#8B181B] bg-rose-50/70 scale-[0.99]'
+            : 'border-stone-300 hover:border-[#8B181B]/60 bg-stone-50/60 hover:bg-rose-50/20'
         }`}
       >
         <input
@@ -383,11 +383,11 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
         />
 
         <div className="max-w-md mx-auto space-y-3">
-          <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center mx-auto shadow-2xs">
+          <div className="w-14 h-14 rounded-2xl bg-rose-50 text-[#8B181B] border border-rose-200/70 flex items-center justify-center mx-auto shadow-2xs">
             {isParsing ? (
-              <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+              <RefreshCw className="w-6 h-6 animate-spin text-[#8B181B]" />
             ) : (
-              <Upload className="w-6 h-6 text-blue-600" />
+              <Upload className="w-6 h-6 text-[#8B181B]" />
             )}
           </div>
 
@@ -403,7 +403,7 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
           </div>
 
           {fileName && fileSize && (
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100/70 text-blue-800 text-xs font-semibold">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 text-[#8B181B] border border-rose-200/80 text-xs font-semibold tabular-nums">
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>{fileName} ({fileSize})</span>
             </div>
@@ -426,70 +426,70 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
               onClick={() => setPreviewFilter('all')}
               className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                 previewFilter === 'all'
-                  ? 'bg-stone-900 text-white border-stone-900 shadow-xs'
+                  ? 'bg-rose-50/80 text-stone-900 border-[#8B181B] ring-1 ring-[#8B181B]/20 shadow-2xs'
                   : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-50'
               }`}
             >
-              <span className={`text-[10px] uppercase font-bold block ${previewFilter === 'all' ? 'text-stone-300' : 'text-stone-400'}`}>
+              <span className={`text-[10px] uppercase font-bold block ${previewFilter === 'all' ? 'text-[#8B181B]' : 'text-stone-500'}`}>
                 Total Records
               </span>
-              <span className="text-xl font-black mt-0.5 block">{counts.total}</span>
+              <span className="text-xl font-black mt-0.5 block tabular-nums text-stone-900">{counts.total}</span>
             </button>
 
             <button
               onClick={() => setPreviewFilter('valid')}
               className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                 previewFilter === 'valid'
-                  ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
+                  ? 'bg-emerald-50/80 border-emerald-500 ring-1 ring-emerald-500/20 shadow-2xs'
                   : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-50'
               }`}
             >
-              <span className={`text-[10px] uppercase font-bold block ${previewFilter === 'valid' ? 'text-emerald-200' : 'text-emerald-600'}`}>
+              <span className="text-[10px] uppercase font-bold block text-emerald-700">
                 Valid & Ready
               </span>
-              <span className="text-xl font-black mt-0.5 block text-emerald-700">{counts.valid}</span>
+              <span className="text-xl font-black mt-0.5 block tabular-nums text-emerald-800">{counts.valid}</span>
             </button>
 
             <button
               onClick={() => setPreviewFilter('existing')}
               className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                 previewFilter === 'existing'
-                  ? 'bg-blue-700 text-white border-blue-700 shadow-xs'
+                  ? 'bg-rose-50/80 border-[#8B181B] ring-1 ring-[#8B181B]/20 shadow-2xs'
                   : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-50'
               }`}
             >
-              <span className={`text-[10px] uppercase font-bold block ${previewFilter === 'existing' ? 'text-blue-200' : 'text-blue-600'}`}>
+              <span className="text-[10px] uppercase font-bold block text-stone-600">
                 Already In DB
               </span>
-              <span className="text-xl font-black mt-0.5 block text-blue-700">{counts.existing}</span>
+              <span className="text-xl font-black mt-0.5 block tabular-nums text-stone-900">{counts.existing}</span>
             </button>
 
             <button
               onClick={() => setPreviewFilter('warnings')}
               className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                 previewFilter === 'warnings'
-                  ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                  ? 'bg-amber-50/90 border-amber-500 ring-1 ring-amber-500/20 shadow-2xs'
                   : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-50'
               }`}
             >
-              <span className={`text-[10px] uppercase font-bold block ${previewFilter === 'warnings' ? 'text-amber-200' : 'text-amber-600'}`}>
+              <span className="text-[10px] uppercase font-bold block text-amber-700">
                 Warnings
               </span>
-              <span className="text-xl font-black mt-0.5 block text-amber-600">{counts.warnings}</span>
+              <span className="text-xl font-black mt-0.5 block tabular-nums text-amber-800">{counts.warnings}</span>
             </button>
 
             <button
               onClick={() => setPreviewFilter('invalid')}
               className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                 previewFilter === 'invalid'
-                  ? 'bg-rose-700 text-white border-rose-700 shadow-xs'
+                  ? 'bg-rose-50 border-rose-500 ring-1 ring-rose-500/20 shadow-2xs'
                   : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-50'
               }`}
             >
-              <span className={`text-[10px] uppercase font-bold block ${previewFilter === 'invalid' ? 'text-rose-200' : 'text-rose-600'}`}>
+              <span className="text-[10px] uppercase font-bold block text-rose-700">
                 Invalid / Skipped
               </span>
-              <span className="text-xl font-black mt-0.5 block text-rose-700">{counts.invalid}</span>
+              <span className="text-xl font-black mt-0.5 block tabular-nums text-rose-800">{counts.invalid}</span>
             </button>
           </div>
 
@@ -534,7 +534,7 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
                   setFileName(null);
                 }}
                 disabled={isImportingToFirestore}
-                className="px-3.5 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 hover:bg-stone-200 rounded-xl transition-colors cursor-pointer"
+                className="ds-btn-secondary px-3.5 py-2 min-h-[44px] sm:min-h-[38px] text-xs font-semibold rounded-xl cursor-pointer"
               >
                 Clear
               </button>
@@ -542,7 +542,7 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
               <button
                 onClick={handleExecuteBulkImport}
                 disabled={isImportingToFirestore || counts.valid === 0}
-                className="px-5 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                className="ds-btn-primary px-5 py-2 min-h-[44px] sm:min-h-[38px] text-xs font-bold rounded-xl flex items-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isImportingToFirestore ? (
                   <>
@@ -552,7 +552,7 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
                 ) : (
                   <>
                     <Database className="w-4 h-4" />
-                    <span>Import {counts.valid} Records to Firestore</span>
+                    <span className="tabular-nums">Import {counts.valid} Records to Firestore</span>
                   </>
                 )}
               </button>
@@ -561,19 +561,19 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
 
           {/* Live Progress Bar during Firestore batch write */}
           {importProgress && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-blue-900">
+            <div className="bg-rose-50/80 border border-rose-200 rounded-xl p-4 space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-[#8B181B]">
                 <span className="flex items-center gap-2">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#8B181B]" />
                   <span>Committing records into Firestore collection 'registry_records'...</span>
                 </span>
-                <span>
+                <span className="tabular-nums">
                   {importProgress.processed} / {importProgress.total} records
                 </span>
               </div>
-              <div className="w-full h-2.5 bg-blue-100 rounded-full overflow-hidden">
+              <div className="w-full h-2.5 bg-rose-100 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                  className="h-full bg-[#8B181B] rounded-full transition-all duration-300"
                   style={{
                     width: `${Math.round((importProgress.processed / importProgress.total) * 100)}%`
                   }}
@@ -591,10 +591,10 @@ export const CsvStudentBulkImporter: React.FC<CsvStudentBulkImporterProps> = ({
                 placeholder="Search parsed records by ID, name, course..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                className="w-full pl-9 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#8B181B]/25 focus:border-[#8B181B]"
               />
             </div>
-            <span className="text-xs text-stone-400 font-medium">
+            <span className="text-xs text-stone-500 font-medium tabular-nums">
               Showing {displayedRows.length} of {validatedRows.length} records
             </span>
           </div>

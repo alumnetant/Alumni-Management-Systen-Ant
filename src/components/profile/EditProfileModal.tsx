@@ -349,24 +349,30 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 pt-safe pb-safe animate-in fade-in">
-      <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-2xl border border-stone-200 dark:border-stone-800 w-full max-w-2xl max-h-[90dvh] overflow-hidden flex flex-col animate-in zoom-in-95 transition-colors">
+    <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-xs flex items-end lg:items-center justify-center p-0 lg:p-4 lg:pt-safe lg:pb-safe animate-in fade-in">
+      <div className="bg-white dark:bg-[#121212] lg:dark:bg-stone-900 rounded-t-2xl lg:rounded-2xl shadow-2xl border-t lg:border border-[#EFEFEF] dark:border-[#262626] lg:border-stone-200 lg:dark:border-stone-800 w-full max-w-2xl h-[92dvh] lg:h-auto lg:max-h-[90dvh] pb-[env(safe-area-inset-bottom,0px)] lg:pb-0 overflow-hidden flex flex-col animate-in zoom-in-95 transition-colors">
         
+        {/* Mobile Drag Pill */}
+        <div className="lg:hidden flex justify-center pt-2.5 pb-1 shrink-0">
+          <div className="w-9 h-1 rounded-full bg-[#D1D5DB] dark:bg-[#404040]" />
+        </div>
+
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
+        <div className="px-4 py-3 lg:p-5 border-b border-[#EFEFEF] dark:border-[#262626] lg:border-stone-200 lg:dark:border-stone-800 flex items-center justify-between shrink-0">
           <div>
-            <span className="editorial-kicker block mb-0.5">ALUMNI RECORD</span>
-            <h2 className="editorial-title text-lg sm:text-xl font-normal">
-              Edit Alumni <span className="editorial-accent italic">Profile</span>
+            <span className="hidden lg:block editorial-kicker mb-0.5">ALUMNI RECORD</span>
+            <h2 className="text-[16px] lg:text-xl font-bold lg:font-normal lg:editorial-title text-[#111827] dark:text-[#FAFAFA]">
+              Edit Profile
             </h2>
-            <p className="editorial-sub text-xs mt-0.5">
+            <p className="hidden lg:block editorial-sub text-xs mt-0.5">
               Update your biography, photography, professional trajectory, and academic degrees
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-200 p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+            aria-label="Close edit profile"
+            className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-200 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -1053,7 +1059,7 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
                 type="button"
                 disabled={isDeletingAccount}
                 onClick={() => setShowDeleteAccountConfirm(true)}
-                className="px-3.5 py-2 bg-red-700 hover:bg-red-800 text-white rounded-xl text-xs font-bold shrink-0 cursor-pointer"
+                className="px-3.5 py-2 border border-red-300 dark:border-red-800 bg-white dark:bg-stone-900 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-700 dark:text-red-400 rounded-xl text-xs font-semibold shrink-0 cursor-pointer min-h-[38px]"
               >
                 Delete Account
               </button>
@@ -1065,13 +1071,13 @@ const EditProfileModalContent: React.FC<{ onClose: () => void }> = ({ onClose })
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 rounded-xl font-medium text-xs transition-colors cursor-pointer"
+              className="ds-btn-secondary px-4 py-2 rounded-xl font-semibold text-xs cursor-pointer min-h-[40px]"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl font-bold text-xs shadow-xs transition-all cursor-pointer"
+              className="ds-btn-primary px-5 py-2 rounded-xl font-semibold text-xs cursor-pointer min-h-[40px]"
             >
               Save Profile
             </button>

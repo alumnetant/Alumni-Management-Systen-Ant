@@ -224,9 +224,9 @@ export const AdminCampusGalleryView: React.FC = () => {
               Campus Heritage & Photographic Archives
             </h1>
             <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-              <span>Preserved Assets: <strong className="text-stone-900 font-semibold">{galleryItems.length}</strong></span>
+              <span>Preserved Assets: <strong className="text-stone-900 font-semibold font-mono tabular-nums">{galleryItems.length}</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
-              <span>Curated Collections: <strong className="text-stone-900 font-semibold">4 Eras</strong></span>
+              <span>Curated Collections: <strong className="text-stone-900 font-semibold font-mono tabular-nums">4 Eras</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
               <span>Digital Preservation: <strong className="text-emerald-700 font-semibold">Cloud-Synchronized</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
@@ -238,7 +238,7 @@ export const AdminCampusGalleryView: React.FC = () => {
             <button
               type="button"
               onClick={handleExportCsv}
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200/80 transition-colors cursor-pointer"
+              className="ds-btn-secondary min-h-[44px] sm:min-h-[38px]"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Export Catalog</span>
@@ -247,7 +247,7 @@ export const AdminCampusGalleryView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowUploadModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] shadow-sm transition-colors cursor-pointer"
+                className="ds-btn-primary min-h-[44px] sm:min-h-[38px]"
               >
                 <Plus className="w-4 h-4 stroke-[2.5]" />
                 <span>Upload Archival Media</span>
@@ -267,15 +267,15 @@ export const AdminCampusGalleryView: React.FC = () => {
                 key={col.id}
                 type="button"
                 onClick={() => setSelectedCategory(col.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer flex items-center gap-1.5 min-h-[44px] sm:min-h-[36px] ${
                   selectedCategory === col.id
-                    ? 'bg-stone-900 text-white'
-                    : 'text-stone-600 hover:bg-stone-100'
+                    ? 'bg-rose-50 text-[#8B181B] border-rose-200/80'
+                    : 'border-transparent text-stone-600 hover:bg-stone-100'
                 }`}
               >
                 <span>{col.label}</span>
-                <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-md ${
-                  selectedCategory === col.id ? 'bg-stone-800 text-stone-300' : 'bg-stone-100 text-stone-600'
+                <span className={`text-[10px] font-mono tabular-nums font-semibold px-1.5 py-0.2 rounded-md ${
+                  selectedCategory === col.id ? 'bg-white text-[#8B181B] border border-rose-200/70' : 'bg-stone-100 text-stone-600'
                 }`}>
                   {col.count}
                 </span>
@@ -614,14 +614,14 @@ export const AdminCampusGalleryView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-semibold cursor-pointer"
+                  className="ds-btn-secondary min-h-[44px] sm:min-h-[38px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!uploadPhotoUrl || isProcessingPhoto}
-                  className="px-5 py-2 rounded-xl text-white bg-[#8B181B] hover:bg-[#721316] font-semibold shadow-sm cursor-pointer disabled:opacity-50"
+                  className="ds-btn-primary min-h-[44px] sm:min-h-[38px] disabled:opacity-50"
                 >
                   Preserve Asset
                 </button>
@@ -651,7 +651,7 @@ export const AdminCampusGalleryView: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex-1 bg-black flex items-center justify-center p-2 min-h-[300px] overflow-hidden">
+            <div className="flex-1 bg-stone-950 flex items-center justify-center p-2 min-h-[300px] overflow-hidden">
               <img
                 src={inspectingItem.url}
                 alt={inspectingItem.title}
@@ -698,14 +698,14 @@ export const AdminCampusGalleryView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setItemToDelete(null)}
-                className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-semibold cursor-pointer"
+                className="ds-btn-secondary min-h-[44px] sm:min-h-[36px]"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-xl text-white bg-rose-700 hover:bg-rose-800 font-semibold cursor-pointer"
+                className="ds-btn-primary min-h-[44px] sm:min-h-[36px]"
               >
                 Delete Asset
               </button>

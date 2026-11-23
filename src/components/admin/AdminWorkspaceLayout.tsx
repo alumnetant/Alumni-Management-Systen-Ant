@@ -841,11 +841,12 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                 className="w-9 h-9 rounded-full object-cover border border-stone-200/80 dark:border-stone-700 shadow-2xs shrink-0 group-hover:scale-105 transition-transform"
               />
               <div className="hidden sm:block">
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-sm sm:text-base text-stone-900 dark:text-stone-100 tracking-tight font-sans group-hover:text-[#8B181B] dark:group-hover:text-red-400 transition-colors">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-sm sm:text-base text-stone-900 dark:text-stone-100 tracking-tight font-sans group-hover:text-[#8B181B] dark:group-hover:text-red-400 transition-colors">
                     St. Cecilia's College
                   </span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 border border-stone-200 dark:border-stone-700">
+                  <span className="text-stone-300 dark:text-stone-600" aria-hidden="true">·</span>
+                  <span className="text-xs font-semibold text-stone-500 dark:text-stone-400">
                     Console
                   </span>
                 </div>
@@ -885,7 +886,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             <button
               type="button"
               onClick={() => setShowCommandBar(true)}
-              className="md:hidden p-2 text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700 shadow-2xs"
+              className="md:hidden p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700 shadow-2xs"
               aria-label="Search Console"
               title="Search Console (⌘K)"
             >
@@ -896,7 +897,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
             <button
               type="button"
               onClick={toggleTheme}
-              className="p-2 rounded-xl text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700 shadow-2xs"
+              className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700 shadow-2xs"
               title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
               aria-label="Toggle Dark/Light Theme"
             >
@@ -1060,12 +1061,12 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                       title={isSidebarCollapsed ? item.label : undefined}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
                         isActive
-                          ? 'bg-[#8B181B] text-white font-semibold shadow-xs'
-                          : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/80 dark:hover:bg-stone-800/70'
+                          ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold border border-rose-200/70 dark:border-rose-900/50'
+                          : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-100/80 dark:hover:bg-stone-800/70 border border-transparent'
                       } ${isSidebarCollapsed ? 'justify-center px-0' : 'justify-between'}`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <Icon className={`w-4 h-4 shrink-0 stroke-[1.75] ${isActive ? 'text-white' : 'text-stone-500 dark:text-stone-400'}`} />
+                        <Icon className={`w-4 h-4 shrink-0 stroke-[1.75] ${isActive ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-500 dark:text-stone-400'}`} />
                         {!isSidebarCollapsed && (
                           <span className="truncate">{item.label}</span>
                         )}
@@ -1075,7 +1076,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                         <span
                           className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold tabular-nums ${
                             isActive
-                              ? 'bg-white/20 text-white'
+                              ? 'bg-[#8B181B]/10 dark:bg-rose-400/15 text-[#8B181B] dark:text-rose-300'
                               : (item as any).badgeColor || 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
                           }`}
                         >
@@ -1095,7 +1096,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCreateUserModal(true)}
-                className="w-full flex items-center justify-center gap-2 py-1.5 px-3 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+                className="ds-btn-secondary w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold cursor-pointer min-h-[38px]"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2]" />
                 <span>Add Member</span>
@@ -1187,10 +1188,10 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                               setActiveTab(item.id);
                               setShowMobileNav(false);
                             }}
-                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-3 py-2.5 min-h-[44px] rounded-xl text-xs font-semibold cursor-pointer ${
                               isActive
-                                ? 'bg-[#8B181B] text-white font-bold'
-                                : 'text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+                                ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-bold border border-rose-200/70 dark:border-rose-900/50'
+                                : 'text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 border border-transparent'
                             }`}
                           >
                             <div className="flex items-center gap-3">
@@ -1198,7 +1199,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                               <span>{item.label}</span>
                             </div>
                             {item.badge !== null && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold tabular-nums bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
                                 {item.badge}
                               </span>
                             )}
@@ -1543,7 +1544,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                       setShowCreateUserModal(false);
                       resetCreateUserForm();
                     }}
-                    className="w-full sm:w-auto px-8 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
+                    className="ds-btn-primary w-full sm:w-auto px-8 py-2.5 min-h-[44px] sm:min-h-[38px] text-xs flex items-center justify-center gap-2"
                   >
                     <Check className="w-4 h-4 stroke-[2.5]" />
                     <span>Done</span>
@@ -1712,14 +1713,14 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                       setShowCreateUserModal(false);
                       resetCreateUserForm();
                     }}
-                    className="px-4 py-2 rounded-xl border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 text-xs font-semibold hover:bg-stone-50 dark:hover:bg-stone-800 cursor-pointer disabled:opacity-50"
+                    className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isCreatingUser}
-                    className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="ds-btn-primary px-5 py-2 min-h-[44px] sm:min-h-[38px] text-xs flex items-center gap-2"
                   >
                     {isCreatingUser ? (
                       <>
@@ -1817,7 +1818,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowGalleryUploadModal(false)}
-                  className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-xs font-semibold"
+                  className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Cancel
                 </button>
@@ -1837,7 +1838,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
                     setShowGalleryUploadModal(false);
                     showToast('Campus photo added to gallery!', 'success');
                   }}
-                  className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold disabled:opacity-50"
+                  className="ds-btn-primary px-5 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Save Photo
                 </button>
@@ -1852,7 +1853,7 @@ export const AdminWorkspaceLayout: React.FC<AdminWorkspaceLayoutProps> = ({
           ======================================================== */}
       {showCommandBar && (
         <div
-          className="fixed inset-0 bg-stone-950/60 dark:bg-black/80 backdrop-blur-xs flex items-start justify-center pt-20 p-4 z-50 animate-in fade-in duration-150"
+          className="fixed inset-0 bg-stone-950/60 dark:bg-stone-950/80 backdrop-blur-xs flex items-start justify-center p-4 pt-20 z-50 animate-in fade-in duration-150"
           onClick={() => setShowCommandBar(false)}
         >
           <div

@@ -159,7 +159,7 @@ export const EventCard: React.FC<EventCardProps> = ({
                   <span
                     className={`px-2.5 py-0.5 text-[10px] font-bold rounded-lg border backdrop-blur-md shadow-xs ${lifecycle.badgeClass}`}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full inline-block mr-1.5 ${lifecycle.status === 'ongoing' ? 'bg-amber-500 animate-ping' : lifecycle.status === 'upcoming' ? 'bg-emerald-500' : 'bg-stone-400'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full inline-block mr-1.5 ${lifecycle.status === 'ongoing' ? 'bg-amber-500' : lifecycle.status === 'upcoming' ? 'bg-emerald-500' : 'bg-stone-400'}`} />
                     {lifecycle.label}
                   </span>
                 );
@@ -185,7 +185,7 @@ export const EventCard: React.FC<EventCardProps> = ({
               className="absolute bottom-3 left-3 flex items-center gap-1.5 z-10"
             >
               {event.isVirtual && (
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-blue-600/90 text-white backdrop-blur-xs shadow-xs">
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-stone-900/85 text-white border border-white/15 backdrop-blur-xs shadow-xs">
                   Virtual
                 </span>
               )}

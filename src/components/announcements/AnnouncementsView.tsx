@@ -276,9 +276,9 @@ export const AnnouncementsView: React.FC = () => {
   }, [announcements, archivedIds]);
 
   return (
-    <div className="space-y-6 pb-16">
-      {/* Institutional Gazette Header */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden">
+    <div className="space-y-4 lg:space-y-6 px-4 lg:px-0 pt-3 lg:pt-0 pb-16">
+      {/* DESKTOP Institutional Gazette Header (>=1024px INTACT) */}
+      <div className="hidden lg:block bg-white rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden">
         <div className="h-1.5 w-full bg-gradient-to-r from-[#8B181B] via-[#991B1B] to-[#B45309]" />
 
         <div className="p-5 sm:p-6 lg:p-7">
@@ -303,7 +303,7 @@ export const AnnouncementsView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-98 cursor-pointer shrink-0"
+                className="ds-btn-primary px-4 py-2.5 min-h-[40px] shrink-0"
               >
                 <Plus className="w-4 h-4 stroke-[2.2]" />
                 <span>Post Announcement</span>
@@ -322,14 +322,14 @@ export const AnnouncementsView: React.FC = () => {
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+              <div className="w-10 h-10 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[11px] font-bold text-red-700 dark:text-red-400 uppercase tracking-wider mb-1">
                   <span>Urgent Announcement</span>
                   <span aria-hidden="true">·</span>
-                  <span>
+                  <span className="tabular-nums">
                     {new Date(urgentLeadNotice.publishedAt || urgentLeadNotice.createdAt || '').toLocaleDateString([], {
                       month: 'short',
                       day: 'numeric',
@@ -352,7 +352,7 @@ export const AnnouncementsView: React.FC = () => {
                 e.stopPropagation();
                 setSelectedAnnouncement(urgentLeadNotice);
               }}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-2xs transition-colors shrink-0 self-end sm:self-center cursor-pointer"
+              className="px-4 py-2 min-h-[40px] bg-stone-900 hover:bg-stone-800 dark:bg-stone-100 dark:hover:bg-white text-white dark:text-stone-900 rounded-xl text-xs font-bold shadow-2xs transition-colors shrink-0 self-end sm:self-center cursor-pointer"
             >
               Read Full Notice
             </button>
@@ -364,7 +364,7 @@ export const AnnouncementsView: React.FC = () => {
       <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-3.5">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           {/* Status Tabs */}
-          <div className="flex items-center bg-stone-100 dark:bg-stone-800 p-1 rounded-xl shrink-0 overflow-x-auto">
+          <div className="flex items-center bg-stone-100 dark:bg-stone-800 p-1 rounded-xl shrink-0 overflow-x-auto tabular-nums">
             <button
               type="button"
               onClick={() => setTabFilter('active')}
@@ -475,10 +475,12 @@ export const AnnouncementsView: React.FC = () => {
 
       {/* Announcements List */}
       {filteredAnnouncements.length === 0 ? (
-        <div className="p-12 text-center bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
-          <Megaphone className="w-8 h-8 text-stone-300 dark:text-stone-600 mx-auto mb-2" />
+        <div className="p-10 sm:p-12 text-center bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
+          <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-stone-800 text-stone-400 flex items-center justify-center mx-auto mb-3">
+            <Megaphone className="w-6 h-6 stroke-[1.75]" />
+          </div>
           <p className="text-sm font-bold text-stone-800 dark:text-stone-200">No Announcements Found</p>
-          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-sm mx-auto leading-relaxed">
             {searchQuery
               ? `No announcements matching "${searchQuery}".`
               : tabFilter === 'archived'
@@ -491,9 +493,9 @@ export const AnnouncementsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowCreateModal(true)}
-              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#8B181B] text-white text-xs font-bold rounded-xl shadow-sm hover:bg-[#721316] transition-all cursor-pointer"
+              className="mt-4 ds-btn-secondary inline-flex px-4 py-2 min-h-[40px]"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-4 h-4 text-[#8B181B]" />
               <span>Publish First Notice</span>
             </button>
           )}
@@ -539,7 +541,7 @@ export const AnnouncementsView: React.FC = () => {
                   </span>
                 )}
                 {selectedAnnouncement.urgent ? (
-                  <span className="px-2.5 py-0.5 text-[10px] font-bold bg-red-700 text-white rounded-md flex items-center gap-1 animate-pulse">
+                  <span className="px-2.5 py-0.5 text-[10px] font-bold bg-red-700 text-white rounded-md flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3" />
                     Urgent Advisory
                   </span>
@@ -692,10 +694,12 @@ export const AnnouncementsView: React.FC = () => {
                 <span>Post Institutional Announcement</span>
               </h3>
               <button
+                type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="text-stone-400 hover:text-stone-600 cursor-pointer p-1 rounded-lg hover:bg-stone-100"
+                className="text-stone-400 hover:text-stone-600 cursor-pointer p-1.5 rounded-lg hover:bg-stone-100"
+                aria-label="Close modal"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -942,13 +946,13 @@ export const AnnouncementsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium cursor-pointer"
+                  className="ds-btn-secondary px-4 py-2 min-h-[40px]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg font-bold shadow-xs cursor-pointer transition-colors"
+                  className="ds-btn-primary px-4 py-2 min-h-[40px]"
                 >
                   Publish Notice
                 </button>

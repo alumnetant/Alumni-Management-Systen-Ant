@@ -26,6 +26,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
 import { AppNotification, NotificationType } from '../../types';
 import { resolveNotificationDeepLink } from '../../lib/notificationDeepLink';
+import {
+  MobileEmptyState,
+  MobileSegmentedTabs
+} from '../mobile/MobilePrimitives';
 
 export const NotificationsView: React.FC = () => {
   const {
@@ -39,6 +43,7 @@ export const NotificationsView: React.FC = () => {
   } = useAlumni();
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'feed' | 'job' | 'event' | 'message' | 'announcement' | 'moderation' | 'system'>('all');
+  const [mobileGroup, setMobileGroup] = useState<'all' | 'social' | 'official'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDetailNotif, setSelectedDetailNotif] = useState<AppNotification | null>(null);
 
@@ -95,6 +100,18 @@ export const NotificationsView: React.FC = () => {
       return true;
     });
   }, [userNotifications, activeFilter, searchQuery]);
+
+  const mobileFilteredNotifications = useMemo(() => {
+    if (mobileGroup === 'all') return userNotifications;
+    if (mobileGroup === 'social') {
+      return userNotifications.filter((n) =>
+        ['feed_post', 'post_comment', 'post_reaction', 'post_share', 'message', 'friend_request', 'friend_accepted'].includes(n.type)
+      );
+    }
+    return userNotifications.filter((n) =>
+      ['job', 'event', 'event_broadcast', 'announcement', 'announcement_broadcast', 'moderation_warning', 'moderation_deletion', 'moderation_report_resolved', 'moderation_high_priority', 'moderation_appeal', 'moderation_abuse_alert', 'security', 'general', 'profile_update', 'gallery'].includes(n.type)
+    );
+  }, [userNotifications, mobileGroup]);
 
   const getNotificationIcon = (type: NotificationType) => {
     switch (type) {
@@ -194,9 +211,39 @@ export const NotificationsView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="bg-white dark:bg-[#181615] rounded-3xl border border-stone-200/90 dark:border-stone-800 p-6 sm:p-7 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] flex flex-col md:flex-row md:items-center justify-between gap-5 transition-colors">
+    <div className="space-y-4 lg:space-y-6">
+      {/* Mobile Header Segmented Tabs & Quick Mark Read (<1024px) */}
+      <div className="lg:hidden bg-white dark:bg-[#000000] border-b border-[#EFEFEF] dark:border-[#262626] px-4 py-2.5 space-y-2.5 sticky top-[calc(52px+env(safe-area-inset-top,0px))] z-20">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[12px] font-semibold text-[#737373] dark:text-[#A8A8A8]">
+            {unreadNotificationsCount > 0
+              ? `${unreadNotificationsCount} unread update${unreadNotificationsCount > 1 ? 's' : ''}`
+              : 'All caught up'}
+          </span>
+          {unreadNotificationsCount > 0 && (
+            <button
+              type="button"
+              onClick={markAllNotificationsAsRead}
+              className="text-[12px] font-semibold text-[#8B181B] dark:text-[#FB7185] min-h-[44px] px-2 flex items-center gap-1 active:opacity-70"
+            >
+              <CheckCheck className="w-3.5 h-3.5" />
+              <span>Mark all read</span>
+            </button>
+          )}
+        </div>
+        <MobileSegmentedTabs
+          value={mobileGroup}
+          onChange={(v) => setMobileGroup(v as 'all' | 'social' | 'official')}
+          options={[
+            { id: 'all', label: 'All', badge: userNotifications.length },
+            { id: 'social', label: 'Social' },
+            { id: 'official', label: 'Official' }
+          ]}
+        />
+      </div>
+
+      {/* Desktop Page Header */}
+      <div className="hidden lg:flex bg-white dark:bg-[#181615] rounded-3xl border border-stone-200/90 dark:border-stone-800 p-6 sm:p-7 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] flex-col md:flex-row md:items-center justify-between gap-5 transition-colors">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/60 flex items-center justify-center shrink-0">
             <Bell className="w-6 h-6 text-[#8B181B] dark:text-rose-400 stroke-[1.75]" />
@@ -237,8 +284,8 @@ export const NotificationsView: React.FC = () => {
         )}
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white dark:bg-[#181615] rounded-2xl border border-stone-200/90 dark:border-stone-800 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 transition-colors">
+      {/* Desktop Filter and Search Bar */}
+      <div className="hidden lg:flex bg-white dark:bg-[#181615] rounded-2xl border border-stone-200/90 dark:border-stone-800 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.02)] flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 transition-colors">
         {/* Filter Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
           <button
@@ -351,7 +398,97 @@ export const NotificationsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Notifications List */}
+      {/* Mobile Flat Hairline Activity Feed (<1024px) */}
+      <div className="lg:hidden bg-white dark:bg-[#000000]">
+        {mobileFilteredNotifications.length === 0 ? (
+          <MobileEmptyState
+            icon={<Bell className="w-6 h-6" strokeWidth={1.75} />}
+            title="You're all caught up"
+            description={
+              mobileGroup === 'all'
+                ? 'Activity updates from alumni posts, jobs, and campus bulletins will show here.'
+                : `No ${mobileGroup} activity notifications yet.`
+            }
+          />
+        ) : (
+          <div className="divide-y divide-[#EFEFEF] dark:divide-[#262626]">
+            {mobileFilteredNotifications.map((notif) => {
+              const isUnread = !notif.read;
+              const isUrgent = isUrgentNotification(notif);
+              return (
+                <div
+                  key={`mob-${notif.id}`}
+                  onClick={() => handleNotificationAction(notif)}
+                  className={`px-4 py-3.5 flex items-center gap-3 active:bg-[#F3F4F6] dark:active:bg-[#121212] transition-colors ${
+                    isUnread ? 'bg-[#FFF5F5]/60 dark:bg-[#1A0D0E]/50' : ''
+                  }`}
+                >
+                  <div className="relative shrink-0">
+                    <div className="w-11 h-11 rounded-full bg-[#F3F4F6] dark:bg-[#262626] flex items-center justify-center">
+                      {getNotificationIcon(notif.type)}
+                    </div>
+                    {isUnread && (
+                      <span
+                        aria-label="Unread notification"
+                        className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#8B181B] dark:bg-[#FB7185] ring-2 ring-white dark:ring-[#000000]"
+                      />
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className={`text-[14px] leading-snug truncate ${
+                        isUnread
+                          ? 'font-semibold text-[#111827] dark:text-[#FAFAFA]'
+                          : 'font-medium text-[#111827] dark:text-[#FAFAFA]'
+                      }`}>
+                        {notif.title}
+                      </p>
+                      {isUrgent && (
+                        <span className="shrink-0 w-2 h-2 rounded-full bg-red-600" aria-label="Urgent" />
+                      )}
+                    </div>
+                    <p className="text-[12px] text-[#737373] dark:text-[#A8A8A8] line-clamp-2 mt-0.5 leading-snug">
+                      {notif.body}
+                    </p>
+                    <p className="text-[11px] text-[#737373] dark:text-[#A8A8A8] mt-1 tabular-nums">
+                      {formatTimestamp(notif.createdAt)}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openNotificationDetail(notif);
+                      }}
+                      aria-label="Notification details"
+                      className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#737373] dark:text-[#A8A8A8]"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteNotification(notif.id);
+                      }}
+                      aria-label="Dismiss notification"
+                      className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#737373] dark:text-[#A8A8A8] active:text-[#8B181B] dark:active:text-[#FB7185]"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Notifications List */}
+      <div className="hidden lg:block">
       {filteredNotifications.length === 0 ? (
         <div className="bg-white dark:bg-[#181615] rounded-3xl border border-stone-200/90 dark:border-stone-800 p-12 text-center shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
           <div className="w-14 h-14 rounded-2xl bg-stone-100 dark:bg-stone-800 text-stone-400 dark:text-stone-500 flex items-center justify-center mx-auto mb-3">
@@ -496,16 +633,17 @@ export const NotificationsView: React.FC = () => {
           })}
         </div>
       )}
+      </div>
 
       {/* Full Alert Details Modal */}
       <AnimatePresence>
         {selectedDetailNotif && (
-          <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-xs flex items-end lg:items-center justify-center lg:p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              className="bg-white dark:bg-stone-900 rounded-3xl p-6 sm:p-7 w-full max-w-lg shadow-2xl border border-stone-200 dark:border-stone-800 space-y-4"
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              className="bg-white dark:bg-[#121212] lg:dark:bg-stone-900 rounded-t-2xl lg:rounded-3xl p-5 sm:p-7 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] lg:pb-7 w-full max-w-lg shadow-2xl border-t lg:border border-[#EFEFEF] dark:border-[#262626] lg:border-stone-200 lg:dark:border-stone-800 space-y-4"
             >
               <div className="flex items-start justify-between gap-3 border-b border-stone-100 dark:border-stone-800 pb-4">
                 <div className="flex items-center gap-3">

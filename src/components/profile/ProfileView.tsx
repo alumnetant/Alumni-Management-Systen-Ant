@@ -50,6 +50,12 @@ import { formatFullLocalDateTime, formatRelativeTime } from '../../lib/dateUtils
 import { PostCard } from '../social/PostCard';
 import { UnifiedPostComposer } from '../social/UnifiedPostComposer';
 import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
+import { CompletionProgressBanner, EmptyStateCard } from '../common/DesignSystemPrimitives';
+import {
+  MobileButton,
+  MobileEmptyState,
+  MobileSegmentedTabs
+} from '../mobile/MobilePrimitives';
 
 export const ProfileView: React.FC = () => {
   const {
@@ -72,6 +78,7 @@ export const ProfileView: React.FC = () => {
   const [showResumePreview, setShowResumePreview] = useState(false);
   const [showMoreActionsMenu, setShowMoreActionsMenu] = useState(false);
   const [profileViewTab, setProfileViewTab] = useState<'overview' | 'posts'>('overview');
+  const [mobileSection, setMobileSection] = useState<'posts' | 'overview' | 'pass'>('posts');
   const [viewerImage, setViewerImage] = useState<{ url: string; title: string } | null>(null);
 
   // Timeline pagination, server hydration & private warnings state
@@ -318,12 +325,291 @@ export const ProfileView: React.FC = () => {
   const isVerifiedUser = !!(currentUser.isVerified || (currentUser as any).verified || currentUser.verificationStatus === 'verified');
   const roleDisplay = (currentUser.role || 'alumni').toUpperCase();
 
+  const profileCompleteness = useMemo(() => {
+    if (currentUser.role === 'employer') return null;
+    const checks: Array<{ label: string; done: boolean }> = [
+      { label: 'Headline', done: Boolean(currentUser.headline?.trim()) },
+      { label: 'Biography', done: Boolean(currentUser.about?.trim()) },
+      { label: 'Work Location', done: Boolean(currentUser.location?.trim()) },
+      { label: 'Current Role', done: Boolean(currentUser.currentPosition?.trim() || currentUser.employmentStatus === 'N/A' || currentUser.employmentStatus === 'Retired') },
+      { label: 'Skills', done: Array.isArray(currentUser.skills) && currentUser.skills.length > 0 },
+      { label: 'Career History', done: Array.isArray(currentUser.experience) && currentUser.experience.length > 0 },
+    ];
+    const completed = checks.filter((c) => c.done).length;
+    const missing = checks.filter((c) => !c.done).map((c) => c.label);
+    return { completed, total: checks.length, missing };
+  }, [currentUser]);
+
   return (
-    <div className="space-y-6 pb-16 max-w-7xl mx-auto">
+    <div className="space-y-4 lg:space-y-6 pb-8 lg:pb-16 max-w-7xl mx-auto">
       {/* ========================================================
-          HERO CARD: COVER + AVATAR + IDENTITY + ACTIONS
+          MOBILE INSTAGRAM-STYLE PROFILE HEADER (<1024px)
           ======================================================== */}
-      <div className="bg-white dark:bg-stone-900 rounded-3xl border border-stone-200/90 dark:border-stone-800 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.02),0_8px_24px_rgba(0,0,0,0.03)] dark:shadow-none transition-colors duration-200">
+      <div className="lg:hidden bg-white dark:bg-[#000000] border-b border-[#EFEFEF] dark:border-[#262626] px-4 pt-4 pb-4 space-y-3.5">
+        <div className="flex items-center gap-5">
+          {/* Circular Avatar + Quick Photo Upload */}
+          <div className="relative shrink-0">
+            <img
+              src={getUserAvatar(currentUser.profilePictureUrl)}
+              alt={currentUser.name}
+              onError={handleUserAvatarError}
+              onClick={() =>
+                setViewerImage({
+                  url: getUserAvatar(currentUser.profilePictureUrl),
+                  title: `${currentUser.name} — Profile Picture`
+                })
+              }
+              className="w-20 h-20 rounded-full object-cover border border-[#EFEFEF] dark:border-[#262626] bg-[#F3F4F6] dark:bg-[#121212]"
+            />
+            {isUploadingPhoto && (
+              <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center text-white">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => avatarFileInputRef.current?.click()}
+              disabled={isUploadingPhoto}
+              aria-label="Upload new profile photo"
+              className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-[#8B181B] dark:bg-[#E11D48] text-white flex items-center justify-center ring-2 ring-white dark:ring-[#000000]"
+            >
+              <Camera className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* 3-Column Metrics */}
+          <div className="flex-1 grid grid-cols-3 text-center tabular-nums">
+            <button
+              type="button"
+              onClick={() => setMobileSection('posts')}
+              className="py-1 active:opacity-70"
+            >
+              <div className="text-[16px] font-bold text-[#111827] dark:text-[#FAFAFA]">
+                {myTimelineOrdered.length}
+              </div>
+              <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Posts</div>
+            </button>
+            <div className="py-1">
+              <div className="text-[16px] font-bold text-[#111827] dark:text-[#FAFAFA]">
+                {currentUser.connectionsCount || 0}
+              </div>
+              <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Connections</div>
+            </div>
+            <div className="py-1">
+              <div className="text-[16px] font-bold text-[#8B181B] dark:text-[#FB7185]">
+                {currentUser.batch || '—'}
+              </div>
+              <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">Batch</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Name, Verified Shield & Concise Bio */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h1 className="text-[16px] font-bold text-[#111827] dark:text-[#FAFAFA] tracking-tight">
+              {currentUser.name}
+            </h1>
+            {isVerifiedUser && (
+              <ShieldCheck className="w-4 h-4 text-[#8B181B] dark:text-[#FB7185]" aria-label="Registrar Verified" />
+            )}
+          </div>
+          <p className="text-[12px] font-medium text-[#737373] dark:text-[#A8A8A8]">
+            {[roleDisplay, currentUser.course, currentUser.location].filter(Boolean).join(' · ')}
+          </p>
+          <p className="text-[14px] text-[#111827] dark:text-[#FAFAFA] leading-snug">
+            {currentUser.headline || currentUser.about || 'St. Cecilia’s College Alumnus'}
+          </p>
+        </div>
+
+        {/* Side-by-side Action Buttons */}
+        <div className="flex items-center gap-2 pt-0.5">
+          <MobileButton
+            variant="primary"
+            size="md"
+            fullWidth
+            onClick={() => openEditProfile()}
+          >
+            Edit Profile
+          </MobileButton>
+          {currentUser.role !== 'employer' && (
+            <MobileButton
+              variant="secondary"
+              size="md"
+              fullWidth
+              onClick={() => setMobileSection('pass')}
+            >
+              Alumni ID Pass
+            </MobileButton>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowResumePreview(true)}
+            aria-label="Download PDF Resume"
+            className="min-w-[44px] min-h-[44px] rounded-xl bg-[#F3F4F6] dark:bg-[#262626] text-[#111827] dark:text-[#FAFAFA] flex items-center justify-center shrink-0 active:opacity-75"
+          >
+            <FileDown className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Mobile Verification Prompt (Compact) */}
+        {!isVerifiedUser && currentUser.role === 'alumni' && (
+          <button
+            type="button"
+            onClick={() => setShowRegistrarModal(true)}
+            className="w-full px-3.5 py-2.5 rounded-xl bg-[#F3F4F6] dark:bg-[#121212] border border-[#EFEFEF] dark:border-[#262626] flex items-center justify-between gap-2 text-left min-h-[44px]"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <ShieldCheck className="w-4 h-4 text-[#8B181B] dark:text-[#FB7185] shrink-0" />
+              <span className="text-[12px] font-semibold text-[#111827] dark:text-[#FAFAFA] truncate">
+                {currentUser.verificationStatus === 'pending_review'
+                  ? 'Registrar verification under review'
+                  : 'Verify degree with the Registrar'}
+              </span>
+            </div>
+            <span className="text-[12px] font-semibold text-[#8B181B] dark:text-[#FB7185] shrink-0">
+              {currentUser.verificationStatus === 'pending_review' ? 'Status' : 'Verify'}
+            </span>
+          </button>
+        )}
+
+        {/* Mobile Section Switcher */}
+        <MobileSegmentedTabs
+          value={mobileSection}
+          onChange={(v) => {
+            const next = v as 'posts' | 'overview' | 'pass';
+            setMobileSection(next);
+            setProfileViewTab(next === 'posts' ? 'posts' : 'overview');
+          }}
+          options={
+            currentUser.role === 'employer'
+              ? [{ id: 'overview', label: 'Credentials' }]
+              : [
+                  { id: 'posts', label: 'Posts', badge: myTimelineOrdered.length },
+                  { id: 'overview', label: 'About' },
+                  { id: 'pass', label: 'ID Pass' }
+                ]
+          }
+        />
+
+        {/* Mobile Section Content */}
+        {mobileSection === 'pass' && currentUser.role !== 'employer' && (
+          <div className="pt-2">
+            <DigitalAlumniCard user={currentUser} />
+          </div>
+        )}
+
+        {mobileSection === 'overview' && (
+          <div className="pt-2 space-y-4 divide-y divide-[#EFEFEF] dark:divide-[#262626]">
+            <div className="pt-2 space-y-1.5">
+              <h2 className="text-[12px] font-semibold uppercase tracking-wider text-[#737373] dark:text-[#A8A8A8]">
+                Biography
+              </h2>
+              <p className="text-[14px] text-[#111827] dark:text-[#FAFAFA] leading-relaxed whitespace-pre-line">
+                {currentUser.about || 'No biography written yet.'}
+              </p>
+            </div>
+            <div className="pt-3 space-y-2">
+              <h2 className="text-[12px] font-semibold uppercase tracking-wider text-[#737373] dark:text-[#A8A8A8]">
+                Institutional Credentials
+              </h2>
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="text-[#737373] dark:text-[#A8A8A8]">Student ID</span>
+                <span className="font-mono font-semibold text-[#111827] dark:text-[#FAFAFA]">
+                  {currentUser.studentId || 'SCC-2023-XXXX'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="text-[#737373] dark:text-[#A8A8A8]">Alumni Pass ID</span>
+                <span className="font-mono font-semibold text-[#8B181B] dark:text-[#FB7185]">
+                  {currentUser.alumniId || `SCC-ALUM-${currentUser.batch || '2024'}-001`}
+                </span>
+              </div>
+            </div>
+            {(currentUser.experience || []).length > 0 && (
+              <div className="pt-3 space-y-2.5">
+                <h2 className="text-[12px] font-semibold uppercase tracking-wider text-[#737373] dark:text-[#A8A8A8]">
+                  Career Experience
+                </h2>
+                {currentUser.experience.map((exp) => (
+                  <div key={exp.id} className="space-y-0.5">
+                    <div className="text-[14px] font-semibold text-[#111827] dark:text-[#FAFAFA]">
+                      {exp.title}
+                    </div>
+                    <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">
+                      {exp.company} · {exp.startDate}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {(currentUser.education || []).length > 0 && (
+              <div className="pt-3 space-y-2.5">
+                <h2 className="text-[12px] font-semibold uppercase tracking-wider text-[#737373] dark:text-[#A8A8A8]">
+                  Education
+                </h2>
+                {currentUser.education.map((edu) => (
+                  <div key={edu.id} className="space-y-0.5">
+                    <div className="text-[14px] font-semibold text-[#111827] dark:text-[#FAFAFA]">
+                      {edu.degree}
+                    </div>
+                    <div className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">
+                      {edu.institution} · {edu.startYear}–{edu.endYear}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {mobileSection === 'posts' && currentUser.role !== 'employer' && (
+          <div className="-mx-4 pt-1">
+            {myTimelineOrdered.length === 0 ? (
+              <MobileEmptyState
+                icon={<Megaphone className="w-6 h-6" />}
+                title="No posts yet"
+                description="Share career milestones or campus memories with fellow Cecilians."
+                actionLabel="Create Post"
+                onAction={() => window.dispatchEvent(new CustomEvent('applet:open-mobile-create'))}
+              />
+            ) : (
+              <div>
+                {myPostsPage.items.map((post) => (
+                  <PostCard
+                    key={`mob-post-${post.id}`}
+                    post={post}
+                    showPinControl={true}
+                    isPinnedOnProfile={currentUser.pinnedPostId === post.id}
+                    highlighted={isHighlighted(post.id)}
+                    onImageClick={(url, title) => setViewerImage({ url, title })}
+                    onPostDeleted={(pid) => {
+                      setLocallyDeletedIds((prev) => new Set(prev).add(pid));
+                      setServerTimelinePosts((prev) => prev.filter((item) => item.id !== pid));
+                    }}
+                  />
+                ))}
+                {myPostsPage.hasMore && (
+                  <div className="px-4 py-4">
+                    <MobileButton
+                      variant="secondary"
+                      fullWidth
+                      onClick={() => setVisibleLimit((prev) => prev + 10)}
+                    >
+                      Load more posts
+                    </MobileButton>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================
+          DESKTOP HERO CARD: COVER + AVATAR + IDENTITY + ACTIONS
+          ======================================================== */}
+      <div className="hidden lg:block bg-white dark:bg-stone-900 rounded-3xl border border-stone-200/90 dark:border-stone-800 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.02),0_8px_24px_rgba(0,0,0,0.03)] dark:shadow-none transition-colors duration-200">
         
         {/* Cover Photo Container */}
         <div
@@ -465,19 +751,15 @@ export const ProfileView: React.FC = () => {
                 <span className="whitespace-nowrap">Edit Profile</span>
               </button>
 
-              {/* Registrar Verification CTA: Shown strictly if alumnus is not yet verified */}
+              {/* Registrar Verification Trigger: Secondary so Edit Profile stays single primary CTA */}
               {currentUser.role === 'alumni' && !isVerifiedUser && (
                 <button
                   type="button"
                   onClick={() => setShowRegistrarModal(true)}
-                  className={`flex-1 sm:flex-none justify-center flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer min-h-[44px] ${
-                    currentUser.verificationStatus === 'pending_review'
-                      ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs font-bold'
-                      : 'bg-amber-600 hover:bg-amber-700 text-white shadow-xs font-bold'
-                  }`}
+                  className="ds-btn-secondary flex-1 sm:flex-none justify-center flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer min-h-[44px]"
                   title="Verify academic standing with the Office of the Registrar"
                 >
-                  <ShieldCheck className="w-4 h-4 shrink-0 text-white" />
+                  <ShieldCheck className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
                   <span className="truncate">
                     {currentUser.verificationStatus === 'pending_review' ? 'Verification Pending' : 'Verify with Registrar'}
                   </span>
@@ -683,20 +965,34 @@ export const ProfileView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowRegistrarModal(true)}
-                  className="px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-xl shadow-xs transition-colors shrink-0 cursor-pointer"
+                  className="ds-btn-secondary px-4 py-2.5 text-xs font-semibold rounded-xl shrink-0 cursor-pointer min-h-[40px]"
                 >
                   {currentUser.verificationStatus === 'pending_review'
-                    ? 'Check Status →'
+                    ? 'Check Status'
                     : currentUser.verificationStatus === 'rejected'
-                    ? 'Re-apply with Documents →'
-                    : 'Verify Now →'}
+                    ? 'Re-apply with Documents'
+                    : 'Verify Now'}
                 </button>
               </div>
+            )}
+
+            {/* Zeigarnik & Goal-Gradient Profile Completion Cue */}
+            {profileCompleteness && profileCompleteness.missing.length > 0 && (
+              <CompletionProgressBanner
+                className="mt-4"
+                title="Complete your Cecilian Alumni Profile"
+                subtitle="Finish your remaining sections to improve career matching and alumni directory discovery."
+                completedCount={profileCompleteness.completed}
+                totalCount={profileCompleteness.total}
+                missingItems={profileCompleteness.missing}
+                actionLabel="Resume Profile"
+                onAction={() => openEditProfile()}
+              />
             )}
           </div>
 
           {/* Social Counts & Academic Standing Ribbon */}
-          <div className="mt-6 p-4 bg-stone-50/80 dark:bg-stone-800/60 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center transition-colors">
+          <div className="mt-6 p-4 bg-stone-50/80 dark:bg-stone-800/60 rounded-2xl border border-stone-200/80 dark:border-stone-700/60 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center transition-colors tabular-nums">
             <div className="p-2">
               <span className="text-xl sm:text-2xl font-bold text-stone-900 dark:text-white block font-mono">
                 {currentUser.connectionsCount || 0}
@@ -972,20 +1268,16 @@ export const ProfileView: React.FC = () => {
 
                 <div className="space-y-4">
                   {myTimelineOrdered.length === 0 ? (
-                    <div className="py-6 text-center space-y-2.5 text-xs text-stone-500 dark:text-stone-400">
-                      <Megaphone className="w-6 h-6 mx-auto text-stone-400 dark:text-stone-500 opacity-60" />
-                      <p className="font-semibold text-stone-700 dark:text-stone-300">No posts yet</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProfileViewTab('posts');
-                          setTimeout(() => composerTitleRef.current?.focus(), 60);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
-                      >
-                        <span>Share your first post</span>
-                      </button>
-                    </div>
+                    <EmptyStateCard
+                      icon={<Megaphone className="w-5 h-5" />}
+                      title="No posts yet"
+                      description="Share career milestones, reflections, or campus updates with fellow Cecilians."
+                      actionLabel="Share your first post"
+                      onAction={() => {
+                        setProfileViewTab('posts');
+                        setTimeout(() => composerTitleRef.current?.focus(), 60);
+                      }}
+                    />
                   ) : (
                     myTimelineOrdered.slice(0, 3).map((post) => (
                       <PostCard
@@ -1055,20 +1347,13 @@ export const ProfileView: React.FC = () => {
               />
 
               {myTimelineOrdered.length === 0 ? (
-                <div className="bg-stone-50/60 dark:bg-stone-800/40 rounded-2xl border border-dashed border-stone-300 dark:border-stone-700 p-10 text-center space-y-3">
-                  <Megaphone className="w-10 h-10 text-stone-400 mx-auto" />
-                  <h3 className="text-sm font-bold text-stone-800 dark:text-stone-200">No posts yet</h3>
-                  <p className="text-xs text-stone-500 dark:text-stone-400 max-w-md mx-auto">
-                    Published posts appear on the main feed and on your personal timeline automatically.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => composerTitleRef.current?.focus()}
-                    className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold cursor-pointer min-h-[44px]"
-                  >
-                    <span>Share your first post</span>
-                  </button>
-                </div>
+                <EmptyStateCard
+                  icon={<Megaphone className="w-5 h-5" />}
+                  title="No posts yet"
+                  description="Published posts appear on the main feed and on your personal timeline automatically."
+                  actionLabel="Write your first post"
+                  onAction={() => composerTitleRef.current?.focus()}
+                />
               ) : (
                 <div className="space-y-4">
                   {myPostsPage.items.map((post) => (

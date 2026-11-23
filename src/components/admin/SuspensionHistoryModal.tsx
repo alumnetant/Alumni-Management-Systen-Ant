@@ -70,7 +70,7 @@ export const SuspensionHistoryModal: React.FC<SuspensionHistoryModalProps> = ({
   const suspension = user.suspensionInfo;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
         className="relative w-full max-w-2xl bg-white dark:bg-stone-900 rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-stone-200/90 dark:border-stone-800 overflow-hidden flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
@@ -168,7 +168,7 @@ export const SuspensionHistoryModal: React.FC<SuspensionHistoryModalProps> = ({
                       onClose();
                       onUnlockClick();
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    className="px-3 py-1.5 min-h-[40px] sm:min-h-[34px] rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <Unlock className="w-3.5 h-3.5" />
                     <span>Unlock Account Now</span>
@@ -181,7 +181,7 @@ export const SuspensionHistoryModal: React.FC<SuspensionHistoryModalProps> = ({
                       onClose();
                       onExtendClick();
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    className="px-3 py-1.5 min-h-[40px] sm:min-h-[34px] rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <Clock className="w-3.5 h-3.5" />
                     <span>Extend Suspension</span>
@@ -193,7 +193,7 @@ export const SuspensionHistoryModal: React.FC<SuspensionHistoryModalProps> = ({
 
           {/* Timeline of History Entries */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-stone-400">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-stone-400 tabular-nums">
               Audit Event Timeline ({history.length})
             </h3>
 
@@ -297,7 +297,7 @@ export const SuspensionHistoryModal: React.FC<SuspensionHistoryModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200 font-semibold text-xs hover:bg-stone-300 dark:hover:bg-stone-600 transition-colors cursor-pointer"
+            className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
           >
             Close History
           </button>

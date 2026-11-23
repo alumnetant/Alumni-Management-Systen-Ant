@@ -60,6 +60,11 @@ import { UserRoleBadge } from '../common/UserRoleBadge';
 import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
 import { getUserOnlineStatus } from '../../lib/userStatus';
 import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
+import {
+  MobileEmptyState,
+  MobileInput,
+  MobileSegmentedTabs
+} from '../mobile/MobilePrimitives';
 
 export const MessagesView: React.FC = () => {
   const {
@@ -538,19 +543,19 @@ export const MessagesView: React.FC = () => {
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className={`group flex items-center gap-1.5 rounded-xl sm:rounded-full text-xs font-semibold transition-all cursor-pointer shadow-2xs active:scale-95 ${
+          className={`group flex items-center gap-1.5 rounded-xl sm:rounded-full text-xs font-semibold transition-all cursor-pointer shadow-2xs min-h-[36px] ${
             compact ? 'p-2' : 'px-3.5 py-2'
           } ${
             activeFilterPill !== 'all'
-              ? 'bg-[#8B181B] hover:bg-[#721316] text-white border border-[#8B181B]'
-              : 'bg-red-50/80 hover:bg-red-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-[#8B181B] dark:text-rose-300 border border-red-200 dark:border-rose-900/60'
+              ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-300 border border-rose-300/80 dark:border-rose-800 font-bold'
+              : 'bg-stone-100 hover:bg-stone-200/80 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 border border-stone-200/80 dark:border-stone-700'
           }`}
           aria-label="Filter channels"
           title={`Filter channels: currently ${currentItem.label}`}
         >
           <Filter
-            className={`w-3.5 h-3.5 stroke-[2.25] ${
-              activeFilterPill !== 'all' ? 'text-white' : 'text-[#8B181B] dark:text-rose-400'
+            className={`w-3.5 h-3.5 stroke-[2] ${
+              activeFilterPill !== 'all' ? 'text-[#8B181B] dark:text-rose-400' : 'text-stone-500 dark:text-stone-400'
             }`}
           />
           {!compact && (
@@ -636,7 +641,7 @@ export const MessagesView: React.FC = () => {
                         <div
                           className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                             isSelected
-                              ? 'bg-[#8B181B] text-white'
+                              ? 'bg-rose-100 dark:bg-rose-950/70 text-[#8B181B] dark:text-rose-300'
                               : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
                           }`}
                         >
@@ -660,9 +665,9 @@ export const MessagesView: React.FC = () => {
 
                       <div className="flex items-center gap-2 shrink-0">
                         <span
-                          className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full ${
+                          className={`text-[10px] font-mono tabular-nums font-bold px-1.5 py-0.5 rounded-full ${
                             isSelected
-                              ? 'bg-[#8B181B] text-white'
+                              ? 'bg-rose-100 dark:bg-rose-950/70 text-[#8B181B] dark:text-rose-300'
                               : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
                           }`}
                         >
@@ -682,7 +687,7 @@ export const MessagesView: React.FC = () => {
   };
 
   return (
-    <div className="w-full space-y-4 antialiased">
+    <div className="w-full lg:space-y-4 antialiased">
       {/* ========================================================================= */}
       {/* MODE 1: EVENT EMAIL BULLETINS                                             */}
       {/* ========================================================================= */}
@@ -692,8 +697,18 @@ export const MessagesView: React.FC = () => {
             backgroundColor: 'var(--dm-bg-deck)',
             borderColor: 'var(--dm-border)',
           }}
-          className="rounded-[32px] border shadow-2xs overflow-hidden p-6"
+          className="rounded-none lg:rounded-[32px] border-0 lg:border shadow-none lg:shadow-2xs overflow-hidden p-4 lg:p-6 min-h-[calc(100dvh-52px-env(safe-area-inset-top,0px))] lg:min-h-0"
         >
+          <div className="lg:hidden mb-3">
+            <MobileSegmentedTabs
+              value={messageViewMode}
+              onChange={(v) => setMessageViewMode(v as 'chats' | 'event_emails')}
+              options={[
+                { id: 'chats', label: 'Chats', badge: chatCounts.all },
+                { id: 'event_emails', label: 'Event Notices' }
+              ]}
+            />
+          </div>
           <EventEmailNotificationInbox />
         </div>
       ) : (
@@ -706,7 +721,11 @@ export const MessagesView: React.FC = () => {
               backgroundColor: 'var(--dm-bg-deck)',
               borderColor: 'var(--dm-border)',
             }}
-            className="rounded-[24px] sm:rounded-[32px] border shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-x-clip lg:overflow-hidden flex flex-col lg:flex-row h-[calc(100dvh-11.5rem)] lg:h-[calc(100dvh-100px)] min-h-[420px] lg:min-h-[500px]"
+            className={`rounded-none lg:rounded-[32px] border-0 lg:border shadow-none lg:shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-x-clip lg:overflow-hidden flex flex-col lg:flex-row lg:h-[calc(100dvh-100px)] min-h-[420px] lg:min-h-[500px] ${
+              activeChatId
+                ? 'h-[100dvh]'
+                : 'h-[calc(100dvh-52px-env(safe-area-inset-top,0px))]'
+            }`}
           >
             
             {/* LEFT RAIL: CHANNELS STREAM */}
@@ -719,15 +738,27 @@ export const MessagesView: React.FC = () => {
                 activeChatId ? 'hidden lg:flex' : 'flex'
               }`}
             >
+              {/* Mobile Segmented Switch (<1024px) */}
+              <div className="lg:hidden px-4 pt-3 pb-1 bg-white dark:bg-[#000000]">
+                <MobileSegmentedTabs
+                  value={messageViewMode}
+                  onChange={(v) => setMessageViewMode(v as 'chats' | 'event_emails')}
+                  options={[
+                    { id: 'chats', label: 'Chats', badge: chatCounts.all },
+                    { id: 'event_emails', label: 'Event Notices' }
+                  ]}
+                />
+              </div>
+
               {/* Search Bar & Stream Header */}
               <div
                 style={{
                   backgroundColor: 'var(--dm-bg-rail-header)',
                   borderColor: 'var(--dm-border)',
                 }}
-                className="p-3.5 border-b space-y-2.5"
+                className="px-4 py-2.5 lg:p-3.5 border-b border-[#EFEFEF] dark:border-[#262626] lg:border-[var(--dm-border)] space-y-2.5"
               >
-                <div className="flex items-center justify-between">
+                <div className="hidden lg:flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="editorial-kicker">
                       DISPATCH CHANNELS
@@ -754,7 +785,16 @@ export const MessagesView: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <div className="relative flex-1">
+                  <div className="lg:hidden flex-1">
+                    <MobileInput
+                      value={chatSearch}
+                      onChange={(e) => setChatSearch(e.target.value)}
+                      onClear={() => setChatSearch('')}
+                      placeholder="Search messages..."
+                      leftIcon={<Search className="w-4 h-4" />}
+                    />
+                  </div>
+                  <div className="hidden lg:block relative flex-1">
                     <Search
                       style={{ color: 'var(--dm-text-muted)' }}
                       className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -782,6 +822,17 @@ export const MessagesView: React.FC = () => {
                       </button>
                     )}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContactDirectorySearch('');
+                      setShowNewChatModal(true);
+                    }}
+                    aria-label="Start new message"
+                    className="lg:hidden min-w-[44px] min-h-[44px] rounded-xl bg-[#8B181B] dark:bg-[#E11D48] text-white flex items-center justify-center active:opacity-80 transition-opacity shrink-0"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
                   <FilterButtonMenu align="right" compact />
                 </div>
 
@@ -802,7 +853,7 @@ export const MessagesView: React.FC = () => {
                             : 'Unread Only'}
                         </strong>
                       </span>
-                      <span className="text-[10px] bg-[#8B181B] text-white px-1.5 py-0.2 rounded-full font-mono font-bold shrink-0">
+                      <span className="text-[10px] bg-rose-100 dark:bg-rose-900/60 text-[#8B181B] dark:text-rose-200 px-1.5 py-0.2 rounded-full font-mono tabular-nums font-bold shrink-0">
                         {filteredChats.length}
                       </span>
                     </div>
@@ -830,30 +881,41 @@ export const MessagesView: React.FC = () => {
                 className="flex-1 overflow-y-auto divide-y divide-[var(--dm-border-subtle)]"
               >
                 {filteredChats.length === 0 ? (
-                  <div className="p-8 text-center space-y-3">
-                    <div
-                      style={{
-                        backgroundColor: 'var(--dm-input-bg)',
-                        color: 'var(--dm-text-muted)',
-                      }}
-                      className="w-10 h-10 rounded-full flex items-center justify-center mx-auto"
-                    >
-                      <MessageSquare className="w-5 h-5" />
+                  <>
+                    <div className="lg:hidden">
+                      <MobileEmptyState
+                        icon={<MessageSquare className="w-6 h-6" />}
+                        title="No messages yet"
+                        description="Start a direct conversation with a connected Cecilian alumnus."
+                        actionLabel="New Message"
+                        onAction={() => setShowNewChatModal(true)}
+                      />
                     </div>
-                    <p
-                      style={{ color: 'var(--dm-text-secondary)' }}
-                      className="text-xs leading-relaxed"
-                    >
-                      No matching conversations found for this filter.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setShowNewChatModal(true)}
-                      className="px-3.5 py-1.5 bg-[#8B181B] text-white rounded-xl text-xs font-semibold hover:bg-[#721316] transition-colors cursor-pointer"
-                    >
-                      Start New Conversation
-                    </button>
-                  </div>
+                    <div className="hidden lg:block p-8 text-center space-y-3">
+                      <div
+                        style={{
+                          backgroundColor: 'var(--dm-input-bg)',
+                          color: 'var(--dm-text-muted)',
+                        }}
+                        className="w-10 h-10 rounded-full flex items-center justify-center mx-auto"
+                      >
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                      <p
+                        style={{ color: 'var(--dm-text-secondary)' }}
+                        className="text-xs leading-relaxed"
+                      >
+                        No matching conversations found for this filter.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewChatModal(true)}
+                        className="ds-btn-secondary inline-flex px-3.5 py-1.5 min-h-[36px]"
+                      >
+                        Start New Conversation
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   filteredChats.map((chat) => {
                     const isSelected = activeChat?.id === chat.id;
@@ -913,7 +975,7 @@ export const MessagesView: React.FC = () => {
                                 <span>{(chat.memberIds || (chat as any).participants || []).length} Attendees</span>
                               </span>
                               {unread > 0 && (
-                                <span className="px-1.5 py-0.2 bg-[#8B181B] text-white rounded-full text-[10px] font-bold">
+                                <span className="px-1.5 py-0.2 bg-stone-200 dark:bg-stone-800 text-stone-800 dark:text-stone-100 rounded-full text-[10px] font-bold tabular-nums">
                                   {unread}
                                 </span>
                               )}
@@ -1004,7 +1066,7 @@ export const MessagesView: React.FC = () => {
                               )}
                             </div>
                             {unread > 0 && (
-                              <span className="px-1.5 py-0.2 bg-[#8B181B] text-white rounded-full text-[10px] font-bold shrink-0">
+                              <span className="px-1.5 py-0.2 bg-stone-200 dark:bg-stone-800 text-stone-800 dark:text-stone-100 rounded-full text-[10px] font-bold tabular-nums shrink-0">
                                 {unread}
                               </span>
                             )}
@@ -1016,13 +1078,13 @@ export const MessagesView: React.FC = () => {
                 )}
               </div>
 
-              {/* Bottom Quick Action */}
+              {/* Bottom Quick Action (Desktop Rail Footer) */}
               <div
                 style={{
                   backgroundColor: 'var(--dm-bg-rail-header)',
                   borderColor: 'var(--dm-border)',
                 }}
-                className="p-3 border-t"
+                className="hidden lg:block p-3 border-t"
               >
                 <button
                   type="button"
@@ -1057,22 +1119,16 @@ export const MessagesView: React.FC = () => {
                       backgroundColor: 'var(--dm-bg-header)',
                       borderColor: 'var(--dm-border)',
                     }}
-                    className="p-3 sm:p-4 border-b flex items-center justify-between gap-2.5 shrink-0 sticky top-[calc(4rem+env(safe-area-inset-top,0px))] lg:top-0 z-30 backdrop-blur-md rounded-t-[24px] sm:rounded-t-[32px] lg:rounded-none"
+                    className="px-2 py-2 lg:p-4 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] lg:pt-4 border-b flex items-center justify-between gap-2 shrink-0 sticky top-0 z-30 backdrop-blur-md"
                   >
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="flex items-center gap-1.5 lg:gap-3 min-w-0">
                       <button
                         type="button"
                         onClick={() => setActiveChatId(null)}
-                        style={{
-                          color: 'var(--dm-text-primary)',
-                          backgroundColor: 'var(--dm-input-bg)',
-                          borderColor: 'var(--dm-input-border)',
-                        }}
-                        className="lg:hidden min-h-[38px] px-2.5 py-1.5 rounded-xl border hover:opacity-90 active:scale-95 transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
-                        aria-label="Back to conversations list"
+                        className="lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-[#111827] dark:text-[#FAFAFA] active:bg-[#F3F4F6] dark:active:bg-[#262626] transition-colors shrink-0"
+                        aria-label="Back to messages inbox"
                       >
-                        <ArrowLeft className="w-4 h-4" />
-                        <span className="text-xs font-semibold hidden sm:inline">Channels</span>
+                        <ArrowLeft className="w-5 h-5 stroke-[1.9]" />
                       </button>
 
                       {activeChat.isGroupChat || activeChat.isEventChat ? (
@@ -1092,7 +1148,7 @@ export const MessagesView: React.FC = () => {
                           {(() => {
                             const recipientStatus = getUserOnlineStatus(recipientUser);
                             return (
-                              <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ${recipientStatus.dotColor} border-2 border-white dark:border-stone-900 ${recipientStatus.isOnline ? 'animate-pulse' : ''}`} />
+                              <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ${recipientStatus.dotColor} border-2 border-white dark:border-stone-900`} />
                             );
                           })()}
                         </div>
@@ -1646,13 +1702,13 @@ export const MessagesView: React.FC = () => {
                         <div ref={messagesEndRef} />
                       </div>
 
-                      {/* Quick Response Prompt Suggestions with Horizontal Slide Controls */}
+                      {/* Quick Response Prompt Suggestions (Desktop) */}
                       <div
                         style={{
                           backgroundColor: 'var(--dm-bg-header)',
                           borderColor: 'var(--dm-border)',
                         }}
-                        className="relative px-2 py-1.5 border-t flex items-center gap-1 group/prompts"
+                        className="hidden lg:flex relative px-2 py-1.5 border-t items-center gap-1 group/prompts"
                       >
                         <button
                           type="button"
@@ -1716,7 +1772,7 @@ export const MessagesView: React.FC = () => {
                       {(!isOnline || offlineQueueCount > 0) && (
                         <div className="px-3.5 py-2 bg-amber-50/95 dark:bg-amber-950/40 border-t border-amber-200/90 dark:border-amber-900/60 flex items-center justify-between gap-2 text-xs">
                           <div className="flex items-center gap-2 min-w-0">
-                            <div className={`w-2 h-2 rounded-full ${!isOnline ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'} shrink-0`} />
+                            <div className={`w-2 h-2 rounded-full ${!isOnline ? 'bg-amber-500' : 'bg-emerald-500'} shrink-0`} />
                             <span className="text-amber-950 dark:text-amber-200 font-medium text-[11px] truncate">
                               {!isOnline
                                 ? `Offline mode · ${offlineQueueCount} message${offlineQueueCount === 1 ? '' : 's'} queued to send on reconnect`
@@ -1779,7 +1835,7 @@ export const MessagesView: React.FC = () => {
                             backgroundColor: 'var(--dm-bg-footer)',
                             borderColor: 'var(--dm-border)',
                           }}
-                          className="p-3 sm:p-3.5 border-t flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+                          className="px-3 py-2.5 lg:p-3.5 border-t flex items-center gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
                         >
                           <input
                             type="text"
@@ -1787,22 +1843,22 @@ export const MessagesView: React.FC = () => {
                             onChange={(e) => setInputMessage(e.target.value)}
                             placeholder={
                               !isOnline
-                                ? 'Type message (offline)...'
+                                ? 'Message (offline)...'
                                 : activeChat.isGroupChat || activeChat.isEventChat
                                 ? `Message ${activeChat.groupName || 'group'}...`
-                                : `Message ${recipientUser?.name || 'alumnus'}...`
+                                : `Message...`
                             }
                             style={{
                               backgroundColor: 'var(--dm-input-bg)',
                               borderColor: 'var(--dm-input-border)',
                               color: 'var(--dm-input-text)',
                             }}
-                            className="flex-1 px-4 py-2.5 min-h-[44px] text-xs sm:text-sm border rounded-xl focus:outline-hidden focus:border-[#8B181B] transition-colors"
+                            className="flex-1 px-4 py-2.5 min-h-[44px] text-base lg:text-sm border rounded-full lg:rounded-xl focus:outline-hidden focus:border-[#8B181B] transition-colors"
                           />
                           <button
                             type="submit"
                             disabled={!inputMessage.trim()}
-                            className="min-w-[44px] min-h-[44px] p-2.5 bg-[#8B181B] hover:bg-[#721316] disabled:opacity-40 text-white rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center shrink-0"
+                            className="min-w-[44px] min-h-[44px] p-2.5 bg-[#8B181B] dark:bg-[#E11D48] hover:bg-[#721316] disabled:opacity-40 text-white rounded-full lg:rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center shrink-0"
                             aria-label="Send message"
                           >
                             <Send className="w-4 h-4" />
@@ -2065,7 +2121,7 @@ export const MessagesView: React.FC = () => {
                         setContactDirectorySearch('');
                         setShowNewChatModal(true);
                       }}
-                      className="w-full sm:w-auto px-5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(139,24,27,0.2)] transition-all cursor-pointer active:scale-[0.99]"
+                      className="ds-btn-primary w-full sm:w-auto px-5 py-2.5 min-h-[44px] text-sm"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Start New Conversation</span>
@@ -2183,16 +2239,16 @@ export const MessagesView: React.FC = () => {
       {/* ========================================================================= */}
       <AnimatePresence>
         {showNewChatModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center lg:p-4 bg-black/60 dark:bg-black/80 backdrop-blur-xs">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
               style={{
                 backgroundColor: 'var(--dm-modal-bg)',
                 borderColor: 'var(--dm-modal-border)',
               }}
-              className="rounded-3xl border max-w-lg w-full p-6 shadow-2xl space-y-4"
+              className="rounded-t-2xl lg:rounded-3xl border-t lg:border max-w-lg w-full p-5 lg:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] lg:pb-6 shadow-2xl space-y-4"
             >
               <div
                 style={{ borderColor: 'var(--dm-border)' }}

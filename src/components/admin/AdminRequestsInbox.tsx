@@ -269,10 +269,10 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
               type="button"
               onClick={handleSmartAutoReconcile}
               disabled={reconciling}
-              className="px-3.5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 self-start sm:self-auto disabled:opacity-50"
+              className="ds-btn-primary px-3.5 py-2 min-h-[44px] sm:min-h-[38px] text-xs flex items-center gap-1.5 self-start sm:self-auto"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>
+              <span className="tabular-nums">
                 {reconciling
                   ? 'Reconciling...'
                   : `1-Click Auto-Reconcile (${perfectMatchAnalyses.length} Flawless Matches)`}
@@ -288,10 +288,10 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 min-h-[40px] sm:min-h-[34px] rounded-lg text-xs font-semibold transition-all cursor-pointer tabular-nums whitespace-nowrap shrink-0 border ${
                   activeFilter === 'all'
-                    ? 'bg-stone-900 text-white'
-                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+                    ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 shadow-2xs font-bold'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100 border-transparent'
                 }`}
               >
                 All Alumni ({pendingUsers.length})
@@ -300,10 +300,10 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveFilter('perfect')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 min-h-[40px] sm:min-h-[34px] rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 tabular-nums whitespace-nowrap shrink-0 border ${
                   activeFilter === 'perfect'
-                    ? 'bg-emerald-700 text-white'
-                    : 'text-stone-600 hover:text-emerald-700 hover:bg-emerald-50'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200 shadow-2xs font-bold'
+                    : 'text-stone-600 hover:text-emerald-700 hover:bg-emerald-50 border-transparent'
                 }`}
               >
                 <CheckCircle2 className="w-3 h-3" />
@@ -313,10 +313,10 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveFilter('discrepancies')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 min-h-[40px] sm:min-h-[34px] rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 tabular-nums whitespace-nowrap shrink-0 border ${
                   activeFilter === 'discrepancies'
-                    ? 'bg-amber-700 text-white'
-                    : 'text-stone-600 hover:text-amber-700 hover:bg-amber-50'
+                    ? 'bg-amber-50 text-amber-900 border-amber-200 shadow-2xs font-bold'
+                    : 'text-stone-600 hover:text-amber-700 hover:bg-amber-50 border-transparent'
                 }`}
               >
                 <AlertTriangle className="w-3 h-3" />
@@ -442,7 +442,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                           </div>
 
                           {/* Quick Actions */}
-                          <div className="flex items-center gap-2 self-start sm:self-auto">
+                          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
                             {isPerfect ? (
                               <button
                                 type="button"
@@ -450,7 +450,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                                   setUserVerified(u.uid, true);
                                   showToast(`✓ Verified ${u.name}!`, 'success');
                                 }}
-                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                                className="px-3.5 py-1.5 min-h-[40px] sm:min-h-[34px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
                               >
                                 <Check className="w-3.5 h-3.5" />
                                 <span>Approve Verified</span>
@@ -459,10 +459,10 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                               <button
                                 type="button"
                                 onClick={() => handleSyncToRegistrarAndVerify(analysis)}
-                                className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                                className="px-3.5 py-1.5 min-h-[40px] sm:min-h-[34px] bg-rose-50 hover:bg-rose-100 text-[#8B181B] border border-rose-200 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
                                 title="Align degree with official transcript and approve"
                               >
-                                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                <Sparkles className="w-3.5 h-3.5 text-[#8B181B]" />
                                 <span>Sync to Transcript & Approve</span>
                               </button>
                             ) : (
@@ -472,7 +472,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                                   setUserVerified(u.uid, true);
                                   showToast(`Approved ${u.name} via manual override`, 'info');
                                 }}
-                                className="px-3.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                                className="ds-btn-secondary px-3.5 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs"
                               >
                                 Manual Approve
                               </button>
@@ -481,7 +481,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                             <button
                               type="button"
                               onClick={() => setSelectedUserIdForModal(u.uid)}
-                              className="px-2.5 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                              className="ds-btn-ghost px-2.5 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs"
                             >
                               Profile
                             </button>
@@ -594,7 +594,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                                   "{u.verificationNotes}"
                                 </p>
                               )}
-                              <div className="flex items-center gap-2 pt-0.5">
+                              <div className="flex items-center gap-2 pt-0.5 flex-wrap">
                                 {u.verificationProofUrl && (
                                   <button
                                     type="button"
@@ -607,7 +607,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                                         notes: u.verificationNotes
                                       })
                                     }
-                                    className="px-2.5 py-1 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                                    className="ds-btn-secondary px-2.5 py-1 min-h-[38px] sm:min-h-[32px] text-[11px] flex items-center gap-1.5"
                                   >
                                     <Eye className="w-3 h-3" />
                                     <span>Inspect Proof Document</span>
@@ -616,7 +616,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setDecliningAlumni(u)}
-                                  className="px-2.5 py-1 bg-white hover:bg-stone-100 text-stone-700 border border-stone-200 rounded-lg text-[11px] font-bold transition-colors cursor-pointer"
+                                  className="ds-btn-ghost px-2.5 py-1 min-h-[38px] sm:min-h-[32px] text-[11px]"
                                 >
                                   Decline / Clarify
                                 </button>
@@ -674,11 +674,11 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <button
                           type="button"
                           onClick={() => setAuditEmployer(emp)}
-                          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+                          className="ds-btn-secondary px-3 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs flex items-center gap-1.5"
                           title="Audit credentials (read-only)"
                         >
                           <FileText className="w-3.5 h-3.5 text-stone-500" />
@@ -690,7 +690,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                             verifyEmployer(emp.uid, 'verified');
                             showToast(`Accredited corporate partner ${emp.company || emp.name}!`, 'success');
                           }}
-                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                          className="px-3.5 py-1.5 min-h-[40px] sm:min-h-[34px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>Approve</span>
@@ -698,7 +698,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                         <button
                           type="button"
                           onClick={() => handleOpenRejectModal(emp)}
-                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold cursor-pointer"
+                          className="ds-btn-ghost px-3 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs hover:text-rose-700 hover:bg-rose-50"
                         >
                           Reject
                         </button>
@@ -758,14 +758,14 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <button
                           type="button"
                           onClick={() => {
                             approveOpportunity(job.id);
                             showToast(`Approved and published job "${job.title}"!`, 'success');
                           }}
-                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                          className="px-3.5 py-1.5 min-h-[40px] sm:min-h-[34px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>Approve Posting</span>
@@ -776,7 +776,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                             rejectOpportunity(job.id, 'Declined by Administrator during routine moderation');
                             showToast(`Declined job posting "${job.title}"`, 'info');
                           }}
-                          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-medium cursor-pointer"
+                          className="ds-btn-secondary px-3 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs"
                         >
                           Decline
                         </button>
@@ -811,7 +811,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
 
       {/* Mandatory Rejection Reason Modal */}
       {rejectingEmployer && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div
             className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-stone-200 text-stone-900 my-auto animate-in fade-in zoom-in-95"
             onClick={(e) => e.stopPropagation()}
@@ -880,13 +880,13 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                     setRejectingEmployer(null);
                     setRejectionError(null);
                   }}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl cursor-pointer"
+                  className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                  className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Confirm Rejection
                 </button>
@@ -898,7 +898,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
 
       {/* Proof Document Inspection Modal */}
       {viewingProof && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-xl border border-stone-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
               <div className="flex items-center gap-2.5">
@@ -953,11 +953,11 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
               )}
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-stone-100">
+            <div className="flex items-center justify-between pt-2 border-t border-stone-100 gap-2">
               <button
                 type="button"
                 onClick={() => setViewingProof(null)}
-                className="px-4 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl cursor-pointer"
+                className="ds-btn-ghost px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
               >
                 Close
               </button>
@@ -969,7 +969,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                     setViewingProof(null);
                     if (targetU) setDecliningAlumni(targetU);
                   }}
-                  className="px-3.5 py-2 text-xs font-bold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-xl cursor-pointer"
+                  className="ds-btn-secondary px-3.5 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Decline / Clarify
                 </button>
@@ -980,7 +980,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                     showToast(`✓ Verified ${viewingProof.userName} with submitted documentation!`, 'success');
                     setViewingProof(null);
                   }}
-                  className="px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs flex items-center gap-1.5"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>Approve Verification</span>
@@ -993,7 +993,7 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
 
       {/* Decline Alumni Verification Request Modal */}
       {decliningAlumni && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-xl border border-stone-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-stone-100">
               <div className="flex items-center gap-2 text-stone-900 font-bold text-sm">
@@ -1031,13 +1031,13 @@ export const AdminRequestsInbox: React.FC<AdminRequestsInboxProps> = ({
                 <button
                   type="button"
                   onClick={() => setDecliningAlumni(null)}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-stone-600 hover:bg-stone-100 rounded-xl cursor-pointer"
+                  className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 text-xs font-bold text-white bg-amber-700 hover:bg-amber-800 rounded-xl shadow-xs transition-colors cursor-pointer"
+                  className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] text-xs"
                 >
                   Confirm Decline
                 </button>

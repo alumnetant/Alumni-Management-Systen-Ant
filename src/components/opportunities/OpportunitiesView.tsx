@@ -44,6 +44,12 @@ import {
   JobMatchResult
 } from '../../services/jobMatchingService';
 import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
+import {
+  MobileBottomSheet,
+  MobileButton,
+  MobileInput,
+  MobileSegmentedTabs
+} from '../mobile/MobilePrimitives';
 
 export const OpportunitiesView: React.FC = () => {
   const {
@@ -64,6 +70,7 @@ export const OpportunitiesView: React.FC = () => {
 
   // Navigation sub-tabs
   const [activeSubTab, setActiveSubTab] = useState<'explore' | 'my_applications' | 'employer_portal' | 'admin_moderation'>('explore');
+  const [showMobileFilterSheet, setShowMobileFilterSheet] = useState(false);
 
   // Automatically clear/dismiss Jobs notification badge on visit (Requirement 3)
   useEffect(() => {
@@ -421,9 +428,23 @@ export const OpportunitiesView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-16">
-      {/* Top Institutional Header */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden">
+    <div className="space-y-4 lg:space-y-6 pb-16">
+      {/* MOBILE (<1024px) CLEAN JOBS SEGMENTED TABS */}
+      <div className="lg:hidden sticky top-[calc(52px+env(safe-area-inset-top,0px))] z-30">
+        <MobileSegmentedTabs<typeof activeSubTab>
+          value={activeSubTab}
+          onChange={setActiveSubTab}
+          options={[
+            { id: 'explore', label: 'Open Roles', badge: publishedOpportunities.length },
+            ...(currentUser ? [{ id: 'my_applications' as const, label: 'Applied', badge: myApplications.length || undefined }] : []),
+            ...(currentUser?.role === 'employer' || myPostings.length > 0 ? [{ id: 'employer_portal' as const, label: 'My Posts' }] : []),
+            ...(permissions.canManageJobModeration ? [{ id: 'admin_moderation' as const, label: 'Review', badge: pendingCount || undefined }] : [])
+          ]}
+        />
+      </div>
+
+      {/* DESKTOP Top Institutional Header (>=1024px INTACT) */}
+      <div className="hidden lg:block bg-white rounded-2xl border border-stone-200/90 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] overflow-hidden">
         <div className="h-1.5 w-full bg-gradient-to-r from-[#8B181B] via-[#991B1B] to-[#B45309]" />
 
         <div className="p-5 sm:p-6 lg:p-7">
@@ -518,16 +539,16 @@ export const OpportunitiesView: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveSubTab('admin_moderation')}
-              className={`px-3.5 py-2 rounded-xl font-bold transition-all shrink-0 flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-xl font-bold transition-colors shrink-0 flex items-center gap-1.5 min-h-[40px] ${
                 activeSubTab === 'admin_moderation'
-                  ? 'bg-[#8B181B] text-white shadow-2xs'
+                  ? 'bg-stone-900 text-white shadow-2xs'
                   : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               <span>Admin Approval Desk</span>
               {pendingCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-200 text-amber-900 font-extrabold animate-pulse">
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-200 text-amber-900 font-bold tabular-nums">
                   {pendingCount}
                 </span>
               )}
@@ -539,9 +560,136 @@ export const OpportunitiesView: React.FC = () => {
 
       {/* VIEW: EXPLORE JOBS */}
       {activeSubTab === 'explore' && (
-        <div className="space-y-5">
-          {/* Filters Bar */}
-          <div className="bg-white dark:bg-stone-900 p-3.5 sm:p-4 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5 sm:gap-3">
+        <div className="space-y-4 lg:space-y-5 px-4 lg:px-0">
+          {/* MOBILE (<1024px) COMPACT SEARCH + FILTER TRIGGER */}
+          <div className="lg:hidden flex items-center gap-2 pt-1">
+            <div className="flex-1 min-w-0">
+              <MobileInput
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClear={() => setSearchQuery('')}
+                placeholder="Search roles, companies, skills..."
+                leftIcon={<Search className="w-4 h-4" />}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowMobileFilterSheet(true)}
+              aria-label="Filter jobs"
+              className={`w-[46px] h-[46px] rounded-xl flex items-center justify-center shrink-0 border transition-colors cursor-pointer ${
+                selectedType !== 'all' || selectedCourseFilter !== 'all' || selectedSkillTag !== 'all' || matchOnly || filterByMySkills
+                  ? 'bg-[#FEF2F2] dark:bg-[#E11D48]/15 border-[#8B181B] dark:border-[#FB7185] text-[#8B181B] dark:text-[#FB7185]'
+                  : 'bg-[#F3F4F6] dark:bg-[#262626] border-transparent text-[#111827] dark:text-[#FAFAFA]'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+            </button>
+            {permissions.canPostJobs && (
+              <button
+                type="button"
+                onClick={handleOpenPostModal}
+                aria-label="Post job opportunity"
+                className="w-[46px] h-[46px] rounded-xl bg-[#8B181B] dark:bg-[#E11D48] text-white flex items-center justify-center shrink-0 cursor-pointer"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          <MobileBottomSheet
+            isOpen={showMobileFilterSheet}
+            onClose={() => setShowMobileFilterSheet(false)}
+            title="Filter Jobs"
+          >
+            <div className="p-4 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-[#111827] dark:text-[#FAFAFA]">Job Type</label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="w-full min-h-[46px] px-3.5 rounded-xl bg-[#F3F4F6] dark:bg-[#262626] text-[16px] text-[#111827] dark:text-[#FAFAFA]"
+                >
+                  <option value="all">All Job Types</option>
+                  <option value="Full-time">Full-Time</option>
+                  <option value="Part-time">Part-Time</option>
+                  <option value="Internship">Internship</option>
+                  <option value="Mentorship">Mentorship</option>
+                  <option value="Contract">Contract</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-[#111827] dark:text-[#FAFAFA]">Degree Course</label>
+                <CourseFilterButton
+                  id="mobile-jobs-course-filter-btn"
+                  value={selectedCourseFilter}
+                  onChange={setSelectedCourseFilter}
+                  align="left"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-[#111827] dark:text-[#FAFAFA]">Skill</label>
+                <select
+                  value={selectedSkillTag}
+                  onChange={(e) => setSelectedSkillTag(e.target.value)}
+                  className="w-full min-h-[46px] px-3.5 rounded-xl bg-[#F3F4F6] dark:bg-[#262626] text-[16px] text-[#111827] dark:text-[#FAFAFA]"
+                >
+                  <option value="all">All Skills ({availableJobSkills.length})</option>
+                  {availableJobSkills.map((skill) => (
+                    <option key={skill} value={skill}>{skill}</option>
+                  ))}
+                </select>
+              </div>
+              {currentUser && (
+                <div className="flex flex-col gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setFilterByMySkills(!filterByMySkills)}
+                    className={`min-h-[46px] px-4 rounded-xl text-[14px] font-semibold text-left flex items-center justify-between cursor-pointer ${
+                      filterByMySkills
+                        ? 'bg-[#FEF2F2] dark:bg-[#E11D48]/15 text-[#8B181B] dark:text-[#FB7185]'
+                        : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#111827] dark:text-[#FAFAFA]'
+                    }`}
+                  >
+                    <span>Match My Verified Skills</span>
+                    {filterByMySkills && <Check className="w-4 h-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMatchOnly(!matchOnly)}
+                    className={`min-h-[46px] px-4 rounded-xl text-[14px] font-semibold text-left flex items-center justify-between cursor-pointer ${
+                      matchOnly
+                        ? 'bg-[#FEF2F2] dark:bg-[#E11D48]/15 text-[#8B181B] dark:text-[#FB7185]'
+                        : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#111827] dark:text-[#FAFAFA]'
+                    }`}
+                  >
+                    <span>Matched For Me Only</span>
+                    {matchOnly && <Check className="w-4 h-4" />}
+                  </button>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2.5 pt-2">
+                <MobileButton
+                  variant="secondary"
+                  fullWidth
+                  onClick={() => {
+                    setSelectedType('all');
+                    setSelectedCourseFilter('all');
+                    setSelectedSkillTag('all');
+                    setFilterByMySkills(false);
+                    setMatchOnly(false);
+                  }}
+                >
+                  Reset
+                </MobileButton>
+                <MobileButton variant="primary" fullWidth onClick={() => setShowMobileFilterSheet(false)}>
+                  Apply
+                </MobileButton>
+              </div>
+            </div>
+          </MobileBottomSheet>
+
+          {/* DESKTOP Filters Bar (>=1024px INTACT) */}
+          <div className="hidden lg:flex bg-white dark:bg-stone-900 p-3.5 sm:p-4 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] flex-col lg:flex-row items-stretch lg:items-center gap-2.5 sm:gap-3">
             <div className="relative flex-1 min-w-0">
               <Search className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
@@ -549,7 +697,7 @@ export const OpportunitiesView: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by role, company name, required course, or skill (e.g. PHP, Laravel, React, TypeScript)..."
-                className="w-full pl-9 pr-9 py-2 text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#8B181B] focus:border-[#8B181B] placeholder:text-stone-400 dark:placeholder:text-stone-500"
+                className="w-full pl-9 pr-9 py-2 text-xs sm:text-sm bg-stone-50 dark:bg-stone-800 border border-stone-200/90 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl focus:outline-hidden focus:ring-1 focus:ring-[#8B181B] focus:border-[#8B181B] placeholder:text-stone-400 dark:placeholder:text-stone-500 min-h-[40px]"
               />
               {searchQuery && (
                 <button
@@ -575,7 +723,7 @@ export const OpportunitiesView: React.FC = () => {
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full sm:w-auto px-3 py-2 text-xs bg-stone-50 border border-stone-200/90 rounded-xl text-stone-700 font-medium"
+                className="w-full sm:w-auto px-3 py-2 text-xs bg-stone-50 border border-stone-200/90 rounded-xl text-stone-700 font-medium min-h-[40px]"
               >
                 <option value="all">All Job Types</option>
                 <option value="Full-time">Full-Time</option>
@@ -589,7 +737,7 @@ export const OpportunitiesView: React.FC = () => {
               <select
                 value={selectedSkillTag}
                 onChange={(e) => setSelectedSkillTag(e.target.value)}
-                className="w-full sm:w-auto px-3 py-2 text-xs bg-stone-50 border border-stone-200/90 rounded-xl text-stone-700 font-medium lg:max-w-[180px] truncate"
+                className="w-full sm:w-auto px-3 py-2 text-xs bg-stone-50 border border-stone-200/90 rounded-xl text-stone-700 font-medium lg:max-w-[180px] truncate min-h-[40px]"
                 title="Filter opportunities by specific required or verified skill"
               >
                 <option value="all">All Skills ({availableJobSkills.length})</option>
@@ -618,10 +766,10 @@ export const OpportunitiesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setFilterByMySkills(!filterByMySkills)}
-                  className={`w-full sm:w-auto justify-center px-3 py-2 text-xs rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`w-full sm:w-auto justify-center px-3 py-2 text-xs rounded-xl font-semibold border flex items-center gap-1.5 transition-colors cursor-pointer min-h-[40px] ${
                     filterByMySkills
-                      ? 'bg-[#8B181B] text-white shadow-2xs ring-2 ring-red-300'
-                      : 'bg-stone-50 border border-stone-200/90 text-stone-700 hover:bg-stone-100'
+                      ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 border-[#8B181B]'
+                      : 'bg-stone-50 border-stone-200/90 text-stone-700 hover:bg-stone-100'
                   }`}
                   title={
                     userVerifiedSkills.length > 0
@@ -629,12 +777,10 @@ export const OpportunitiesView: React.FC = () => {
                       : 'Filter by your verified profile skills'
                   }
                 >
-                  <ShieldCheck className={`w-3.5 h-3.5 ${filterByMySkills ? 'text-white' : 'text-[#8B181B]'}`} />
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#8B181B]" />
                   <span>My Verified Skills</span>
                   {userVerifiedSkills.length > 0 && (
-                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                      filterByMySkills ? 'bg-red-900 text-white' : 'bg-red-100 text-[#8B181B]'
-                    }`}>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums bg-red-100 text-[#8B181B]">
                       {userVerifiedSkills.length}
                     </span>
                   )}
@@ -645,13 +791,13 @@ export const OpportunitiesView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setMatchOnly(!matchOnly)}
-                  className={`w-full sm:w-auto justify-center px-3 py-2 text-xs rounded-xl font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  className={`w-full sm:w-auto justify-center px-3 py-2 text-xs rounded-xl font-semibold border flex items-center gap-1.5 transition-colors cursor-pointer min-h-[40px] ${
                     matchOnly
-                      ? 'bg-emerald-600 text-white shadow-2xs'
-                      : 'bg-stone-50 border border-stone-200/90 text-stone-700 hover:bg-stone-100'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-500'
+                      : 'bg-stone-50 border-stone-200/90 text-stone-700 hover:bg-stone-100'
                   }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Matched For Me</span>
                 </button>
               )}
@@ -665,7 +811,7 @@ export const OpportunitiesView: React.FC = () => {
                 <div className="flex items-center gap-2 text-xs font-bold text-[#8B181B]">
                   <ShieldCheck className="w-4 h-4 text-[#8B181B] shrink-0" />
                   <span>Skills-Based Filter Active</span>
-                  <span className="text-[11px] font-normal text-stone-600">
+                  <span className="text-[11px] font-normal text-stone-600 tabular-nums">
                     — Showing {publishedOpportunities.length} job{publishedOpportunities.length === 1 ? '' : 's'} matching {selectedSkillTag !== 'all' ? `"${selectedSkillTag}"` : 'your verified profile skills'}
                   </span>
                 </div>
@@ -682,14 +828,14 @@ export const OpportunitiesView: React.FC = () => {
                           key={`chip-${skill}`}
                           type="button"
                           onClick={() => setSelectedSkillTag(isSelected ? 'all' : skill)}
-                          className={`px-2.5 py-0.5 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                          className={`px-2.5 py-0.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer flex items-center gap-1 ${
                             isSelected
-                              ? 'bg-[#8B181B] text-white shadow-2xs'
-                              : 'bg-white border border-red-200 text-[#8B181B] hover:bg-red-100/70'
+                              ? 'bg-rose-100 border-[#8B181B] text-[#8B181B]'
+                              : 'bg-white border-red-200 text-[#8B181B] hover:bg-red-50'
                           }`}
                         >
                           <span>{skill}</span>
-                          <span className={`text-[10px] ${isSelected ? 'text-red-200' : 'text-stone-500'}`}>
+                          <span className="text-[10px] text-stone-500 tabular-nums">
                             ({userSkillMatchCounts[skill] || 0})
                           </span>
                         </button>

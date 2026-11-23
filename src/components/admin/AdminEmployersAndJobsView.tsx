@@ -480,13 +480,13 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
               Corporate Recruitment & Career Placements
             </h1>
             <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500">
-              <span>Active Listings: <strong className="text-stone-900 font-semibold">{opportunities.length}</strong></span>
+              <span>Active Listings: <strong className="text-stone-900 font-semibold tabular-nums">{opportunities.length}</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
-              <span>Accredited Partners: <strong className="text-stone-900 font-semibold">{verifiedEmployers.length}</strong></span>
+              <span>Accredited Partners: <strong className="text-stone-900 font-semibold tabular-nums">{verifiedEmployers.length}</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
-              <span>Alumni Employment Index: <strong className="text-stone-900 font-semibold">{employmentRate}%</strong></span>
+              <span>Alumni Employment Index: <strong className="text-stone-900 font-semibold tabular-nums">{employmentRate}%</strong></span>
               <span aria-hidden="true" className="text-stone-300">·</span>
-              <span>Pending Review: <strong className={totalPendingModeration > 0 ? 'text-amber-600 font-semibold' : 'text-stone-700'}>{totalPendingModeration}</strong></span>
+              <span>Pending Review: <strong className={`tabular-nums ${totalPendingModeration > 0 ? 'text-amber-600 font-semibold' : 'text-stone-700'}`}>{totalPendingModeration}</strong></span>
             </div>
           </div>
 
@@ -494,9 +494,9 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
             <button
               type="button"
               onClick={() => setShowCreateJobModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[#8B181B] hover:bg-[#721316] shadow-sm transition-colors cursor-pointer"
+              className="ds-btn-primary inline-flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer"
             >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <Plus className="w-4 h-4 stroke-[2.25]" />
               <span>Post New Opportunity</span>
             </button>
           </div>
@@ -531,17 +531,17 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                   key={sector.id}
                   type="button"
                   onClick={() => setSelectedIndustry(sector.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all text-left cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-3 py-2 min-h-[40px] sm:min-h-[36px] rounded-xl text-xs transition-all text-left cursor-pointer border ${
                     selectedIndustry === sector.id
-                      ? 'bg-stone-900 text-white shadow-2xs'
-                      : 'text-stone-700 hover:bg-stone-100/80'
+                      ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold shadow-2xs'
+                      : 'text-stone-700 border-transparent hover:bg-stone-100/80 font-medium'
                   }`}
                 >
                   <span className="truncate">{sector.label}</span>
                   <span
                     className={`ml-2 text-[11px] font-semibold tabular-nums px-1.5 py-0.5 rounded-md ${
                       selectedIndustry === sector.id
-                        ? 'bg-stone-800 text-stone-200'
+                        ? 'bg-white text-[#8B181B] border border-rose-200/70'
                         : 'bg-stone-100 text-stone-600'
                     }`}
                   >
@@ -567,10 +567,10 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                       key={type}
                       type="button"
                       onClick={() => setSelectedJobType(type === 'all' ? 'all' : type)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors text-center cursor-pointer ${
+                      className={`px-2.5 py-1.5 min-h-[38px] sm:min-h-[34px] rounded-lg text-xs transition-colors text-center cursor-pointer border ${
                         selectedJobType.toLowerCase() === type.toLowerCase()
-                          ? 'bg-[#8B181B] text-white'
-                          : 'bg-stone-100 text-stone-700 hover:bg-stone-200/70'
+                          ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                          : 'bg-stone-100 text-stone-700 border-transparent hover:bg-stone-200/70 font-medium'
                       }`}
                     >
                       {type === 'all' ? 'All Types' : type}
@@ -587,10 +587,10 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                       key={arr}
                       type="button"
                       onClick={() => setSelectedArrangement(arr === 'all' ? 'all' : arr)}
-                      className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-center cursor-pointer ${
+                      className={`px-2 py-1.5 min-h-[38px] sm:min-h-[34px] rounded-lg text-xs transition-colors text-center cursor-pointer border ${
                         selectedArrangement.toLowerCase() === arr.toLowerCase()
-                          ? 'bg-stone-900 text-white'
-                          : 'bg-stone-100 text-stone-700 hover:bg-stone-200/70'
+                          ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                          : 'bg-stone-100 text-stone-700 border-transparent hover:bg-stone-200/70 font-medium'
                       }`}
                     >
                       {arr === 'all' ? 'Any' : arr}
@@ -671,10 +671,10 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
               <button
                 type="button"
                 onClick={() => setActiveViewMode('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 min-h-[38px] sm:min-h-[34px] rounded-lg text-xs transition-colors cursor-pointer border tabular-nums ${
                   activeViewMode === 'all'
-                    ? 'bg-stone-900 text-white'
-                    : 'text-stone-600 hover:bg-stone-100'
+                    ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                    : 'text-stone-600 border-transparent hover:bg-stone-100 font-medium'
                 }`}
               >
                 All Opportunities ({opportunities.length})
@@ -682,15 +682,15 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
               <button
                 type="button"
                 onClick={() => setActiveViewMode('moderation')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 min-h-[38px] sm:min-h-[34px] rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5 border ${
                   activeViewMode === 'moderation'
-                    ? 'bg-amber-700 text-white'
-                    : 'text-stone-600 hover:bg-stone-100'
+                    ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                    : 'text-stone-600 border-transparent hover:bg-stone-100 font-medium'
                 }`}
               >
                 <span>Needs Moderation</span>
                 {pendingJobs.length > 0 && (
-                  <span className="bg-amber-100 text-amber-900 text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                  <span className="bg-amber-100 text-amber-900 text-[10px] font-bold tabular-nums px-1.5 py-0.2 rounded-full">
                     {pendingJobs.length}
                   </span>
                 )}
@@ -698,10 +698,10 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
               <button
                 type="button"
                 onClick={() => setActiveViewMode('employers')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 min-h-[38px] sm:min-h-[34px] rounded-lg text-xs transition-colors cursor-pointer border tabular-nums ${
                   activeViewMode === 'employers'
-                    ? 'bg-stone-900 text-white'
-                    : 'text-stone-600 hover:bg-stone-100'
+                    ? 'bg-rose-50 text-[#8B181B] border-rose-200/80 font-semibold'
+                    : 'text-stone-600 border-transparent hover:bg-stone-100 font-medium'
                 }`}
               >
                 Partners ({allEmployers.length})
@@ -782,7 +782,7 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                                 <button
                                   type="button"
                                   onClick={() => setEmployerToAccredit({ uid: emp.uid, name: emp.company || emp.name })}
-                                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 transition-colors cursor-pointer"
+                                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
                                 >
                                   Accredit
                                 </button>
@@ -1010,7 +1010,7 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                               <button
                                 type="button"
                                 onClick={() => setJobToApprove({ id: job.id, title: job.title, company: job.company })}
-                                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-700 hover:bg-emerald-800 shadow-2xs transition-colors cursor-pointer"
+                                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
                               >
                                 Approve Listing
                               </button>
@@ -1190,13 +1190,13 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
                 <button
                   type="button"
                   onClick={() => setShowCreateJobModal(false)}
-                  className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-semibold cursor-pointer"
+                  className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-white bg-[#8B181B] hover:bg-[#721316] font-semibold shadow-sm cursor-pointer"
+                  className="ds-btn-primary px-5 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer"
                 >
                   Publish Listing
                 </button>
@@ -1232,14 +1232,14 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
               <button
                 type="button"
                 onClick={() => setRejectingJobId(null)}
-                className="px-4 py-2 rounded-xl text-stone-600 hover:bg-stone-100 font-semibold cursor-pointer"
+                className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmRejectJob}
-                className="px-4 py-2 rounded-xl text-white bg-rose-700 hover:bg-rose-800 font-semibold cursor-pointer"
+                className="ds-btn-primary px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer"
               >
                 Confirm Rejection
               </button>
@@ -1326,7 +1326,7 @@ export const AdminEmployersAndJobsView: React.FC<AdminEmployersAndJobsViewProps>
               <button
                 type="button"
                 onClick={() => setInspectingJob(null)}
-                className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold cursor-pointer"
+                className="ds-btn-secondary px-4 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold cursor-pointer"
               >
                 Close Inspector
               </button>

@@ -412,9 +412,9 @@ ${app.coverLetter || 'Submitted via Cecilian AlumNet Career Board.'}
             <button
               type="button"
               onClick={handleOpenPostModal}
-              className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-colors cursor-pointer ${
+              className={`px-4 py-2.5 min-h-[40px] rounded-xl text-xs font-semibold flex items-center gap-2 transition-colors ${
                 canPost
-                  ? 'bg-[#991B1B] hover:bg-[#7F1D1D] text-white'
+                  ? 'ds-btn-primary'
                   : 'bg-stone-200 text-stone-500 hover:bg-stone-300 cursor-not-allowed'
               }`}
             >
@@ -478,7 +478,7 @@ ${app.coverLetter || 'Submitted via Cecilian AlumNet Career Board.'}
                 <button
                   type="button"
                   onClick={() => setShowRenewalModal(true)}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer self-start sm:self-auto"
+                  className="px-3.5 py-2 min-h-[38px] bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded-xl text-xs font-bold transition-all shadow-2xs shrink-0 cursor-pointer self-start sm:self-auto"
                 >
                   Request Accreditation Renewal
                 </button>
@@ -499,7 +499,7 @@ ${app.coverLetter || 'Submitted via Cecilian AlumNet Career Board.'}
                 <button
                   type="button"
                   onClick={() => setShowRenewalModal(true)}
-                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer self-start sm:self-auto"
+                  className="px-3.5 py-2 min-h-[38px] bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all shadow-2xs shrink-0 cursor-pointer self-start sm:self-auto"
                 >
                   Renew Credentials
                 </button>
@@ -525,7 +525,7 @@ ${app.coverLetter || 'Submitted via Cecilian AlumNet Career Board.'}
         )}
 
         {/* Overview Metrics Cards */}
-        <div className="mt-6 pt-5 border-t border-stone-200 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="mt-6 pt-5 border-t border-stone-200 grid grid-cols-2 sm:grid-cols-4 gap-3 tabular-nums">
           <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200/70">
             <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
               Active Postings
@@ -631,9 +631,9 @@ ${app.coverLetter || 'Submitted via Cecilian AlumNet Career Board.'}
               <button
                 type="button"
                 onClick={handleOpenPostModal}
-                className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-[#991B1B] hover:bg-[#7F1D1D] text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+                className="mt-4 ds-btn-secondary inline-flex px-4 py-2 min-h-[40px]"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3.5 h-3.5 text-[#8B181B]" />
                 <span>Post First Job Opening</span>
               </button>
             )}
@@ -731,11 +731,11 @@ ${app.coverLetter || 'Submitted via Cecilian AlumNet Career Board.'}
                       <button
                         type="button"
                         onClick={() => setSelectedJobForApplicants(job)}
-                        className="px-3.5 py-2 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                        className="ds-btn-secondary px-3.5 py-2 min-h-[38px]"
                         title="Open Full Applicant Management Suite"
                       >
-                        <Users className="w-3.5 h-3.5" />
-                        <span>Manage in Pipeline ({applicantsForJob.length})</span>
+                        <Users className="w-3.5 h-3.5 text-[#8B181B]" />
+                        <span className="tabular-nums">Manage in Pipeline ({applicantsForJob.length})</span>
                       </button>
 
                       <button

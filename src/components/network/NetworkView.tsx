@@ -53,6 +53,7 @@ import { PartneredCompaniesView } from './PartneredCompaniesView';
 import { HIGHLIGHT_RING_CLASS, useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
 import { CourseFilterButton } from '../common/CourseFilterButton';
 import { matchesCourseFilter } from '../../lib/courseFilter';
+import { MobileBottomSheet, MobileButton, MobileInput } from '../mobile/MobilePrimitives';
 
 export const NetworkView: React.FC = () => {
   const {
@@ -501,10 +502,82 @@ export const NetworkView: React.FC = () => {
     );
   }
 
+  const [showMobileFilterSheet, setShowMobileFilterSheet] = useState(false);
+
   return (
-    <div className="space-y-6 pb-12 antialiased">
-      {/* Requirement 8: Segregated Directory Sections (Companies and Alumni) */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white dark:bg-stone-900 p-2 sm:p-2.5 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-2xs">
+    <div className="space-y-4 lg:space-y-6 px-4 lg:px-0 pt-3 lg:pt-0 pb-12 antialiased">
+      {/* MOBILE (<1024px) CLEAN EXPLORE PEOPLE BAR */}
+      <div className="lg:hidden space-y-2.5">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <MobileInput
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (directorySection === 'alumni' && activeSubTab !== 'directory') {
+                  setActiveSubTab('directory');
+                }
+              }}
+              onClear={() => setSearchQuery('')}
+              placeholder="Search alumni, batch, or course..."
+              leftIcon={<Search className="w-4 h-4" />}
+            />
+          </div>
+          {directorySection === 'alumni' && (
+            <button
+              type="button"
+              onClick={() => setShowMobileFilterSheet(true)}
+              aria-label="Filter directory"
+              className={`w-[46px] h-[46px] rounded-xl flex items-center justify-center shrink-0 border transition-colors cursor-pointer ${
+                selectedBatch !== 'all' || selectedCourse !== 'all' || selectedRole !== 'all' || selectedStatus !== 'all'
+                  ? 'bg-[#FEF2F2] dark:bg-[#E11D48]/15 border-[#8B181B] dark:border-[#FB7185] text-[#8B181B] dark:text-[#FB7185]'
+                  : 'bg-[#F3F4F6] dark:bg-[#262626] border-transparent text-[#111827] dark:text-[#FAFAFA]'
+              }`}
+            >
+              <Filter className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+          {[
+            { id: 'directory', label: `All (${filteredDirectory.length})` },
+            { id: 'recommended', label: 'Suggested' },
+            { id: 'connections', label: `Connected (${connectedUsers.length})` },
+            { id: 'requests', label: `Requests${receivedRequests.length ? ` (${receivedRequests.length})` : ''}` },
+            { id: 'companies', label: 'Companies' }
+          ].map((pill) => {
+            const isActive =
+              pill.id === 'companies'
+                ? directorySection === 'companies'
+                : directorySection === 'alumni' && activeSubTab === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => {
+                  if (pill.id === 'companies') {
+                    setDirectorySection('companies');
+                  } else {
+                    setDirectorySection('alumni');
+                    setActiveSubTab(pill.id as any);
+                  }
+                }}
+                className={`min-h-[34px] px-3.5 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+                  isActive
+                    ? 'bg-[#8B181B] dark:bg-[#E11D48] text-white'
+                    : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#111827] dark:text-[#FAFAFA]'
+                }`}
+              >
+                {pill.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* DESKTOP (>=1024px) Segregated Directory Sections (Companies and Alumni) */}
+      <div className="hidden lg:flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white dark:bg-stone-900 p-2 sm:p-2.5 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-2xs">
         <div className="flex items-center gap-1.5 p-1 bg-stone-100 dark:bg-stone-800 rounded-xl">
           <button
             type="button"
@@ -552,9 +625,9 @@ export const NetworkView: React.FC = () => {
       ) : (
         <>
           {/* ========================================================
-              COLLEGIATE EDITORIAL MASTHEAD & CONTROLS
+              DESKTOP COLLEGIATE EDITORIAL MASTHEAD & CONTROLS (>=1024px)
               ======================================================== */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2">
+          <div className="hidden lg:flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2">
             <div>
               <span className="editorial-kicker block mb-1">ST. CECILIA'S ALUMNI ASSOCIATION</span>
               <h1 className="editorial-title text-2xl sm:text-3xl font-normal leading-tight">
@@ -573,10 +646,10 @@ export const NetworkView: React.FC = () => {
             onClick={() => setShowFilterMenu((prev) => !prev)}
             aria-label="Filter Alumni Directory Navigation"
             aria-expanded={showFilterMenu}
-            className={`h-9 px-3.5 rounded-full border flex items-center gap-2 text-xs font-semibold transition-all cursor-pointer shadow-2xs select-none ${
+            className={`min-h-[40px] px-3.5 rounded-xl border flex items-center gap-2 text-xs font-semibold transition-colors cursor-pointer select-none ${
               showFilterMenu || activeSubTab !== 'directory'
-                ? 'bg-[#8B181B] text-white border-[#8B181B] shadow-xs'
-                : 'bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:bg-stone-200 dark:hover:bg-stone-700'
+                ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 border-rose-200 dark:border-rose-900/60'
+                : 'ds-btn-secondary'
             }`}
           >
             <Filter className="w-3.5 h-3.5 stroke-[1.75]" />
@@ -592,8 +665,8 @@ export const NetworkView: React.FC = () => {
             <span
               className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold tabular-nums ${
                 showFilterMenu || activeSubTab !== 'directory'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-stone-200/80 dark:bg-stone-700 text-stone-600 dark:text-stone-300'
+                  ? 'bg-[#8B181B]/10 dark:bg-rose-400/15 text-[#8B181B] dark:text-rose-300'
+                  : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
               }`}
             >
               {activeSubTab === 'directory'
@@ -605,7 +678,7 @@ export const NetworkView: React.FC = () => {
                 : receivedRequests.length}
             </span>
             {receivedRequests.length > 0 && activeSubTab !== 'requests' && (
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title={`${receivedRequests.length} pending requests`} />
+              <span className="w-2 h-2 rounded-full bg-amber-500" title={`${receivedRequests.length} pending requests`} />
             )}
           </button>
 
@@ -638,25 +711,25 @@ export const NetworkView: React.FC = () => {
                     }}
                     className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors cursor-pointer ${
                       activeSubTab === 'directory'
-                        ? 'bg-[#8B181B] text-white shadow-xs font-semibold'
-                        : 'hover:bg-stone-100 dark:hover:bg-stone-800/70 text-stone-700 dark:text-stone-300'
+                        ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold border border-rose-200/70 dark:border-rose-900/50'
+                        : 'hover:bg-stone-100 dark:hover:bg-stone-800/70 text-stone-700 dark:text-stone-300 border border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                        activeSubTab === 'directory' ? 'bg-white/20 text-white' : 'bg-red-50 dark:bg-red-950/40 text-[#8B181B]'
+                        activeSubTab === 'directory' ? 'bg-white dark:bg-stone-900 text-[#8B181B] dark:text-rose-400' : 'bg-red-50 dark:bg-red-950/40 text-[#8B181B]'
                       }`}>
                         <Users className="w-4 h-4 stroke-[1.75]" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-bold leading-tight">Alumni Directory</div>
-                        <div className={`text-[10px] truncate ${activeSubTab === 'directory' ? 'text-white/80' : 'text-stone-400'}`}>
+                        <div className="text-[10px] truncate text-stone-500 dark:text-stone-400">
                           Browse all alumni
                         </div>
                       </div>
                     </div>
-                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                      activeSubTab === 'directory' ? 'bg-white/20 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
+                    <span className={`text-[10px] font-mono font-bold tabular-nums px-2 py-0.5 rounded-full ${
+                      activeSubTab === 'directory' ? 'bg-[#8B181B]/10 text-[#8B181B] dark:text-rose-300' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
                     }`}>
                       {filteredDirectory.length}
                     </span>
@@ -671,25 +744,25 @@ export const NetworkView: React.FC = () => {
                     }}
                     className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors cursor-pointer ${
                       activeSubTab === 'recommended'
-                        ? 'bg-[#8B181B] text-white shadow-xs font-semibold'
-                        : 'hover:bg-stone-100 dark:hover:bg-stone-800/70 text-stone-700 dark:text-stone-300'
+                        ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold border border-rose-200/70 dark:border-rose-900/50'
+                        : 'hover:bg-stone-100 dark:hover:bg-stone-800/70 text-stone-700 dark:text-stone-300 border border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                        activeSubTab === 'recommended' ? 'bg-white/20 text-white' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700'
+                        activeSubTab === 'recommended' ? 'bg-white dark:bg-stone-900 text-amber-700' : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700'
                       }`}>
                         <Sparkles className="w-4 h-4 stroke-[1.75]" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-bold leading-tight">Recommended Alumni</div>
-                        <div className={`text-[10px] truncate ${activeSubTab === 'recommended' ? 'text-white/80' : 'text-stone-400'}`}>
+                        <div className="text-[10px] truncate text-stone-500 dark:text-stone-400">
                           Classmates and same course
                         </div>
                       </div>
                     </div>
-                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                      activeSubTab === 'recommended' ? 'bg-white/20 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
+                    <span className={`text-[10px] font-mono font-bold tabular-nums px-2 py-0.5 rounded-full ${
+                      activeSubTab === 'recommended' ? 'bg-[#8B181B]/10 text-[#8B181B] dark:text-rose-300' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
                     }`}>
                       {recommendedUsers.length}
                     </span>
@@ -704,25 +777,25 @@ export const NetworkView: React.FC = () => {
                     }}
                     className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors cursor-pointer ${
                       activeSubTab === 'connections'
-                        ? 'bg-[#8B181B] text-white shadow-xs font-semibold'
-                        : 'hover:bg-stone-100 dark:hover:bg-stone-800/70 text-stone-700 dark:text-stone-300'
+                        ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold border border-rose-200/70 dark:border-rose-900/50'
+                        : 'hover:bg-stone-100 dark:hover:bg-stone-800/70 text-stone-700 dark:text-stone-300 border border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                        activeSubTab === 'connections' ? 'bg-white/20 text-white' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700'
+                        activeSubTab === 'connections' ? 'bg-white dark:bg-stone-900 text-emerald-700' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700'
                       }`}>
                         <UserCheck className="w-4 h-4 stroke-[1.75]" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-bold leading-tight">My Connections</div>
-                        <div className={`text-[10px] truncate ${activeSubTab === 'connections' ? 'text-white/80' : 'text-stone-400'}`}>
+                        <div className="text-[10px] truncate text-stone-500 dark:text-stone-400">
                           People you are connected with
                         </div>
                       </div>
                     </div>
-                    <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                      activeSubTab === 'connections' ? 'bg-white/20 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
+                    <span className={`text-[10px] font-mono font-bold tabular-nums px-2 py-0.5 rounded-full ${
+                      activeSubTab === 'connections' ? 'bg-[#8B181B]/10 text-[#8B181B] dark:text-rose-300' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
                     }`}>
                       {connectedUsers.length}
                     </span>
@@ -737,30 +810,30 @@ export const NetworkView: React.FC = () => {
                     }}
                     className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors cursor-pointer ${
                       activeSubTab === 'requests'
-                        ? 'bg-[#8B181B] text-white shadow-xs font-semibold'
-                        : 'hover:bg-stone-100 dark:hover:bg-stone-800/70 text-stone-700 dark:text-stone-300'
+                        ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-400 font-semibold border border-rose-200/70 dark:border-rose-900/50'
+                        : 'hover:bg-stone-100 dark:hover:bg-stone-800/70 text-stone-700 dark:text-stone-300 border border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                        activeSubTab === 'requests' ? 'bg-white/20 text-white' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700'
+                        activeSubTab === 'requests' ? 'bg-white dark:bg-stone-900 text-blue-700' : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700'
                       }`}>
                         <Clock className="w-4 h-4 stroke-[1.75]" />
                       </div>
                       <div className="min-w-0">
                         <div className="text-xs font-bold leading-tight">Connection Requests</div>
-                        <div className={`text-[10px] truncate ${activeSubTab === 'requests' ? 'text-white/80' : 'text-stone-400'}`}>
+                        <div className="text-[10px] truncate text-stone-500 dark:text-stone-400">
                           Pending connection requests
                         </div>
                       </div>
                     </div>
                     {receivedRequests.length > 0 ? (
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500 text-white font-extrabold animate-pulse">
+                      <span className="text-[10px] font-mono tabular-nums px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold">
                         {receivedRequests.length} new
                       </span>
                     ) : (
-                      <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
-                        activeSubTab === 'requests' ? 'bg-white/20 text-white' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
+                      <span className={`text-[10px] font-mono font-bold tabular-nums px-2 py-0.5 rounded-full ${
+                        activeSubTab === 'requests' ? 'bg-[#8B181B]/10 text-[#8B181B] dark:text-rose-300' : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300'
                       }`}>
                         0
                       </span>
@@ -794,15 +867,15 @@ export const NetworkView: React.FC = () => {
         </div>
 
         {/* View Mode Switcher: Cards vs Table (Desktop) */}
-        <div className="hidden lg:inline-flex items-center p-1 bg-stone-100/90 dark:bg-stone-800 rounded-full border border-stone-200 dark:border-stone-700 shadow-2xs">
+        <div className="hidden lg:inline-flex items-center p-1 bg-stone-100/90 dark:bg-stone-800 rounded-xl border border-stone-200 dark:border-stone-700 shadow-2xs">
           <button
             type="button"
             onClick={() => setViewMode('cards')}
             title="Card View"
-            className={`p-1.5 rounded-full transition-all cursor-pointer ${
+            className={`p-2 rounded-lg transition-colors cursor-pointer ${
               viewMode === 'cards'
-                ? 'bg-[#8B181B] text-white shadow-xs'
-                : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 hover:bg-white/50'
+                ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-2xs'
+                : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white'
             }`}
           >
             <LayoutGrid className="w-3.5 h-3.5" />
@@ -811,10 +884,10 @@ export const NetworkView: React.FC = () => {
             type="button"
             onClick={() => setViewMode('table')}
             title="Table View"
-            className={`p-1.5 rounded-full transition-all cursor-pointer ${
+            className={`p-2 rounded-lg transition-colors cursor-pointer ${
               viewMode === 'table'
-                ? 'bg-[#8B181B] text-white shadow-xs'
-                : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 hover:bg-white/50'
+                ? 'bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 shadow-2xs'
+                : 'text-stone-600 dark:text-stone-300 hover:text-stone-900 dark:hover:text-white'
             }`}
           >
             <List className="w-3.5 h-3.5" />
@@ -831,7 +904,7 @@ export const NetworkView: React.FC = () => {
                 showToast?.(`Exported ${users.length} alumni to CSV!`, 'success');
               }}
               title="Download Alumni CSV (7-column format)"
-              className="w-9 h-9 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border border-stone-200 dark:border-stone-700 flex items-center justify-center text-stone-700 dark:text-stone-300 transition-all cursor-pointer shrink-0"
+              className="ds-btn-secondary w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
             >
               <Download className="w-4 h-4" />
             </button>
@@ -842,7 +915,7 @@ export const NetworkView: React.FC = () => {
                 showToast?.(`Exported ${users.length} alumni to Excel (.xlsx)!`, 'success');
               }}
               title="Download Alumni Excel (.xlsx) (7-column format)"
-              className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-700 dark:text-emerald-300 transition-all cursor-pointer shrink-0"
+              className="ds-btn-secondary w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer shrink-0"
             >
               <FileSpreadsheet className="w-4 h-4" />
             </button>
@@ -852,10 +925,9 @@ export const NetworkView: React.FC = () => {
     </div>
 
       {/* ========================================================
-          COMMAND OMNIBAR & FAST MULTI-FILTER CONTROL CONSOLE
-          Flows naturally with standard page scrolling (No sticky/fixed positioning)
+          DESKTOP COMMAND OMNIBAR & FAST MULTI-FILTER CONSOLE (>=1024px)
           ======================================================== */}
-      <div className="relative z-10 bg-white dark:bg-stone-900 p-4 sm:p-5 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_2px_12px_rgba(0,0,0,0.06)] space-y-3.5">
+      <div className="hidden lg:block relative z-10 bg-white dark:bg-stone-900 p-4 sm:p-5 rounded-2xl border border-stone-200/90 dark:border-stone-800 shadow-[0_2px_12px_rgba(0,0,0,0.06)] space-y-3.5">
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
           {/* Omnibar Input */}
           <div className="relative flex-1 w-full min-w-0">
@@ -957,6 +1029,84 @@ export const NetworkView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Mobile Filter Bottom Sheet (<1024px) */}
+      <MobileBottomSheet
+        isOpen={showMobileFilterSheet}
+        onClose={() => setShowMobileFilterSheet(false)}
+        title="Filter Directory"
+      >
+        <div className="p-4 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-[#111827] dark:text-[#FAFAFA]">Member Role</label>
+            <select
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="w-full min-h-[46px] px-3.5 rounded-xl bg-[#F3F4F6] dark:bg-[#262626] text-[16px] text-[#111827] dark:text-[#FAFAFA]"
+            >
+              <option value="all">All Members</option>
+              <option value="alumni">Alumni Only</option>
+              <option value="employer">Corporate Partners</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-[#111827] dark:text-[#FAFAFA]">Graduation Batch</label>
+            <select
+              value={selectedBatch}
+              onChange={(e) => setSelectedBatch(e.target.value)}
+              className="w-full min-h-[46px] px-3.5 rounded-xl bg-[#F3F4F6] dark:bg-[#262626] text-[16px] text-[#111827] dark:text-[#FAFAFA]"
+            >
+              <option value="all">All Batches</option>
+              {allBatches.filter((b) => b !== 'all').map((b) => (
+                <option key={b} value={b}>Batch {b}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-[#111827] dark:text-[#FAFAFA]">Degree Program</label>
+            <CourseFilterButton
+              id="mobile-network-course-filter-btn"
+              value={selectedCourse}
+              onChange={setSelectedCourse}
+              align="left"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-[#111827] dark:text-[#FAFAFA]">Status</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full min-h-[46px] px-3.5 rounded-xl bg-[#F3F4F6] dark:bg-[#262626] text-[16px] text-[#111827] dark:text-[#FAFAFA]"
+            >
+              <option value="all">Any Status</option>
+              {QUICK_STATUS_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 pt-2">
+            <MobileButton
+              variant="secondary"
+              fullWidth
+              onClick={() => {
+                setSelectedRole('all');
+                setSelectedBatch('all');
+                setSelectedCourse('all');
+                setSelectedStatus('all');
+              }}
+            >
+              Reset
+            </MobileButton>
+            <MobileButton
+              variant="primary"
+              fullWidth
+              onClick={() => setShowMobileFilterSheet(false)}
+            >
+              Apply
+            </MobileButton>
+          </div>
+        </div>
+      </MobileBottomSheet>
 
       {/* ========================================================
           SUB-TAB 1: PRIMARY ALUMNI ROSTER & DIRECTORY VIEW

@@ -81,6 +81,7 @@ import { saveConflictRecordToFirestore } from '../../lib/firebase';
 import { compressImage } from '../../lib/utils';
 import { getCentenaryBatchYears } from '../../services/longevityService';
 import { getEmployerAuthStatus } from '../../lib/employerAuthStatus';
+import { MobileSegmentedTabs } from '../mobile/MobilePrimitives';
 
 interface AuthPageProps {
   initialMode?: 'login' | 'register' | 'forgot';
@@ -2018,14 +2019,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       </div>
 
       {/* ================= RIGHT HALF: CLEAN WHITE FORM ================= */}
-      <div className="w-full lg:w-1/2 bg-white dark:bg-[#111827] flex flex-col justify-center px-4 sm:px-12 xl:px-20 py-8 sm:py-12 overflow-y-auto min-h-[100dvh] lg:max-h-screen relative">
+      <div className="w-full lg:w-1/2 bg-white dark:bg-[#000000] lg:dark:bg-[#111827] flex flex-col justify-center px-5 sm:px-12 xl:px-20 py-8 sm:py-12 overflow-y-auto min-h-[100dvh] lg:max-h-screen relative">
         
         {/* Quick Theme Toggle & Navigation Controls */}
-        <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2 z-20">
+        <div className="absolute top-[calc(1rem+env(safe-area-inset-top,0px))] right-4 sm:top-6 sm:right-6 flex items-center gap-2 z-20">
           <button
             type="button"
             onClick={toggleTheme}
-            className="p-2 rounded-xl text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full text-stone-500 dark:text-[#A8A8A8] hover:text-stone-900 dark:hover:text-[#FAFAFA] hover:bg-stone-100 dark:hover:bg-[#1C1C1E] transition-colors cursor-pointer"
             title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
             aria-label="Toggle Dark/Light Theme"
           >
@@ -2037,24 +2038,43 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           </button>
         </div>
 
-        {/* Mobile Header (When screen is small) */}
-        <div className="lg:hidden mb-6 pb-4 border-b border-stone-100 dark:border-stone-800">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="relative w-8 h-8 rounded-full p-0.5 bg-gradient-to-tr from-[#8B181B] to-amber-500 shadow-sm flex items-center justify-center shrink-0">
-                <img
-                  src="/assets/cecilians-seal.jpg"
-                  alt="Alumni Cecilian's Seal"
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full rounded-full object-cover bg-white"
-                />
-              </div>
-              <span className="text-xs font-bold uppercase tracking-wider text-[#991B1B] dark:text-[#f87171]">
-                St. Cecilia's Alumni
-              </span>
+        {/* Mobile Centered Brand & Mode Switcher (<1024px) */}
+        <div className="lg:hidden max-w-md w-full mx-auto mb-6 pt-2 text-center space-y-4">
+          <div className="flex flex-col items-center gap-2.5">
+            <img
+              src="/assets/cecilians-seal.jpg"
+              alt="St. Cecilia's College Seal"
+              referrerPolicy="no-referrer"
+              className="w-12 h-12 rounded-full object-cover border border-[#EFEFEF] dark:border-[#262626] bg-white"
+            />
+            <div>
+              <h1 className="text-[20px] font-bold tracking-tight text-[#111827] dark:text-[#FAFAFA]">
+                ALUMNET
+              </h1>
+              <p className="text-[12px] text-[#737373] dark:text-[#A8A8A8]">
+                St. Cecilia&apos;s Alumni Network
+              </p>
             </div>
-            {/* Mobile & tablet skip landing page */}
           </div>
+
+          {!registrationComplete && (
+            <MobileSegmentedTabs
+              value={mode}
+              onChange={(v) => {
+                if (v === 'login') {
+                  setMode('login');
+                } else {
+                  setMode('register');
+                  setRegistrationType('alumni');
+                  setStep(1);
+                }
+              }}
+              options={[
+                { id: 'login', label: 'Sign In' },
+                { id: 'register', label: 'Create Account' }
+              ]}
+            />
+          )}
         </div>
 
         {/* ========================================================
@@ -2062,12 +2082,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             ======================================================== */}
         {mode === 'login' && (
           <div className="max-w-md w-full mx-auto">
-            {/* Form Title & Subtitle */}
-            <span className="editorial-kicker block mb-1">OFFICIAL ACCESS</span>
-            <h2 className="editorial-title text-2xl sm:text-3xl font-normal mb-1">
+            {/* Form Title & Subtitle (Desktop Only — Mobile uses centered brand above) */}
+            <span className="hidden lg:block editorial-kicker mb-1">OFFICIAL ACCESS</span>
+            <h2 className="hidden lg:block editorial-title text-2xl sm:text-3xl font-normal mb-1">
               Sign In to <span className="editorial-accent italic">Alumnet</span>
             </h2>
-            <p className="editorial-sub text-xs sm:text-sm mb-6">
+            <p className="hidden lg:block editorial-sub text-xs sm:text-sm mb-6">
               Enter your credentials to access the alumni workspace.
             </p>
 
@@ -2271,8 +2291,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               {/* Identifier Field */}
               <div>
-                <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                  Sign in with Email or SCC ID
+                <label className="block text-[12px] lg:text-[11px] font-semibold lg:font-bold text-[#111827] dark:text-[#FAFAFA] lg:text-stone-700 lg:uppercase lg:tracking-wider mb-1.5">
+                  Email or SCC ID
                 </label>
                 <div className="relative">
                   <input
@@ -2290,25 +2310,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         setLoginMethod('studentId');
                       }
                     }}
-                    placeholder="e.g. SCC-2020-0192 or maria.santos@alumni.stcecilia.edu"
-                    className="w-full px-4 py-3 bg-white border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] transition-all disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed"
+                    placeholder="SCC ID or email address"
+                    className="w-full min-h-[48px] px-4 py-3 bg-[#F3F4F6] dark:bg-[#262626] lg:bg-white lg:dark:bg-stone-900 border border-transparent lg:border-stone-200 lg:dark:border-stone-700 text-[#111827] dark:text-[#FAFAFA] placeholder:text-[#737373] dark:placeholder:text-[#A8A8A8] rounded-xl text-base lg:text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/25 focus:border-[#8B181B] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
-                <p className="text-[11px] text-stone-500 mt-1.5 leading-relaxed">
-                  Alumni can sign in using their registered <strong>Email</strong> or official <strong>SCC ID Number</strong> (e.g. <code>SCC-2020-0192</code> or <code>2020-0192</code>).
+                <p className="text-[12px] lg:text-[11px] text-[#737373] dark:text-[#A8A8A8] lg:text-stone-500 mt-1.5 leading-relaxed">
+                  Use your registered email or SCC ID (e.g. <code>SCC-2020-0192</code>).
                 </p>
               </div>
 
               {/* Password Field */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-[11px] font-bold text-stone-600 uppercase tracking-wider">
-                    PASSWORD
+                  <label className="block text-[12px] lg:text-[11px] font-semibold lg:font-bold text-[#111827] dark:text-[#FAFAFA] lg:text-stone-600 lg:uppercase lg:tracking-wider">
+                    Password
                   </label>
                   <button
                     type="button"
                     onClick={handleOpenForgotPassword}
-                    className="text-xs text-[#8B181B] hover:underline font-semibold cursor-pointer"
+                    className="text-[12px] text-[#8B181B] dark:text-[#FB7185] lg:dark:text-red-400 hover:underline font-semibold cursor-pointer min-h-[36px] flex items-center"
                   >
                     Forgot password?
                   </button>
@@ -2320,8 +2340,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     disabled={isLockedOut}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full pl-4 pr-11 py-3 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/20 focus:border-[#8B181B] transition-all disabled:bg-stone-100 dark:disabled:bg-stone-800 disabled:text-stone-400 disabled:cursor-not-allowed"
+                    placeholder="Password"
+                    className="w-full min-h-[48px] pl-4 pr-12 py-3 bg-[#F3F4F6] dark:bg-[#262626] lg:bg-white lg:dark:bg-stone-900 border border-transparent lg:border-stone-200 lg:dark:border-stone-700 text-[#111827] dark:text-[#FAFAFA] placeholder:text-[#737373] dark:placeholder:text-[#A8A8A8] rounded-xl text-base lg:text-sm focus:outline-hidden focus:ring-2 focus:ring-[#8B181B]/25 focus:border-[#8B181B] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
@@ -2333,18 +2353,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       position: 'absolute',
                       top: 0,
                       bottom: 0,
-                      right: '10px',
+                      right: '4px',
                       marginTop: 'auto',
                       marginBottom: 'auto',
-                      height: '34px',
-                      width: '34px',
+                      height: '44px',
+                      width: '44px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       transform: 'none',
                       translate: 'none'
                     }}
-                    className="no-gooey text-stone-400 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 hover:bg-stone-100 dark:hover:bg-stone-800/80 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none z-10"
+                    className="no-gooey text-[#737373] dark:text-[#A8A8A8] hover:text-[#111827] dark:hover:text-[#FAFAFA] rounded-xl transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none z-10"
                   >
                     {showLoginPassword ? (
                       <EyeOff className="w-5 h-5 transition-transform active:scale-90" strokeWidth={1.75} />
@@ -2356,16 +2376,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </div>
 
               {/* Stay Signed In */}
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2.5 pt-1 min-h-[44px]">
                 <input
                   type="checkbox"
                   id="staySignedIn"
                   disabled={isLockedOut}
                   checked={staySignedIn}
                   onChange={(e) => setStaySignedIn(e.target.checked)}
-                  className="w-4 h-4 text-[#8B181B] rounded border-stone-300 focus:ring-[#8B181B] disabled:cursor-not-allowed"
+                  className="w-4 h-4 accent-[#8B181B] rounded border-stone-300 focus:ring-[#8B181B] disabled:cursor-not-allowed"
                 />
-                <label htmlFor="staySignedIn" className="text-xs text-stone-600 select-none">
+                <label htmlFor="staySignedIn" className="text-[13px] lg:text-xs text-[#737373] dark:text-[#A8A8A8] lg:text-stone-600 select-none">
                   Stay signed in
                 </label>
               </div>
@@ -2374,15 +2394,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               <button
                 type="submit"
                 disabled={isLockedOut}
-                className={`w-full py-3.5 rounded-xl text-xs font-bold tracking-widest uppercase transition-all shadow-md ${
+                className={`w-full min-h-[48px] py-3 rounded-xl text-[14px] lg:text-xs font-semibold lg:tracking-wider lg:uppercase transition-all cursor-pointer ${
                   isLockedOut
                     ? 'bg-stone-300 text-stone-600 cursor-not-allowed shadow-none'
-                    : 'bg-[#8B181B] hover:bg-[#721316] text-white hover:shadow-lg cursor-pointer'
+                    : 'bg-[#8B181B] dark:bg-[#E11D48] hover:bg-[#721316] text-white lg:ds-btn-primary active:opacity-85'
                 }`}
               >
                 {isLockedOut
                   ? `LOCKED — TRY AGAIN IN ${formatSecondsToMMSS(lockoutSecondsRemaining)}`
-                  : 'SIGN IN'}
+                  : 'Sign In'}
               </button>
 
               {/* Multi-Modal Biometric Quick Login (Native Android APK / iOS Only) */}
@@ -2508,9 +2528,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         setMode('login');
                       }
                     }}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-stone-900 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-500 dark:text-[#A8A8A8] hover:text-stone-900 dark:hover:text-[#FAFAFA] transition-colors cursor-pointer min-h-[44px]"
                   >
-                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <ArrowLeft className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                     <span>
                       {registrationType === 'employer' && employerStep === 2
                         ? 'Back to Organization Details'
@@ -2520,7 +2540,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     </span>
                   </button>
 
-                  <span className="text-[11px] font-semibold text-stone-400">
+                  <span className="text-[12px] lg:text-[11px] font-semibold text-[#737373] dark:text-[#A8A8A8] tabular-nums">
                     {registrationType === 'employer'
                       ? `Step ${employerStep} of 2`
                       : `Step ${step} of 3`}
@@ -2946,9 +2966,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   </div>
                 ) : (
                   <>
-                    {/* NOTICE BANNER: ALUMNI-ONLY REGISTRATION (Only on Step 1) */}
+                    {/* NOTICE BANNER: ALUMNI-ONLY REGISTRATION (Desktop Step 1) */}
                     {step === 1 && (
-                      <div className="mb-5 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+                      <div className="hidden lg:flex mb-5 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs items-start gap-2.5">
                         <GraduationCap className="w-4 h-4 text-[#8B181B] shrink-0 mt-0.5" />
                         <div className="leading-snug">
                           <span className="font-bold">Official Cecilian Alumni Registration:</span>{' '}
@@ -2967,7 +2987,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
                           step === 1
-                            ? 'bg-[#8B181B] text-white ring-4 ring-[#8B181B]/15 scale-105 shadow-sm'
+                            ? 'bg-[#8B181B] text-white ring-4 ring-[#8B181B]/15 shadow-sm'
                             : step > 1
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : 'bg-stone-200 text-stone-600'
@@ -3001,7 +3021,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
                           step === 2
-                            ? 'bg-[#8B181B] text-white ring-4 ring-[#8B181B]/15 scale-105 shadow-sm'
+                            ? 'bg-[#8B181B] text-white ring-4 ring-[#8B181B]/15 shadow-sm'
                             : step > 2
                             ? 'bg-emerald-600 text-white shadow-xs'
                             : 'bg-stone-100 border border-stone-300 text-stone-500'
@@ -3035,7 +3055,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
                           step === 3
-                            ? 'bg-[#8B181B] text-white ring-4 ring-[#8B181B]/15 scale-105 shadow-sm'
+                            ? 'bg-[#8B181B] text-white ring-4 ring-[#8B181B]/15 shadow-sm'
                             : 'bg-stone-100 border border-stone-300 text-stone-500'
                         }`}
                       >
@@ -3197,22 +3217,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         </div>
                       </div>
 
-                      {/* Verify & Authenticate Ownership Button with Hover Animation */}
+                      {/* Verify & Authenticate Ownership Button */}
                       <button
                         type="button"
                         disabled={studentVerificationStatus === 'checking' || !studentId.trim()}
                         onClick={() => handleVerifyStudentClick()}
-                        className="w-full py-3.5 px-4 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white rounded-xl text-xs font-bold tracking-wider uppercase transition-all duration-200 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer group"
+                        className={`w-full min-h-[44px] py-3 px-4 rounded-xl text-xs font-semibold tracking-wider uppercase flex items-center justify-center gap-2 transition-all disabled:opacity-50 ${
+                          studentVerificationStatus === 'verified'
+                            ? 'ds-btn-secondary'
+                            : 'ds-btn-primary'
+                        }`}
                       >
                         {studentVerificationStatus === 'checking' ? (
                           <>
-                            <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                            <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
                             <span>Verifying with Registrar Records...</span>
                           </>
                         ) : (
                           <>
-                            <ShieldCheck className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
-                            <span>Verify & Authenticate Ownership</span>
+                            <ShieldCheck className={`w-4 h-4 ${studentVerificationStatus === 'verified' ? 'text-emerald-600' : 'text-amber-300'}`} />
+                            <span>{studentVerificationStatus === 'verified' ? 'Re-verify Student Record' : 'Verify & Authenticate Ownership'}</span>
                           </>
                         )}
                       </button>
@@ -3270,7 +3294,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                           <button
                             type="button"
                             onClick={handleProceedFromStep1ToStep2}
-                            className="w-full py-3.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold tracking-widest uppercase shadow-md hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer group"
+                            className="ds-btn-primary w-full min-h-[44px] py-3 tracking-wider uppercase group"
                           >
                             <span>Continue to Account Setup</span>
                             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -3596,32 +3620,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         </div>
                       </div>
 
-                      {/* Navigation Buttons with Reset and Cancel */}
                       <div className="flex flex-wrap sm:flex-nowrap gap-2 pt-3">
                         <button
                           type="button"
                           onClick={() => setStep(1)}
-                          className="px-3.5 py-3 border border-stone-300 hover:bg-stone-50 rounded-xl text-xs font-bold text-stone-700 transition-all duration-200 cursor-pointer"
+                          className="ds-btn-secondary px-3.5 py-2.5 min-h-[44px]"
                         >
-                          BACK
+                          Back
                         </button>
                         <button
                           type="button"
                           onClick={handleResetAlumniForm}
-                          className="px-3 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                          className="ds-btn-ghost px-3 py-2.5 min-h-[44px]"
                         >
                           Reset
                         </button>
                         <button
                           type="button"
                           onClick={handleCancelAlumniForm}
-                          className="px-3 py-3 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                          className="ds-btn-ghost px-3 py-2.5 min-h-[44px]"
                         >
                           Cancel
                         </button>
                         <button
                           type="submit"
-                          className="flex-1 py-3 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold tracking-widest uppercase shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 group"
+                          className="ds-btn-primary flex-1 min-h-[44px] py-2.5 tracking-wider uppercase group"
                         >
                           <span>Review & Pledge</span>
                           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -3944,26 +3967,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     </div>
 
                     {/* Action Buttons */}
-                    {/* Action Buttons with Reset & Cancel */}
                     <div className="flex flex-wrap sm:flex-nowrap gap-2">
                       <button
                         type="button"
                         onClick={() => setStep(2)}
-                        className="px-3.5 py-3.5 border border-stone-300 hover:bg-stone-50 rounded-xl text-xs font-bold text-stone-700 transition-colors cursor-pointer"
+                        className="ds-btn-secondary px-3.5 py-2.5 min-h-[44px]"
                       >
-                        BACK
+                        Back
                       </button>
                       <button
                         type="button"
                         onClick={handleResetAlumniForm}
-                        className="px-3 py-3.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                        className="ds-btn-ghost px-3 py-2.5 min-h-[44px]"
                       >
                         Reset
                       </button>
                       <button
                         type="button"
                         onClick={handleCancelAlumniForm}
-                        className="px-3 py-3.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                        className="ds-btn-ghost px-3 py-2.5 min-h-[44px]"
                       >
                         Cancel
                       </button>
@@ -3971,13 +3993,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         type="button"
                         disabled={!allConsentsAgreed}
                         onClick={handleCompleteRegistration}
-                        className={`flex-1 py-3.5 rounded-xl text-xs font-bold tracking-widest uppercase shadow-md transition-all ${
+                        className={`flex-1 min-h-[44px] py-2.5 rounded-xl text-xs font-semibold tracking-wider uppercase transition-all ${
                           allConsentsAgreed
-                            ? 'bg-[#8B181B] hover:bg-[#721316] text-white cursor-pointer shadow-red-950/20 hover:shadow-lg active:scale-[0.99]'
+                            ? 'ds-btn-primary'
                             : 'bg-stone-300 text-stone-500 cursor-not-allowed'
                         }`}
                       >
-                        {allConsentsAgreed ? 'COMPLETE REGISTRATION' : 'CONFIRM CONSENTS'}
+                        {allConsentsAgreed ? 'Complete Registration' : 'Confirm Consents'}
                       </button>
                     </div>
                   </div>

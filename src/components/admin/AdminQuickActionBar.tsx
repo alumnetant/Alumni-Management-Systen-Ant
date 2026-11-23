@@ -85,14 +85,11 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm font-bold text-stone-900">
+              <span className="text-xs sm:text-sm font-bold text-stone-900 tabular-nums">
                 {totalPending > 0
                   ? `${totalPending} Action Items Need Attention`
                   : 'Institutional Governance: All Rosters Cleared'}
               </span>
-              {totalPending > 0 && (
-                <span className="animate-pulse flex h-2 w-2 rounded-full bg-amber-500 shrink-0" />
-              )}
             </div>
             <p className="text-[11px] text-stone-500 truncate mt-0.5">
               {totalPending > 0
@@ -106,7 +103,7 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
         <div className="flex items-center gap-2 flex-wrap shrink-0">
           {pendingUsersCount > 0 && (
             <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-xl text-xs">
-              <span className="font-semibold text-amber-900">
+              <span className="font-semibold text-amber-900 tabular-nums">
                 {pendingUsersCount} Alumni
               </span>
               <button
@@ -131,7 +128,7 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab('jobs')}
-              className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-purple-900 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-purple-900 transition-colors cursor-pointer tabular-nums"
             >
               <Building2 className="w-3 h-3 text-purple-700" />
               <span>{pendingEmployersCount} Employers</span>
@@ -143,9 +140,9 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab('jobs')}
-              className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-blue-900 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 bg-stone-100 hover:bg-stone-200 border border-stone-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-stone-800 transition-colors cursor-pointer tabular-nums"
             >
-              <Briefcase className="w-3 h-3 text-blue-700" />
+              <Briefcase className="w-3 h-3 text-stone-600" />
               <span>{pendingJobsCount} Jobs</span>
               <ArrowRight className="w-3 h-3" />
             </button>
@@ -155,7 +152,7 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
             <button
               type="button"
               onClick={() => onNavigateTab('governance')}
-              className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-red-900 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-xl text-xs font-semibold text-red-900 transition-colors cursor-pointer tabular-nums"
             >
               <AlertTriangle className="w-3 h-3 text-[#8B181B]" />
               <span>{pendingConflictsCount} Conflicts</span>
@@ -179,7 +176,7 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
           <button
             type="button"
             onClick={onOpenCreateUser}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+            className="ds-btn-primary flex items-center gap-1.5 px-3 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>New Member</span>
@@ -189,7 +186,7 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
           <button
             type="button"
             onClick={onOpenCreateAnnouncement}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95"
+            className="ds-btn-secondary flex items-center gap-1.5 px-3 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs"
           >
             <Megaphone className="w-3.5 h-3.5 text-stone-600" />
             <span>Broadcast Notice</span>
@@ -199,9 +196,10 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
           <button
             type="button"
             onClick={onOpenCreateEvent}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95"
+            className="ds-btn-secondary flex items-center gap-1.5 px-3 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs"
           >
             <Calendar className="w-3.5 h-3.5 text-stone-600" />
+            <span>Schedule Event</span>
           </button>
         </div>
 
@@ -211,7 +209,7 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
             type="button"
             onClick={onExportCsv}
             title="Export verified graduates roster as CSV spreadsheet"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 hover:text-stone-900 rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95 border border-stone-200/80"
+            className="ds-btn-secondary flex items-center gap-1.5 px-3 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs"
           >
             <Download className="w-3.5 h-3.5 text-stone-500" />
             <span className="hidden sm:inline">Export Roster</span>
@@ -224,7 +222,7 @@ export const AdminQuickActionBar: React.FC<AdminQuickActionBarProps> = ({
               onClick={() => syncAllDataToCloud()}
               disabled={isFirestoreSyncing}
               title="Push local modifications to Firebase Firestore"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 min-h-[40px] sm:min-h-[34px] bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95 disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isFirestoreSyncing ? 'animate-spin' : ''}`} />
               <span>{isFirestoreSyncing ? 'Syncing...' : 'Sync Cloud'}</span>

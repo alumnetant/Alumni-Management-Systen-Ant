@@ -22,6 +22,8 @@ import { ImageViewerModal } from '../common/ImageViewerModal';
 import { PostCard } from '../social/PostCard';
 import { UnifiedPostComposer } from '../social/UnifiedPostComposer';
 import { useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
+import { getUserAvatar, handleUserAvatarError } from '../../lib/defaultImages';
+import { MobileEmptyState, MobileInput, MobileSkeleton } from '../mobile/MobilePrimitives';
 import {
   canUserViewPost,
   comparePostsCreatedDesc,
@@ -578,9 +580,66 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
   const showSkeleton = (propIsLoading ?? isLoadingData) || (isFetchingFirst && streamPosts.length === 0 && pinnedPosts.length === 0);
 
   return (
-    <div id="institutional-feed-container" className="w-full max-w-full space-y-5">
-      {/* Header, Filters & Search */}
-      <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-4">
+    <div id="institutional-feed-container" className="w-full max-w-full space-y-0 lg:space-y-5">
+      {/* MOBILE (<1024px) COMPACT QUICK-CREATE & FILTER BAR */}
+      <div className="lg:hidden bg-white dark:bg-[#000000] border-b border-[#E5E7EB] dark:border-[#27272A] px-4 py-3 space-y-2.5">
+        {canPublishPost && (
+          <div className="flex items-center gap-3">
+            <img
+              src={getUserAvatar(currentUser?.profilePictureUrl)}
+              onError={handleUserAvatarError}
+              alt={currentUser?.name || 'Alumnus'}
+              referrerPolicy="no-referrer"
+              className="w-9 h-9 rounded-full object-cover border border-[#E5E7EB] dark:border-[#27272A] shrink-0"
+            />
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('applet:open-mobile-create'))}
+              className="flex-1 min-h-[44px] px-4 rounded-full bg-[#F3F4F6] dark:bg-[#262626] text-left text-[14px] text-[#6B7280] dark:text-[#A1A1AA] hover:bg-[#E5E7EB] dark:hover:bg-[#323232] transition-colors cursor-pointer"
+            >
+              Share a campus update...
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <div className="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'update', label: 'Updates' },
+              { id: 'gallery', label: 'Photos' },
+              { id: 'announcement', label: 'Notices' }
+            ].map((tab) => {
+              const active = activeFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveFilter(tab.id as any)}
+                  className={`min-h-[34px] px-3.5 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+                    active
+                      ? 'bg-[#8B181B] dark:bg-[#E11D48] text-white'
+                      : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#111827] dark:text-[#FAFAFA]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <MobileInput
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          onClear={() => setSearchQuery('')}
+          placeholder="Search posts or alumni..."
+          leftIcon={<Search className="w-4 h-4" />}
+        />
+      </div>
+
+      {/* DESKTOP (>=1024px) HEADER, FILTERS & COMPOSER INTACT */}
+      <div className="hidden lg:block bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-base sm:text-lg font-bold text-stone-900 dark:text-white tracking-tight">
@@ -665,27 +724,32 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
 
       {/* Feed States: Loading / Error / Empty / Posts */}
       {showSkeleton ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-5 space-y-3"
-            >
-              <div className="flex items-center gap-3">
-                <Skeleton className="w-11 h-11 rounded-2xl shrink-0" />
-                <div className="space-y-1.5 flex-1">
-                  <Skeleton className="h-3.5 w-36 rounded" />
-                  <Skeleton className="h-2.5 w-48 rounded" />
+        <>
+          <div className="lg:hidden">
+            <MobileSkeleton variant="feed" count={3} />
+          </div>
+          <div className="hidden lg:block space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/80 dark:border-stone-800 p-5 space-y-3"
+              >
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-11 h-11 rounded-2xl shrink-0" />
+                  <div className="space-y-1.5 flex-1">
+                    <Skeleton className="h-3.5 w-36 rounded" />
+                    <Skeleton className="h-2.5 w-48 rounded" />
+                  </div>
                 </div>
+                <Skeleton className="h-4 w-3/4 rounded" />
+                <Skeleton className="h-3 w-full rounded" />
+                {i === 1 && <Skeleton className="w-full h-48 rounded-xl" />}
               </div>
-              <Skeleton className="h-4 w-3/4 rounded" />
-              <Skeleton className="h-3 w-full rounded" />
-              {i === 1 && <Skeleton className="w-full h-48 rounded-xl" />}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       ) : loadError ? (
-        <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-8 text-center space-y-3">
+        <div className="bg-white dark:bg-[#000000] lg:dark:bg-stone-900 lg:rounded-2xl border-b lg:border border-[#E5E7EB] dark:border-[#27272A] lg:border-stone-200 lg:dark:border-stone-800 p-8 text-center space-y-3">
           <AlertTriangle className="w-8 h-8 mx-auto text-amber-600" />
           <p className="text-sm font-bold text-stone-900 dark:text-white">Failed to load, retry</p>
           <p className="text-xs text-stone-500 dark:text-stone-400">
@@ -694,24 +758,39 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
           <button
             type="button"
             onClick={() => void loadFeedPage(null, false)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold cursor-pointer min-h-[40px]"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold cursor-pointer min-h-[44px]"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Retry</span>
           </button>
         </div>
       ) : combinedVisibleIds.pinned.length === 0 && combinedVisibleIds.regular.length === 0 ? (
-        <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-10 text-center space-y-2">
-          <Globe className="w-8 h-8 text-stone-300 dark:text-stone-600 mx-auto" />
-          <p className="text-sm font-bold text-stone-800 dark:text-stone-200">
-            Nothing to show yet, be the first to post
-          </p>
-          <p className="text-xs text-stone-400 dark:text-stone-500">
-            Share a career update or campus photo above to start the timeline.
-          </p>
-        </div>
+        <>
+          <div className="lg:hidden">
+            <MobileEmptyState
+              icon={<Globe className="w-6 h-6" />}
+              title="No posts yet"
+              description="Share a career milestone or campus photo to start the alumni timeline."
+              actionLabel={canPublishPost ? 'Create Post' : undefined}
+              onAction={
+                canPublishPost
+                  ? () => window.dispatchEvent(new CustomEvent('applet:open-mobile-create'))
+                  : undefined
+              }
+            />
+          </div>
+          <div className="hidden lg:block bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800 p-10 text-center space-y-2">
+            <Globe className="w-8 h-8 text-stone-300 dark:text-stone-600 mx-auto" />
+            <p className="text-sm font-bold text-stone-800 dark:text-stone-200">
+              Nothing to show yet, be the first to post
+            </p>
+            <p className="text-xs text-stone-400 dark:text-stone-500">
+              Share a career update or campus photo above to start the timeline.
+            </p>
+          </div>
+        </>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-0 lg:space-y-4">
           {/* Pinned Admin Announcements (up to 3) */}
           {combinedVisibleIds.pinned.map((post) => (
             <PostCard

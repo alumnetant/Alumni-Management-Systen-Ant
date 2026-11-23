@@ -399,7 +399,7 @@ export const AdminConflictResolutionView: React.FC = () => {
                     type="button"
                     disabled={isProcessingBulk}
                     onClick={() => handleBulkResolve('resolved_verified')}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    className="px-3 py-1.5 min-h-[40px] sm:min-h-[34px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <UserCheck className="w-3.5 h-3.5" />
                     <span>Approve Selected</span>
@@ -408,7 +408,7 @@ export const AdminConflictResolutionView: React.FC = () => {
                     type="button"
                     disabled={isProcessingBulk}
                     onClick={() => handleBulkResolve('resolved_rejected')}
-                    className="px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    className="ds-btn-secondary px-3 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs flex items-center justify-center gap-1.5"
                   >
                     <UserX className="w-3.5 h-3.5" />
                     <span>Reject Selected</span>
@@ -579,8 +579,9 @@ export const AdminConflictResolutionView: React.FC = () => {
                           </span>
                         </div>
                         {conflict.registryRecord.isRegistered && (
-                          <div className="p-2 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-medium mt-1">
-                            ⚠️ Note: Student ID is already bound to an active registered profile.
+                          <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-medium mt-1 flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                            <span>Note: Student ID is already bound to an active registered profile.</span>
                           </div>
                         )}
                       </div>
@@ -626,7 +627,7 @@ export const AdminConflictResolutionView: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap">
                       <button
                         type="button"
                         onClick={() => {
@@ -636,7 +637,7 @@ export const AdminConflictResolutionView: React.FC = () => {
                             handleResolve(conflict, 'resolved_rejected');
                           }
                         }}
-                        className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                        className="ds-btn-secondary px-3 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs"
                       >
                         Reject Duplicate
                       </button>
@@ -650,7 +651,7 @@ export const AdminConflictResolutionView: React.FC = () => {
                             handleResolve(conflict, 'dismissed');
                           }
                         }}
-                        className="px-3 py-1.5 text-stone-500 hover:text-stone-800 text-xs font-medium cursor-pointer"
+                        className="ds-btn-ghost px-3 py-1.5 min-h-[40px] sm:min-h-[34px] text-xs"
                       >
                         Dismiss
                       </button>
@@ -664,7 +665,7 @@ export const AdminConflictResolutionView: React.FC = () => {
                             handleResolve(conflict, 'resolved_verified');
                           }
                         }}
-                        className="px-3.5 py-1.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5"
+                        className="px-3.5 py-1.5 min-h-[40px] sm:min-h-[34px] bg-rose-50 hover:bg-rose-100 text-[#8B181B] border border-rose-200 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
                       >
                         <UserCheck className="w-3.5 h-3.5" />
                         <span>Approve & Grant Access</span>

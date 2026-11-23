@@ -222,7 +222,7 @@ export const AdminAccountSuspensionModal: React.FC<AdminAccountSuspensionModalPr
   const currentStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-stone-950/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div
         className="relative w-full max-w-2xl bg-white dark:bg-stone-900 rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-stone-200/90 dark:border-stone-800 overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
@@ -366,9 +366,9 @@ export const AdminAccountSuspensionModal: React.FC<AdminAccountSuspensionModalPr
                     key={preset.id}
                     type="button"
                     onClick={() => handlePresetSelect(preset.id as DurationPreset)}
-                    className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer ${
+                    className={`py-1.5 px-2 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer tabular-nums ${
                       durationPreset === preset.id
-                        ? 'bg-[#8B181B] text-white border-[#8B181B] shadow-2xs ring-1 ring-[#8B181B]'
+                        ? 'bg-rose-50 dark:bg-rose-950/50 text-[#8B181B] dark:text-rose-300 border-[#8B181B] shadow-2xs'
                         : 'bg-white dark:bg-stone-900 text-stone-700 dark:text-stone-300 border-stone-200/80 dark:border-stone-700 hover:border-amber-400'
                     }`}
                   >
@@ -458,7 +458,7 @@ export const AdminAccountSuspensionModal: React.FC<AdminAccountSuspensionModalPr
                   key={tmpl}
                   type="button"
                   onClick={() => handleSelectTemplate(tmpl)}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-[#8B181B] hover:text-white border border-stone-200/80 dark:border-stone-700 transition-colors cursor-pointer text-left"
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 hover:bg-rose-50 hover:text-[#8B181B] hover:border-rose-200 dark:hover:bg-rose-950/40 dark:hover:text-rose-300 border border-stone-200/80 dark:border-stone-700 transition-colors cursor-pointer text-left"
                 >
                   + {tmpl}
                 </button>
@@ -502,7 +502,7 @@ export const AdminAccountSuspensionModal: React.FC<AdminAccountSuspensionModalPr
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2.5 rounded-xl border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 font-semibold text-xs hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+              className="ds-btn-secondary px-4 py-2.5 min-h-[44px] sm:min-h-[38px] text-xs"
             >
               Cancel
             </button>
@@ -510,11 +510,7 @@ export const AdminAccountSuspensionModal: React.FC<AdminAccountSuspensionModalPr
             <button
               type="submit"
               disabled={!isValid || isSubmitting}
-              className={`px-5 py-2.5 rounded-xl text-white font-bold text-xs transition-all flex items-center gap-1.5 shadow-2xs ${
-                actionType === 'lock'
-                  ? 'bg-rose-700 hover:bg-rose-800 disabled:bg-rose-300'
-                  : 'bg-[#8B181B] hover:bg-[#721316] disabled:bg-stone-300 dark:disabled:bg-stone-800'
-              } cursor-pointer disabled:cursor-not-allowed`}
+              className="ds-btn-primary px-5 py-2.5 min-h-[44px] sm:min-h-[38px] text-xs flex items-center gap-1.5"
             >
               {isSubmitting ? (
                 <>

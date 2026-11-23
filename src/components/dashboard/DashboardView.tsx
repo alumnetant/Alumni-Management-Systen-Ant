@@ -31,6 +31,7 @@ import { FeedPostComposer } from './feed/FeedPostComposer';
 import { FeedSkeletonLoader } from './feed/FeedSkeletonLoader';
 import { FeedEmptyState } from './feed/FeedEmptyState';
 import { InstitutionalSocialFeed } from './InstitutionalSocialFeed';
+import { MobileSegmentedTabs } from '../mobile/MobilePrimitives';
 
 export const DashboardView: React.FC = () => {
   const { currentUser, deepLinkTarget } = useAlumni();
@@ -117,11 +118,11 @@ export const DashboardView: React.FC = () => {
   }, []);
 
   return (
-    <div className="w-full max-w-3xl mx-auto space-y-6 pb-24 font-sans selection:bg-[#8B181B] selection:text-white">
+    <div className="w-full max-w-3xl mx-auto space-y-0 lg:space-y-6 pb-8 lg:pb-24 font-sans selection:bg-[#8B181B] selection:text-white">
       {/* =========================================================================
-          1. ALUMNI GREETING & IDENTITY MASTHEAD
+          1. DESKTOP ALUMNI GREETING & IDENTITY MASTHEAD (>= 1024px INTACT)
           ========================================================================= */}
-      <section className="bg-white dark:bg-stone-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-stone-200/80 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+      <section className="hidden lg:block bg-white dark:bg-stone-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-stone-200/80 dark:border-stone-800 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
             <div className="relative shrink-0">
@@ -172,9 +173,9 @@ export const DashboardView: React.FC = () => {
                 triggerHaptic('light');
                 window.dispatchEvent(new CustomEvent('applet:open-alumni-pass'));
               }}
-              className="w-full md:w-auto px-4 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-semibold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] min-h-[44px]"
+              className="ds-btn-secondary w-full md:w-auto px-4 py-2.5 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
             >
-              <QrCode className="w-4 h-4 stroke-[2]" />
+              <QrCode className="w-4 h-4 stroke-[1.8] text-[#8B181B] dark:text-rose-400" />
               <span>Digital Alumni Pass</span>
             </button>
           </div>
@@ -184,7 +185,18 @@ export const DashboardView: React.FC = () => {
       {/* =========================================================================
           2. STREAM SWITCHER: COMMUNITY SOCIAL FEED vs CAMPUS HIGHLIGHTS (FYP)
           ========================================================================= */}
-      <div className="flex items-center gap-1 p-1 bg-stone-100 dark:bg-stone-800/80 rounded-xl w-fit border border-stone-200/70 dark:border-stone-700/60">
+      <div className="lg:hidden">
+        <MobileSegmentedTabs<'community' | 'highlights'>
+          value={feedSection}
+          onChange={setFeedSection}
+          options={[
+            { id: 'community', label: 'Community' },
+            { id: 'highlights', label: 'Highlights' }
+          ]}
+        />
+      </div>
+
+      <div className="hidden lg:flex items-center gap-1 p-1 bg-stone-100 dark:bg-stone-800/80 rounded-xl w-fit border border-stone-200/70 dark:border-stone-700/60">
         <button
           type="button"
           onClick={() => setFeedSection('community')}

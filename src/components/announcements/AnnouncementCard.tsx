@@ -112,7 +112,7 @@ export const AnnouncementCard: React.FC<AnnouncementCardProps> = ({
               {isUrgent && (
                 <>
                   <span aria-hidden="true" className="text-stone-300">·</span>
-                  <span className="text-red-700 font-bold flex items-center gap-1 animate-pulse">
+                  <span className="text-red-700 font-bold flex items-center gap-1">
                     <AlertTriangle className="w-3 h-3 text-red-600" />
                     Urgent
                   </span>

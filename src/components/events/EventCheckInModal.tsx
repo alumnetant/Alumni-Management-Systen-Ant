@@ -261,9 +261,10 @@ export const EventCheckInModal: React.FC<EventCheckInModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setBarcodeInput('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 text-xs"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
+                  aria-label="Clear input"
                 >
-                  ✕
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>

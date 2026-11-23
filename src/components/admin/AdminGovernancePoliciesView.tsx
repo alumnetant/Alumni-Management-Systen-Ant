@@ -86,7 +86,7 @@ export const AdminGovernancePoliciesView: React.FC = () => {
           <button
             type="button"
             onClick={handleReset}
-            className="px-3.5 py-2 bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shrink-0 border border-stone-700"
+            className="px-3.5 py-2 min-h-[44px] sm:min-h-[36px] bg-stone-800 hover:bg-stone-700 text-stone-200 hover:text-white rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer shrink-0 border border-stone-700 whitespace-nowrap"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Reset to Baseline</span>
@@ -211,7 +211,7 @@ export const AdminGovernancePoliciesView: React.FC = () => {
         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-stone-100 text-stone-700 flex items-center justify-center">
                 <Database className="w-4 h-4" />
               </div>
               <div>
@@ -238,8 +238,8 @@ export const AdminGovernancePoliciesView: React.FC = () => {
           <p className="text-xs text-stone-600 leading-relaxed">
             Detects discrepancies when an alumnus submits a degree program different from the accredited diploma roll, providing a 1-click "Sync to Registrar & Verify" action for automatic alignment.
           </p>
-          <div className="text-[11px] font-semibold text-blue-700 flex items-center gap-1.5 pt-1">
-            <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+          <div className="text-[11px] font-semibold text-stone-600 flex items-center gap-1.5 pt-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
             <span>Prevents cross-course misrepresentation in public directories.</span>
           </div>
         </div>

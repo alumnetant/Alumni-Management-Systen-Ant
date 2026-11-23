@@ -21,6 +21,7 @@ import {
 } from '../../lib/defaultImages';
 import { compressImage } from '../../lib/utils';
 import { triggerHaptic } from '../../services/hapticsService';
+import { StepProgressHeader } from '../common/DesignSystemPrimitives';
 
 interface FirstTimeProfileSetupModalProps {
   isOpen: boolean;
@@ -217,6 +218,18 @@ const FirstTimeProfileSetupModalContent: React.FC<{ onClose: () => void }> = ({ 
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs text-stone-700 dark:text-stone-300 max-h-[75vh] overflow-y-auto">
+          <StepProgressHeader
+            currentStep={
+              [
+                Boolean(profilePictureUrl && profilePictureUrl !== DEFAULT_USER_AVATAR),
+                Boolean(currentPosition.trim() && company.trim()),
+                Boolean(headline.trim() && skillsInput.trim()),
+              ].filter(Boolean).length + 1
+            }
+            totalSteps={4}
+            stepLabels={['Photo', 'Employment', 'Headline & Skills', 'Finish']}
+          />
+
           {/* Profile Picture Option */}
           <div className="p-3.5 bg-stone-50/80 dark:bg-stone-800/60 rounded-2xl border border-stone-200/90 dark:border-stone-700/60 space-y-2.5">
             <div className="flex items-center justify-between">
@@ -263,9 +276,9 @@ const FirstTimeProfileSetupModalContent: React.FC<{ onClose: () => void }> = ({ 
                   <button
                     type="button"
                     onClick={() => avatarFileRef.current?.click()}
-                    className="px-2.5 py-1 text-xs bg-[#8B181B] hover:bg-[#721316] text-white rounded-lg font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                    className="ds-btn-secondary px-3 py-1.5 text-xs rounded-lg font-semibold flex items-center gap-1.5 cursor-pointer min-h-[36px]"
                   >
-                    <Upload className="w-3 h-3" />
+                    <Upload className="w-3.5 h-3.5 text-[#8B181B] dark:text-rose-400" />
                     <span>Upload Photo</span>
                   </button>
 
@@ -310,9 +323,9 @@ const FirstTimeProfileSetupModalContent: React.FC<{ onClose: () => void }> = ({ 
                   type="button"
                   key={st}
                   onClick={() => setEmploymentStatus(st)}
-                  className={`py-2 px-3 rounded-xl border text-xs font-semibold text-center transition-all cursor-pointer ${
+                  className={`py-2 px-3 rounded-xl border text-xs font-semibold text-center transition-colors cursor-pointer min-h-[40px] ${
                     employmentStatus === st
-                      ? 'bg-[#8B181B] text-white border-[#8B181B] shadow-2xs'
+                      ? 'bg-rose-50 dark:bg-rose-950/60 text-[#8B181B] dark:text-rose-300 border-[#8B181B] font-bold'
                       : 'bg-stone-50 dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-750'
                   }`}
                 >
@@ -470,17 +483,17 @@ const FirstTimeProfileSetupModalContent: React.FC<{ onClose: () => void }> = ({ 
             <button
               type="button"
               onClick={handleDismissOrSave}
-              className="w-1/3 py-3 rounded-xl border border-stone-300 dark:border-stone-700 text-stone-700 dark:text-stone-300 font-bold hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+              className="ds-btn-secondary w-1/3 py-3 rounded-xl font-semibold cursor-pointer min-h-[44px]"
             >
-              Skip For Now
+              Skip for now
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-3 bg-[#8B181B] hover:bg-[#721316] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="ds-btn-primary flex-1 py-3 font-semibold rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 min-h-[44px]"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>SAVE & COMPLETE SETUP</span>
+              <span>Save &amp; Complete Setup</span>
             </button>
           </div>
         </form>

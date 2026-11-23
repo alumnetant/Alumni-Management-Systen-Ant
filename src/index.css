@@ -955,96 +955,104 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   .sidebar-proximity-glow {
     box-shadow: 0 0 24px -4px rgba(139, 24, 27, 0.15);
   }
+
+  /* 3-Tier Design System Control Hierarchy (Von Restorff & Law of Similarity) */
+  .ds-btn-primary {
+    background-color: #8B181B;
+    color: #FFFFFF;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(139, 24, 27, 0.22);
+    transition: background-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1),
+                transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .ds-btn-primary:hover:not(:disabled) {
+    background-color: #721316;
+    box-shadow: 0 4px 12px rgba(139, 24, 27, 0.24);
+  }
+  .ds-btn-primary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .ds-btn-secondary {
+    background-color: #FFFFFF;
+    color: #1c1917;
+    border: 1px solid rgba(214, 211, 209, 0.9);
+    white-space: nowrap;
+    transition: background-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+                transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .ds-btn-secondary:hover:not(:disabled) {
+    background-color: #F5F5F4;
+    border-color: #D6D3D1;
+  }
+  .ds-btn-secondary:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  html.dark .ds-btn-secondary {
+    background-color: #292524;
+    color: #F5F5F4;
+    border-color: rgba(68, 64, 60, 0.9);
+  }
+  html.dark .ds-btn-secondary:hover:not(:disabled) {
+    background-color: #322D2B;
+    border-color: #57534E;
+  }
+
+  .ds-btn-ghost {
+    background-color: transparent;
+    color: #57534E;
+    white-space: nowrap;
+    transition: background-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+                color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+                transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .ds-btn-ghost:hover:not(:disabled) {
+    background-color: rgba(245, 245, 244, 0.9);
+    color: #1c1917;
+  }
+  .ds-btn-ghost:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+  html.dark .ds-btn-ghost {
+    color: #A8A29E;
+  }
+  html.dark .ds-btn-ghost:hover:not(:disabled) {
+    background-color: rgba(41, 37, 36, 0.8);
+    color: #F5F5F4;
+  }
 }
 
 /* ==========================================================================
-   UNIVERSAL LIQUID GOOEY HOVER ANIMATION FOR BUTTONS
-   Elastic morphing physics, liquid spring rebound & organic radial sheen
+   ACCESSIBLE, RESTRAINED INTERACTIVE MOTION
    ========================================================================== */
-@keyframes gooey-button-hover {
-  0% {
-    transform: translateY(0) scale(1, 1);
-  }
-  35% {
-    transform: translateY(-2.5px) scale(1.035, 0.97);
-  }
-  70% {
-    transform: translateY(-1.5px) scale(0.985, 1.025);
-  }
-  100% {
-    transform: translateY(-2px) scale(1.02, 1.01);
-  }
+h1, h2, h3 {
+  text-wrap: balance;
 }
 
-@keyframes gooey-liquid-squish {
-  0% {
-    transform: translateY(-2px) scale(1.02, 1.01);
-  }
-  100% {
-    transform: translateY(1px) scale(0.96, 0.94);
-  }
-}
-
-/* Apply organic liquid gooey response to all interactive buttons */
-button:not([disabled]):not(.no-gooey):not(.absolute):not([class*="absolute"]) {
-  position: relative;
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
-              box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
-              filter 0.25s ease,
-              background-color 0.2s ease,
-              border-color 0.2s ease;
-  will-change: transform;
-}
-
-button.absolute, button[class*="absolute"] {
-  position: absolute !important;
-}
-
-button:not([disabled]):not(.no-gooey):hover {
-  animation: gooey-button-hover 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  box-shadow: 0 8px 24px -4px rgba(139, 24, 27, 0.18),
-              0 3px 8px -2px rgba(0, 0, 0, 0.06);
-}
-
-html.dark button:not([disabled]):not(.no-gooey):hover {
-  box-shadow: 0 8px 24px -4px rgba(139, 24, 27, 0.35),
-              0 3px 8px -2px rgba(0, 0, 0, 0.4);
+button:not([disabled]):not(.no-gooey) {
+  transition: background-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+              color 150ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 button:not([disabled]):not(.no-gooey):active {
-  animation: gooey-liquid-squish 0.12s ease-out forwards;
+  transform: scale(0.985);
 }
 
-/* Subtle liquid light diffusion aura on hover */
-button:not([disabled]):not(.no-gooey)::after {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  opacity: 0;
-  pointer-events: none;
-  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.05) 50%, transparent 75%);
-  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-  transform: scale(0.85);
-  z-index: 1;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
-button:not([disabled]):not(.no-gooey):hover::after {
-  opacity: 1;
-  transform: scale(1.02);
-}
-
-html.dark button:not([disabled]):not(.no-gooey)::after {
-  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.03) 50%, transparent 75%);
-}
-
-/* Enhanced gooey flare on primary institutional crimson buttons */
-button.bg-\[\#8B181B\]:not([disabled]):hover,
-button.bg-red-800:not([disabled]):hover,
-button.bg-red-900:not([disabled]):hover {
-  box-shadow: 0 10px 28px -4px rgba(139, 24, 27, 0.38),
-              0 4px 12px -2px rgba(139, 24, 27, 0.22);
-}/* Suppress redundant browser-native password reveal and clear buttons */
+/* Suppress redundant browser-native password reveal and clear buttons */
 input::-ms-reveal,
 input::-ms-clear {
   display: none !important;
@@ -1055,3 +1063,105 @@ input::-webkit-credentials-auto-fill-button {
   position: absolute !important;
   right: 0 !important;
 }
+
+/* ==========================================================================
+   MOBILE INSTAGRAM-INSPIRED DESIGN SYSTEM TOKENS (< 1024px ONLY)
+   Pure monochrome white/black/gray base + single St. Cecilia crimson accent.
+   ========================================================================== */
+:root {
+  --m-bg: #FFFFFF;
+  --m-surface: #FFFFFF;
+  --m-surface-muted: #F3F4F6;
+  --m-text-primary: #111827;
+  --m-text-secondary: #6B7280;
+  --m-border: #E5E7EB;
+  --m-accent: #8B181B;
+  --m-accent-hover: #721316;
+  --m-accent-fg: #FFFFFF;
+  --m-accent-soft: #FEF2F2;
+  --m-accent-text: #8B181B;
+}
+
+html.dark {
+  --m-bg: #000000;
+  --m-surface: #121212;
+  --m-surface-muted: #262626;
+  --m-text-primary: #FAFAFA;
+  --m-text-secondary: #A1A1AA;
+  --m-border: #27272A;
+  --m-accent: #E11D48;
+  --m-accent-hover: #BE123C;
+  --m-accent-fg: #FFFFFF;
+  --m-accent-soft: rgba(225, 29, 72, 0.16);
+  --m-accent-text: #FB7185;
+}
+
+@media (max-width: 1023px) {
+  body.mobile-ig-shell,
+  .mobile-ig-canvas {
+    background-color: var(--m-bg) !important;
+    color: var(--m-text-primary);
+  }
+}
+
+@layer utilities {
+  .m-touch {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .m-hairline {
+    border-color: var(--m-border);
+  }
+
+  .m-bg {
+    background-color: var(--m-bg);
+  }
+
+  .m-surface {
+    background-color: var(--m-surface);
+  }
+
+  .m-surface-muted {
+    background-color: var(--m-surface-muted);
+  }
+
+  .m-text-primary {
+    color: var(--m-text-primary);
+  }
+
+  .m-text-secondary {
+    color: var(--m-text-secondary);
+  }
+
+  .m-text-accent {
+    color: var(--m-accent-text);
+  }
+
+  .m-bg-accent {
+    background-color: var(--m-accent);
+    color: var(--m-accent-fg);
+  }
+
+  .m-type-12 {
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .m-type-14 {
+    font-size: 14px;
+    line-height: 20px;
+  }
+
+  .m-type-16 {
+    font-size: 16px;
+    line-height: 24px;
+  }
+
+  .m-type-20 {
+    font-size: 20px;
+    line-height: 26px;
+    letter-spacing: -0.02em;
+  }
+}
+
