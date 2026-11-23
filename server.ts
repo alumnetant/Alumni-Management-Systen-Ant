@@ -906,11 +906,33 @@ interface ServerAuditLog {
   timestamp: string;
   action: string;
   actor: string;
+  actorId?: string;
+  actorName?: string;
   actorRole: string;
+  category?: string;
+  severity?: 'info' | 'warning' | 'alert' | 'success';
   ip: string;
+  targetRecordId?: string;
+  targetUserId?: string;
+  targetUserName?: string;
+  targetUserRole?: string;
+  isSuspicious?: boolean;
+  requiresAlertIcon?: boolean;
+  metadata?: Record<string, any>;
   details: Record<string, any>;
 }
 const serverAuditLogs: ServerAuditLog[] = [];
+
+function pushBoundedServerAuditLog(entry: ServerAuditLog): ServerAuditLog {
+  if (entry.id && serverAuditLogs.some((existing) => existing.id === entry.id)) {
+    return entry;
+  }
+  serverAuditLogs.push(entry);
+  if (serverAuditLogs.length > 2000) {
+    serverAuditLogs.splice(0, serverAuditLogs.length - 2000);
+  }
+  return entry;
+}
 
 /**
  * Account Suspension & Automatic Expiration Engine
@@ -4696,13 +4718,13 @@ app.post('/api/admin/verify-student', requireServerAuth, requireRole(['admin', '
 // 6.6.3 Superadmin Route: Tamper-Proof Audit Trail Retrieval (RBAC Protected: Superadmin Only)
 app.get('/api/admin/audit-logs', requireServerAuth, requireSuperAdmin, (_req: Request, res: Response) => {
   res.json({
-    logs: serverAuditLogs.slice(-150).reverse()
+    logs: serverAuditLogs.slice(-500).reverse()
   });
 });
 
 app.get('/api/admin/audit', requireServerAuth, requireSuperAdmin, (_req: Request, res: Response) => {
   res.json({
-    logs: serverAuditLogs.slice(-150).reverse()
+    logs: serverAuditLogs.slice(-500).reverse()
   });
 });
 
@@ -5094,14 +5116,76 @@ app.post('/api/admin/audit-logs', requireServerAuth, requireSuperAdmin, (req: Re
   const entry: ServerAuditLog = {
     id: `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
     timestamp: new Date().toISOString(),
-    action: String(action).slice(0, 100),
+    action: String(action).slice(0, 160),
     actor: actor.email || actor.uid,
+    actorId: actor.uid,
+    actorName: actor.name || actor.email || actor.uid,
     actorRole: actor.role || 'admin',
+    category: 'admin',
+    severity: 'info',
     ip: req.ip || 'internal',
-    details: typeof details === 'object' ? scrubPayload(details) : {}
+    details: typeof details === 'object' && details !== null ? scrubPayload(details) : {}
   };
 
-  serverAuditLogs.push(entry);
+  pushBoundedServerAuditLog(entry);
+  res.status(201).json({ success: true, logId: entry.id });
+});
+
+// 6.6.4.0 Authenticated User Activity Log Ingestion (Any logged-in role; actor bound to verified JWT)
+app.post('/api/activity-logs', requireServerAuth, (req: Request, res: Response) => {
+  const actor = (req as any).user;
+  const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  const rawAction = String(body.action || '').trim();
+
+  if (!rawAction) {
+    return res.status(400).json({ error: 'Activity action signature is required.' });
+  }
+
+  const validSeverities = ['info', 'warning', 'alert', 'success'];
+  const normSeverity = validSeverities.includes(String(body.severity || '').toLowerCase())
+    ? (String(body.severity).toLowerCase() as ServerAuditLog['severity'])
+    : 'info';
+
+  const safeId =
+    typeof body.id === 'string' && body.id.trim().length > 0
+      ? body.id.replace(/[^a-zA-Z0-9_\-.]/g, '_').slice(0, 128)
+      : `audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+  const canonicalRole = normalizeSystemRole(actor.role) || actor.role || 'alumni';
+  const detailsPayload =
+    typeof body.details === 'string'
+      ? { message: body.details.slice(0, 1500), actorUid: actor.uid }
+      : typeof body.details === 'object' && body.details !== null
+      ? { ...scrubPayload(body.details), actorUid: actor.uid }
+      : { message: rawAction, actorUid: actor.uid };
+
+  const entry: ServerAuditLog = {
+    id: safeId,
+    timestamp:
+      typeof body.timestamp === 'string' && body.timestamp.trim().length > 0
+        ? body.timestamp.slice(0, 64)
+        : new Date().toISOString(),
+    action: rawAction.slice(0, 160),
+    actor: actor.name || actor.email || actor.uid,
+    actorId: actor.uid,
+    actorName: actor.name || actor.email || actor.uid,
+    actorRole: canonicalRole,
+    category: typeof body.category === 'string' && body.category.trim() ? body.category.trim().slice(0, 64) : 'admin',
+    severity: normSeverity,
+    ip: extractDeviceInfo(req).ipAddress || req.ip || 'internal',
+    ...(typeof body.targetRecordId === 'string' && body.targetRecordId ? { targetRecordId: body.targetRecordId.slice(0, 160) } : {}),
+    ...(typeof body.targetUserId === 'string' && body.targetUserId ? { targetUserId: body.targetUserId.slice(0, 128) } : {}),
+    ...(typeof body.targetUserName === 'string' && body.targetUserName ? { targetUserName: body.targetUserName.slice(0, 160) } : {}),
+    ...(typeof body.targetUserRole === 'string' && body.targetUserRole ? { targetUserRole: body.targetUserRole.slice(0, 40) } : {}),
+    ...(typeof body.isSuspicious === 'boolean' ? { isSuspicious: body.isSuspicious } : {}),
+    ...(typeof body.requiresAlertIcon === 'boolean' ? { requiresAlertIcon: body.requiresAlertIcon } : {}),
+    ...(body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata)
+      ? { metadata: scrubPayload(body.metadata) }
+      : {}),
+    details: detailsPayload
+  };
+
+  pushBoundedServerAuditLog(entry);
   res.status(201).json({ success: true, logId: entry.id });
 });
 

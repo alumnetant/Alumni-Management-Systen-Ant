@@ -51,6 +51,7 @@ import {
 import { createNotificationPayload } from '../lib/notificationDeepLink';
 import { apiFetchWithCsrf, clearCsrfTokenCache, getAuthToken } from './apiClient';
 import { generateSecureId } from '../lib/secureId';
+import { emitActivityLog } from './activityLogService';
 
 const MODERATION_SNAPSHOT_KEY = 'alumni_moderation_state_v1';
 const MODERATION_SYNC_QUEUE_KEY = 'alumni_moderation_sync_queue_v1';
@@ -1511,6 +1512,19 @@ export async function submitPostReportPrimary(
     });
   }
 
+  void emitActivityLog({
+    action: 'POST_REPORT_SUBMITTED',
+    actorId: actor.uid,
+    actorName: actor.name || actor.email || 'Cecilian Member',
+    actorRole: actor.role || 'alumni',
+    category: 'moderation',
+    details: `Reported post ${post.id} for "${payload.reason}" (Priority: ${priority}).`,
+    severity: priority === 'high' ? 'warning' : 'info',
+    targetRecordId: modCase.id,
+    ...(post.authorId && !post.isAnonymous ? { targetUserId: post.authorId, targetUserName: post.authorName } : {}),
+    metadata: { postId: post.id, reportId: report.id, reason: payload.reason, priority }
+  });
+
   return {
     success: true,
     message: 'Thanks, our moderators will review your report.',
@@ -1611,6 +1625,18 @@ export async function claimOrReleaseCasePrimary(
       body: {}
     });
   }
+
+  void emitActivityLog({
+    action: mode === 'claim' ? 'MODERATION_CASE_CLAIMED' : 'MODERATION_CASE_RELEASED',
+    actorId: actor.uid,
+    actorName: actor.name,
+    actorRole: actor.role,
+    category: 'moderation',
+    details: auditRecord.note || `Moderation case ${caseId} ${mode}ed.`,
+    severity: 'info',
+    targetRecordId: modCase.id,
+    metadata: { postId: modCase.targetId }
+  });
 
   return { case: modCase, auditRecord, snapshot: nextSnapshot };
 }
@@ -2056,6 +2082,26 @@ export async function actOnCasePrimary(
     });
   }
 
+  for (const modAudit of auditsToSave) {
+    void emitActivityLog({
+      action: modAudit.action,
+      actorId: modAudit.actorId,
+      actorName: modAudit.actorName || actor.name,
+      actorRole: modAudit.actorRole || actor.role,
+      category: 'moderation',
+      details: modAudit.note || `Moderation action ${modAudit.action} on case ${modCase.id}.`,
+      severity:
+        modAudit.action === 'CASE_DISMISSED'
+          ? 'info'
+          : modAudit.action === 'USER_AUTO_SUSPENDED_WARNINGS' || modAudit.action === 'USER_FLAGGED_FOR_BAN'
+          ? 'alert'
+          : 'warning',
+      targetRecordId: modAudit.caseId || modAudit.postId || modCase.id,
+      targetUserId: modAudit.targetUserId || modCase.postAuthorId,
+      metadata: { postId: modAudit.postId, caseId: modCase.id }
+    });
+  }
+
   return {
     case: modCase,
     updatedReports: pendingReports,
@@ -2135,6 +2181,18 @@ export async function restorePostPrimary(
       body: { note: cleanNote, adminApprovalGranted }
     });
   }
+
+  void emitActivityLog({
+    action: 'POST_RESTORED',
+    actorId: actor.uid,
+    actorName: actor.name,
+    actorRole: actor.role,
+    category: 'moderation',
+    details: `Restored moderated post ${postId}. Note: ${cleanNote}`,
+    severity: 'success',
+    targetRecordId: postId,
+    targetUserId: restoredPost.authorId
+  });
 
   return { post: restoredPost, auditRecord, snapshot: nextSnapshot };
 }
@@ -2307,6 +2365,22 @@ export async function sanctionUserPrimary(
         reason: cleanReason,
         durationDays: payload.durationDays
       }
+    });
+  }
+
+  if (auditRecord) {
+    void emitActivityLog({
+      action: auditRecord.action,
+      actorId: adminActor.uid,
+      actorName: adminActor.name,
+      actorRole: adminActor.role,
+      category: 'moderation',
+      details: auditRecord.note || cleanReason,
+      severity: payload.action === 'lift_sanction' || payload.action === 'unrestrict_reporting' ? 'info' : 'alert',
+      targetRecordId: targetUserId,
+      targetUserId,
+      targetUserName: targetUser?.name,
+      targetUserRole: targetUser?.role
     });
   }
 

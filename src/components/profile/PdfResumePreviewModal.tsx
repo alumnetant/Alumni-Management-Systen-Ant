@@ -43,7 +43,7 @@ export const PdfResumePreviewModal: React.FC<PdfResumePreviewModalProps> = ({
   targetUser,
   onOpenEditProfile
 }) => {
-  const { currentUser, showToast } = useAlumni();
+  const { currentUser, addAuditLog, showToast } = useAlumni();
   const [isExporting, setIsExporting] = useState(false);
 
   if (!isOpen || !targetUser) return null;
@@ -56,6 +56,18 @@ export const PdfResumePreviewModal: React.FC<PdfResumePreviewModalProps> = ({
     setIsExporting(true);
     try {
       await exportProfileToPdfResume(targetUser, currentUser);
+      addAuditLog({
+        action: 'PROFILE_RESUME_PDF_EXPORTED',
+        actorId: currentUser?.uid || targetUser.uid,
+        actorName: currentUser?.name || targetUser.name || 'Portal Member',
+        actorRole: currentUser?.role || 'alumni',
+        category: 'profile',
+        details: `Exported verified PDF resume for ${targetUser.name || targetUser.uid}.`,
+        severity: 'info',
+        targetRecordId: targetUser.uid,
+        targetUserId: targetUser.uid,
+        targetUserName: targetUser.name
+      });
       if (showToast) {
         showToast('Official PDF Resume downloaded successfully!', 'success');
       }

@@ -95,6 +95,7 @@ import {
   subscribeToUserChats,
   subscribeToChatMessages,
   saveAuditLogToFirestore,
+  subscribeToAuditLogs,
   saveGalleryItemToFirestore,
   deleteGalleryItemFromFirestore,
   syncAllCollectionsToFirestore,
@@ -114,6 +115,12 @@ import {
   purgeUserPostsAndCommentsInFirestore,
   FIRESTORE_DATABASE_ID
 } from '../lib/firebase';
+import {
+  emitActivityLog,
+  loadActivityLogsPrimary,
+  normalizeActivityLogEntry,
+  ActivityLogInput
+} from '../services/activityLogService';
 import {
   markRegistryRecordAsRegistered,
   releaseRegistryRecordRegistration,
@@ -527,7 +534,7 @@ interface AlumniContextType {
   automationJobs: AutomationJob[];
   careerSurveys: CareerSurveyResponse[];
   backups: DatabaseBackupSnapshot[];
-  addAuditLog: (entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) => void;
+  addAuditLog: (entry: ActivityLogInput) => void;
   submitCareerSurvey: (survey: Omit<CareerSurveyResponse, 'id' | 'submittedAt'>) => void;
   runAutomationJob: (jobId: string) => void;
   triggerDatabaseBackup: (type?: 'automated' | 'manual') => void;
@@ -1842,14 +1849,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
 
-  const addAuditLog = useCallback((entry: Omit<AuditLogEntry, 'id' | 'timestamp'>) => {
-    const newLog: AuditLogEntry = {
-      id: generateSecureId('log'),
-      timestamp: new Date().toISOString(),
-      ...entry
-    };
-    setAuditLogs((prev) => [newLog, ...prev.slice(0, 99)]);
-    saveAuditLogToFirestore(newLog).catch(() => {});
+  const addAuditLog = useCallback((entry: ActivityLogInput) => {
+    const newLog = normalizeActivityLogEntry({
+      ...entry,
+      id: entry.id || generateSecureId('log'),
+      timestamp: entry.timestamp || new Date().toISOString()
+    });
+    setAuditLogs((prev) => [newLog, ...prev.filter((l) => l.id !== newLog.id).slice(0, 499)]);
+    void emitActivityLog(newLog);
   }, []);
 
   const [automationJobs, setAutomationJobs] = useState<AutomationJob[]>(() => {
@@ -4970,6 +4977,20 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       })
     }).catch((err) => console.warn('Could not provision user on backend auth store:', err));
 
+    addAuditLog({
+      action: 'ADMIN_USER_PROVISIONED',
+      actorId: currentUser?.uid || 'admin',
+      actorName: currentUser?.name || 'Administrator',
+      actorRole: currentUser?.role || 'admin',
+      category: 'user_management',
+      details: `Provisioned ${newUser.role.toUpperCase()} account for ${newUser.name} (${newUser.email}).`,
+      severity: 'info',
+      targetRecordId: newUid,
+      targetUserId: newUid,
+      targetUserName: newUser.name,
+      targetUserRole: newUser.role
+    });
+
     showToast(`Account for ${newUser.name} provisioned as ${(newUser.role || 'alumni').toUpperCase()}!`);
     return { success: true, role: newUser.role, user: newUser };
   };
@@ -5026,6 +5047,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setNotifications((prev) => [galNotif, ...prev]);
     saveNotificationToFirestore(galNotif).catch(() => {});
 
+    addAuditLog({
+      action: 'UPLOAD_CAMPUS_GALLERY_MEDIA',
+      actorId: currentUser!.uid,
+      actorName: currentUser!.name || 'Administrator',
+      actorRole: currentUser!.role || 'admin',
+      category: 'gallery',
+      details: `Uploaded gallery asset "${newItem.title}" (${newItem.category}, Year: ${newItem.year}).`,
+      severity: 'info',
+      targetRecordId: newItem.id
+    });
+
     showToast(`New photo "${newItem.title}" added and shared to Alumni Feed!`);
     return true;
   };
@@ -5035,8 +5067,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('Permission denied: Only Admin and Moderator can manage gallery items.');
       return false;
     }
+    const targetItem = galleryItems.find((g) => g.id === id);
     setGalleryItems((prev) => prev.filter((g) => g.id !== id));
     deleteGalleryItemFromFirestore(id).catch(() => {});
+    addAuditLog({
+      action: 'DELETE_CAMPUS_GALLERY_MEDIA',
+      actorId: currentUser!.uid,
+      actorName: currentUser!.name || 'Administrator',
+      actorRole: currentUser!.role || 'admin',
+      category: 'gallery',
+      details: `Removed gallery asset "${targetItem?.title || id}" from Campus & Heritage Gallery.`,
+      severity: 'warning',
+      targetRecordId: id
+    });
     showToast('Photo removed from Campus & Heritage Gallery.');
     return true;
   };
@@ -5185,6 +5228,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           pendingLocalPostsRef.current.set(savedPost.id, savedPost);
           setFeedPosts((prev) => dedupePostsById([savedPost, ...prev.filter((p) => p.id !== savedPost.id)]));
           saveFeedPostToFirestore(savedPost).catch(() => {});
+          addAuditLog({
+            action: 'POST_CREATED',
+            actorId: currentUser.uid,
+            actorName: currentUser.name,
+            actorRole: currentUser.role || 'alumni',
+            category: 'social_feed',
+            details: `${savedPost.isAnonymous ? 'Published anonymous post' : 'Published social post'} (${postData.postType}, visibility: ${postData.visibility || 'alumni'}): "${(savedPost.title || savedPost.content || '').slice(0, 80)}".`,
+            severity: 'info',
+            targetRecordId: savedPost.id,
+            metadata: { postType: postData.postType, visibility: postData.visibility || 'alumni', isAnonymous: Boolean(postData.isAnonymous) }
+          });
           showToast(
             savedPost.isAnonymous
               ? 'Anonymous post published to the main feed.'
@@ -5210,6 +5264,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     saveFeedPostToFirestore(optimisticPost).catch((err) => {
       console.warn('Failed to persist feed post in Firestore:', err);
     });
+    addAuditLog({
+      action: 'POST_CREATED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'social_feed',
+      details: `${optimisticPost.isAnonymous ? 'Published anonymous post' : 'Published social post'} (${postData.postType}, visibility: ${postData.visibility || 'alumni'}): "${(optimisticPost.title || optimisticPost.content || '').slice(0, 80)}".`,
+      severity: 'info',
+      targetRecordId: optimisticPost.id,
+      metadata: { postType: postData.postType, visibility: postData.visibility || 'alumni', isAnonymous: Boolean(postData.isAnonymous) }
+    });
     showToast(
       optimisticPost.isAnonymous
         ? 'Anonymous post published to the main feed.'
@@ -5217,7 +5282,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       'success'
     );
     return { success: true, post: optimisticPost };
-  }, [currentUser, showToast]);
+  }, [currentUser, showToast, addAuditLog]);
 
   const addFeedPost = (postData: {
     postType: 'update' | 'gallery' | 'announcement';
@@ -5254,7 +5319,15 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('You cannot congratulate or react to your own post.', 'info');
       return;
     }
-    let addedReaction = false;
+    const existingHearts = targetPost
+      ? Array.isArray(targetPost.hearts)
+        ? targetPost.hearts
+        : Array.isArray(targetPost.likes)
+        ? targetPost.likes
+        : []
+      : [];
+    const addedReaction = !existingHearts.includes(currentUser.uid);
+
     setFeedPosts((prev) =>
       prev.map((post) => {
         if (post.id !== postId) return post;
@@ -5264,7 +5337,6 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           ? post.likes
           : [];
         const alreadyHearted = currentHearts.includes(currentUser.uid);
-        addedReaction = !alreadyHearted;
         const newHearts = alreadyHearted
           ? currentHearts.filter((uid) => uid !== currentUser.uid)
           : [...currentHearts, currentUser.uid];
@@ -5280,6 +5352,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (getAuthToken()) {
       apiFetchWithCsrf(`/api/posts/${encodeURIComponent(postId)}/react`, { method: 'POST' }).catch(() => {});
     }
+    addAuditLog({
+      action: addedReaction ? 'POST_HEART_ADDED' : 'POST_HEART_REMOVED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'social_feed',
+      details: `${addedReaction ? 'Hearted' : 'Unhearted'} post "${(targetPost?.title || targetPost?.content || postId).slice(0, 70)}".`,
+      severity: 'info',
+      targetRecordId: postId,
+      ...(targetPost?.authorId && !targetPost.isAnonymous ? { targetUserId: targetPost.authorId, targetUserName: targetPost.authorName } : {})
+    });
     if (addedReaction && targetPost && targetPost.authorId && targetPost.authorId !== currentUser.uid && !targetPost.isAnonymous) {
       const reactNotif: AppNotification = {
         id: `notif_react_${postId}_${currentUser.uid}_${Date.now()}`,
@@ -5338,6 +5421,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         body: JSON.stringify({ text: text.trim() })
       }).catch(() => {});
     }
+    addAuditLog({
+      action: 'POST_COMMENT_ADDED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'social_feed',
+      details: `Commented on post ${postId}: "${text.trim().slice(0, 100)}".`,
+      severity: 'info',
+      targetRecordId: postId,
+      ...(targetPost?.authorId && !targetPost.isAnonymous ? { targetUserId: targetPost.authorId, targetUserName: targetPost.authorName } : {}),
+      metadata: { commentId: newComment.id }
+    });
     if (targetPost && targetPost.authorId && targetPost.authorId !== currentUser.uid && !targetPost.isAnonymous) {
       const commentNotif: AppNotification = {
         id: `notif_comm_${postId}_${newComment.id}`,
@@ -5389,6 +5484,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           );
           saveFeedPostToFirestore(sharedPost).catch(() => {});
         }
+        addAuditLog({
+          action: 'POST_SHARED',
+          actorId: currentUser.uid,
+          actorName: currentUser.name,
+          actorRole: currentUser.role || 'alumni',
+          category: 'social_feed',
+          details: `Shared post ${postId} to timeline${commentary?.trim() ? ` with commentary: "${commentary.trim().slice(0, 80)}"` : ''}.`,
+          severity: 'info',
+          targetRecordId: sharedPost?.id || postId,
+          metadata: { sourcePostId: postId }
+        });
         showToast('Shared to your timeline and the main feed!', 'success');
         return { success: true, sharedPost };
       } catch {
@@ -5427,9 +5533,20 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       ])
     );
     saveFeedPostToFirestore(sharedPost).catch(() => {});
+    addAuditLog({
+      action: 'POST_SHARED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'social_feed',
+      details: `Shared post ${postId} to timeline${commentary?.trim() ? ` with commentary: "${commentary.trim().slice(0, 80)}"` : ''}.`,
+      severity: 'info',
+      targetRecordId: sharedPost.id,
+      metadata: { sourcePostId: postId }
+    });
     showToast('Shared to your timeline!', 'success');
     return { success: true, sharedPost };
-  }, [currentUser, feedPosts, showToast]);
+  }, [currentUser, feedPosts, showToast, addAuditLog]);
 
   const deleteFeedPost = (postId: string) => {
     if (!currentUser) return;
@@ -5448,6 +5565,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (getAuthToken()) {
       apiFetchWithCsrf(`/api/posts/${encodeURIComponent(postId)}`, { method: 'DELETE' }).catch(() => {});
     }
+    addAuditLog({
+      action: 'POST_DELETED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'social_feed',
+      details: `Deleted social post "${(post?.title || post?.content || postId).slice(0, 80)}".`,
+      severity: 'warning',
+      targetRecordId: postId
+    });
     showToast('Post removed from feed and timeline.', 'info');
   };
 
@@ -5477,12 +5604,37 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         body: JSON.stringify(safeUpdates)
       }).catch(() => {});
     }
+    addAuditLog({
+      action: 'POST_UPDATED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'social_feed',
+      details: `Edited post ${postId} (fields: ${Object.keys(safeUpdates).join(', ') || 'content'}).`,
+      severity: 'info',
+      targetRecordId: postId
+    });
     showToast('Post updated successfully.', 'success');
     return true;
   };
 
   const logout = useCallback((options?: { revokeBiometrics?: boolean }) => {
     const shouldRevokeBiometrics = options?.revokeBiometrics ?? false;
+    const loggingOutUid = currentUserIdRef.current;
+    const loggingOutUser = loggingOutUid ? users.find((u) => u.uid === loggingOutUid) : undefined;
+    if (loggingOutUid) {
+      addAuditLog({
+        action: 'USER_LOGOUT',
+        actorId: loggingOutUid,
+        actorName: loggingOutUser?.name || 'Portal User',
+        actorRole: currentUserRoleRef.current || loggingOutUser?.role || 'alumni',
+        category: 'security',
+        details: `User signed out of session${shouldRevokeBiometrics ? ' (biometric credentials revoked)' : ''}.`,
+        severity: 'info',
+        targetRecordId: loggingOutUid,
+        targetUserId: loggingOutUid
+      });
+    }
     try {
       const token =
         sessionStorage.getItem('alumni_server_auth_token') ||
@@ -5538,7 +5690,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setViewedProfileIdentifier(null);
     setViewedPostId(null);
     showToast(shouldRevokeBiometrics ? 'Logged out and biometric credentials revoked.' : 'Logged out successfully.');
-  }, [showToast]);
+  }, [users, addAuditLog, showToast]);
 
   // Server-Authoritative Session Heartbeat Supervisor: Checks single active session validity
   useEffect(() => {
@@ -6022,6 +6174,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       // ignore
     }
 
+    addAuditLog({
+      action: 'PASSWORD_UPDATED',
+      actorId: currentUserId,
+      actorName: targetUser.name || 'User',
+      actorRole: targetUser.role || 'alumni',
+      category: 'security',
+      details: 'Account password updated securely via credential settings.',
+      severity: 'info',
+      targetRecordId: currentUserId,
+      targetUserId: currentUserId
+    });
+
     showToast('Password updated securely!', 'success');
     return { success: true, message: 'Password updated securely!' };
   };
@@ -6095,6 +6259,22 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         console.warn('Notice saving profile changes to Firestore:', err);
         showToast('Profile changes saved successfully.', 'success');
       });
+
+    const safeFields = Object.keys(data || {}).filter(
+      (k) => !['password', 'passwordhash', 'token', 'refreshtoken'].includes(k.toLowerCase())
+    );
+    addAuditLog({
+      action: 'PROFILE_UPDATED',
+      actorId: currentUserId,
+      actorName: currentFullUser?.name || data.name || 'Portal Member',
+      actorRole: currentFullUser?.role || 'alumni',
+      category: 'profile',
+      details: `Updated profile fields: ${safeFields.slice(0, 12).join(', ') || 'profile details'}.`,
+      severity: 'info',
+      targetRecordId: currentUserId,
+      targetUserId: currentUserId,
+      metadata: { updatedFields: safeFields.slice(0, 15) }
+    });
   };
 
   const pinProfilePost = useCallback(async (postId: string | null): Promise<boolean> => {
@@ -6120,9 +6300,20 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         // Offline fallback kept
       }
     }
+    const actor = users.find((u) => u.uid === currentUserId);
+    addAuditLog({
+      action: postId ? 'PROFILE_POST_PINNED' : 'PROFILE_POST_UNPINNED',
+      actorId: currentUserId,
+      actorName: actor?.name || 'Portal Member',
+      actorRole: actor?.role || 'alumni',
+      category: 'profile',
+      details: postId ? `Pinned post ${postId} to profile.` : 'Unpinned featured post from profile.',
+      severity: 'info',
+      targetRecordId: postId || currentUserId
+    });
     showToast(postId ? 'Post pinned to the top of your profile!' : 'Post unpinned from profile.', 'success');
     return true;
-  }, [currentUserId, showToast]);
+  }, [currentUserId, users, addAuditLog, showToast]);
 
   const blockUser = useCallback(async (targetUid: string): Promise<boolean> => {
     if (!currentUserId || !targetUid || targetUid === currentUserId) return false;
@@ -6136,9 +6327,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (getAuthToken()) {
       await apiFetchWithCsrf(`/api/profiles/${encodeURIComponent(targetUid)}/block`, { method: 'POST' }).catch(() => {});
     }
+    const actor = users.find((u) => u.uid === currentUserId);
+    const target = users.find((u) => u.uid === targetUid);
+    addAuditLog({
+      action: 'USER_BLOCKED',
+      actorId: currentUserId,
+      actorName: actor?.name || 'Portal Member',
+      actorRole: actor?.role || 'alumni',
+      category: 'profile',
+      details: `Blocked user ${target?.name || targetUid}.`,
+      severity: 'warning',
+      targetRecordId: targetUid,
+      targetUserId: targetUid,
+      targetUserName: target?.name
+    });
     showToast('User blocked. Their posts and profile are now hidden.', 'info');
     return true;
-  }, [currentUserId, showToast]);
+  }, [currentUserId, users, addAuditLog, showToast]);
 
   const unblockUser = useCallback(async (targetUid: string): Promise<boolean> => {
     if (!currentUserId || !targetUid) return false;
@@ -6152,9 +6357,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (getAuthToken()) {
       await apiFetchWithCsrf(`/api/profiles/${encodeURIComponent(targetUid)}/block`, { method: 'DELETE' }).catch(() => {});
     }
+    const actor = users.find((u) => u.uid === currentUserId);
+    const target = users.find((u) => u.uid === targetUid);
+    addAuditLog({
+      action: 'USER_UNBLOCKED',
+      actorId: currentUserId,
+      actorName: actor?.name || 'Portal Member',
+      actorRole: actor?.role || 'alumni',
+      category: 'profile',
+      details: `Unblocked user ${target?.name || targetUid}.`,
+      severity: 'info',
+      targetRecordId: targetUid,
+      targetUserId: targetUid,
+      targetUserName: target?.name
+    });
     showToast('User unblocked.', 'success');
     return true;
-  }, [currentUserId, showToast]);
+  }, [currentUserId, users, addAuditLog, showToast]);
 
   const deleteMyAccount = useCallback(async (): Promise<boolean> => {
     if (!currentUserId) return false;
@@ -6179,6 +6398,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     alumniService.updateAlumni(currentUserId, { experience: updatedExperience }).catch((err) => {
       console.warn('Error saving experience to Firestore:', err);
     });
+    addAuditLog({
+      action: 'EXPERIENCE_ADDED',
+      actorId: currentUserId,
+      actorName: targetUser?.name || 'Portal Member',
+      actorRole: targetUser?.role || 'alumni',
+      category: 'profile',
+      details: `Added work experience: ${(exp as any).title || (exp as any).role || 'Position'} at ${(exp as any).company || 'Organization'}.`,
+      severity: 'info',
+      targetRecordId: newExp.id
+    });
     showToast('New work experience added!');
   };
 
@@ -6195,6 +6424,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     );
     alumniService.updateAlumni(currentUserId, { experience: updatedExperience }).catch((err) => {
       console.warn('Error updating experience in Firestore:', err);
+    });
+    addAuditLog({
+      action: 'EXPERIENCE_REMOVED',
+      actorId: currentUserId,
+      actorName: targetUser?.name || 'Portal Member',
+      actorRole: targetUser?.role || 'alumni',
+      category: 'profile',
+      details: `Removed work experience entry (${id}).`,
+      severity: 'info',
+      targetRecordId: id
     });
     showToast('Experience removed.');
   };
@@ -6217,6 +6456,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     alumniService.updateAlumni(currentUserId, { education: updatedEducation }).catch((err) => {
       console.warn('Error saving education to Firestore:', err);
     });
+    addAuditLog({
+      action: 'EDUCATION_ADDED',
+      actorId: currentUserId,
+      actorName: targetUser?.name || 'Portal Member',
+      actorRole: targetUser?.role || 'alumni',
+      category: 'profile',
+      details: `Added education record: ${(edu as any).degree || 'Program'} at ${(edu as any).institution || (edu as any).school || 'Institution'}.`,
+      severity: 'info',
+      targetRecordId: newEdu.id
+    });
     showToast('Education record added!');
   };
 
@@ -6233,6 +6482,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     );
     alumniService.updateAlumni(currentUserId, { education: updatedEducation }).catch((err) => {
       console.warn('Error updating education in Firestore:', err);
+    });
+    addAuditLog({
+      action: 'EDUCATION_REMOVED',
+      actorId: currentUserId,
+      actorName: targetUser?.name || 'Portal Member',
+      actorRole: targetUser?.role || 'alumni',
+      category: 'profile',
+      details: `Removed education record (${id}).`,
+      severity: 'info',
+      targetRecordId: id
     });
     showToast('Education removed.');
   };
@@ -6327,6 +6586,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     setNotifications((prev) => [newNotif, ...prev]);
     saveNotificationToFirestore(newNotif).catch(() => {});
+    addAuditLog({
+      action: 'CONNECTION_REQUEST_SENT',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'messaging',
+      details: `Sent connection request to ${targetUser.name} (${targetUid}).`,
+      severity: 'info',
+      targetRecordId: newReq.id,
+      targetUserId: targetUid,
+      targetUserName: targetUser.name
+    });
     showToast(`Connection request sent to ${targetUser.name}!`, 'success');
 
     return { success: true };
@@ -6413,6 +6684,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setNotifications((prev) => [notif, ...prev]);
     saveNotificationToFirestore(notif).catch(() => {});
 
+    addAuditLog({
+      action: 'CONNECTION_REQUEST_ACCEPTED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'messaging',
+      details: `Accepted connection request from ${sender?.name || req.fromUid}.`,
+      severity: 'success',
+      targetRecordId: requestId,
+      targetUserId: req.fromUid,
+      targetUserName: sender?.name
+    });
+
     showToast(`You are now connected with ${sender ? sender.name : 'your fellow alumnus'}!`, 'success');
   };
 
@@ -6443,6 +6727,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       })
     );
 
+    addAuditLog({
+      action: 'CONNECTION_REQUEST_DECLINED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'messaging',
+      details: `Declined connection request ${requestId} from ${req.fromUid}.`,
+      severity: 'info',
+      targetRecordId: requestId,
+      targetUserId: req.fromUid
+    });
+
     showToast('Connection request declined.', 'info');
   };
 
@@ -6454,6 +6750,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setNotifications((prev) =>
         prev.filter((n) => !(n.refId === requestId && n.type === 'friend_request'))
       );
+    }
+    if (currentUser) {
+      addAuditLog({
+        action: 'CONNECTION_REQUEST_CANCELLED',
+        actorId: currentUser.uid,
+        actorName: currentUser.name,
+        actorRole: currentUser.role || 'alumni',
+        category: 'messaging',
+        details: `Cancelled pending connection request ${requestId}.`,
+        severity: 'info',
+        targetRecordId: requestId,
+        ...(req?.toUid ? { targetUserId: req.toUid } : {})
+      });
     }
     showToast('Connection request cancelled.');
   };
@@ -6495,6 +6804,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     );
 
     const target = users.find((u) => u.uid === targetUid);
+    addAuditLog({
+      action: isNowFollowing ? 'USER_UNFOLLOWED' : 'USER_FOLLOWED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'messaging',
+      details: `${isNowFollowing ? 'Unfollowed' : 'Followed'} ${target?.name || targetUid}.`,
+      severity: 'info',
+      targetRecordId: targetUid,
+      targetUserId: targetUid,
+      targetUserName: target?.name
+    });
     showToast(isNowFollowing ? `Unfollowed ${target?.name}` : `Following ${target?.name}`);
   };
 
@@ -6539,6 +6860,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setMessages((prev) => ({ ...prev, [newChatId]: [] }));
     setActiveChatId(newChatId);
     saveChatToFirestore(newChat).catch(() => {});
+    addAuditLog({
+      action: 'CHAT_THREAD_CREATED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'messaging',
+      details: `Started direct message thread with ${target?.name || targetUid}.`,
+      severity: 'info',
+      targetRecordId: newChatId,
+      targetUserId: targetUid,
+      targetUserName: target?.name
+    });
     return newChatId;
   };
 
@@ -6605,6 +6938,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       );
 
       enqueueOfflineMessage(chatId, offlineMsg);
+      const otherMemberUid = targetChat?.memberIds?.find((m) => m !== currentUser.uid);
+      addAuditLog({
+        action: 'DIRECT_MESSAGE_QUEUED_OFFLINE',
+        actorId: currentUser.uid,
+        actorName: currentUser.name,
+        actorRole: currentUser.role || 'alumni',
+        category: 'messaging',
+        details: `Queued offline message (${offlineMsg.id}) in thread ${chatId}.`,
+        severity: 'info',
+        targetRecordId: chatId,
+        ...(otherMemberUid ? { targetUserId: otherMemberUid } : {}),
+        metadata: { messageId: offlineMsg.id }
+      });
       showToast('You are currently offline. Message saved locally and will auto-sync on reconnect.', 'info');
       return;
     }
@@ -6733,6 +7079,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (updatedChatObj) {
       saveChatToFirestore(updatedChatObj).catch(() => {});
     }
+    const onlineRecipientUid = targetChat?.memberIds?.find((m) => m !== currentUser.uid);
+    addAuditLog({
+      action: 'DIRECT_MESSAGE_SENT',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'messaging',
+      details: `Dispatched message (${newMsg.id}) in thread ${chatId}.`,
+      severity: 'info',
+      targetRecordId: chatId,
+      ...(onlineRecipientUid ? { targetUserId: onlineRecipientUid } : {}),
+      metadata: { messageId: newMsg.id, isGroupChat: Boolean(targetChat?.isGroupChat) }
+    });
   };
 
   const unsendMessage = useCallback(
@@ -6787,12 +7146,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           text: 'This message was unsent',
           reactions: {}
         });
+        addAuditLog({
+          action: 'MESSAGE_UNSENT',
+          actorId: currentUser.uid,
+          actorName: currentUser.name,
+          actorRole: currentUser.role || 'alumni',
+          category: 'messaging',
+          details: `Unsent message ${messageId} in thread ${chatId}.`,
+          severity: 'info',
+          targetRecordId: chatId,
+          metadata: { messageId }
+        });
         showToast('Message unsent for all participants.', 'info');
       } catch (err) {
         console.warn('Failed to unsend message:', err);
       }
     },
-    [currentUser, messages, showToast]
+    [currentUser, messages, addAuditLog, showToast]
   );
 
   const deleteMessageForMe = useCallback(
@@ -6820,12 +7190,23 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         await updateChatMessageInFirestore(chatId, messageId, {
           deletedForUsers: nextDeleted
         });
+        addAuditLog({
+          action: 'MESSAGE_DELETED_FOR_SELF',
+          actorId: currentUser.uid,
+          actorName: currentUser.name,
+          actorRole: currentUser.role || 'alumni',
+          category: 'messaging',
+          details: `Hidden message ${messageId} from own view in thread ${chatId}.`,
+          severity: 'info',
+          targetRecordId: chatId,
+          metadata: { messageId }
+        });
         showToast('Message deleted from your conversation view.', 'info');
       } catch (err) {
         console.warn('Failed to delete message for user:', err);
       }
     },
-    [currentUser, messages, showToast]
+    [currentUser, messages, addAuditLog, showToast]
   );
 
   const activeReactionLocksRef = useRef<Set<string>>(new Set());
@@ -6868,9 +7249,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           }
         }
 
-        if (previousEmoji === emoji) {
+        const isRemovingReaction = previousEmoji === emoji;
+        if (isRemovingReaction) {
           // User tapped their current active reaction: toggle off (remove)
-          // Since they were already filtered out, doing nothing removes it
         } else {
           // User selected a different reaction: replace previous reaction with new emoji
           const currentList = nextReactions[emoji] || [];
@@ -6884,6 +7265,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             m.id === messageId ? { ...m, reactions: nextReactions } : m
           )
         }));
+
+        addAuditLog({
+          action: isRemovingReaction ? 'MESSAGE_REACTION_REMOVED' : 'MESSAGE_REACTION_ADDED',
+          actorId: currentUser.uid,
+          actorName: currentUser.name,
+          actorRole: currentUser.role || 'alumni',
+          category: 'messaging',
+          details: `${isRemovingReaction ? 'Removed reaction on' : 'Reacted to'} message ${messageId} in thread ${chatId}.`,
+          severity: 'info',
+          targetRecordId: chatId,
+          metadata: { messageId, emoji: isRemovingReaction ? 'removed' : emoji }
+        });
 
         // 2. Synchronize reaction with Firestore in real time
         try {
@@ -6917,7 +7310,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }, 300);
       }
     },
-    [currentUser, messages, showToast]
+    [currentUser, messages, addAuditLog, showToast]
   );
 
   const syncOfflineMessages = useCallback(async () => {
@@ -7055,9 +7448,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       actorId: currentUser.uid,
       actorName: currentUser.name,
       actorRole: currentUser.role,
-      category: 'communication',
+      category: 'engagement',
       details: `Created event "${newEvt.title}" and initialized official attendee group chat "${eventGroupChat.groupName}".`,
-      severity: 'info'
+      severity: 'info',
+      targetRecordId: newEvt.id
     });
 
     // Broadcast notification to other users
@@ -7096,6 +7490,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('Permission denied: Alumni accounts cannot edit or manage events.', 'error');
       return;
     }
+    const targetEvent = events.find((e) => e.id === eventId);
     setEvents((prev) =>
       prev.map((e) => {
         if (e.id === eventId) {
@@ -7108,6 +7503,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return e;
       })
     );
+    addAuditLog({
+      action: 'EVENT_UPDATED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role,
+      category: 'engagement',
+      details: `Updated event "${targetEvent?.title || eventId}".`,
+      severity: 'info',
+      targetRecordId: eventId
+    });
     showToast('Event details updated.');
   };
 
@@ -7138,9 +7543,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         actorId: currentUser?.uid || 'admin',
         actorName: currentUser?.name || 'Administrator',
         actorRole: currentUser?.role || 'admin',
-        category: 'admin',
+        category: 'engagement',
         details: `Event "${target.title}" was removed from the institutional calendar.`,
-        severity: 'warning'
+        severity: 'warning',
+        targetRecordId: eventId
       });
     }
 
@@ -7153,14 +7559,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const toggleLikeEvent = (eventId: string) => {
     if (!currentUser) return;
+    const targetEvent = events.find((e) => e.id === eventId);
+    const liked = Boolean(targetEvent && (targetEvent.likes || []).includes(currentUser.uid));
     setEvents((prev) =>
       prev.map((e) => {
         if (e.id === eventId) {
           const currentLikes = e.likes || [];
-          const liked = currentLikes.includes(currentUser.uid);
+          const isAlreadyLiked = currentLikes.includes(currentUser.uid);
           const updated = {
             ...e,
-            likes: liked
+            likes: isAlreadyLiked
               ? currentLikes.filter((id) => id !== currentUser.uid)
               : [...currentLikes, currentUser.uid]
           };
@@ -7170,6 +7578,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return e;
       })
     );
+    addAuditLog({
+      action: liked ? 'EVENT_UNLIKED' : 'EVENT_LIKED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'engagement',
+      details: `${liked ? 'Removed reaction from' : 'Liked'} event "${targetEvent?.title || eventId}".`,
+      severity: 'info',
+      targetRecordId: eventId
+    });
   };
 
   const addCommentToEvent = (eventId: string, text: string) => {
@@ -7184,6 +7602,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       createdAt: new Date().toISOString()
     };
 
+    const targetEvent = events.find((e) => e.id === eventId);
     setEvents((prev) =>
       prev.map((e) => {
         if (e.id === eventId) {
@@ -7197,6 +7616,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return e;
       })
     );
+    addAuditLog({
+      action: 'EVENT_COMMENT_ADDED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'engagement',
+      details: `Commented on event "${targetEvent?.title || eventId}": "${text.trim().slice(0, 90)}".`,
+      severity: 'info',
+      targetRecordId: eventId,
+      metadata: { commentId: newComment.id }
+    });
     showToast('Comment posted.');
   };
 
@@ -7444,9 +7874,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         actorId: currentUser.uid,
         actorName: currentUser.name,
         actorRole: currentUser.role,
-        category: 'communication',
+        category: 'engagement',
         details: `Alumnus confirmed RSVP (${newStatus}) for event: "${targetEvent.title}". Added to event group chat.`,
-        severity: 'info'
+        severity: 'info',
+        targetRecordId: eventId
       });
     } else {
       // Step 5: User cancelled RSVP: remove them from event group chat unless they are an admin
@@ -7533,9 +7964,10 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         actorId: currentUser.uid,
         actorName: currentUser.name,
         actorRole: currentUser.role,
-        category: 'communication',
+        category: 'engagement',
         details: `Alumnus cancelled RSVP for event: "${targetEvent.title}". Removed from event group chat.`,
-        severity: 'info'
+        severity: 'info',
+        targetRecordId: eventId
       });
     }
 
@@ -7604,6 +8036,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return e;
       })
     );
+    addAuditLog({
+      action: 'EVENT_ATTENDANCE_UPDATED',
+      actorId: currentUser?.uid || 'admin',
+      actorName: currentUser?.name || 'Administrator',
+      actorRole: currentUser?.role || 'admin',
+      category: 'engagement',
+      details: `Updated attendance status to ${status} for member ${uid} on event ${eventId}.`,
+      severity: 'info',
+      targetRecordId: eventId,
+      targetUserId: uid
+    });
     showToast(`Attendance marked as ${status.replace('_', ' ')}.`);
   };
 
@@ -7682,6 +8125,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       })
     );
 
+    addAuditLog({
+      action: checkedIn ? 'EVENT_ATTENDEE_CHECKIN' : 'EVENT_CHECKIN_REVERTED',
+      actorId: currentUser?.uid || 'admin',
+      actorName: currentUser?.name || 'Administrator',
+      actorRole: currentUser?.role || 'admin',
+      category: 'engagement',
+      details: `${checkedIn ? 'Checked in' : 'Reverted check-in for'} attendee ${attendeeIdOrUid} on event ${eventId}.`,
+      severity: 'info',
+      targetRecordId: eventId,
+      targetUserId: attendeeIdOrUid
+    });
     showToast(checkedIn ? 'Attendee checked in successfully.' : 'Check-in reverted.', 'info');
   };
 
@@ -7702,6 +8156,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return e;
       })
     );
+    addAuditLog({
+      action: 'EVENT_ATTENDEE_UPDATED',
+      actorId: currentUser?.uid || 'admin',
+      actorName: currentUser?.name || 'Administrator',
+      actorRole: currentUser?.role || 'admin',
+      category: 'engagement',
+      details: `Updated attendee ${attendeeIdOrUid} details for event ${eventId}.`,
+      severity: 'info',
+      targetRecordId: eventId,
+      targetUserId: attendeeIdOrUid
+    });
     showToast('Attendee details updated.', 'success');
   };
 
@@ -7728,6 +8193,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return e;
       })
     );
+    addAuditLog({
+      action: 'EVENT_ATTENDEE_REMOVED',
+      actorId: currentUser?.uid || 'admin',
+      actorName: currentUser?.name || 'Administrator',
+      actorRole: currentUser?.role || 'admin',
+      category: 'engagement',
+      details: `Removed attendee ${attendeeIdOrUid} from event ${eventId}.`,
+      severity: 'warning',
+      targetRecordId: eventId,
+      targetUserId: attendeeIdOrUid
+    });
     showToast('Attendee registration removed.', 'info');
   };
 
@@ -7786,6 +8262,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return e;
       })
     );
+    addAuditLog({
+      action: 'EVENT_ATTENDEE_ADDED',
+      actorId: currentUser?.uid || 'admin',
+      actorName: currentUser?.name || 'Administrator',
+      actorRole: currentUser?.role || 'admin',
+      category: 'engagement',
+      details: `Manually registered ${attendee.name} for event ${eventId}.`,
+      severity: 'info',
+      targetRecordId: eventId,
+      targetUserId: newUid,
+      targetUserName: attendee.name
+    });
     showToast(`Registered ${attendee.name} to event.`, 'success');
   };
 
@@ -8441,6 +8929,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('Permission denied: Only staff and admin can edit announcements.');
       return;
     }
+    const targetAnn = announcements.find((a) => a.id === id);
     setAnnouncements((prev) =>
       prev.map((a) => {
         if (a.id === id) {
@@ -8451,6 +8940,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return a;
       })
     );
+    if (currentUser) {
+      addAuditLog({
+        action: 'ANNOUNCEMENT_UPDATED',
+        actorId: currentUser.uid,
+        actorName: currentUser.name,
+        actorRole: currentUser.role || 'admin',
+        category: 'communication',
+        details: `Updated announcement "${data.title || targetAnn?.title || id}".`,
+        severity: 'info',
+        targetRecordId: id
+      });
+    }
     showToast('Announcement updated.');
   };
 
@@ -8459,8 +8960,21 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('Permission denied.');
       return;
     }
+    const targetAnn = announcements.find((a) => a.id === id);
     setAnnouncements((prev) => prev.filter((a) => a.id !== id));
     deleteAnnouncementFromFirestore(id).catch(() => {});
+    if (currentUser) {
+      addAuditLog({
+        action: 'ANNOUNCEMENT_DELETED',
+        actorId: currentUser.uid,
+        actorName: currentUser.name,
+        actorRole: currentUser.role || 'admin',
+        category: 'communication',
+        details: `Removed announcement "${targetAnn?.title || id}".`,
+        severity: 'warning',
+        targetRecordId: id
+      });
+    }
     showToast('Announcement removed.');
   };
 
@@ -8469,18 +8983,31 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('Permission denied: Only authorized staff and administrators can pin announcements.', 'error');
       return;
     }
+    const targetAnn = announcements.find((a) => a.id === id);
+    const nextPinned = targetAnn ? !targetAnn.isPinned : true;
     setAnnouncements((prev) =>
       prev.map((a) => {
         if (a.id === id) {
-          const nextPinned = !a.isPinned;
-          const updated = { ...a, isPinned: nextPinned };
+          const updated = { ...a, isPinned: !a.isPinned };
           saveAnnouncementToFirestore(updated).catch(() => {});
-          showToast(nextPinned ? 'Announcement pinned to top.' : 'Announcement unpinned.', 'info');
           return updated;
         }
         return a;
       })
     );
+    if (currentUser) {
+      addAuditLog({
+        action: nextPinned ? 'ANNOUNCEMENT_PINNED' : 'ANNOUNCEMENT_UNPINNED',
+        actorId: currentUser.uid,
+        actorName: currentUser.name,
+        actorRole: currentUser.role || 'admin',
+        category: 'communication',
+        details: `${nextPinned ? 'Pinned' : 'Unpinned'} announcement "${targetAnn?.title || id}".`,
+        severity: 'info',
+        targetRecordId: id
+      });
+    }
+    showToast(nextPinned ? 'Announcement pinned to top.' : 'Announcement unpinned.', 'info');
   };
 
   const toggleHeartAnnouncement = (id: string) => {
@@ -8488,12 +9015,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('Please sign in to react to announcements.', 'info');
       return;
     }
+    const targetAnn = announcements.find((a) => a.id === id);
+    const alreadyHearted = Boolean(
+      targetAnn && Array.isArray(targetAnn.hearts) && targetAnn.hearts.includes(currentUser.uid)
+    );
     setAnnouncements((prev) =>
       prev.map((a) => {
         if (a.id === id) {
           const currentHearts = Array.isArray(a.hearts) ? a.hearts : [];
-          const alreadyHearted = currentHearts.includes(currentUser.uid);
-          const newHearts = alreadyHearted
+          const hasHeart = currentHearts.includes(currentUser.uid);
+          const newHearts = hasHeart
             ? currentHearts.filter((uid) => uid !== currentUser.uid)
             : [...currentHearts, currentUser.uid];
           const updated: Announcement = {
@@ -8507,6 +9038,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return a;
       })
     );
+    addAuditLog({
+      action: alreadyHearted ? 'ANNOUNCEMENT_UNHEARTED' : 'ANNOUNCEMENT_HEARTED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'engagement',
+      details: `${alreadyHearted ? 'Unhearted' : 'Hearted'} announcement "${targetAnn?.title || id}".`,
+      severity: 'info',
+      targetRecordId: id
+    });
   };
 
   // Opportunities & Career Portal Operations
@@ -8548,6 +9089,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       },
       body: JSON.stringify(newOpp)
     }).catch(() => {});
+
+    addAuditLog({
+      action: 'JOB_OPPORTUNITY_POSTED',
+      actorId: currentUser.uid,
+      actorName: posterCompany || currentUser.name,
+      actorRole: currentUser.role,
+      category: 'career',
+      details: `Published opportunity "${newOpp.title}" at ${newOpp.company} (approvalStatus: ${newOpp.approvalStatus}).`,
+      severity: 'info',
+      targetRecordId: newOpp.id
+    });
 
     if (newOpp.approvalStatus === 'pending_approval') {
       showToast('Job posting submitted for Admin Approval! Status: Pending Approval.', 'info');
@@ -8592,6 +9144,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('Permission denied: Alumni accounts cannot edit or manage job opportunities.', 'error');
       return;
     }
+    const targetOpp = opportunities.find((o) => o.id === id);
     setOpportunities((prev) =>
       prev.map((o) => {
         if (o.id === id) {
@@ -8611,6 +9164,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return o;
       })
     );
+    addAuditLog({
+      action: 'JOB_OPPORTUNITY_UPDATED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role,
+      category: 'career',
+      details: `Updated job opportunity "${data.title || targetOpp?.title || id}".`,
+      severity: 'info',
+      targetRecordId: id
+    });
     showToast('Job posting details updated.', 'success');
   };
 
@@ -8619,6 +9182,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       showToast('Permission denied: Alumni accounts cannot delete or manage job opportunities.', 'error');
       return;
     }
+    const targetOpp = opportunities.find((o) => o.id === id);
     setOpportunities((prev) => prev.filter((o) => o.id !== id));
     deleteOpportunityFromFirestore(id).catch(() => {});
     const authToken = getStoredSessionToken() || 'dev-admin-session-token';
@@ -8628,6 +9192,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         Authorization: `Bearer ${authToken}`
       }
     }).catch(() => {});
+    addAuditLog({
+      action: 'JOB_OPPORTUNITY_DELETED',
+      actorId: currentUser.uid,
+      actorName: currentUser.name,
+      actorRole: currentUser.role,
+      category: 'career',
+      details: `Removed job opportunity "${targetOpp?.title || id}".`,
+      severity: 'warning',
+      targetRecordId: id
+    });
     showToast('Opportunity removed.');
   };
 
@@ -8673,6 +9247,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setNotifications((prev) => [broadcastJobNotif, notif, ...prev]);
     saveNotificationToFirestore(notif).catch(() => {});
     saveNotificationToFirestore(broadcastJobNotif).catch(() => {});
+    addAuditLog({
+      action: 'JOB_OPPORTUNITY_APPROVED',
+      actorId: currentUser?.uid || 'admin',
+      actorName: currentUser?.name || 'Administrator',
+      actorRole: currentUser?.role || 'admin',
+      category: 'career',
+      details: `Approved job posting "${opp.title}" by ${opp.company}.`,
+      severity: 'success',
+      targetRecordId: id,
+      targetUserId: opp.postedBy
+    });
     showToast(`Approved "${opp.title}". Posting is now live.`, 'success');
   };
 
@@ -8700,6 +9285,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
     setNotifications((prev) => [notif, ...prev]);
     saveNotificationToFirestore(notif).catch(() => {});
+    addAuditLog({
+      action: 'JOB_OPPORTUNITY_REJECTED',
+      actorId: currentUser?.uid || 'admin',
+      actorName: currentUser?.name || 'Administrator',
+      actorRole: currentUser?.role || 'admin',
+      category: 'career',
+      details: `Rejected job posting "${opp.title}". Reason: ${reason}`,
+      severity: 'warning',
+      targetRecordId: id,
+      targetUserId: opp.postedBy
+    });
     showToast(`Job posting "${opp.title}" rejected with feedback sent.`, 'info');
   };
 
@@ -8796,6 +9392,19 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setNotifications((prev) => [applicantNotif, ...prev]);
     saveNotificationToFirestore(applicantNotif).catch(() => {});
 
+    addAuditLog({
+      action: 'JOB_APPLICATION_SUBMITTED',
+      actorId: currentUser.uid,
+      actorName: data.applicantName || currentUser.name,
+      actorRole: currentUser.role || 'alumni',
+      category: 'career',
+      details: `Applied for "${job?.title || data.jobId}" at ${job?.company || 'Employer'} (Match: ${finalScore}%).`,
+      severity: 'info',
+      targetRecordId: newApp.id,
+      ...(job?.postedBy ? { targetUserId: job.postedBy } : {}),
+      metadata: { jobId: data.jobId, matchScore: finalScore }
+    });
+
     showToast(`Application submitted with ${finalScore}% automated profile match!`, 'success');
     return { success: true };
   };
@@ -8869,6 +9478,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     };
     setNotifications((prev) => [notif, ...prev]);
     saveNotificationToFirestore(notif).catch(() => {});
+    addAuditLog({
+      action: 'JOB_APPLICATION_STATUS_UPDATED',
+      actorId: currentUser?.uid || 'employer',
+      actorName: currentUser?.name || 'Employer',
+      actorRole: currentUser?.role || 'employer',
+      category: 'career',
+      details: `Updated application ${applicationId} (${app.jobTitle}) status to "${status}".`,
+      severity: 'info',
+      targetRecordId: applicationId,
+      targetUserId: app.applicantUid,
+      targetUserName: app.applicantName
+    });
     showToast(`Applicant status updated to "${status}".`, 'success');
   };
 
@@ -8903,6 +9524,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setNotifications((prev) => [employerWithdrawNotif, ...prev]);
         saveNotificationToFirestore(employerWithdrawNotif).catch(() => {});
       }
+    }
+    if (currentUser) {
+      addAuditLog({
+        action: 'JOB_APPLICATION_WITHDRAWN',
+        actorId: currentUser.uid,
+        actorName: currentUser.name,
+        actorRole: currentUser.role || 'alumni',
+        category: 'career',
+        details: `Withdrew application ${applicationId} for "${app.jobTitle || app.jobId}".`,
+        severity: 'info',
+        targetRecordId: applicationId
+      });
     }
     showToast('Application withdrawn successfully.', 'info');
   };
@@ -9167,6 +9800,16 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         setUsers((prev) => prev.map((u) => (u.uid === currentUser.uid ? updated : u)));
         await saveUserToFirestore(updated);
         markRegistryRecordAsRegistered(result.record.studentId, currentUser.uid);
+        addAuditLog({
+          action: 'ALUMNI_SELF_VERIFIED',
+          actorId: currentUser.uid,
+          actorName: currentUser.name,
+          actorRole: currentUser.role || 'alumni',
+          category: 'alumni_verification',
+          details: `Verified alumni identity against Registrar Registry using Student ID ${result.record.studentId}.`,
+          severity: 'success',
+          targetRecordId: result.record.studentId
+        });
         showToast(result.message, 'success');
       } else {
         if (currentUser) {
@@ -9180,12 +9823,22 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           };
           setUsers((prev) => prev.map((u) => (u.uid === currentUser.uid ? updated : u)));
           saveUserToFirestore(updated).catch(() => {});
+          addAuditLog({
+            action: 'ALUMNI_SELF_VERIFICATION_FAILED',
+            actorId: currentUser.uid,
+            actorName: currentUser.name,
+            actorRole: currentUser.role || 'alumni',
+            category: 'alumni_verification',
+            details: `Self-verification attempt failed for Student ID ${studentIdToVerify}: ${result.message}.`,
+            severity: 'warning',
+            targetRecordId: studentIdToVerify
+          });
         }
         showToast(result.message, 'error');
       }
       return result;
     },
-    [registrar_verification, currentUser, showToast]
+    [registrar_verification, currentUser, addAuditLog, showToast]
   );
 
   // Notifications operations
@@ -9201,6 +9854,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     markNotificationReadInFirestore(id).catch((err) => {
       console.warn('Failed to mark notification read in Firestore:', err);
     });
+    if (currentUser) {
+      addAuditLog({
+        action: 'NOTIFICATION_MARKED_READ',
+        actorId: currentUser.uid,
+        actorName: currentUser.name,
+        actorRole: currentUser.role || 'alumni',
+        category: 'settings',
+        details: `Marked notification ${id} as read.`,
+        severity: 'info',
+        targetRecordId: id
+      });
+    }
   };
 
   const unauthorizedAttemptDedupeRef = useRef<Map<string, number>>(new Map());
@@ -9340,6 +10005,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     markAllNotificationsReadInFirestore(currentUserId).catch((err) => {
       console.warn('Failed to mark all notifications read in Firestore:', err);
     });
+    if (currentUser) {
+      addAuditLog({
+        action: 'NOTIFICATIONS_MARKED_ALL_READ',
+        actorId: currentUser.uid,
+        actorName: currentUser.name,
+        actorRole: currentUser.role || 'alumni',
+        category: 'settings',
+        details: 'Marked all unread notifications as read.',
+        severity: 'info',
+        targetRecordId: currentUserId
+      });
+    }
     showToast('All notifications marked as read.', 'success');
   };
 
@@ -9348,12 +10025,37 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     deleteNotificationFromFirestore(id).catch((err) => {
       console.warn('Failed to delete notification from Firestore:', err);
     });
+    if (currentUser) {
+      addAuditLog({
+        action: 'NOTIFICATION_DELETED',
+        actorId: currentUser.uid,
+        actorName: currentUser.name,
+        actorRole: currentUser.role || 'alumni',
+        category: 'settings',
+        details: `Deleted notification ${id}.`,
+        severity: 'info',
+        targetRecordId: id
+      });
+    }
     showToast('Notification deleted.', 'info');
   };
 
   // Settings operations
   const updateNotificationSettings = (settings: Partial<UserNotificationSettings>) => {
     setNotificationSettings((prev) => ({ ...prev, ...settings }));
+    if (currentUser) {
+      addAuditLog({
+        action: 'NOTIFICATION_PREFERENCES_UPDATED',
+        actorId: currentUser.uid,
+        actorName: currentUser.name,
+        actorRole: currentUser.role || 'alumni',
+        category: 'settings',
+        details: `Updated notification settings (${Object.keys(settings || {}).join(', ') || 'preferences'}).`,
+        severity: 'info',
+        targetRecordId: currentUser.uid,
+        metadata: settings as Record<string, unknown>
+      });
+    }
     showToast('Notification preferences saved.');
   };
 
@@ -9538,6 +10240,21 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         console.warn('Backend alumni verification sync notice:', err);
       });
     }
+
+    addAuditLog({
+      action: newStatus ? 'ALUMNI_VERIFICATION_APPROVED' : 'ALUMNI_VERIFICATION_REJECTED',
+      actorId: reviewerUid,
+      actorName: reviewerName,
+      actorRole: reviewerRole,
+      category: 'alumni_verification',
+      details: newStatus
+        ? `Approved alumni verification for ${target.name} (${generatedAlumniId || target.studentId || uid}).`
+        : `Rejected alumni verification for ${target.name}. Reason: ${rejectionReason || 'Insufficient verification match'}`,
+      severity: newStatus ? 'success' : 'warning',
+      targetRecordId: uid,
+      targetUserId: uid,
+      targetUserName: target.name
+    });
 
     if (!options?.silentToast) {
       if (newStatus) {
@@ -9788,8 +10505,18 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       createdAt: new Date().toISOString()
     };
     setNotifications((prev) => [adminNotif, ...prev]);
+    addAuditLog({
+      action: 'EMPLOYER_RENEWAL_REQUESTED',
+      actorId: currentUser.uid,
+      actorName: currentUser.companyName || currentUser.name,
+      actorRole: currentUser.role,
+      category: 'career',
+      details: `Employer accreditation renewal requested. Notes: "${notes.slice(0, 120)}".`,
+      severity: 'info',
+      targetRecordId: currentUser.uid
+    });
     showToast('Renewal request submitted for administrator review.');
-  }, [currentUser, updateProfile]);
+  }, [currentUser, updateProfile, addAuditLog, showToast]);
 
   const renewEmployerAccount = useCallback((uid: string, extensionMonths: number = 12) => {
     const target = users.find((u) => u.uid === uid);
@@ -9827,8 +10554,20 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       createdAt: new Date().toISOString()
     };
     setNotifications((prev) => [renewNotif, ...prev]);
+    addAuditLog({
+      action: 'EMPLOYER_ACCREDITATION_RENEWED',
+      actorId: currentUser?.uid || 'admin',
+      actorName: currentUser?.name || 'Administrator',
+      actorRole: currentUser?.role || 'admin',
+      category: 'career',
+      details: `Renewed accreditation for ${target.companyName || target.name} by ${extensionMonths} months.`,
+      severity: 'success',
+      targetRecordId: uid,
+      targetUserId: uid,
+      targetUserName: target.companyName || target.name
+    });
     showToast(`Accreditation renewed for ${extensionMonths} months.`);
-  }, [users, currentUser]);
+  }, [users, currentUser, addAuditLog, showToast]);
 
   // Automated Employer Expiration System and Renewal Warning Notification Engine
   const checkAndEnforceEmployerExpirations = useCallback(() => {
@@ -10905,6 +11644,45 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, [showToast]);
 
   const isSuperAdmin = normalizeSystemRole(currentUser?.role) === 'superadmin';
+
+  // Superadmin-only primary activity log hydration & real-time Firestore listener
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    let active = true;
+
+    const mergeAndSortLogs = (incoming: AuditLogEntry[], current: AuditLogEntry[]): AuditLogEntry[] => {
+      const byId = new Map<string, AuditLogEntry>();
+      for (const item of [...incoming, ...current]) {
+        if (item?.id && !byId.has(item.id)) {
+          byId.set(item.id, item);
+        }
+      }
+      return Array.from(byId.values())
+        .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+        .slice(0, 500);
+    };
+
+    loadActivityLogsPrimary(500)
+      .then((res) => {
+        if (!active || !res?.logs?.length) return;
+        setAuditLogs((prev) => mergeAndSortLogs(res.logs, prev));
+      })
+      .catch(() => {});
+
+    const unsubscribe = subscribeToAuditLogs(
+      (liveLogs) => {
+        if (!active || !liveLogs?.length) return;
+        setAuditLogs((prev) => mergeAndSortLogs(liveLogs, prev));
+      },
+      undefined,
+      500
+    );
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [isSuperAdmin]);
 
   return (
     <AlumniContext.Provider

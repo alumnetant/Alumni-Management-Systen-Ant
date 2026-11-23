@@ -400,6 +400,31 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "blockerId", "blockedId", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "System Activity & Audit Log",
+      "description": "Immutable chronological record of explicit user actions, social interactions, moderation decisions, and administrative events",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "timestamp": { "type": "string", "maxLength": 64 },
+        "action": { "type": "string", "maxLength": 160 },
+        "actorId": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "maxLength": 160 },
+        "actorRole": { "type": "string", "maxLength": 40 },
+        "category": { "type": "string", "maxLength": 64 },
+        "details": { "type": "string", "maxLength": 1500 },
+        "severity": { "type": "string", "enum": ["info", "warning", "alert", "success"] },
+        "ipAddress": { "type": "string", "maxLength": 80 },
+        "targetRecordId": { "type": "string", "maxLength": 160 },
+        "targetUserId": { "type": "string", "maxLength": 128 },
+        "targetUserName": { "type": "string", "maxLength": 160 },
+        "targetUserRole": { "type": "string", "maxLength": 40 },
+        "isSuspicious": { "type": "boolean" },
+        "requiresAlertIcon": { "type": "boolean" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["id", "timestamp", "action", "actorId", "actorName", "actorRole", "category", "details", "severity"]
     }
   },
   "firestore": {
@@ -494,6 +519,14 @@
     "/user_blocks/{blockId}": {
       "schema": "UserBlock",
       "description": "Bidirectional user blocks between alumni profiles"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Immutable append-only activity and security audit logs"
+    },
+    "/activity_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Immutable append-only activity logs alias collection"
     }
   }
 }

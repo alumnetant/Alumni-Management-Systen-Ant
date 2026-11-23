@@ -916,6 +916,24 @@ export interface AnonymizedRejectedBlock {
 // ALUMNI MANAGEMENT AUTOMATIONS INTERFACES
 // ==========================================
 
+export type AuditLogCategory =
+  | 'alumni_registration'
+  | 'career'
+  | 'communication'
+  | 'engagement'
+  | 'security'
+  | 'admin'
+  | 'registry_masterlist'
+  | 'conflict_resolution'
+  | 'settings'
+  | 'alumni_verification'
+  | 'user_management'
+  | 'social_feed'
+  | 'messaging'
+  | 'profile'
+  | 'moderation'
+  | 'gallery';
+
 export interface AuditLogEntry {
   id: string;
   timestamp: string;
@@ -923,7 +941,7 @@ export interface AuditLogEntry {
   actorId: string;
   actorName: string;
   actorRole: string;
-  category: 'alumni_registration' | 'career' | 'communication' | 'engagement' | 'security' | 'admin' | 'registry_masterlist' | 'conflict_resolution' | 'settings' | 'alumni_verification' | 'user_management';
+  category: AuditLogCategory;
   details: string;
   severity: 'info' | 'warning' | 'alert' | 'success';
   ipAddress?: string;
@@ -936,6 +954,7 @@ export interface AuditLogEntry {
   suspensionEndDate?: string;
   isSuspicious?: boolean;
   requiresAlertIcon?: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 

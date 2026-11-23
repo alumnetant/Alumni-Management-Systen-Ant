@@ -58,7 +58,8 @@ import {
   ModerationAppeal,
   ModerationAuditRecord,
   ModerationConfig,
-  AbuseReporterTracking
+  AbuseReporterTracking,
+  AuditLogEntry
 } from '../types';
 import {
   encryptUserPiiForStorage,
@@ -1379,15 +1380,93 @@ export function subscribeToConflictRecords(onUpdate: (conflicts: RegistrationCon
 }
 
 /**
- * Save audit log to Firestore
+ * Save audit log to Firestore (append-only; create without merge)
  */
-export async function saveAuditLogToFirestore(log: any): Promise<void> {
+export async function saveAuditLogToFirestore(log: AuditLogEntry | any): Promise<boolean> {
+  if (!log?.id) return false;
+  await ensureFirebaseAuthSession();
   try {
-    const docRef = doc(db, 'audit_logs', log.id);
-    await setDoc(docRef, JSON.parse(JSON.stringify(log)), { merge: true });
+    const safeId = String(log.id).replace(/[^a-zA-Z0-9_\-.]/g, '_').slice(0, 128);
+    if (!safeId) return false;
+    const docRef = doc(db, 'audit_logs', safeId);
+    const sanitized = JSON.parse(JSON.stringify(log));
+    delete sanitized.password;
+    delete sanitized.passwordHash;
+    delete sanitized.token;
+    delete sanitized.refreshToken;
+    sanitized.id = safeId;
+    sanitized.timestamp = String(sanitized.timestamp || new Date().toISOString()).slice(0, 64);
+    sanitized.action = String(sanitized.action || 'USER_ACTIVITY').slice(0, 160);
+    sanitized.actorId = String(sanitized.actorId || 'system').slice(0, 128);
+    sanitized.actorName = String(sanitized.actorName || 'Portal User').slice(0, 160);
+    sanitized.actorRole = String(sanitized.actorRole || 'alumni').slice(0, 40);
+    sanitized.category = String(sanitized.category || 'admin').slice(0, 64);
+    sanitized.details = String(sanitized.details || '').slice(0, 1500);
+    const validSeverities = ['info', 'warning', 'alert', 'success'];
+    sanitized.severity = validSeverities.includes(sanitized.severity) ? sanitized.severity : 'info';
+    if (typeof sanitized.targetRecordId === 'string') {
+      sanitized.targetRecordId = sanitized.targetRecordId.slice(0, 160);
+    }
+    await setDoc(docRef, sanitized);
+    return true;
   } catch (err) {
     console.warn('Failed to save audit log to Firestore:', err);
+    return false;
   }
+}
+
+/**
+ * Load recent audit & activity logs from Firestore (descending chronological order)
+ */
+export async function loadAuditLogsFromFirestore(maxLimit = 500): Promise<AuditLogEntry[]> {
+  await ensureFirebaseAuthSession();
+  try {
+    const colRef = collection(db, 'audit_logs');
+    const q = query(colRef, orderBy('timestamp', 'desc'), limit(maxLimit));
+    const snap = await getDocs(q);
+    const list: AuditLogEntry[] = [];
+    snap.forEach((d) => list.push(d.data() as AuditLogEntry));
+    list.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+    return list;
+  } catch (err) {
+    // Fallback without orderBy index if composite index is unavailable
+    try {
+      const colRef = collection(db, 'audit_logs');
+      const snap = await getDocs(colRef);
+      const list: AuditLogEntry[] = [];
+      snap.forEach((d) => list.push(d.data() as AuditLogEntry));
+      list.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+      return list.slice(0, maxLimit);
+    } catch (fallbackErr) {
+      console.warn('Audit logs Firestore load notice:', fallbackErr || err);
+      return [];
+    }
+  }
+}
+
+/**
+ * Real-time subscription to audit logs in Cloud Firestore
+ */
+export function subscribeToAuditLogs(
+  onUpdate: (logs: AuditLogEntry[]) => void,
+  onError?: (err: unknown) => void,
+  maxLimit = 500
+): () => void {
+  const colRef = collection(db, 'audit_logs');
+  const q = query(colRef, orderBy('timestamp', 'desc'), limit(maxLimit));
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items: AuditLogEntry[] = [];
+      snapshot.forEach((d) => items.push(d.data() as AuditLogEntry));
+      items.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+      onUpdate(items);
+    },
+    (err) => {
+      console.warn('Audit logs Firestore subscription notice:', err);
+      if (onError) onError(err);
+    }
+  );
 }
 
 /**

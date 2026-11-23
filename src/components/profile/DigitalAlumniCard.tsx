@@ -28,7 +28,7 @@ interface DigitalAlumniCardProps {
 }
 
 export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: propUser, compact = false }) => {
-  const { currentUser, updateUserProfile, showToast } = useAlumni();
+  const { currentUser, updateUserProfile, addAuditLog, showToast } = useAlumni();
   const user = propUser || currentUser;
 
   const [isFlipped, setIsFlipped] = useState(false);
@@ -173,6 +173,16 @@ export const DigitalAlumniCard: React.FC<DigitalAlumniCardProps> = ({ user: prop
     e.stopPropagation();
     navigator.clipboard?.writeText(formattedId);
     setCopied(true);
+    addAuditLog({
+      action: 'DIGITAL_ALUMNI_ID_COPIED',
+      actorId: currentUser?.uid || user?.uid || 'alumni',
+      actorName: currentUser?.name || user?.name || 'Alumni Member',
+      actorRole: currentUser?.role || user?.role || 'alumni',
+      category: 'profile',
+      details: `Copied digital credential ID (${formattedId}) to clipboard.`,
+      severity: 'info',
+      targetRecordId: formattedId
+    });
     showToast(`Official Alumni ID (${formattedId}) copied to clipboard!`, 'success');
     setTimeout(() => setCopied(false), 2000);
   };

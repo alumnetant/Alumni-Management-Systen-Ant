@@ -46,8 +46,7 @@ export const AdminCampusGalleryView: React.FC = () => {
     deleteGalleryItem,
     permissions,
     showToast,
-    currentUser,
-    addAuditLog
+    currentUser
   } = useAlumni();
 
   // Filters & Search
@@ -167,16 +166,6 @@ export const AdminCampusGalleryView: React.FC = () => {
       uploaderRole: currentUser?.role || 'admin'
     });
 
-    addAuditLog({
-      action: 'UPLOAD_CAMPUS_GALLERY_MEDIA',
-      actorId: currentUser?.uid || 'archivist',
-      actorName: currentUser?.name || 'University Archivist',
-      actorRole: currentUser?.role || 'admin',
-      category: 'engagement',
-      details: `Preserved archival media asset: "${uploadTitle.trim()}" (${uploadCategory}, Year: ${uploadYear})`,
-      severity: 'info'
-    });
-
     showToast('Media asset successfully preserved to digital archives.', 'success');
     setShowUploadModal(false);
 
@@ -184,26 +173,16 @@ export const AdminCampusGalleryView: React.FC = () => {
     setUploadTitle('');
     setUploadPhotoUrl('');
     setUploadDesc('');
-  }, [uploadTitle, uploadCategory, uploadYear, uploadPhotoUrl, uploadDesc, currentUser, addGalleryItem, addAuditLog, showToast]);
+  }, [uploadTitle, uploadCategory, uploadYear, uploadPhotoUrl, uploadDesc, currentUser, addGalleryItem, showToast]);
 
   // Confirm Delete
   const handleConfirmDelete = useCallback(() => {
     if (!itemToDelete) return;
     deleteGalleryItem(itemToDelete.id);
 
-    addAuditLog({
-      action: 'DELETE_CAMPUS_GALLERY_MEDIA',
-      actorId: currentUser?.uid || 'archivist',
-      actorName: currentUser?.name || 'University Archivist',
-      actorRole: currentUser?.role || 'admin',
-      category: 'engagement',
-      details: `Deleted archival asset: "${itemToDelete.title}" (ID: ${itemToDelete.id})`,
-      severity: 'warning'
-    });
-
     showToast('Media asset removed from collegiate archive.', 'info');
     setItemToDelete(null);
-  }, [itemToDelete, deleteGalleryItem, addAuditLog, currentUser, showToast]);
+  }, [itemToDelete, deleteGalleryItem, showToast]);
 
   // Export CSV Catalog
   const handleExportCsv = useCallback(() => {

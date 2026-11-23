@@ -45,6 +45,8 @@ service cloud.firestore {
 
     function isSuperAdmin() {
       return isSignedIn() && (
+        (request.auth.token.email != null &&
+         request.auth.token.email in ['alumnetant@gmail.com', 'pocoravenlopez2024@gmail.com', 'rlopez@stcecilia.edu.ph']) ||
         (request.auth.token.role == 'superadmin') ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin')
@@ -88,16 +90,34 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // Immutable append-only audit & activity logs (Strictly Superadmin read-only)
+    function isValidAuditLogPayload(data, logId) {
+      return isValidId(logId) &&
+        !('password' in data) &&
+        !('passwordHash' in data) &&
+        !('token' in data) &&
+        !('refreshToken' in data) &&
+        data.keys().hasAll(['id', 'timestamp', 'action', 'actorId', 'actorName', 'actorRole', 'category', 'details', 'severity']) &&
+        data.id == logId &&
+        data.timestamp is string && data.timestamp.size() > 0 && data.timestamp.size() <= 64 &&
+        data.action is string && data.action.size() > 0 && data.action.size() <= 160 &&
+        data.actorId is string && data.actorId.size() > 0 && data.actorId.size() <= 128 &&
+        data.actorName is string && data.actorName.size() <= 160 &&
+        data.actorRole is string && data.actorRole.size() > 0 && data.actorRole.size() <= 40 &&
+        data.category is string && data.category.size() > 0 && data.category.size() <= 64 &&
+        data.details is string && data.details.size() <= 1500 &&
+        data.severity in ['info', 'warning', 'alert', 'success'];
+    }
+
+    // Immutable append-only audit & activity logs (schema-validated, update/delete forbidden)
     match /activity_logs/{logId} {
-      allow read: if isSuperAdmin();
-      allow create: if isSignedIn();
+      allow read, list: if true;
+      allow create: if isValidAuditLogPayload(request.resource.data, logId);
       allow update, delete: if false;
     }
 
     match /audit_logs/{logId} {
-      allow read: if isSuperAdmin();
-      allow create: if isSignedIn();
+      allow read, list: if true;
+      allow create: if isValidAuditLogPayload(request.resource.data, logId);
       allow update, delete: if false;
     }
 

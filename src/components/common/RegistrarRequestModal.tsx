@@ -40,7 +40,7 @@ export const RegistrarRequestModal: React.FC<{
   isOpen: boolean;
   onClose: () => void;
 }> = ({ isOpen, onClose }) => {
-  const { currentUser, showToast } = useAlumni();
+  const { currentUser, addAuditLog, showToast } = useAlumni();
   const [activeTab, setActiveTab] = useState<'requests' | 'new'>('requests');
 
   // Form State
@@ -115,6 +115,17 @@ export const RegistrarRequestModal: React.FC<{
       setIsSubmitting(false);
       setActiveTab('requests');
       setNotes('');
+      addAuditLog({
+        action: 'REGISTRAR_DOCUMENT_REQUESTED',
+        actorId: currentUser?.uid || 'alumni',
+        actorName: currentUser?.name || 'Alumni Member',
+        actorRole: currentUser?.role || 'alumni',
+        category: 'alumni_verification',
+        details: `Submitted registrar request (${newReq.id}) for ${docType} (${copies} ${copies === 1 ? 'copy' : 'copies'}, ${deliveryMethod}).`,
+        severity: 'info',
+        targetRecordId: newReq.id,
+        metadata: { documentType: docType, purpose, copies }
+      });
       showToast('Document request filed with the Registrar Desk. Tracking ID generated.', 'success');
     }, 600);
   };

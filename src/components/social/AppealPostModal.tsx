@@ -27,7 +27,7 @@ export const AppealPostModal: React.FC<AppealPostModalProps> = ({
   onClose,
   onSubmitted
 }) => {
-  const { showToast } = useAlumni();
+  const { currentUser, addAuditLog, showToast } = useAlumni();
   const [explanation, setExplanation] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -61,6 +61,17 @@ export const AppealPostModal: React.FC<AppealPostModalProps> = ({
         showToast(msg, 'error');
         return;
       }
+      addAuditLog({
+        action: 'MODERATION_APPEAL_SUBMITTED',
+        actorId: currentUser?.uid || 'alumni',
+        actorName: currentUser?.name || 'Portal Member',
+        actorRole: currentUser?.role || 'alumni',
+        category: 'moderation',
+        details: `Submitted moderation appeal for ${actionType} on post ${postId}.`,
+        severity: 'info',
+        targetRecordId: postId,
+        metadata: { actionType, ...(warningId ? { warningId } : {}) }
+      });
       showToast('Appeal submitted to an independent Admin/Moderator for review.', 'success');
       setExplanation('');
       if (onSubmitted) onSubmitted();

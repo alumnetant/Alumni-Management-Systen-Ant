@@ -65,8 +65,6 @@ export const AdminEventsManager: React.FC = () => {
     deleteEvent,
     permissions,
     showToast,
-    currentUser,
-    addAuditLog,
     deepLinkTarget,
     clearDeepLinkTarget
   } = useAlumni();
@@ -255,16 +253,6 @@ export const AdminEventsManager: React.FC = () => {
         emailNotificationEnabled: formEmailNotification
       });
 
-      addAuditLog({
-        action: 'CREATE_CAMPUS_EVENT',
-        actorId: currentUser?.uid || 'events_officer',
-        actorName: currentUser?.name || 'Alumni Events Coordinator',
-        actorRole: currentUser?.role || 'admin',
-        category: 'engagement',
-        details: `Scheduled campus convocation: "${formTitle.trim()}" (${formCategory})`,
-        severity: 'info'
-      });
-
       setFormTitle('');
       setFormTagline('');
       setFormDesc('');
@@ -288,8 +276,6 @@ export const AdminEventsManager: React.FC = () => {
       formAutoConfirm,
       formEmailNotification,
       createEvent,
-      addAuditLog,
-      currentUser,
       showToast
     ]
   );
@@ -299,19 +285,9 @@ export const AdminEventsManager: React.FC = () => {
     if (!eventToDelete) return;
     deleteEvent(eventToDelete.id);
 
-    addAuditLog({
-      action: 'DELETE_CAMPUS_EVENT',
-      actorId: currentUser?.uid || 'events_officer',
-      actorName: currentUser?.name || 'Alumni Events Coordinator',
-      actorRole: currentUser?.role || 'admin',
-      category: 'engagement',
-      details: `Removed campus convocation: "${eventToDelete.title}" (ID: ${eventToDelete.id})`,
-      severity: 'warning'
-    });
-
     setEventToDelete(null);
     showToast('Event removed from collegiate calendar.', 'info');
-  }, [eventToDelete, deleteEvent, addAuditLog, currentUser, showToast]);
+  }, [eventToDelete, deleteEvent, showToast]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">

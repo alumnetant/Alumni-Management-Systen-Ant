@@ -8,7 +8,7 @@ interface UserSatisfactionModalProps {
 }
 
 export const UserSatisfactionModal: React.FC<UserSatisfactionModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, showToast } = useAlumni();
+  const { currentUser, addAuditLog, showToast } = useAlumni();
 
   const [overallRating, setOverallRating] = useState<number>(5);
   const [directoryRating, setDirectoryRating] = useState<number>(5);
@@ -50,6 +50,17 @@ export const UserSatisfactionModal: React.FC<UserSatisfactionModalProps> = ({ is
     setTimeout(() => {
       setIsSubmitting(false);
       setIsSubmitted(true);
+      addAuditLog({
+        action: 'USER_SATISFACTION_SURVEY_SUBMITTED',
+        actorId: currentUser?.uid || 'anonymous',
+        actorName: currentUser?.name || 'Cecilian Alumnus',
+        actorRole: currentUser?.role || 'alumni',
+        category: 'engagement',
+        details: `Submitted satisfaction survey (Overall: ${overallRating}/5, NPS: ${npsScore}/10).`,
+        severity: 'success',
+        targetRecordId: surveyResponse.id,
+        metadata: { overallRating, directoryRating, networkingRating, careerRating, npsScore }
+      });
       showToast('Thank you! Your feedback has been recorded by Alumni Affairs.', 'success');
     }, 400);
   };

@@ -28,13 +28,25 @@ import {
   Users,
   ShieldQuestion,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  RefreshCw,
+  Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlumni } from '../../context/AlumniContext';
 import { AuditLogEntry } from '../../types';
 import { ForbiddenAccessView } from '../common/ForbiddenAccessView';
-import { apiFetch, getAuthToken } from '../../services/apiClient';
+import { subscribeToAuditLogs } from '../../lib/firebase';
+import {
+  ACTIVITY_CATEGORY_GROUPS,
+  ActivitySyncState,
+  flushActivityLogSyncQueue,
+  formatCategoryLabel,
+  getActivitySyncState,
+  loadActivityLogsPrimary,
+  matchesCategoryFilter,
+  subscribeActivitySyncStatus
+} from '../../services/activityLogService';
 
 export type ActivityClassification =
   | 'NORMAL'
@@ -321,50 +333,69 @@ export const AuditLogView: React.FC = () => {
   const currentUserRole = (currentUser?.role || 'alumni').toLowerCase().trim();
   const isSuperAdmin = currentUserRole === 'superadmin';
   const isAdmin = isSuperAdmin;
-  const [serverLogs, setServerLogs] = useState<AuditLogEntry[]>([]);
+  const [remoteLogs, setRemoteLogs] = useState<AuditLogEntry[]>([]);
+  const [firestoreReadOk, setFirestoreReadOk] = useState<boolean>(true);
+  const [syncState, setSyncState] = useState<ActivitySyncState>(() => getActivitySyncState());
+  const [isRetryingSync, setIsRetryingSync] = useState(false);
 
   useEffect(() => {
-    if (!isSuperAdmin || !getAuthToken()) return;
+    const unsubSync = subscribeActivitySyncStatus((next) => setSyncState(next));
+    return unsubSync;
+  }, []);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
     let active = true;
-    apiFetch('/api/admin/audit-logs')
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!active || !data?.logs) return;
-        const mapped: AuditLogEntry[] = (data.logs as any[]).map((item) => ({
-          id: String(item.id || `srv_${Date.now()}`),
-          action: String(item.action || 'SERVER_AUDIT_EVENT'),
-          actorId: String(item.details?.actorUid || item.actor || 'system'),
-          actorName: String(item.actor || 'System'),
-          actorRole: String(item.actorRole || 'system'),
-          category: 'security',
-          targetRecordId: item.details?.attemptedPath ? String(item.details.attemptedPath) : undefined,
-          details:
-            typeof item.details === 'string'
-              ? item.details
-              : item.details?.attemptedPath
-              ? `Blocked unauthorized access to ${item.details.attemptedPath} (${item.details.reason || 'SUPERADMIN_REQUIRED'}) from IP ${item.ip || 'internal'}`
-              : JSON.stringify(item.details || {}),
-          severity: String(item.action || '').includes('UNAUTHORIZED') ? 'alert' : 'info',
-          timestamp: String(item.timestamp || new Date().toISOString())
-        }));
-        setServerLogs(mapped);
+
+    loadActivityLogsPrimary(500)
+      .then((res) => {
+        if (!active) return;
+        setRemoteLogs(res.logs);
+        setFirestoreReadOk(res.firestoreOk);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) setFirestoreReadOk(false);
+      });
+
+    const unsubFirestore = subscribeToAuditLogs(
+      (liveLogs) => {
+        if (!active) return;
+        setFirestoreReadOk(true);
+        setRemoteLogs((prev) => {
+          const seen = new Set<string>();
+          const next: AuditLogEntry[] = [];
+          for (const item of [...liveLogs, ...prev]) {
+            if (!item?.id || seen.has(item.id)) continue;
+            seen.add(item.id);
+            next.push(item);
+          }
+          return next.slice(0, 500);
+        });
+      },
+      () => {
+        if (active) setFirestoreReadOk(false);
+      },
+      500
+    );
+
     return () => {
       active = false;
+      unsubFirestore();
     };
   }, [isSuperAdmin]);
 
   const combinedAuditLogs = useMemo(() => {
     const seen = new Set<string>();
     const merged: AuditLogEntry[] = [];
-    for (const item of [...serverLogs, ...auditLogs]) {
+    for (const item of [...auditLogs, ...remoteLogs]) {
       if (!item?.id || seen.has(item.id)) continue;
       seen.add(item.id);
       merged.push(item);
     }
-    return merged;
-  }, [serverLogs, auditLogs]);
+    return merged.sort(
+      (a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+    );
+  }, [remoteLogs, auditLogs]);
 
   // Interactive Filter Drawer / Panel Toggle
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
@@ -375,6 +406,7 @@ export const AuditLogView: React.FC = () => {
   // Search & Detailed Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [alertFilter, setAlertFilter] = useState<
     'all' | 'warnings_only' | 'suspicious_only' | 'security_warnings' | 'logins_only'
   >('all');
@@ -400,7 +432,7 @@ export const AuditLogView: React.FC = () => {
   // Reset to page 1 whenever any filter criteria changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, roleFilter, alertFilter, severityFilter, timeFilter, sortOrder]);
+  }, [searchQuery, roleFilter, categoryFilter, alertFilter, severityFilter, timeFilter, sortOrder]);
 
   // Telemetry Aggregation for active view
   const alertStats = useMemo(() => {
@@ -422,22 +454,37 @@ export const AuditLogView: React.FC = () => {
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (isAdmin && roleFilter !== 'all') count++;
+    if (categoryFilter !== 'all') count++;
     if (alertFilter !== 'all') count++;
     if (severityFilter !== 'all') count++;
     if (timeFilter !== 'all') count++;
     if (searchQuery.trim().length > 0) count++;
     return count;
-  }, [isAdmin, roleFilter, alertFilter, severityFilter, timeFilter, searchQuery]);
+  }, [isAdmin, roleFilter, categoryFilter, alertFilter, severityFilter, timeFilter, searchQuery]);
 
   // Reset all filters helper
   const handleResetFilters = () => {
     setSearchQuery('');
     if (isAdmin) setRoleFilter('all');
+    setCategoryFilter('all');
     setAlertFilter('all');
     setSeverityFilter('all');
     setTimeFilter('all');
     setSortOrder('newest');
     setCurrentPage(1);
+  };
+
+  const handleRetrySync = async () => {
+    if (isRetryingSync) return;
+    setIsRetryingSync(true);
+    try {
+      await flushActivityLogSyncQueue();
+      const refreshed = await loadActivityLogsPrimary(500);
+      setRemoteLogs(refreshed.logs);
+      setFirestoreReadOk(refreshed.firestoreOk);
+    } finally {
+      setIsRetryingSync(false);
+    }
   };
 
   // Filtered Logs
@@ -482,20 +529,24 @@ export const AuditLogView: React.FC = () => {
           }
         }
 
-        // 2. Alert & Security Filter
+        // 2. Category Filter
+        if (!matchesCategoryFilter(log.category, categoryFilter)) return false;
+
+        // 3. Alert & Security Filter
         const alertInfo = getLogAlertInfo(log);
         if (alertFilter === 'warnings_only' && !alertInfo.showWarningIcon) return false;
         if (alertFilter === 'suspicious_only' && alertInfo.classification !== 'SUSPICIOUS') return false;
         if (alertFilter === 'security_warnings' && alertInfo.classification !== 'LOCKED' && alertInfo.classification !== 'SUSPENDED') return false;
         if (alertFilter === 'logins_only' && (log.action || '').toUpperCase() !== 'USER_LOGIN') return false;
 
-        // 3. Search Query
+        // 4. Search Query
         const q = searchQuery.toLowerCase().trim();
         if (q) {
           const matchSearch =
             (log.action || '').toLowerCase().includes(q) ||
             (log.actorName || '').toLowerCase().includes(q) ||
             (log.actorRole || '').toLowerCase().includes(q) ||
+            (log.category || '').toLowerCase().includes(q) ||
             (log.details || '').toLowerCase().includes(q) ||
             (alertInfo.classification || '').toLowerCase().includes(q) ||
             Boolean(log.targetRecordId && log.targetRecordId.toLowerCase().includes(q)) ||
@@ -503,10 +554,10 @@ export const AuditLogView: React.FC = () => {
           if (!matchSearch) return false;
         }
 
-        // 4. Severity Filter
+        // 5. Severity Filter
         if (severityFilter !== 'all' && log.severity !== severityFilter) return false;
 
-        // 5. Time Horizon Filter
+        // 6. Time Horizon Filter
         if (timeFilter !== 'all') {
           const logTime = new Date(log.timestamp).getTime();
           const diffHours = (now - logTime) / (1000 * 60 * 60);
@@ -522,7 +573,7 @@ export const AuditLogView: React.FC = () => {
         const timeB = new Date(b.timestamp).getTime();
         return sortOrder === 'newest' ? timeB - timeA : timeA - timeB;
       });
-  }, [auditLogs, isAdmin, currentUserRole, currentUser, roleFilter, alertFilter, searchQuery, severityFilter, timeFilter, sortOrder]);
+  }, [combinedAuditLogs, isAdmin, currentUserRole, currentUser, roleFilter, categoryFilter, alertFilter, searchQuery, severityFilter, timeFilter, sortOrder]);
 
   const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
   const paginatedLogs = useMemo(() => {
@@ -638,6 +689,29 @@ export const AuditLogView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Non-blocking scoped sync warning banner (only shown when Firestore unavailable or background sync delayed) */}
+      {(!firestoreReadOk || syncState.status === 'delayed') && (
+        <div className="px-3.5 py-2 rounded-xl bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 flex items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-300">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>
+              {!firestoreReadOk
+                ? 'Cloud log stream temporarily degraded; showing merged server and local records.'
+                : `Live log view active; background sync delayed (${syncState.pendingCount} queued) — retrying shortly.`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleRetrySync}
+            disabled={isRetryingSync}
+            className="px-2.5 py-1 rounded-lg bg-white dark:bg-stone-900 border border-amber-300/80 dark:border-amber-800 text-[11px] font-semibold text-amber-900 dark:text-amber-200 hover:bg-amber-100/60 cursor-pointer inline-flex items-center gap-1 shrink-0 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${isRetryingSync ? 'animate-spin' : ''}`} />
+            <span>Retry Sync</span>
+          </button>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* CONTROLS RIBBON (SEARCH, FILTER BUTTON, FORMAT SELECTOR)                  */}
@@ -790,7 +864,7 @@ export const AuditLogView: React.FC = () => {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
                   {/* Filter 1: Role-Based Activity Logs Filter */}
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300 flex items-center justify-between">
@@ -812,7 +886,25 @@ export const AuditLogView: React.FC = () => {
                     </select>
                   </div>
 
-                  {/* Filter 2: Alert & Suspicious Filter */}
+                  {/* Filter 2: Activity Domain Category */}
+                  <div className="space-y-1.5">
+                    <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300">
+                      Activity Category
+                    </label>
+                    <select
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="w-full px-3 py-2 bg-stone-50 dark:bg-stone-900 border border-stone-200/80 dark:border-stone-700 rounded-xl text-xs font-semibold text-stone-800 dark:text-stone-200 cursor-pointer focus:outline-hidden focus:border-[#8B181B]"
+                    >
+                      {ACTIVITY_CATEGORY_GROUPS.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filter 3: Alert & Suspicious Filter */}
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300">
                       Alert & Security Classification
@@ -830,7 +922,7 @@ export const AuditLogView: React.FC = () => {
                     </select>
                   </div>
 
-                  {/* Filter 3: Severity Filter */}
+                  {/* Filter 4: Severity Filter */}
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300">
                       Severity Level
@@ -848,7 +940,7 @@ export const AuditLogView: React.FC = () => {
                     </select>
                   </div>
 
-                  {/* Filter 4: Time Horizon */}
+                  {/* Filter 5: Time Horizon */}
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300">
                       Time Horizon
@@ -905,10 +997,16 @@ export const AuditLogView: React.FC = () => {
         {/* Active Filters Summary Strip */}
         <div className="flex items-center justify-between text-xs text-stone-500 dark:text-stone-400 px-1 font-mono">
           <div className="flex items-center gap-2 flex-wrap">
-            <span>Showing <strong className="text-stone-900 dark:text-stone-100">{filteredLogs.length}</strong> of {auditLogs.length} activity entries</span>
+            <span>Showing <strong className="text-stone-900 dark:text-stone-100">{filteredLogs.length}</strong> of {combinedAuditLogs.length} activity entries</span>
             {roleFilter !== 'all' && (
               <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded text-[11px] font-semibold text-stone-700 dark:text-stone-300">
                 Role: {roleFilter.toUpperCase()}
+              </span>
+            )}
+            {categoryFilter !== 'all' && (
+              <span className="bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded text-[11px] font-semibold text-stone-700 dark:text-stone-300 inline-flex items-center gap-1">
+                <Tag className="w-3 h-3 text-[#8B181B] dark:text-rose-400" />
+                {ACTIVITY_CATEGORY_GROUPS.find((g) => g.id === categoryFilter)?.label || formatCategoryLabel(categoryFilter)}
               </span>
             )}
             {alertFilter !== 'all' && (
@@ -1067,7 +1165,7 @@ export const AuditLogView: React.FC = () => {
                             <div className="flex items-center gap-2 mt-0.5">
                               {log.category && (
                                 <span className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wider font-mono">
-                                  {log.category.replace('_', ' ')}
+                                  {formatCategoryLabel(log.category)}
                                 </span>
                               )}
                               {alertInfo.showWarningIcon && (
@@ -1267,7 +1365,7 @@ export const AuditLogView: React.FC = () => {
                               </span>
                             )}
                             <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-stone-200 dark:bg-stone-800 text-stone-700 dark:text-stone-300">
-                              {log.category}
+                              {formatCategoryLabel(log.category)}
                             </span>
                           </div>
                           <span className="text-[11px] font-mono text-stone-500 dark:text-stone-400 tabular-nums">
