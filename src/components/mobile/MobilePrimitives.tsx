@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ArrowLeft,
   Bell,
@@ -12,6 +12,7 @@ import {
   Home,
   Loader2,
   MessageCircle,
+  Plus,
   PlusSquare,
   QrCode,
   Search,
@@ -127,7 +128,7 @@ export const MobileInput: React.FC<MobileInputProps> = ({
             type="button"
             onClick={onClear}
             aria-label="Clear search"
-            className="absolute right-1 w-[40px] h-[40px] flex items-center justify-center rounded-full text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111827] dark:hover:text-[#FAFAFA] cursor-pointer"
+            className="absolute right-0.5 w-[44px] h-[44px] flex items-center justify-center rounded-full text-[#6B7280] dark:text-[#A1A1AA] hover:text-[#111827] dark:hover:text-[#FAFAFA] cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -332,9 +333,37 @@ export const MobileTopBar: React.FC<MobileTopBarProps> = ({
 );
 
 /* ============================================================================
- * 6. MobileTabBar — Persistent 5-Tab Bottom Bar (Home | Explore | + | Jobs | Me)
+ * 6. MobileTabBar — Enhanced 5-Tab Lower Bar (Home | Explore | + | Jobs | Me)
+ *    Features: spring-animated active pill, filled vs outline icons, elevated
+ *    center Create CTA, tabular badges, and mobile keyboard auto-hide.
  * ============================================================================ */
 export type MobilePrimaryTab = 'home' | 'explore' | 'create' | 'jobs' | 'profile';
+
+const FilledHomeIcon: React.FC<{ className?: string }> = ({ className = 'w-[22px] h-[22px]' }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+    <path d="M11.35 2.43a1 1 0 0 1 1.3 0l8 6.86A1.5 1.5 0 0 1 21 10.43V19.5A2.5 2.5 0 0 1 18.5 22h-3.75a.75.75 0 0 1-.75-.75v-5.5a1.25 1.25 0 0 0-1.25-1.25h-1.5A1.25 1.25 0 0 0 10 15.75v5.5a.75.75 0 0 1-.75.75H5.5A2.5 2.5 0 0 1 3 19.5v-9.07a1.5 1.5 0 0 1 .65-1.24l7.7-6.76Z" />
+  </svg>
+);
+
+const FilledCompassIcon: React.FC<{ className?: string }> = ({ className = 'w-[22px] h-[22px]' }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2Zm4.09 5.91a.75.75 0 0 1 .166.814l-2.02 4.847a1.5 1.5 0 0 1-.815.815l-4.847 2.02a.75.75 0 0 1-.98-.98l2.02-4.847a1.5 1.5 0 0 1 .815-.815l4.847-2.02a.75.75 0 0 1 .814.166Zm-5.15 4.03 2.12 2.12 1.06-2.54-2.54 1.06-.64-.64Z"
+    />
+  </svg>
+);
+
+const FilledBriefcaseIcon: React.FC<{ className?: string }> = ({ className = 'w-[22px] h-[22px]' }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className}>
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M9 3.5A1.5 1.5 0 0 1 10.5 2h3A1.5 1.5 0 0 1 15 3.5V5h3.5A2.5 2.5 0 0 1 21 7.5v3.08a18.6 18.6 0 0 1-9 2.17 18.6 18.6 0 0 1-9-2.17V7.5A2.5 2.5 0 0 1 5.5 5H9V3.5Zm1.5 0V5h3V3.5h-3ZM3 12.24v6.26A2.5 2.5 0 0 0 5.5 21h13a2.5 2.5 0 0 0 2.5-2.5v-6.26a20.1 20.1 0 0 1-8.25 1.98v.78a.75.75 0 0 1-1.5 0v-.78A20.1 20.1 0 0 1 3 12.24Z"
+    />
+  </svg>
+);
 
 export const MobileTabBar: React.FC<{
   activeTab: MobilePrimaryTab;
@@ -342,71 +371,152 @@ export const MobileTabBar: React.FC<{
   avatarUrl?: string;
   userName?: string;
   jobsBadgeCount?: number;
-}> = ({ activeTab, onSelectTab, avatarUrl, userName, jobsBadgeCount = 0 }) => {
+  exploreBadgeCount?: number;
+}> = ({ activeTab, onSelectTab, avatarUrl, userName, jobsBadgeCount = 0, exploreBadgeCount = 0 }) => {
+  const [isInputFocused, setIsInputFocused] = useState(false);
+
+  // Auto-hide lower navigation when typing in mobile text inputs so keyboard & composer stay unobstructed
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let blurTimer: number | undefined;
+
+    const isEditableElement = (el: EventTarget | null) => {
+      if (!(el instanceof HTMLElement)) return false;
+      if (el.isContentEditable) return true;
+      if (el.tagName === 'TEXTAREA') return true;
+      if (el.tagName === 'INPUT') {
+        const input = el as HTMLInputElement;
+        return !['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'range', 'color'].includes(input.type);
+      }
+      return false;
+    };
+
+    const handleFocusIn = (e: FocusEvent) => {
+      if (window.innerWidth >= 1024) return;
+      if (isEditableElement(e.target)) {
+        if (blurTimer) window.clearTimeout(blurTimer);
+        setIsInputFocused(true);
+      }
+    };
+
+    const handleFocusOut = () => {
+      if (blurTimer) window.clearTimeout(blurTimer);
+      blurTimer = window.setTimeout(() => {
+        if (!isEditableElement(document.activeElement)) {
+          setIsInputFocused(false);
+        }
+      }, 120);
+    };
+
+    window.addEventListener('focusin', handleFocusIn, { passive: true });
+    window.addEventListener('focusout', handleFocusOut, { passive: true });
+    return () => {
+      if (blurTimer) window.clearTimeout(blurTimer);
+      window.removeEventListener('focusin', handleFocusIn);
+      window.removeEventListener('focusout', handleFocusOut);
+    };
+  }, []);
+
   const handlePress = (tab: MobilePrimaryTab) => {
     triggerHaptic('light');
+    if (tab === activeTab && tab !== 'create' && typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
     onSelectTab(tab);
   };
 
   return (
     <nav
       aria-label="Primary Mobile Navigation"
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#000000]/95 backdrop-blur-md border-t border-[#E5E7EB] dark:border-[#27272A] pb-safe"
+      aria-hidden={isInputFocused}
+      className={`mobile-bottom-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/92 dark:bg-[#09090B]/92 backdrop-blur-xl border-t border-[#E5E7EB]/90 dark:border-[#27272A]/90 shadow-[0_-6px_24px_rgba(0,0,0,0.05)] dark:shadow-[0_-8px_28px_rgba(0,0,0,0.5)] pb-safe transition-[transform,opacity] duration-200 ease-out ${
+        isInputFocused ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100'
+      }`}
     >
-      <div className="h-[56px] max-w-lg mx-auto px-1 flex items-center justify-around">
+      <div className="h-[62px] max-w-lg mx-auto px-1.5 flex items-center justify-around">
         {/* 1. Home */}
         <button
           type="button"
           onClick={() => handlePress('home')}
           aria-label="Home Feed"
           aria-current={activeTab === 'home' ? 'page' : undefined}
-          className={`flex-1 min-h-[44px] flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors ${
+          className={`relative flex-1 min-h-[48px] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors active:scale-95 ${
             activeTab === 'home'
               ? 'text-[#8B181B] dark:text-[#FB7185]'
               : 'text-[#6B7280] dark:text-[#A1A1AA]'
           }`}
         >
-          <Home
-            className={`w-[22px] h-[22px] ${
-              activeTab === 'home' ? 'stroke-[2.25] fill-current/15' : 'stroke-[1.75]'
-            }`}
-          />
-          <span className={`text-[11px] leading-none ${activeTab === 'home' ? 'font-bold' : 'font-medium'}`}>
+          <div className="relative w-12 h-7 flex items-center justify-center">
+            {activeTab === 'home' && (
+              <motion.span
+                layoutId="mobile-nav-active-pill"
+                transition={{ type: 'spring', stiffness: 460, damping: 34 }}
+                className="absolute inset-0 rounded-full bg-[#FEF2F2] dark:bg-[#E11D48]/18"
+              />
+            )}
+            <span className="relative z-10 flex items-center justify-center">
+              {activeTab === 'home' ? (
+                <FilledHomeIcon className="w-[21px] h-[21px]" />
+              ) : (
+                <Home className="w-[21px] h-[21px] stroke-[1.75]" />
+              )}
+            </span>
+          </div>
+          <span className={`text-[11px] leading-none whitespace-nowrap ${activeTab === 'home' ? 'font-bold' : 'font-medium'}`}>
             Home
           </span>
         </button>
 
-        {/* 2. Explore (Directory + Events + Bulletins) */}
+        {/* 2. Explore (People + Events + Bulletins) */}
         <button
           type="button"
           onClick={() => handlePress('explore')}
-          aria-label="Explore Alumni, Events, and Bulletins"
+          aria-label={exploreBadgeCount > 0 ? `Explore, ${exploreBadgeCount} active` : 'Explore Alumni, Events, and Bulletins'}
           aria-current={activeTab === 'explore' ? 'page' : undefined}
-          className={`flex-1 min-h-[44px] flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors ${
+          className={`relative flex-1 min-h-[48px] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors active:scale-95 ${
             activeTab === 'explore'
               ? 'text-[#8B181B] dark:text-[#FB7185]'
               : 'text-[#6B7280] dark:text-[#A1A1AA]'
           }`}
         >
-          <Compass
-            className={`w-[22px] h-[22px] ${
-              activeTab === 'explore' ? 'stroke-[2.25] fill-current/15' : 'stroke-[1.75]'
-            }`}
-          />
-          <span className={`text-[11px] leading-none ${activeTab === 'explore' ? 'font-bold' : 'font-medium'}`}>
+          <div className="relative w-12 h-7 flex items-center justify-center">
+            {activeTab === 'explore' && (
+              <motion.span
+                layoutId="mobile-nav-active-pill"
+                transition={{ type: 'spring', stiffness: 460, damping: 34 }}
+                className="absolute inset-0 rounded-full bg-[#FEF2F2] dark:bg-[#E11D48]/18"
+              />
+            )}
+            <span className="relative z-10 flex items-center justify-center">
+              {activeTab === 'explore' ? (
+                <FilledCompassIcon className="w-[21px] h-[21px]" />
+              ) : (
+                <Compass className="w-[21px] h-[21px] stroke-[1.75]" />
+              )}
+            </span>
+            {exploreBadgeCount > 0 && activeTab !== 'explore' && (
+              <span
+                aria-hidden="true"
+                className="absolute top-0.5 right-2.5 w-2 h-2 rounded-full bg-[#8B181B] dark:bg-[#E11D48] ring-2 ring-white dark:ring-[#09090B] z-20"
+              />
+            )}
+          </div>
+          <span className={`text-[11px] leading-none whitespace-nowrap ${activeTab === 'explore' ? 'font-bold' : 'font-medium'}`}>
             Explore
           </span>
         </button>
 
-        {/* 3. Create (+) */}
+        {/* 3. Elevated Thumb-Reachable Create (+) */}
         <button
           type="button"
           onClick={() => handlePress('create')}
           aria-label="Create Post"
-          className="flex-1 min-h-[44px] flex flex-col items-center justify-center gap-0.5 cursor-pointer text-[#111827] dark:text-[#FAFAFA] active:scale-95 transition-transform"
+          className="flex-1 min-h-[48px] flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 transition-transform"
         >
-          <PlusSquare className="w-[24px] h-[24px] stroke-[2] text-[#8B181B] dark:text-[#FB7185]" />
-          <span className="text-[11px] leading-none font-semibold text-[#8B181B] dark:text-[#FB7185]">
+          <div className="w-11 h-7 rounded-[11px] bg-[#8B181B] hover:bg-[#721316] dark:bg-[#E11D48] dark:hover:bg-[#BE123C] text-white shadow-[0_2px_10px_rgba(139,24,27,0.28)] dark:shadow-[0_2px_12px_rgba(225,29,72,0.34)] flex items-center justify-center">
+            <Plus className="w-[20px] h-[20px] stroke-[2.5]" />
+          </div>
+          <span className="text-[11px] leading-none font-semibold text-[#8B181B] dark:text-[#FB7185] whitespace-nowrap">
             Create
           </span>
         </button>
@@ -415,28 +525,39 @@ export const MobileTabBar: React.FC<{
         <button
           type="button"
           onClick={() => handlePress('jobs')}
-          aria-label="Jobs Board"
+          aria-label={jobsBadgeCount > 0 ? `Jobs Board, ${jobsBadgeCount} new` : 'Jobs Board'}
           aria-current={activeTab === 'jobs' ? 'page' : undefined}
-          className={`relative flex-1 min-h-[44px] flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors ${
+          className={`relative flex-1 min-h-[48px] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors active:scale-95 ${
             activeTab === 'jobs'
               ? 'text-[#8B181B] dark:text-[#FB7185]'
               : 'text-[#6B7280] dark:text-[#A1A1AA]'
           }`}
         >
-          <div className="relative">
-            <Briefcase
-              className={`w-[22px] h-[22px] ${
-                activeTab === 'jobs' ? 'stroke-[2.25] fill-current/15' : 'stroke-[1.75]'
-              }`}
-            />
+          <div className="relative w-12 h-7 flex items-center justify-center">
+            {activeTab === 'jobs' && (
+              <motion.span
+                layoutId="mobile-nav-active-pill"
+                transition={{ type: 'spring', stiffness: 460, damping: 34 }}
+                className="absolute inset-0 rounded-full bg-[#FEF2F2] dark:bg-[#E11D48]/18"
+              />
+            )}
+            <span className="relative z-10 flex items-center justify-center">
+              {activeTab === 'jobs' ? (
+                <FilledBriefcaseIcon className="w-[21px] h-[21px]" />
+              ) : (
+                <Briefcase className="w-[21px] h-[21px] stroke-[1.75]" />
+              )}
+            </span>
             {jobsBadgeCount > 0 && (
               <span
                 aria-hidden="true"
-                className="absolute -top-0.5 -right-1.5 w-2 h-2 rounded-full bg-[#8B181B] dark:bg-[#E11D48] ring-2 ring-white dark:ring-[#000000]"
-              />
+                className="absolute -top-0.5 right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-[#8B181B] dark:bg-[#E11D48] text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white dark:ring-[#09090B] tabular-nums leading-none z-20"
+              >
+                {jobsBadgeCount > 9 ? '9+' : jobsBadgeCount}
+              </span>
             )}
           </div>
-          <span className={`text-[11px] leading-none ${activeTab === 'jobs' ? 'font-bold' : 'font-medium'}`}>
+          <span className={`text-[11px] leading-none whitespace-nowrap ${activeTab === 'jobs' ? 'font-bold' : 'font-medium'}`}>
             Jobs
           </span>
         </button>
@@ -447,24 +568,33 @@ export const MobileTabBar: React.FC<{
           onClick={() => handlePress('profile')}
           aria-label="Profile"
           aria-current={activeTab === 'profile' ? 'page' : undefined}
-          className={`flex-1 min-h-[44px] flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors ${
+          className={`relative flex-1 min-h-[48px] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors active:scale-95 ${
             activeTab === 'profile'
               ? 'text-[#8B181B] dark:text-[#FB7185]'
               : 'text-[#6B7280] dark:text-[#A1A1AA]'
           }`}
         >
-          <img
-            src={getUserAvatar(avatarUrl)}
-            onError={handleUserAvatarError}
-            alt={userName || 'Profile'}
-            referrerPolicy="no-referrer"
-            className={`w-[24px] h-[24px] rounded-full object-cover transition-all ${
-              activeTab === 'profile'
-                ? 'ring-2 ring-[#8B181B] dark:ring-[#FB7185] ring-offset-1 ring-offset-white dark:ring-offset-black'
-                : 'border border-[#E5E7EB] dark:border-[#27272A]'
-            }`}
-          />
-          <span className={`text-[11px] leading-none ${activeTab === 'profile' ? 'font-bold' : 'font-medium'}`}>
+          <div className="relative w-12 h-7 flex items-center justify-center">
+            {activeTab === 'profile' && (
+              <motion.span
+                layoutId="mobile-nav-active-pill"
+                transition={{ type: 'spring', stiffness: 460, damping: 34 }}
+                className="absolute inset-0 rounded-full bg-[#FEF2F2] dark:bg-[#E11D48]/18"
+              />
+            )}
+            <img
+              src={getUserAvatar(avatarUrl)}
+              onError={handleUserAvatarError}
+              alt={userName || 'Profile'}
+              referrerPolicy="no-referrer"
+              className={`relative z-10 w-[23px] h-[23px] rounded-full object-cover transition-all ${
+                activeTab === 'profile'
+                  ? 'ring-2 ring-[#8B181B] dark:ring-[#FB7185] ring-offset-1 ring-offset-[#FEF2F2] dark:ring-offset-[#09090B]'
+                  : 'border border-[#E5E7EB] dark:border-[#27272A]'
+              }`}
+            />
+          </div>
+          <span className={`text-[11px] leading-none whitespace-nowrap ${activeTab === 'profile' ? 'font-bold' : 'font-medium'}`}>
             Profile
           </span>
         </button>

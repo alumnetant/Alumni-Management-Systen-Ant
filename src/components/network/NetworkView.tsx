@@ -86,6 +86,7 @@ export const NetworkView: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [requestToCancel, setRequestToCancel] = useState<{ id: string; name: string } | null>(null);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [showMobileFilterSheet, setShowMobileFilterSheet] = useState(false);
   const [optimisticSentUids, setOptimisticSentUids] = useState<Set<string>>(new Set());
   const filterDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -501,8 +502,6 @@ export const NetworkView: React.FC = () => {
       </div>
     );
   }
-
-  const [showMobileFilterSheet, setShowMobileFilterSheet] = useState(false);
 
   return (
     <div className="space-y-4 lg:space-y-6 px-4 lg:px-0 pt-3 lg:pt-0 pb-12 antialiased">

@@ -863,10 +863,11 @@ export const MessagesView: React.FC = () => {
                         setActiveFilterPill('all');
                         setActiveChatId(null);
                       }}
-                      className="p-0.5 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded text-rose-700 dark:text-rose-400 cursor-pointer transition-colors shrink-0 ml-1"
+                      className="min-w-[36px] min-h-[36px] lg:min-w-0 lg:min-h-0 flex items-center justify-center p-1 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded text-rose-700 dark:text-rose-400 cursor-pointer transition-colors shrink-0 ml-1"
                       title="Clear filter and show all"
+                      aria-label="Clear filter"
                     >
-                      <X className="w-3 h-3" />
+                      <X className="w-3.5 h-3.5 lg:w-3 lg:h-3" />
                     </button>
                   </div>
                 )}
@@ -1471,7 +1472,7 @@ export const MessagesView: React.FC = () => {
                                                       e.stopPropagation();
                                                       handleReactionClick(msg.id, emoji);
                                                     }}
-                                                    className={`w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center text-sm sm:text-xs rounded-full cursor-pointer transition-colors relative ${
+                                                    className={`w-9 h-9 lg:w-6 lg:h-6 flex items-center justify-center text-base lg:text-xs rounded-full cursor-pointer transition-colors relative ${
                                                       isUserReaction
                                                         ? 'bg-rose-100 dark:bg-rose-950/80 ring-2 ring-[#8B181B] shadow-2xs font-bold'
                                                         : 'hover:bg-stone-100 dark:hover:bg-stone-700'
@@ -1494,10 +1495,11 @@ export const MessagesView: React.FC = () => {
                                                     );
                                                   }}
                                                   style={{ color: 'var(--dm-text-secondary)' }}
-                                                  className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-full hover:bg-[var(--dm-bg-item-hover)] cursor-pointer"
+                                                  className="w-9 h-9 lg:w-6 lg:h-6 flex items-center justify-center rounded-full hover:bg-[var(--dm-bg-item-hover)] cursor-pointer"
                                                   title="Message options"
+                                                  aria-label="Message options"
                                                 >
-                                                  <MoreVertical className="w-3.5 h-3.5" />
+                                                  <MoreVertical className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                                                 </button>
 
                                                 <AnimatePresence>

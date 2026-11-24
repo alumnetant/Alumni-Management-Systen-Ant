@@ -247,6 +247,21 @@ export const ProfileView: React.FC = () => {
     }
   }, [highlightedItemId, profileViewTab, myTimelineOrdered, visibleLimit]);
 
+  const profileCompleteness = useMemo(() => {
+    if (!currentUser || currentUser.role === 'employer') return null;
+    const checks: Array<{ label: string; done: boolean }> = [
+      { label: 'Headline', done: Boolean(currentUser.headline?.trim()) },
+      { label: 'Biography', done: Boolean(currentUser.about?.trim()) },
+      { label: 'Work Location', done: Boolean(currentUser.location?.trim()) },
+      { label: 'Current Role', done: Boolean(currentUser.currentPosition?.trim() || currentUser.employmentStatus === 'N/A' || currentUser.employmentStatus === 'Retired') },
+      { label: 'Skills', done: Array.isArray(currentUser.skills) && currentUser.skills.length > 0 },
+      { label: 'Career History', done: Array.isArray(currentUser.experience) && currentUser.experience.length > 0 },
+    ];
+    const completed = checks.filter((c) => c.done).length;
+    const missing = checks.filter((c) => !c.done).map((c) => c.label);
+    return { completed, total: checks.length, missing };
+  }, [currentUser]);
+
   if (!currentUser) return null;
 
   const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -325,21 +340,6 @@ export const ProfileView: React.FC = () => {
   const isVerifiedUser = !!(currentUser.isVerified || (currentUser as any).verified || currentUser.verificationStatus === 'verified');
   const roleDisplay = (currentUser.role || 'alumni').toUpperCase();
 
-  const profileCompleteness = useMemo(() => {
-    if (currentUser.role === 'employer') return null;
-    const checks: Array<{ label: string; done: boolean }> = [
-      { label: 'Headline', done: Boolean(currentUser.headline?.trim()) },
-      { label: 'Biography', done: Boolean(currentUser.about?.trim()) },
-      { label: 'Work Location', done: Boolean(currentUser.location?.trim()) },
-      { label: 'Current Role', done: Boolean(currentUser.currentPosition?.trim() || currentUser.employmentStatus === 'N/A' || currentUser.employmentStatus === 'Retired') },
-      { label: 'Skills', done: Array.isArray(currentUser.skills) && currentUser.skills.length > 0 },
-      { label: 'Career History', done: Array.isArray(currentUser.experience) && currentUser.experience.length > 0 },
-    ];
-    const completed = checks.filter((c) => c.done).length;
-    const missing = checks.filter((c) => !c.done).map((c) => c.label);
-    return { completed, total: checks.length, missing };
-  }, [currentUser]);
-
   return (
     <div className="space-y-4 lg:space-y-6 pb-8 lg:pb-16 max-w-7xl mx-auto">
       {/* ========================================================
@@ -371,9 +371,11 @@ export const ProfileView: React.FC = () => {
               onClick={() => avatarFileInputRef.current?.click()}
               disabled={isUploadingPhoto}
               aria-label="Upload new profile photo"
-              className="absolute -bottom-0.5 -right-0.5 w-7 h-7 rounded-full bg-[#8B181B] dark:bg-[#E11D48] text-white flex items-center justify-center ring-2 ring-white dark:ring-[#000000]"
+              className="absolute -bottom-2 -right-2 w-11 h-11 flex items-center justify-center cursor-pointer"
             >
-              <Camera className="w-3.5 h-3.5" />
+              <span className="w-7 h-7 rounded-full bg-[#8B181B] dark:bg-[#E11D48] text-white flex items-center justify-center ring-2 ring-white dark:ring-[#000000]">
+                <Camera className="w-3.5 h-3.5" />
+              </span>
             </button>
           </div>
 
@@ -382,7 +384,7 @@ export const ProfileView: React.FC = () => {
             <button
               type="button"
               onClick={() => setMobileSection('posts')}
-              className="py-1 active:opacity-70"
+              className="min-h-[44px] py-1 active:opacity-70 cursor-pointer"
             >
               <div className="text-[16px] font-bold text-[#111827] dark:text-[#FAFAFA]">
                 {myTimelineOrdered.length}

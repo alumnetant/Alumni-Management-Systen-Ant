@@ -29,6 +29,12 @@ import { AnnouncementCard } from './AnnouncementCard';
 import { compressImage } from '../../lib/utils';
 import { PaginationControl } from '../common/PaginationControl';
 import { useDeepLinkHighlight } from '../../hooks/useDeepLinkHighlight';
+import {
+  MobileInput,
+  MobileBottomSheet,
+  MobileEmptyState,
+  MobileButton
+} from '../mobile/MobilePrimitives';
 
 const ARCHIVED_STORAGE_KEY = 'sc_alumni_archived_announcements_v1';
 
@@ -53,6 +59,7 @@ export const AnnouncementsView: React.FC = () => {
   const PAGE_SIZE = 10;
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showMobileFilterSheet, setShowMobileFilterSheet] = useState(false);
   const [shareItem, setShareItem] = useState<ShareItem | null>(null);
   const missingToastRef = useRef<string | null>(null);
 
@@ -360,8 +367,140 @@ export const AnnouncementsView: React.FC = () => {
         </div>
       )}
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-3.5">
+      {/* MOBILE (<1024px) COMPACT BULLETINS SEARCH & FILTER BAR */}
+      <div className="lg:hidden space-y-2.5">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0">
+            <MobileInput
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              onClear={() => {
+                setSearchQuery('');
+                setCurrentPage(1);
+              }}
+              placeholder="Search bulletins or notices..."
+              leftIcon={<Search className="w-4 h-4" />}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowMobileFilterSheet(true)}
+            aria-label="Filter bulletins"
+            className={`w-[46px] h-[46px] rounded-xl flex items-center justify-center shrink-0 border transition-colors cursor-pointer ${
+              categoryFilter !== 'all' || sortOrder !== 'newest'
+                ? 'bg-[#FEF2F2] dark:bg-[#E11D48]/15 border-[#8B181B] dark:border-[#FB7185] text-[#8B181B] dark:text-[#FB7185]'
+                : 'bg-[#F3F4F6] dark:bg-[#262626] border-transparent text-[#111827] dark:text-[#FAFAFA]'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+          </button>
+          {permissions.canPostAnnouncements && (
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(true)}
+              aria-label="Post announcement"
+              className="w-[46px] h-[46px] rounded-xl bg-[#8B181B] dark:bg-[#E11D48] text-white flex items-center justify-center shrink-0 cursor-pointer"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5 tabular-nums">
+          {[
+            { id: 'active', label: `Active (${activeCount})` },
+            { id: 'pinned', label: `Pinned (${pinnedCount})` },
+            { id: 'important', label: `Important (${importantCount})` },
+            { id: 'archived', label: `Archived (${archivedCount})` }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => {
+                setTabFilter(tab.id as any);
+                setCurrentPage(1);
+              }}
+              className={`min-h-[44px] px-4 rounded-full text-[13px] font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+                tabFilter === tab.id
+                  ? 'bg-[#8B181B] dark:bg-[#E11D48] text-white'
+                  : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#111827] dark:text-[#FAFAFA]'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Mobile Bulletins Filter Sheet (<1024px) */}
+      <MobileBottomSheet
+        isOpen={showMobileFilterSheet}
+        onClose={() => setShowMobileFilterSheet(false)}
+        title="Filter Bulletins"
+      >
+        <div className="p-4 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-[#111827] dark:text-[#FAFAFA]">Department / Topic</label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full min-h-[46px] px-3.5 rounded-xl bg-[#F3F4F6] dark:bg-[#262626] text-[16px] text-[#111827] dark:text-[#FAFAFA]"
+            >
+              <option value="all">All Departments</option>
+              <option value="general">General</option>
+              <option value="academic">Academic Affairs</option>
+              <option value="career">Career &amp; Industry</option>
+              <option value="campus">Campus Life</option>
+              <option value="reunion">Homecoming &amp; Reunions</option>
+              <option value="emergency">Emergency Bulletins</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[13px] font-semibold text-[#111827] dark:text-[#FAFAFA]">Sort Order</label>
+            <select
+              value={sortOrder}
+              onChange={(e) => {
+                setSortOrder(e.target.value as any);
+                setCurrentPage(1);
+              }}
+              className="w-full min-h-[46px] px-3.5 rounded-xl bg-[#F3F4F6] dark:bg-[#262626] text-[16px] text-[#111827] dark:text-[#FAFAFA]"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="important_first">Important First</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5 pt-2">
+            <MobileButton
+              variant="secondary"
+              fullWidth
+              onClick={() => {
+                setCategoryFilter('all');
+                setSortOrder('newest');
+                setCurrentPage(1);
+              }}
+            >
+              Reset
+            </MobileButton>
+            <MobileButton
+              variant="primary"
+              fullWidth
+              onClick={() => setShowMobileFilterSheet(false)}
+            >
+              Apply
+            </MobileButton>
+          </div>
+        </div>
+      </MobileBottomSheet>
+
+      {/* DESKTOP Filter and Search Bar (>=1024px INTACT) */}
+      <div className="hidden lg:block bg-white dark:bg-stone-900 rounded-2xl border border-stone-200/90 dark:border-stone-800 p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.03)] space-y-3.5">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           {/* Status Tabs */}
           <div className="flex items-center bg-stone-100 dark:bg-stone-800 p-1 rounded-xl shrink-0 overflow-x-auto tabular-nums">
@@ -475,31 +614,63 @@ export const AnnouncementsView: React.FC = () => {
 
       {/* Announcements List */}
       {filteredAnnouncements.length === 0 ? (
-        <div className="p-10 sm:p-12 text-center bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
-          <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-stone-800 text-stone-400 flex items-center justify-center mx-auto mb-3">
-            <Megaphone className="w-6 h-6 stroke-[1.75]" />
+        <>
+          <div className="lg:hidden">
+            <MobileEmptyState
+              icon={<Megaphone className="w-6 h-6" />}
+              title="No Announcements Found"
+              description={
+                searchQuery
+                  ? `No bulletins matching "${searchQuery}".`
+                  : tabFilter === 'archived'
+                  ? 'No archived bulletins yet.'
+                  : tabFilter === 'pinned'
+                  ? 'No pinned bulletins yet.'
+                  : 'There are currently no announcements in this category.'
+              }
+              actionLabel={
+                searchQuery || categoryFilter !== 'all' || tabFilter !== 'active'
+                  ? 'Reset Filters'
+                  : undefined
+              }
+              onAction={
+                searchQuery || categoryFilter !== 'all' || tabFilter !== 'active'
+                  ? () => {
+                      setSearchQuery('');
+                      setCategoryFilter('all');
+                      setTabFilter('active');
+                      setCurrentPage(1);
+                    }
+                  : undefined
+              }
+            />
           </div>
-          <p className="text-sm font-bold text-stone-800 dark:text-stone-200">No Announcements Found</p>
-          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-sm mx-auto leading-relaxed">
-            {searchQuery
-              ? `No announcements matching "${searchQuery}".`
-              : tabFilter === 'archived'
-              ? 'No archived announcements.'
-              : tabFilter === 'pinned'
-              ? 'No pinned announcements yet.'
-              : 'There are currently no announcements in this category.'}
-          </p>
-          {permissions.canPostAnnouncements && (
-            <button
-              type="button"
-              onClick={() => setShowCreateModal(true)}
-              className="mt-4 ds-btn-secondary inline-flex px-4 py-2 min-h-[40px]"
-            >
-              <Plus className="w-4 h-4 text-[#8B181B]" />
-              <span>Publish First Notice</span>
-            </button>
-          )}
-        </div>
+          <div className="hidden lg:block p-10 sm:p-12 text-center bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-800">
+            <div className="w-12 h-12 rounded-2xl bg-stone-100 dark:bg-stone-800 text-stone-400 flex items-center justify-center mx-auto mb-3">
+              <Megaphone className="w-6 h-6 stroke-[1.75]" />
+            </div>
+            <p className="text-sm font-bold text-stone-800 dark:text-stone-200">No Announcements Found</p>
+            <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 max-w-sm mx-auto leading-relaxed">
+              {searchQuery
+                ? `No announcements matching "${searchQuery}".`
+                : tabFilter === 'archived'
+                ? 'No archived announcements.'
+                : tabFilter === 'pinned'
+                ? 'No pinned announcements yet.'
+                : 'There are currently no announcements in this category.'}
+            </p>
+            {permissions.canPostAnnouncements && (
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(true)}
+                className="mt-4 ds-btn-secondary inline-flex px-4 py-2 min-h-[40px]"
+              >
+                <Plus className="w-4 h-4 text-[#8B181B]" />
+                <span>Publish First Notice</span>
+              </button>
+            )}
+          </div>
+        </>
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -530,9 +701,15 @@ export const AnnouncementsView: React.FC = () => {
 
       {/* DETAIL MODAL WITH RICH CONTENT & ATTACHMENTS */}
       {selectedAnnouncement && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-stone-900 rounded-2xl shadow-xl border border-stone-200 dark:border-stone-800 w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-stone-800">
+        <div
+          className="fixed inset-0 z-50 bg-black/55 backdrop-blur-xs flex items-end lg:items-center justify-center p-0 lg:p-4"
+          onClick={() => setSelectedAnnouncement(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-[#121212] lg:dark:bg-stone-900 rounded-t-3xl lg:rounded-2xl shadow-xl border border-stone-200 dark:border-[#262626] lg:dark:border-stone-800 w-full max-w-2xl p-5 sm:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] lg:pb-6 max-h-[92dvh] overflow-y-auto animate-in fade-in zoom-in-95"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-[#262626] lg:dark:border-stone-800">
               <div className="flex items-center gap-2 flex-wrap">
                 {selectedAnnouncement.isPinned && (
                   <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 rounded-md flex items-center gap-1">
@@ -551,7 +728,7 @@ export const AnnouncementsView: React.FC = () => {
                     Important Notice
                   </span>
                 ) : null}
-                <span className="px-2 py-0.5 text-[10px] font-semibold bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 rounded-md uppercase tracking-wider">
+                <span className="px-2 py-0.5 text-[10px] font-semibold bg-stone-100 dark:bg-[#262626] text-stone-700 dark:text-stone-300 rounded-md uppercase tracking-wider">
                   {selectedAnnouncement.category || 'General'}
                 </span>
                 {archivedIds.includes(selectedAnnouncement.id) && (
@@ -561,8 +738,10 @@ export const AnnouncementsView: React.FC = () => {
                 )}
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedAnnouncement(null)}
-                className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800"
+                aria-label="Close announcement details"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer rounded-xl hover:bg-stone-100 dark:hover:bg-[#262626]"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -633,7 +812,7 @@ export const AnnouncementsView: React.FC = () => {
               )}
 
               {/* Modal Footer Controls */}
-              <div className="mt-8 pt-4 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between gap-3 flex-wrap">
+              <div className="mt-8 pt-4 border-t border-stone-100 dark:border-[#262626] lg:dark:border-stone-800 flex items-center justify-between gap-3 flex-wrap">
                 <button
                   type="button"
                   onClick={() =>
@@ -643,7 +822,7 @@ export const AnnouncementsView: React.FC = () => {
                       type: 'announcement'
                     })
                   }
-                  className="px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-2xs transition-colors cursor-pointer"
+                  className="min-h-[44px] px-4 py-2 bg-stone-900 dark:bg-[#E11D48] hover:bg-black text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-2xs transition-colors cursor-pointer"
                 >
                   <Share2 className="w-3.5 h-3.5" />
                   <span>Share Notice</span>
@@ -653,27 +832,30 @@ export const AnnouncementsView: React.FC = () => {
                   {permissions.canDeleteAnnouncements && (
                     <>
                       <button
+                        type="button"
                         onClick={() => togglePinAnnouncement(selectedAnnouncement.id)}
-                        className={`px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer ${
+                        className={`min-h-[44px] px-3.5 py-2 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer ${
                           selectedAnnouncement.isPinned
                             ? 'bg-amber-100 hover:bg-amber-200 text-amber-900'
-                            : 'bg-stone-100 hover:bg-stone-200 text-stone-700'
+                            : 'bg-stone-100 dark:bg-[#262626] hover:bg-stone-200 text-stone-700 dark:text-[#FAFAFA]'
                         }`}
                       >
                         <Pin className="w-3.5 h-3.5" />
                         <span>{selectedAnnouncement.isPinned ? 'Unpin' : 'Pin to Top'}</span>
                       </button>
                       <button
+                        type="button"
                         onClick={() => toggleArchive(selectedAnnouncement.id)}
-                        className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl cursor-pointer"
+                        className="min-h-[44px] px-4 py-2 bg-stone-100 dark:bg-[#262626] hover:bg-stone-200 text-stone-700 dark:text-[#FAFAFA] text-xs font-semibold rounded-xl cursor-pointer"
                       >
                         {archivedIds.includes(selectedAnnouncement.id) ? 'Unarchive' : 'Archive'}
                       </button>
                     </>
                   )}
                   <button
+                    type="button"
                     onClick={() => setSelectedAnnouncement(null)}
-                    className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold rounded-xl cursor-pointer"
+                    className="min-h-[44px] px-4 py-2 bg-stone-100 dark:bg-[#262626] hover:bg-stone-200 text-stone-800 dark:text-[#FAFAFA] text-xs font-semibold rounded-xl cursor-pointer"
                   >
                     Close
                   </button>

@@ -33,6 +33,7 @@ import {
   DeepLinkTarget,
   normalizeSystemRole
 } from '../types';
+import { isMobileOrTabletDevice, useIsMobileOrTablet } from '../lib/platform';
 import {
   INITIAL_USERS,
   INITIAL_FRIEND_REQUESTS,
@@ -1914,16 +1915,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
   });
 
+  const isMobileOrTabletViewport = useIsMobileOrTablet();
+
   const clientPlatform: 'mobile' | 'web' = useMemo(() => {
     if (clientPlatformOverride) return clientPlatformOverride;
-    if (typeof window === 'undefined') return 'web';
-    // Strictly native Capacitor Android APK package
-    const isCapacitorNative =
-      typeof (window as any).Capacitor !== 'undefined' &&
-      typeof (window as any).Capacitor.isNativePlatform === 'function' &&
-      (window as any).Capacitor.isNativePlatform();
-    return isCapacitorNative ? 'mobile' : 'web';
-  }, [clientPlatformOverride]);
+    return isMobileOrTabletViewport ? 'mobile' : 'web';
+  }, [clientPlatformOverride, isMobileOrTabletViewport]);
 
   const setClientPlatformOverride = useCallback((platform: 'mobile' | 'web' | null) => {
     setClientPlatformOverrideState(platform);
@@ -3576,6 +3573,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     }
 
     // 2. Server-side validation via backend /api/auth/login (authoritative single active session provider)
+    const isMobileOrTabletClient = isMobileOrTabletDevice() || clientPlatform === 'mobile';
     let serverAuthToken: string | undefined;
     try {
       const serverRes = await fetch('/api/auth/login', {
@@ -3586,7 +3584,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         body: JSON.stringify({
           identifier: trimmed,
           password: pass,
-          platform: clientPlatform,
+          platform: isMobileOrTabletClient ? 'mobile' : clientPlatform,
+          isMobileOrTablet: isMobileOrTabletClient,
           deviceInfo: getClientDeviceInfo()
         })
       });
@@ -3775,7 +3774,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             body: JSON.stringify({
               identifier: trimmed,
               password: pass,
-              platform: clientPlatform,
+              platform: isMobileOrTabletClient ? 'mobile' : clientPlatform,
+              isMobileOrTablet: isMobileOrTabletClient,
               deviceInfo: getClientDeviceInfo()
             })
           });
@@ -4142,11 +4142,11 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     // ========================================================================
     // PLATFORM-BASED ACCESS ENFORCEMENT
-    // Alumni: Allowed on both Web and Mobile APK.
-    // Admin / Staff: Allowed ONLY on Web Portal. Blocked on Mobile APK.
+    // Alumni: Allowed on Web, Mobile, and Tablet.
+    // Admin / Staff / Moderator / Employer: Allowed ONLY on Desktop Web (>= 1024px).
     // ========================================================================
-    const effectiveRole = (user.role || 'alumni').toLowerCase().trim();
-    if (clientPlatform === 'mobile' && effectiveRole !== 'alumni') {
+    const effectiveRole = normalizeSystemRole(user.role);
+    if ((clientPlatform === 'mobile' || isMobileOrTabletDevice()) && effectiveRole !== 'alumni') {
       const errorMsg = 'Administrative access is restricted to the web portal.';
       showToast(errorMsg, 'error');
       setLoginPlatformError(errorMsg);
@@ -4359,6 +4359,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const terminateOtherSessionAndLogin = async (identifier: string, pass: string): Promise<boolean> => {
     const trimmed = identifier.trim().toLowerCase();
+    const isMobileOrTabletClient = isMobileOrTabletDevice() || clientPlatform === 'mobile';
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -4366,6 +4367,8 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         body: JSON.stringify({
           identifier: trimmed,
           password: pass,
+          platform: isMobileOrTabletClient ? 'mobile' : clientPlatform,
+          isMobileOrTablet: isMobileOrTabletClient,
           forceTerminateOtherSession: true,
           deviceInfo: getClientDeviceInfo()
         })
@@ -4411,6 +4414,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         }
 
         if (user) {
+          if (isMobileOrTabletClient && normalizeSystemRole(user.role) !== 'alumni') {
+            const errorMsg = 'Administrative access is restricted to the web portal.';
+            showToast(errorMsg, 'error');
+            setLoginPlatformError(errorMsg);
+            return false;
+          }
           saveActiveSession(user, authData.token);
           setCurrentUserId(user.uid);
           setAuthReady(true);
@@ -4423,7 +4432,7 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
               actorName: user.name,
               actorRole: user.role,
               category: 'security',
-              details: `User ${user.name} signed in successfully via ${clientPlatform === 'mobile' ? 'Mobile App' : 'Web Portal'}. Previous session ended by user.`,
+              details: `User ${user.name} signed in successfully via ${isMobileOrTabletClient ? 'Mobile App' : 'Web Portal'}. Previous session ended by user.`,
               severity: 'info',
               targetRecordId: user.email
             });
@@ -4441,6 +4450,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         return true;
       } else {
         const err = await res.json().catch(() => ({}));
+        if (err?.code === 'ADMIN_WEB_ONLY_RESTRICTION') {
+          setLoginPlatformError(err.error || 'Administrative access is restricted to the web portal.');
+        }
         showToast(err.error || 'Could not end other session.', 'error');
         return false;
       }
@@ -4457,11 +4469,17 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return { success: false, error: 'No vaulted refresh token provided.' };
     }
 
+    const isMobileOrTabletClient = isMobileOrTabletDevice() || clientPlatform === 'mobile';
+
     try {
       const res = await fetch('/api/auth/refresh', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken })
+        body: JSON.stringify({
+          refreshToken,
+          platform: isMobileOrTabletClient ? 'mobile' : clientPlatform,
+          isMobileOrTablet: isMobileOrTabletClient
+        })
       });
 
       if (!res.ok) {
@@ -4473,6 +4491,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
 
       const authData = await res.json();
+      if (isMobileOrTabletClient && normalizeSystemRole(authData.user?.role) !== 'alumni') {
+        return {
+          success: false,
+          error: 'Administrative access is restricted to the web portal.'
+        };
+      }
       if (authData.token) {
         try {
           sessionStorage.setItem('alumni_server_auth_token', authData.token);
@@ -4515,6 +4539,12 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
 
       if (user) {
+        if (isMobileOrTabletClient && normalizeSystemRole(user.role) !== 'alumni') {
+          return {
+            success: false,
+            error: 'Administrative access is restricted to the web portal.'
+          };
+        }
         saveActiveSession(user, authData.token);
         setCurrentUserId(user.uid);
         setAuthReady(true);
@@ -4542,6 +4572,14 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (role === 'admin') {
       showToast('Admin accounts cannot be registered publicly. Provisioned as Alumni.');
       role = 'alumni';
+    }
+
+    const isMobileOrTabletClient = isMobileOrTabletDevice() || clientPlatform === 'mobile';
+    if (isMobileOrTabletClient && normalizeSystemRole(role) !== 'alumni') {
+      const errorMsg = 'Employer and administrative registration is available exclusively on desktop browsers (1024px and above).';
+      showToast(errorMsg, 'error');
+      setLoginPlatformError(errorMsg);
+      return false;
     }
 
     const formLock = (data as any).formLock;
@@ -4785,7 +4823,9 @@ export const AlumniProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             isVerified: isAlumniVerified,
             accountStatus: newUser.accountStatus,
             isAppealRegistration,
-            formLock: (data as any).formLock
+            formLock: (data as any).formLock,
+            platform: isMobileOrTabletClient ? 'mobile' : clientPlatform,
+            isMobileOrTablet: isMobileOrTabletClient
           })
         });
       })

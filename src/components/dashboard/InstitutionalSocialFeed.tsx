@@ -616,7 +616,7 @@ export const InstitutionalSocialFeed: React.FC<InstitutionalSocialFeedProps> = (
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveFilter(tab.id as any)}
-                  className={`min-h-[34px] px-3.5 rounded-full text-[12px] font-semibold whitespace-nowrap cursor-pointer transition-colors ${
+                  className={`min-h-[44px] px-4 rounded-full text-[13px] font-semibold whitespace-nowrap cursor-pointer transition-colors ${
                     active
                       ? 'bg-[#8B181B] dark:bg-[#E11D48] text-white'
                       : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#111827] dark:text-[#FAFAFA]'

@@ -213,7 +213,7 @@ export const NotificationsView: React.FC = () => {
   return (
     <div className="space-y-4 lg:space-y-6">
       {/* Mobile Header Segmented Tabs & Quick Mark Read (<1024px) */}
-      <div className="lg:hidden bg-white dark:bg-[#000000] border-b border-[#EFEFEF] dark:border-[#262626] px-4 py-2.5 space-y-2.5 sticky top-[calc(52px+env(safe-area-inset-top,0px))] z-20">
+      <div className="lg:hidden bg-white dark:bg-[#000000] border-b border-[#EFEFEF] dark:border-[#262626] px-4 py-2.5 space-y-2.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[12px] font-semibold text-[#737373] dark:text-[#A8A8A8]">
             {unreadNotificationsCount > 0

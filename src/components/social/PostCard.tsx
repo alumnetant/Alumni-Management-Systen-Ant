@@ -440,12 +440,12 @@ export const PostCard: React.FC<PostCardProps> = ({
           </div>
 
           {/* Owner Edit / Delete / Pin Controls OR Non-Owner Report Control */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-0.5 lg:gap-1 shrink-0">
             {showPinControl && isOwner && (
               <button
                 type="button"
                 onClick={handleToggleProfilePin}
-                className={`p-2 rounded-xl transition-colors cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center ${
+                className={`p-2 rounded-xl transition-colors cursor-pointer min-h-[44px] min-w-[44px] lg:min-h-[38px] lg:min-w-[38px] flex items-center justify-center ${
                   isPinnedOnProfile
                     ? 'text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300'
                     : 'text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800'
@@ -466,7 +466,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                     setEditContent(post.content || '');
                     setIsEditing(true);
                   }}
-                  className="p-2 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
+                  className="p-2 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 rounded-xl transition-colors cursor-pointer min-h-[44px] min-w-[44px] lg:min-h-[38px] lg:min-w-[38px] flex items-center justify-center"
                   title="Edit post"
                   aria-label="Edit post"
                 >
@@ -475,7 +475,7 @@ export const PostCard: React.FC<PostCardProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="p-2 text-stone-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
+                  className="p-2 text-stone-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-xl transition-colors cursor-pointer min-h-[44px] min-w-[44px] lg:min-h-[38px] lg:min-w-[38px] flex items-center justify-center"
                   title="Delete post"
                   aria-label="Delete post"
                 >
@@ -488,12 +488,13 @@ export const PostCard: React.FC<PostCardProps> = ({
               <button
                 type="button"
                 onClick={() => setShowReportModal(true)}
-                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer min-h-[38px] ${
+                className={`inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer min-h-[44px] min-w-[44px] lg:min-h-[38px] lg:min-w-0 ${
                   post.viewerHasReported
                     ? 'bg-red-50 text-[#8B181B] dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/50'
                     : 'text-stone-500 hover:text-[#8B181B] dark:text-stone-400 dark:hover:text-red-400 hover:bg-stone-100 dark:hover:bg-stone-800'
                 }`}
                 title="Report this post to moderators"
+                aria-label={post.viewerHasReported ? 'Post reported' : 'Report post'}
               >
                 <Flag className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{post.viewerHasReported ? 'Reported' : 'Report'}</span>

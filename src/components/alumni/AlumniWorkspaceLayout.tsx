@@ -79,6 +79,7 @@ import {
   Settings as MobileSettingsIcon
 } from '../mobile/MobilePrimitives';
 import { MobileCreateSheet } from '../mobile/MobileCreateSheet';
+import { MobileSwipeBackContainer } from '../mobile/MobileSwipeBackContainer';
 
 export type AlumniModuleId =
   | 'dashboard'
@@ -177,6 +178,12 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
   const handleSelectModule = (mod: AlumniModuleId) => {
     triggerHaptic('light');
     closeSubRoute();
+    if (mod === 'dashboard') {
+      if (currentModule !== 'dashboard') {
+        isExplicitRootHomeResetRef.current = true;
+      }
+      setMobileNavHistory([]);
+    }
     setActiveTab(mod as any);
   };
 
@@ -207,24 +214,32 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     }
   }, [currentModule, prevModule]);
 
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   const directionalVariants = {
-    initial: (dir: number) => ({
-      opacity: 0,
-      x: dir > 0 ? 18 : -18,
-      scale: 0.996
-    }),
+    initial: (dir: number) =>
+      prefersReducedMotion
+        ? { opacity: 1, x: 0 }
+        : {
+            opacity: 0,
+            x: dir > 0 ? 14 : -14
+          },
     animate: {
       opacity: 1,
       x: 0,
-      scale: 1,
-      transition: { duration: 0.22, ease: [0.25, 1, 0.5, 1] as const }
+      transition: { duration: prefersReducedMotion ? 0 : 0.18, ease: [0.25, 1, 0.5, 1] as const }
     },
-    exit: (dir: number) => ({
-      opacity: 0,
-      x: dir > 0 ? -18 : 18,
-      scale: 0.996,
-      transition: { duration: 0.16, ease: [0.25, 1, 0.5, 1] as const }
-    })
+    exit: (dir: number) =>
+      prefersReducedMotion
+        ? { opacity: 1, x: 0 }
+        : {
+            opacity: 0,
+            x: dir > 0 ? -14 : 14,
+            transition: { duration: 0.14, ease: [0.25, 1, 0.5, 1] as const }
+          }
   };
 
   // Sidebar expanded state: visible by default as requested
@@ -264,9 +279,29 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
   const [showMobileCreateSheet, setShowMobileCreateSheet] = useState(false);
   const [lastExploreModule, setLastExploreModule] = useState<'network' | 'events' | 'announcements'>('network');
   const lastMainModuleRef = useRef<AlumniModuleId>('dashboard');
+  const [mobileNavHistory, setMobileNavHistory] = useState<AlumniModuleId[]>([]);
+  const prevTrackedModuleRef = useRef<AlumniModuleId>(currentModule);
+  const isPoppingBackRef = useRef(false);
+  const isExplicitRootHomeResetRef = useRef(false);
   const [searchFilter, setSearchFilter] = useState('');
 
   useEffect(() => {
+    const previous = prevTrackedModuleRef.current;
+    if (previous !== currentModule) {
+      if (isExplicitRootHomeResetRef.current) {
+        isExplicitRootHomeResetRef.current = false;
+        setMobileNavHistory([]);
+      } else if (isPoppingBackRef.current) {
+        isPoppingBackRef.current = false;
+      } else {
+        setMobileNavHistory((prev) => {
+          const deduped = prev[prev.length - 1] === previous ? prev : [...prev, previous];
+          return deduped.slice(-15);
+        });
+      }
+      prevTrackedModuleRef.current = currentModule;
+    }
+
     if (['network', 'events', 'announcements'].includes(currentModule)) {
       setLastExploreModule(currentModule as 'network' | 'events' | 'announcements');
     }
@@ -331,14 +366,44 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     }
   }, [showProfileMenu]);
 
-  useEffect(() => {
+  const canMobileGoBack = Boolean(
+    viewedProfileIdentifier ||
+      viewedPostId ||
+      (currentModule === 'messages' && activeChatId) ||
+      mobileNavHistory.length > 0 ||
+      currentModule !== 'dashboard'
+  );
+
+  const handleMobileBack = useCallback(() => {
+    if (viewedProfileIdentifier || viewedPostId) {
+      closeSubRoute();
+      return;
+    }
+    if (currentModule === 'messages' && activeChatId) {
+      setActiveChatId(null);
+      return;
+    }
+    if (mobileNavHistory.length > 0) {
+      const target = mobileNavHistory[mobileNavHistory.length - 1];
+      isPoppingBackRef.current = true;
+      setMobileNavHistory((prev) => prev.slice(0, -1));
+      setActiveTab(target as any);
+      return;
+    }
     if (currentModule !== 'dashboard') {
+      isPoppingBackRef.current = true;
+      setActiveTab((lastMainModuleRef.current && lastMainModuleRef.current !== currentModule ? lastMainModuleRef.current : 'dashboard') as any);
+    }
+  }, [viewedProfileIdentifier, viewedPostId, closeSubRoute, currentModule, activeChatId, setActiveChatId, mobileNavHistory, setActiveTab]);
+
+  useEffect(() => {
+    if (canMobileGoBack) {
       return registerBackAction(() => {
-        setActiveTab('dashboard' as any);
+        handleMobileBack();
         return true;
       });
     }
-  }, [currentModule, setActiveTab]);
+  }, [canMobileGoBack, handleMobileBack]);
 
   // Unread messages count
   const unreadMessagesCount = useMemo(() => {
@@ -538,17 +603,52 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
     return 'ALUMNET';
   }, [viewedProfileIdentifier, viewedPostId, currentModule, isExploreMobileScreen, currentUser]);
 
-  const handleMobileBack = () => {
+  const getModuleShortLabel = (mod: AlumniModuleId): string => {
+    switch (mod) {
+      case 'dashboard':
+        return 'Home';
+      case 'network':
+        return 'People';
+      case 'events':
+        return 'Events';
+      case 'announcements':
+        return 'Bulletins';
+      case 'opportunities':
+        return 'Jobs';
+      case 'profile':
+        return 'Profile';
+      case 'messages':
+        return 'Messages';
+      case 'notifications':
+        return 'Alerts';
+      case 'settings':
+        return 'Settings';
+      default:
+        return 'Back';
+    }
+  };
+
+  const mobileBackLabel = useMemo(() => {
     if (viewedProfileIdentifier || viewedPostId) {
-      closeSubRoute();
-      return;
+      return getModuleShortLabel(currentModule);
     }
     if (currentModule === 'messages' && activeChatId) {
-      setActiveChatId(null);
-      return;
+      return 'Inbox';
     }
-    handleSelectModule(lastMainModuleRef.current || 'dashboard');
-  };
+    if (mobileNavHistory.length > 0) {
+      return getModuleShortLabel(mobileNavHistory[mobileNavHistory.length - 1]);
+    }
+    return 'Home';
+  }, [viewedProfileIdentifier, viewedPostId, currentModule, activeChatId, mobileNavHistory]);
+
+  const isSwipeBackEnabled =
+    canMobileGoBack &&
+    !showMobileCreateSheet &&
+    !showDigitalPassModal &&
+    !showGalleryModal &&
+    !showCommandPalette &&
+    !showLogoutConfirm &&
+    !showMobileNav;
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#000000] lg:bg-[#F9FAFB] lg:dark:bg-[#121316] flex flex-col font-sans text-stone-900 dark:text-stone-100 antialiased selection:bg-[#8B181B] selection:text-white">
@@ -619,7 +719,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
           MOBILE EXPLORE SEGMENTED BAR (People | Events | Bulletins)
           ======================================================== */}
       {isExploreMobileScreen && (
-        <div className="lg:hidden sticky top-[calc(52px+env(safe-area-inset-top,0px))] z-30">
+        <div className="lg:hidden bg-white dark:bg-[#000000]">
           <MobileSegmentedTabs<'network' | 'events' | 'announcements'>
             value={currentModule as 'network' | 'events' | 'announcements'}
             onChange={(next) => handleSelectModule(next)}
@@ -1329,11 +1429,16 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
             ====================================================== */}
         <main
           className={`flex-1 min-w-0 w-full max-w-full px-0 lg:px-8 py-0 lg:py-6 lg:pb-10 ${
-            isMainMobileScreen ? 'pb-[calc(64px+env(safe-area-inset-bottom,0px))]' : 'pb-[max(1rem,env(safe-area-inset-bottom,0px))]'
+            isMainMobileScreen ? 'pb-[calc(70px+env(safe-area-inset-bottom,0px))]' : 'pb-[max(1rem,env(safe-area-inset-bottom,0px))]'
           }`}
         >
-          <PullToRefreshWrapper onRefresh={refreshData} isOnline={isOnline}>
-            <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto">
+          <MobileSwipeBackContainer
+            enabled={isSwipeBackEnabled}
+            backLabel={mobileBackLabel}
+            onBack={handleMobileBack}
+          >
+            <PullToRefreshWrapper onRefresh={refreshData} isOnline={isOnline}>
+              <div className="w-full max-w-[1760px] 2xl:max-w-[1920px] mx-auto">
               {viewedProfileIdentifier ? (
                 <PublicProfilePage identifier={viewedProfileIdentifier} />
               ) : viewedPostId ? (
@@ -1412,7 +1517,8 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
                 </AnimatePresence>
               )}
             </div>
-          </PullToRefreshWrapper>
+            </PullToRefreshWrapper>
+          </MobileSwipeBackContainer>
         </main>
       </div>
 
@@ -1426,6 +1532,7 @@ export const AlumniWorkspaceLayout: React.FC<AlumniWorkspaceLayoutProps> = ({
           avatarUrl={currentUser?.profilePictureUrl}
           userName={currentUser?.name}
           jobsBadgeCount={displayJobsBadgeCount}
+          exploreBadgeCount={upcomingEventsCount}
           onSelectTab={(tab) => {
             if (tab === 'create') {
               setShowMobileCreateSheet(true);

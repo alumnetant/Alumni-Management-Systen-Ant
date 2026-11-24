@@ -6,6 +6,7 @@ import crypto from 'crypto';
 const __dirname = path.resolve();
 import type { Opportunity, JobApplication, ApplicationStatus, ChatThread, ChatMessage } from './src/types';
 import { normalizeSystemRole } from './src/types';
+import { isMobilePlatformToken } from './src/lib/platformPolicy';
 import { INITIAL_USERS, INITIAL_OPPORTUNITIES, INITIAL_JOB_APPLICATIONS, INITIAL_CHATS, INITIAL_MESSAGES } from './src/data/initialData';
 import webpush from 'web-push';
 import { getEmployerAuthStatus, isEmployerApproved } from './src/lib/employerAuthStatus';
@@ -1333,6 +1334,22 @@ app.post('/api/auth/register', authRateLimiter, (req: Request, res: Response) =>
     });
   }
 
+  const isMobileOrTabletClient =
+    isMobilePlatformToken(req.body?.platform, req.body?.isMobileOrTablet) ||
+    isMobilePlatformToken(req.headers['x-client-platform'], req.headers['x-mobile-or-tablet'] === 'true');
+  const requestedCanonicalRole = normalizeSystemRole(role);
+  const requestedAccountType = String(accountType || 'alumni').toLowerCase().trim();
+  if (
+    isMobileOrTabletClient &&
+    (requestedCanonicalRole !== 'alumni' || requestedAccountType === 'employer')
+  ) {
+    return res.status(403).json({
+      error: 'Administrative and employer registration is restricted to the desktop web portal.',
+      code: 'ADMIN_WEB_ONLY_RESTRICTION',
+      role: requestedCanonicalRole
+    });
+  }
+
   // Task 2: A rejected employer cannot re-apply [DEFAULT]
   if (role === 'employer') {
     const targetCompany = (rawCompanyName || company || '').toLowerCase().trim();
@@ -1560,14 +1577,15 @@ app.post('/api/auth/login', authRateLimiter, (req: Request, res: Response) => {
 
   // ============================================================================
   // PLATFORM-BASED ACCESS ENFORCEMENT & STATUS VERIFICATION
-  // - Mobile APK ('mobile' / 'native_apk'): Exclusive for Alumni.
-  // - Web Portal ('web'): Open to Alumni, Super Admin, Admin, Registrar, Staff, Moderator, Employer.
+  // - Mobile & Tablet ('mobile', 'tablet', 'native_apk', 'apk', 'ipad', '< 1024px'): Exclusive for Alumni.
+  // - Desktop Web Portal ('web'): Open to Alumni, Super Admin, Admin, Moderator, and Employer.
   // ============================================================================
-  const reqPlatform = String(req.body.platform || 'web').toLowerCase().trim();
-  const isApkEnvironment = reqPlatform === 'mobile' || reqPlatform === 'native_apk' || reqPlatform === 'apk';
-  const userRole = (user.role || 'alumni').toLowerCase().trim();
+  const isMobileOrTabletClient =
+    isMobilePlatformToken(req.body?.platform, req.body?.isMobileOrTablet) ||
+    isMobilePlatformToken(req.headers['x-client-platform'], req.headers['x-mobile-or-tablet'] === 'true');
+  const userRole = normalizeSystemRole(user.role);
 
-  if (isApkEnvironment && userRole !== 'alumni') {
+  if (isMobileOrTabletClient && userRole !== 'alumni') {
     return res.status(403).json({
       error: 'Administrative access is restricted to the web portal.',
       code: 'ADMIN_WEB_ONLY_RESTRICTION',
@@ -3194,6 +3212,17 @@ app.post('/api/auth/refresh', authRateLimiter, (req: Request, res: Response) => 
   const accountStatus = (user.accountStatus || user.status || 'ACTIVE').toUpperCase().trim();
   if (accountStatus === 'SUSPENDED') {
     return res.status(403).json({ error: 'Account has been suspended.', code: 'ACCOUNT_SUSPENDED' });
+  }
+
+  const isMobileOrTabletRefresh =
+    isMobilePlatformToken(req.body?.platform, req.body?.isMobileOrTablet) ||
+    isMobilePlatformToken(req.headers['x-client-platform'], req.headers['x-mobile-or-tablet'] === 'true');
+  if (isMobileOrTabletRefresh && normalizeSystemRole(user.role) !== 'alumni') {
+    return res.status(403).json({
+      error: 'Administrative access is restricted to the web portal.',
+      code: 'ADMIN_WEB_ONLY_RESTRICTION',
+      role: user.role
+    });
   }
 
   const currentDevice = extractDeviceInfo(req);

@@ -430,7 +430,7 @@ export const OpportunitiesView: React.FC = () => {
   return (
     <div className="space-y-4 lg:space-y-6 pb-16">
       {/* MOBILE (<1024px) CLEAN JOBS SEGMENTED TABS */}
-      <div className="lg:hidden sticky top-[calc(52px+env(safe-area-inset-top,0px))] z-30">
+      <div className="lg:hidden bg-white dark:bg-[#000000]">
         <MobileSegmentedTabs<typeof activeSubTab>
           value={activeSubTab}
           onChange={setActiveSubTab}

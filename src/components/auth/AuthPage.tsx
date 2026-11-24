@@ -59,7 +59,8 @@ import {
 } from '../../services/biometricAuthService';
 import { useAlumni } from '../../context/AlumniContext';
 import { useTheme } from '../../lib/theme';
-import { UserRole, UserProfile, StudentVerificationRecord, OFFICIAL_DEGREE_PROGRAMS } from '../../types';
+import { useIsMobileOrTablet } from '../../lib/platform';
+import { UserRole, UserProfile, StudentVerificationRecord, OFFICIAL_DEGREE_PROGRAMS, normalizeSystemRole } from '../../types';
 import { getStoredFormLock, setStoredFormLock, clearStoredFormLock } from '../../lib/employerValidation';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
 import { AccountSuspendedNoticeModal } from './AccountSuspendedNoticeModal';
@@ -441,29 +442,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
   const isLockedOut = lockoutSecondsRemaining > 0;
 
-  const isDeviceMobile = () => {
-    if (typeof window === 'undefined') return false;
-    if (Capacitor.isNativePlatform()) return true;
-    return window.innerWidth < 1024 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Silk/i.test(navigator.userAgent);
-  };
-  const isMobileClient = clientPlatform === 'mobile' || isDeviceMobile();
+  const isMobileViewport = useIsMobileOrTablet();
+  const isMobileClient = clientPlatform === 'mobile' || isMobileViewport;
 
   // Registration multi-step state (1: Initial Student ID Screening, 2: Account & Profile, 3: Review & Honor Pledge)
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [registrationType, setRegistrationType] = useState<'alumni' | 'employer'>(() => {
-    if (typeof window !== 'undefined' && (Capacitor.isNativePlatform() || window.innerWidth < 1024)) {
+    if (isMobileClient) {
       return 'alumni';
     }
     return initialRole || 'alumni';
   });
 
   useEffect(() => {
-    if (clientPlatform === 'mobile' || isDeviceMobile()) {
+    if (isMobileClient) {
       setRegistrationType('alumni');
+      setEmployerStep(1);
     } else if (initialRole) {
       setRegistrationType(initialRole);
     }
-  }, [initialRole, clientPlatform]);
+  }, [initialRole, isMobileClient]);
 
   // Employer Registration State
   const [companyName, setCompanyName] = useState('');
@@ -509,6 +507,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [regCompany, setRegCompany] = useState('');
   const [regEmploymentStatus, setRegEmploymentStatus] = useState<string>('Employed');
   const [step2Error, setStep2Error] = useState('');
+  const [step3Error, setStep3Error] = useState('');
 
   // ID Conflict / Dispute Claim state (when ID is taken/already registered)
   const [showDisputeModal, setShowDisputeModal] = useState(false);
@@ -590,14 +589,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [formLock, setFormLock] = useState<'alumni' | 'employer' | null>(() => getStoredFormLock());
   const [switchRoleConfirmTarget, setSwitchRoleConfirmTarget] = useState<'alumni' | 'employer' | null>(null);
 
-  // Restore stored session lock on mount
+  // Restore stored session lock on mount (ignore employer lock on mobile/tablet)
   useEffect(() => {
     const storedLock = getStoredFormLock();
     if (storedLock) {
-      setFormLock(storedLock);
-      setRegistrationType(storedLock);
+      if (isMobileClient && storedLock === 'employer') {
+        clearStoredFormLock();
+        setFormLock(null);
+        setRegistrationType('alumni');
+      } else {
+        setFormLock(storedLock);
+        setRegistrationType(storedLock);
+      }
     }
-  }, []);
+  }, [isMobileClient]);
 
   // Detect "Started filling" on any registration form field
   useEffect(() => {
@@ -1427,7 +1432,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         return false;
       });
 
-      if (clientPlatform === 'mobile' && potentialUser && (potentialUser.role || 'alumni').toLowerCase() !== 'alumni') {
+      if (isMobileClient && potentialUser && normalizeSystemRole(potentialUser.role) !== 'alumni') {
         setLoginError('Administrative access is restricted to the web portal.');
         return;
       }
@@ -1641,9 +1646,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   // Step 3 Submit Registration (Strictly Alumni Role)
   const handleCompleteRegistration = () => {
     if (!agreedToPrivacyConsent || !agreedToZeroDisclosure || !agreedToTerms) {
-      alert('Please confirm all required consents (Data Privacy Consent, Zero Disclosure Agreement, and Honor Pledge) to complete registration.');
+      setStep3Error('Please confirm all required consents (Data Privacy Consent, Zero Disclosure Agreement, and Honor Pledge) to complete registration.');
       return;
     }
+    setStep3Error('');
 
     const fullName = verifiedRecord?.fullName?.trim() || `${firstName.trim()} ${lastName.trim()}`.trim();
     const finalCourse = verifiedRecord?.course || course;
@@ -2244,28 +2250,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </div>
             ) : loginError ? (
               loginError.includes('Administrative access is restricted to the web portal') ? (
-                <div className="mb-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-900 dark:text-amber-100 shadow-xs">
+                <div className="mb-4 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/60 text-amber-900 dark:text-amber-100">
                   <div className="flex items-start gap-3">
                     <ShieldAlert className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
-                    <div className="flex-1 space-y-1.5">
-                      <h4 className="font-bold text-xs uppercase tracking-wider text-amber-900 dark:text-amber-200">
-                        Institutional Access Policy
+                    <div className="flex-1 space-y-2">
+                      <h4 className="font-bold text-[12px] uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                        Desktop Browser Required
                       </h4>
-                      <p className="text-xs font-semibold leading-relaxed text-amber-950 dark:text-amber-100">
-                        Administrative access is restricted to the web portal.
+                      <p className="text-[13px] font-semibold leading-snug text-amber-950 dark:text-amber-100">
+                        Mobile and tablet sign-in is exclusively for St. Cecilia&apos;s Alumni.
                       </p>
-                      <p className="text-[11px] text-amber-800 dark:text-amber-300/80 leading-relaxed">
-                        Administrators, Registrars, Staff, and Employers must log in via the official web portal. Alumni members can sign in on both mobile APK and web.
+                      <p className="text-[12px] text-amber-800 dark:text-amber-300/90 leading-relaxed">
+                        Admin, Moderator, Staff, and Employer accounts require a desktop or laptop screen (1024px or wider).
                       </p>
-                      <div className="pt-2 flex items-center gap-2">
-                        <a
-                          href={typeof window !== 'undefined' ? window.location.origin : '/'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#8B181B] hover:bg-[#721316] text-white text-xs font-semibold shadow-xs transition-colors"
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLoginIdentifier('');
+                            setLoginPassword('');
+                            setLoginError('');
+                          }}
+                          className="min-h-[44px] px-4 py-2 rounded-xl bg-[#8B181B] dark:bg-[#E11D48] hover:bg-[#721316] text-white text-[13px] font-semibold transition-opacity active:opacity-85 cursor-pointer"
                         >
-                          Launch Web Portal
-                        </a>
+                          Use an Alumni Account
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -2415,25 +2424,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     </span>
                     <div className="flex-grow border-t border-stone-200"></div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
                       disabled={isLockedOut || isBiometricLoading}
                       onClick={() => handleBiometricSignIn('face')}
-                      className="py-2.5 px-3 rounded-xl border border-stone-200/90 hover:border-[#8B181B] bg-white hover:bg-stone-50/80 text-stone-800 text-xs font-bold tracking-wide transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="min-h-[46px] py-2.5 px-3 rounded-xl border border-stone-200/90 dark:border-[#262626] hover:border-[#8B181B] dark:hover:border-[#E11D48] bg-white dark:bg-[#171717] hover:bg-stone-50/80 dark:hover:bg-[#262626] text-stone-800 dark:text-[#FAFAFA] text-[13px] lg:text-xs font-bold tracking-wide transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       title="Sign in with Face Detection"
                     >
-                      <ScanFace className="w-4 h-4 text-[#8B181B]" />
+                      <ScanFace className="w-4 h-4 text-[#8B181B] dark:text-[#FB7185]" />
                       <span className="truncate">Face Scan</span>
                     </button>
                     <button
                       type="button"
                       disabled={isLockedOut || isBiometricLoading}
                       onClick={() => handleBiometricSignIn('fingerprint')}
-                      className="py-2.5 px-3 rounded-xl border border-stone-200/90 hover:border-[#8B181B] bg-white hover:bg-stone-50/80 text-stone-800 text-xs font-bold tracking-wide transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="min-h-[46px] py-2.5 px-3 rounded-xl border border-stone-200/90 dark:border-[#262626] hover:border-[#8B181B] dark:hover:border-[#E11D48] bg-white dark:bg-[#171717] hover:bg-stone-50/80 dark:hover:bg-[#262626] text-stone-800 dark:text-[#FAFAFA] text-[13px] lg:text-xs font-bold tracking-wide transition-all shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       title="Sign in with Fingerprint / Touch ID"
                     >
-                      <Fingerprint className="w-4 h-4 text-[#8B181B]" />
+                      <Fingerprint className="w-4 h-4 text-[#8B181B] dark:text-[#FB7185]" />
                       <span className="truncate">Fingerprint</span>
                     </button>
                   </div>
@@ -2441,9 +2450,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               )}
 
               {/* Bottom Switcher */}
-              <div className="text-center pt-4 text-xs text-stone-500 space-y-1.5">
-                <div>
-                  Don't have an alumni account?{' '}
+              <div className="text-center pt-4 text-[13px] lg:text-xs text-stone-500 dark:text-[#A3A3A3] space-y-1.5">
+                <div className="flex flex-wrap items-center justify-center gap-1">
+                  <span>Don't have an alumni account?</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -2451,7 +2460,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       setRegistrationType('alumni');
                       setStep(1);
                     }}
-                    className="text-[#8B181B] font-bold hover:underline cursor-pointer"
+                    className="min-h-[44px] inline-flex items-center px-1.5 text-[#8B181B] dark:text-[#FB7185] font-bold hover:underline cursor-pointer"
                   >
                     Register as Alumnus
                   </button>
@@ -2465,7 +2474,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         setMode('register');
                         setRegistrationType('employer');
                       }}
-                      className="text-[#8B181B] font-bold hover:underline cursor-pointer"
+                      className="text-[#8B181B] dark:text-[#FB7185] font-bold hover:underline cursor-pointer"
                     >
                       Register as Employer Partner
                     </button>
@@ -2578,7 +2587,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   </div>
                 )}
 
-                {registrationType === 'employer' ? (
+                {!isMobileClient && registrationType === 'employer' ? (
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-[#8B181B] mb-2 border border-red-200">
                       <Building2 className="w-3 h-3" />
@@ -3203,12 +3212,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               }
                             }}
                             placeholder="e.g. SCC-22-00017358 or SCC-2020-0192"
-                            className={`w-full pl-4 pr-10 py-3 bg-white border rounded-xl text-sm font-mono tracking-wide transition-all shadow-2xs ${
+                            className={`w-full min-h-[48px] pl-4 pr-10 py-3 bg-[#F3F4F6] dark:bg-[#262626] lg:bg-white lg:dark:bg-stone-900 text-[#111827] dark:text-[#FAFAFA] placeholder:text-[#737373] dark:placeholder:text-[#A8A8A8] border rounded-xl text-base lg:text-sm font-mono tracking-wide transition-all shadow-2xs ${
                               studentVerificationStatus === 'verified'
-                                ? 'border-emerald-500 ring-2 ring-emerald-500/20 text-emerald-950 font-semibold'
+                                ? 'border-emerald-500 ring-2 ring-emerald-500/20 font-semibold'
                                 : studentVerificationStatus === 'failed'
                                 ? 'border-red-400 ring-2 ring-red-400/20'
-                                : 'border-stone-200 focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15'
+                                : 'border-transparent lg:border-stone-200 lg:dark:border-stone-700 focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15'
                             }`}
                           />
                           {studentVerificationStatus === 'verified' && (
@@ -3222,10 +3231,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         type="button"
                         disabled={studentVerificationStatus === 'checking' || !studentId.trim()}
                         onClick={() => handleVerifyStudentClick()}
-                        className={`w-full min-h-[44px] py-3 px-4 rounded-xl text-xs font-semibold tracking-wider uppercase flex items-center justify-center gap-2 transition-all disabled:opacity-50 ${
+                        className={`w-full min-h-[48px] lg:min-h-[44px] py-3 px-4 rounded-xl text-[14px] lg:text-xs font-semibold lg:tracking-wider lg:uppercase flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer ${
                           studentVerificationStatus === 'verified'
                             ? 'ds-btn-secondary'
-                            : 'ds-btn-primary'
+                            : 'bg-[#8B181B] dark:bg-[#E11D48] text-white lg:ds-btn-primary active:opacity-85'
                         }`}
                       >
                         {studentVerificationStatus === 'checking' ? (
@@ -3242,14 +3251,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       </button>
 
                       {/* No Student ID / Unlisted Record Helper Card */}
-                      <div className="p-3.5 bg-stone-50 border border-stone-200 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-2xs">
+                      <div className="p-3.5 bg-[#F3F4F6] dark:bg-[#1C1C1E] lg:bg-stone-50 border border-[#EFEFEF] dark:border-[#262626] lg:border-stone-200 rounded-2xl flex items-center justify-between gap-3 text-xs">
                         <div className="flex items-start gap-2.5 min-w-0">
-                          <HelpCircle className="w-4 h-4 text-stone-400 shrink-0 mt-0.5" />
+                          <HelpCircle className="w-4 h-4 text-[#737373] dark:text-[#A8A8A8] shrink-0 mt-0.5" />
                           <div className="min-w-0">
-                            <span className="font-bold text-stone-800 block truncate">
+                            <span className="font-bold text-[#111827] dark:text-[#FAFAFA] block leading-snug">
                               No Student ID or graduated before digital records?
                             </span>
-                            <span className="text-[11px] text-stone-500 block leading-tight">
+                            <span className="text-[11px] text-[#737373] dark:text-[#A8A8A8] block leading-tight mt-0.5">
                               Submit a direct verification appeal to the Registrar.
                             </span>
                           </div>
@@ -3257,9 +3266,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         <button
                           type="button"
                           onClick={() => handleOpenManualVerification()}
-                          className="shrink-0 px-3 py-1.5 bg-white hover:bg-stone-100 text-stone-800 border border-stone-300 hover:border-[#8B181B] hover:text-[#8B181B] rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                          className="shrink-0 min-h-[44px] px-3.5 py-2 bg-white dark:bg-[#262626] hover:bg-stone-100 text-[#111827] dark:text-[#FAFAFA] border border-[#E5E7EB] dark:border-[#3A3A3C] rounded-xl text-xs font-bold transition-all cursor-pointer"
                         >
-                          Request Verification
+                          Request Appeal
                         </button>
                       </div>
 
@@ -3399,7 +3408,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
                         {/* Email Address */}
                         <div>
-                          <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                          <label className="block text-[12px] lg:text-[11px] font-bold text-[#111827] dark:text-[#FAFAFA] lg:text-stone-700 lg:uppercase lg:tracking-wider mb-1">
                             Email Address <span className="text-red-600">*</span>
                           </label>
                           <div className="relative">
@@ -3409,15 +3418,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               value={regEmail}
                               onChange={(e) => setRegEmail(e.target.value)}
                               placeholder="e.g. juan.delacruz@alumni.stcecilia.edu"
-                              className="w-full pl-9 pr-4 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 rounded-xl text-sm focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
+                              className="w-full min-h-[48px] lg:min-h-[42px] pl-10 pr-4 py-2.5 bg-[#F3F4F6] dark:bg-[#262626] lg:bg-stone-50/50 lg:hover:bg-white lg:focus:bg-white border border-transparent lg:border-stone-200 rounded-xl text-base lg:text-sm text-[#111827] dark:text-[#FAFAFA] focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
                             />
-                            <Mail className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                           </div>
                         </div>
 
                         {/* Password with clean inline criteria */}
                         <div>
-                          <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                          <label className="block text-[12px] lg:text-[11px] font-bold text-[#111827] dark:text-[#FAFAFA] lg:text-stone-700 lg:uppercase lg:tracking-wider mb-1">
                             Create Password <span className="text-red-600">*</span>
                           </label>
                           <div className="relative">
@@ -3427,13 +3436,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               value={regPassword}
                               onChange={(e) => setRegPassword(e.target.value)}
                               placeholder="••••••••••••"
-                              className="w-full pl-9 pr-10 py-2.5 bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 rounded-xl text-sm focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
+                              className="w-full min-h-[48px] lg:min-h-[42px] pl-10 pr-12 py-2.5 bg-[#F3F4F6] dark:bg-[#262626] lg:bg-stone-50/50 lg:hover:bg-white lg:focus:bg-white border border-transparent lg:border-stone-200 rounded-xl text-base lg:text-sm text-[#111827] dark:text-[#FAFAFA] focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15 transition-all"
                             />
-                            <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <button
                               type="button"
                               onClick={() => setShowRegPassword(!showRegPassword)}
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors cursor-pointer"
                               aria-label={showRegPassword ? 'Hide password' : 'Show password'}
                             >
                               {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -3442,13 +3451,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
                           {/* Inline requirement indicators */}
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 px-0.5 text-[11px]">
-                            <span className={`inline-flex items-center gap-1 ${hasMinLength ? 'text-emerald-700 font-semibold' : 'text-stone-400'}`}>
+                            <span className={`inline-flex items-center gap-1 ${hasMinLength ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-stone-400'}`}>
                               <span>{hasMinLength ? '✓' : '•'}</span> 8+ chars
                             </span>
-                            <span className={`inline-flex items-center gap-1 ${hasUppercase ? 'text-emerald-700 font-semibold' : 'text-stone-400'}`}>
+                            <span className={`inline-flex items-center gap-1 ${hasUppercase ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-stone-400'}`}>
                               <span>{hasUppercase ? '✓' : '•'}</span> Uppercase
                             </span>
-                            <span className={`inline-flex items-center gap-1 ${hasNumber ? 'text-emerald-700 font-semibold' : 'text-stone-400'}`}>
+                            <span className={`inline-flex items-center gap-1 ${hasNumber ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-stone-400'}`}>
                               <span>{hasNumber ? '✓' : '•'}</span> Number
                             </span>
                           </div>
@@ -3456,7 +3465,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
                         {/* Confirm Password */}
                         <div>
-                          <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                          <label className="block text-[12px] lg:text-[11px] font-bold text-[#111827] dark:text-[#FAFAFA] lg:text-stone-700 lg:uppercase lg:tracking-wider mb-1">
                             Confirm Password <span className="text-red-600">*</span>
                           </label>
                           <div className="relative">
@@ -3466,19 +3475,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               value={confirmPassword}
                               onChange={(e) => setConfirmPassword(e.target.value)}
                               placeholder="••••••••••••"
-                              className={`w-full pl-9 pr-10 py-2.5 rounded-xl text-sm transition-all ${
+                              className={`w-full min-h-[48px] lg:min-h-[42px] pl-10 pr-12 py-2.5 rounded-xl text-base lg:text-sm transition-all ${
                                 confirmPassword && confirmPassword === regPassword
-                                  ? 'bg-emerald-50/20 hover:bg-white focus:bg-white border border-emerald-500 text-emerald-950 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20'
+                                  ? 'bg-emerald-50/20 dark:bg-emerald-950/20 border border-emerald-500 text-emerald-950 dark:text-emerald-100 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20'
                                   : confirmPassword && confirmPassword !== regPassword
-                                  ? 'bg-red-50/20 hover:bg-white focus:bg-white border border-red-400 text-red-950 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
-                                  : 'bg-stone-50/50 hover:bg-white focus:bg-white border border-stone-200 focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15'
+                                  ? 'bg-red-50/20 dark:bg-red-950/20 border border-red-400 text-red-950 dark:text-red-100 focus:border-red-500 focus:ring-2 focus:ring-red-500/20'
+                                  : 'bg-[#F3F4F6] dark:bg-[#262626] lg:bg-stone-50/50 border border-transparent lg:border-stone-200 text-[#111827] dark:text-[#FAFAFA] focus:border-[#8B181B] focus:ring-2 focus:ring-[#8B181B]/15'
                               }`}
                             />
-                            <Lock className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <Lock className="w-4 h-4 text-stone-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <button
                               type="button"
                               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 text-stone-400 hover:text-stone-700 transition-colors cursor-pointer"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors cursor-pointer"
                               aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                             >
                               {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -3500,17 +3509,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
                         {/* Account Classification */}
                         <div className="pt-1">
-                          <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                          <label className="block text-[11px] font-bold text-stone-700 dark:text-[#A8A8A8] uppercase tracking-wider mb-1.5">
                             Account Classification
                           </label>
-                          <div className="p-2.5 bg-red-50/80 border border-red-200/60 rounded-xl flex items-center justify-between">
+                          <div className="p-2.5 bg-red-50/80 dark:bg-[#1C1C1E] border border-red-200/60 dark:border-[#262626] rounded-xl flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <GraduationCap className="w-4 h-4 text-[#8B181B]" />
+                              <GraduationCap className="w-4 h-4 text-[#8B181B] dark:text-[#FB7185]" />
                               <div>
-                                <span className="text-xs font-bold text-stone-900 block leading-tight">
+                                <span className="text-xs font-bold text-stone-900 dark:text-[#FAFAFA] block leading-tight">
                                   Graduated Alumnus
                                 </span>
-                                <span className="text-[10px] text-stone-500">
+                                <span className="text-[10px] text-stone-500 dark:text-[#A8A8A8]">
                                   Registrar verified • Class of {verifiedRecord?.batchYear || batch}
                                 </span>
                               </div>
@@ -3523,23 +3532,23 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       </div>
 
                       {/* Section 3: Professional & Contact Details (Mandatory) */}
-                      <div className="p-4 bg-stone-50/70 rounded-2xl border border-stone-200/80 space-y-3">
+                      <div className="p-4 bg-[#F9FAFB] dark:bg-[#121212] lg:bg-stone-50/70 rounded-2xl border border-[#EFEFEF] dark:border-[#262626] lg:border-stone-200/80 space-y-3">
                         <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-bold text-stone-800 uppercase tracking-wider flex items-center gap-1.5">
-                            <Briefcase className="w-3.5 h-3.5 text-[#8B181B]" />
+                          <h4 className="text-xs font-bold text-stone-800 dark:text-[#FAFAFA] uppercase tracking-wider flex items-center gap-1.5">
+                            <Briefcase className="w-3.5 h-3.5 text-[#8B181B] dark:text-[#FB7185]" />
                             <span>Professional Profile & Contact Details</span>
                           </h4>
                         </div>
 
                         <div>
-                          <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                          <label className="block text-[12px] lg:text-[11px] font-bold text-stone-700 dark:text-[#FAFAFA] uppercase tracking-wider mb-1">
                             Current Employment Status <span className="text-red-600">*</span>
                           </label>
                           <select
                             required
                             value={regEmploymentStatus}
                             onChange={(e) => setRegEmploymentStatus(e.target.value)}
-                            className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs font-semibold text-stone-800 focus:outline-hidden focus:border-[#8B181B]"
+                            className="w-full min-h-[46px] lg:min-h-[38px] px-3 py-2 bg-white dark:bg-[#262626] border border-stone-200 dark:border-[#3A3A3C] rounded-xl text-base lg:text-xs font-semibold text-stone-800 dark:text-[#FAFAFA] focus:outline-hidden focus:border-[#8B181B]"
                           >
                             <option value="Employed">Employed</option>
                             <option value="Self-employed">Self-employed</option>
@@ -3552,7 +3561,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           <div>
-                            <label className="block text-[11px] font-medium text-stone-600 mb-1">
+                            <label className="block text-[11px] font-medium text-stone-600 dark:text-[#A8A8A8] mb-1">
                               Current Role / Position {regEmploymentStatus === 'N/A' || regEmploymentStatus === 'Retired' ? '(Disabled)' : ''}
                             </label>
                             <input
@@ -3561,11 +3570,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               value={regPosition}
                               onChange={(e) => setRegPosition(e.target.value)}
                               placeholder="e.g. Software Engineer, Teacher, N/A"
-                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs disabled:bg-stone-100 disabled:cursor-not-allowed"
+                              className="w-full min-h-[46px] lg:min-h-[38px] px-3 py-2 bg-white dark:bg-[#262626] border border-stone-200 dark:border-[#3A3A3C] rounded-xl text-base lg:text-xs text-[#111827] dark:text-[#FAFAFA] disabled:bg-stone-100 dark:disabled:bg-[#1C1C1E] disabled:cursor-not-allowed"
                             />
                           </div>
                           <div>
-                            <label className="block text-[11px] font-medium text-stone-600 mb-1">
+                            <label className="block text-[11px] font-medium text-stone-600 dark:text-[#A8A8A8] mb-1">
                               Company / Organization {regEmploymentStatus === 'N/A' || regEmploymentStatus === 'Retired' ? '(Disabled)' : ''}
                             </label>
                             <input
@@ -3574,14 +3583,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               value={regCompany}
                               onChange={(e) => setRegCompany(e.target.value)}
                               placeholder="e.g. DepEd, Tech Corp, N/A"
-                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs disabled:bg-stone-100 disabled:cursor-not-allowed"
+                              className="w-full min-h-[46px] lg:min-h-[38px] px-3 py-2 bg-white dark:bg-[#262626] border border-stone-200 dark:border-[#3A3A3C] rounded-xl text-base lg:text-xs text-[#111827] dark:text-[#FAFAFA] disabled:bg-stone-100 dark:disabled:bg-[#1C1C1E] disabled:cursor-not-allowed"
                             />
                           </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                           <div>
-                            <label className="block text-[11px] font-bold text-stone-700 uppercase tracking-wider mb-1">
+                            <label className="block text-[11px] font-bold text-stone-700 dark:text-[#FAFAFA] uppercase tracking-wider mb-1">
                               Contact Number <span className="text-red-600">*</span>
                             </label>
                             <input
@@ -3595,18 +3604,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                                 if (step2Error) setStep2Error('');
                               }}
                               placeholder="09123456789"
-                              className={`w-full px-3 py-2 bg-white border rounded-xl text-xs ${
+                              className={`w-full min-h-[46px] lg:min-h-[38px] px-3 py-2 bg-white dark:bg-[#262626] border rounded-xl text-base lg:text-xs text-[#111827] dark:text-[#FAFAFA] ${
                                 phone && (!phone.startsWith('09') || phone.length !== 11)
                                   ? 'border-red-400 focus:border-red-500'
                                   : phone && phone.startsWith('09') && phone.length === 11
                                   ? 'border-emerald-500 focus:border-emerald-600'
-                                  : 'border-stone-200 focus:border-[#8B181B]'
+                                  : 'border-stone-200 dark:border-[#3A3A3C] focus:border-[#8B181B]'
                               }`}
                             />
                             <span className="text-[10px] text-stone-400 mt-0.5 block">11 digits starting with 09 (e.g. 09123456789)</span>
                           </div>
                           <div>
-                            <label className="block text-[11px] font-medium text-stone-600 mb-1">
+                            <label className="block text-[11px] font-medium text-stone-600 dark:text-[#A8A8A8] mb-1">
                               City / Residence <span className="text-stone-400 font-normal">(optional)</span>
                             </label>
                             <input
@@ -3614,7 +3623,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               value={location}
                               onChange={(e) => setLocation(e.target.value)}
                               placeholder="Minglanilla, Cebu"
-                              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-xs"
+                              className="w-full min-h-[46px] lg:min-h-[38px] px-3 py-2 bg-white dark:bg-[#262626] border border-stone-200 dark:border-[#3A3A3C] rounded-xl text-base lg:text-xs text-[#111827] dark:text-[#FAFAFA]"
                             />
                           </div>
                         </div>
@@ -3644,7 +3653,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         </button>
                         <button
                           type="submit"
-                          className="ds-btn-primary flex-1 min-h-[44px] py-2.5 tracking-wider uppercase group"
+                          className="ds-btn-primary flex-1 min-h-[48px] lg:min-h-[44px] py-2.5 tracking-wider uppercase group"
                         >
                           <span>Review & Pledge</span>
                           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -3966,6 +3975,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       </div>
                     </div>
 
+                    {step3Error && (
+                      <div className="mb-4 p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-200 text-xs border border-red-200/80 dark:border-red-900/60 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+                        <span>{step3Error}</span>
+                      </div>
+                    )}
+
                     {/* Action Buttons */}
                     <div className="flex flex-wrap sm:flex-nowrap gap-2">
                       <button
@@ -3993,10 +4009,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         type="button"
                         disabled={!allConsentsAgreed}
                         onClick={handleCompleteRegistration}
-                        className={`flex-1 min-h-[44px] py-2.5 rounded-xl text-xs font-semibold tracking-wider uppercase transition-all ${
+                        className={`flex-1 min-h-[48px] lg:min-h-[44px] py-2.5 rounded-xl text-[14px] lg:text-xs font-semibold lg:tracking-wider lg:uppercase transition-all ${
                           allConsentsAgreed
-                            ? 'ds-btn-primary'
-                            : 'bg-stone-300 text-stone-500 cursor-not-allowed'
+                            ? 'bg-[#8B181B] dark:bg-[#E11D48] text-white lg:ds-btn-primary active:opacity-85 cursor-pointer'
+                            : 'bg-stone-300 dark:bg-[#262626] text-stone-500 dark:text-[#737373] cursor-not-allowed'
                         }`}
                       >
                         {allConsentsAgreed ? 'Complete Registration' : 'Confirm Consents'}
@@ -4025,26 +4041,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           ======================================================== */}
       {showDisputeModal && (
         <div
-          className="fixed inset-0 bg-stone-950/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150"
+          className="fixed inset-0 bg-stone-950/60 backdrop-blur-xs flex items-end lg:items-center justify-center p-0 lg:p-4 z-50 animate-in fade-in duration-150"
           onClick={() => setShowDisputeModal(false)}
         >
           <div
-            className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-6 sm:p-7 relative"
+            className="bg-white dark:bg-[#121212] rounded-t-3xl lg:rounded-3xl border border-stone-200 dark:border-[#262626] shadow-2xl max-w-lg w-full max-h-[92dvh] overflow-y-auto p-5 sm:p-7 relative pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
           >
             {disputeReferenceId ? (
               <div className="text-center py-6 space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200 shadow-2xs">
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 flex items-center justify-center mx-auto border border-amber-200 dark:border-amber-800 shadow-2xs">
                   <Scale className="w-7 h-7 stroke-[2]" />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-1 rounded-full border border-amber-300">
+                  <span className="text-[11px] lg:text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200 bg-amber-100 dark:bg-amber-950/60 px-2.5 py-1 rounded-full border border-amber-300 dark:border-amber-800">
                     Conflict Case Flagged: #{disputeReferenceId}
                   </span>
-                  <h3 className="text-xl font-bold font-sans text-stone-900 mt-2">
+                  <h3 className="text-xl font-bold font-sans text-stone-900 dark:text-[#FAFAFA] mt-2">
                     ID Dispute Submitted to Registrar
                   </h3>
-                  <p className="text-xs text-stone-500 leading-relaxed max-w-sm mx-auto mt-2">
+                  <p className="text-[13px] lg:text-xs text-stone-500 dark:text-[#A3A3A3] leading-relaxed max-w-sm mx-auto mt-2">
                     Your claim for Student ID <strong>{disputeStudentId || studentId}</strong> has been logged in the official <strong>Requests & Conflicts</strong> queue. A Registrar Officer will review your academic credentials and initiate hearing resolution.
                   </p>
                 </div>
@@ -4055,7 +4071,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       setShowDisputeModal(false);
                       setDisputeReferenceId(null);
                     }}
-                    className="px-5 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                    className="min-h-[46px] px-6 py-2.5 bg-stone-900 dark:bg-[#E11D48] hover:bg-stone-800 text-white rounded-xl text-[14px] lg:text-xs font-bold transition-all shadow-xs cursor-pointer"
                   >
                     Close Window
                   </button>
@@ -4063,44 +4079,45 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between pb-4 border-b border-stone-100">
+                <div className="flex items-center justify-between pb-4 border-b border-stone-100 dark:border-[#262626]">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-200">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 flex items-center justify-center border border-amber-200 dark:border-amber-800">
                       <Scale className="w-4 h-4 stroke-[2]" />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-stone-900">Dispute Student ID Claim</h3>
-                      <p className="text-xs text-stone-500">Report duplicate registration conflict to the Registrar</p>
+                      <h3 className="text-base font-bold text-stone-900 dark:text-[#FAFAFA]">Dispute Student ID Claim</h3>
+                      <p className="text-xs text-stone-500 dark:text-[#A3A3A3]">Report duplicate registration conflict to the Registrar</p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowDisputeModal(false)}
-                    className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 cursor-pointer"
+                    aria-label="Close dispute modal"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-stone-400 hover:text-stone-700 dark:hover:text-[#FAFAFA] hover:bg-stone-100 dark:hover:bg-[#262626] cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
                 <form onSubmit={handleDisputeSubmit} className="space-y-4 mt-5">
-                  <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+                  <div className="p-3 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/70 rounded-xl text-xs lg:text-[11px] text-amber-900 dark:text-amber-200 leading-relaxed">
                     Student ID <strong>{disputeStudentId || studentId}</strong> is already registered. If someone registered using your credentials, submit your details below to place this in the Registrar Requests & Conflicts hearing queue.
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-stone-700 block mb-1">
+                    <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                       Contested Student ID Number
                     </label>
                     <input
                       type="text"
                       readOnly
                       value={disputeStudentId || studentId}
-                      className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-100 font-mono text-xs font-bold text-stone-700 cursor-not-allowed"
+                      className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-100 dark:bg-[#1C1C1C] font-mono text-base lg:text-xs font-bold text-stone-700 dark:text-[#D4D4D4] cursor-not-allowed"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-stone-700 block mb-1">
+                    <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                       Your Full Legal Name <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -4109,12 +4126,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       value={disputeFullName}
                       onChange={(e) => setDisputeFullName(e.target.value)}
                       placeholder="e.g. Maria Santos Dela Cruz"
-                      className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-medium text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
+                      className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs font-medium text-stone-900 dark:text-[#FAFAFA] focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-stone-700 block mb-1">
+                    <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                       Your Contact Email Address <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -4123,19 +4140,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       value={disputeEmail}
                       onChange={(e) => setDisputeEmail(e.target.value)}
                       placeholder="name@email.com"
-                      className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-medium text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
+                      className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs font-medium text-stone-900 dark:text-[#FAFAFA] focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-bold text-stone-700 block mb-1">
+                      <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                         Degree Program
                       </label>
                       <select
                         value={disputeCourse}
                         onChange={(e) => setDisputeCourse(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900"
+                        className="w-full min-h-[46px] px-3 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs text-stone-900 dark:text-[#FAFAFA]"
                       >
                         {allDegreeOptions.map((prog) => (
                           <option key={prog} value={prog}>
@@ -4146,13 +4163,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-stone-700 block mb-1">
+                      <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                         Graduation Batch Year
                       </label>
                       <select
                         value={disputeBatch}
                         onChange={(e) => setDisputeBatch(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900"
+                        className="w-full min-h-[46px] px-3 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs text-stone-900 dark:text-[#FAFAFA]"
                       >
                         {centenaryBatches.map((yr) => (
                           <option key={yr} value={yr}>
@@ -4164,7 +4181,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-stone-700 block mb-1">
+                    <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                       Dispute Explanation & Supporting Statement <span className="text-red-500">*</span>
                     </label>
                     <textarea
@@ -4173,16 +4190,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       value={disputeReason}
                       onChange={(e) => setDisputeReason(e.target.value)}
                       placeholder="Explain why this ID belongs to you (e.g. graduation year, transcript details, previous student number)..."
-                      className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900 resize-none focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs text-stone-900 dark:text-[#FAFAFA] resize-none focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
                     />
                   </div>
 
                   {/* Required Selfie with ID Photo Upload Section (Dispute Student ID Claim) */}
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-700 block">
+                    <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block">
                       Selfie with ID <span className="text-red-500">*</span>
                     </label>
-                    <p className="text-[11px] text-stone-500 leading-relaxed">
+                    <p className="text-xs lg:text-[11px] text-stone-500 dark:text-[#A3A3A3] leading-relaxed">
                       Upload a clear selfie of yourself holding your valid School ID or any valid government-issued ID. Ensure that your face and identification details are clearly visible. This photo is required to verify your identity and ownership of the disputed Student ID.
                     </p>
 
@@ -4200,25 +4217,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         type="button"
                         disabled={isProcessingDisputeSelfie || isSubmittingDispute}
                         onClick={() => disputeSelfieInputRef.current?.click()}
-                        className={`w-full p-4 rounded-xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 ${
+                        className={`w-full min-h-[104px] p-4 rounded-xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 ${
                           disputeSelfieError
-                            ? 'border-red-300 bg-red-50/40 hover:bg-red-50/70'
-                            : 'border-stone-200 bg-stone-50 hover:border-[#8B181B]/40 hover:bg-stone-100/60'
+                            ? 'border-red-300 dark:border-red-800 bg-red-50/40 dark:bg-red-950/20 hover:bg-red-50/70'
+                            : 'border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] hover:border-[#8B181B]/40 hover:bg-stone-100/60 dark:hover:bg-[#1F1F1F]'
                         }`}
                       >
-                        <div className="w-9 h-9 rounded-xl bg-white border border-stone-200 text-[#8B181B] flex items-center justify-center shadow-2xs">
+                        <div className="w-9 h-9 rounded-xl bg-white dark:bg-[#262626] border border-stone-200 dark:border-[#333] text-[#8B181B] dark:text-[#FB7185] flex items-center justify-center shadow-2xs">
                           <Camera className="w-4 h-4" strokeWidth={1.75} />
                         </div>
-                        <span className="text-xs font-bold text-stone-800">
+                        <span className="text-xs font-bold text-stone-800 dark:text-[#FAFAFA]">
                           {isProcessingDisputeSelfie ? 'Processing photo...' : 'Upload Selfie with ID'}
                         </span>
-                        <span className="text-[10px] text-stone-500">
+                        <span className="text-[11px] text-stone-500 dark:text-[#A3A3A3]">
                           JPG, JPEG, PNG, or WEBP (Max 5 MB)
                         </span>
                       </button>
                     ) : (
-                      <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 space-y-2.5">
-                        <div className="relative rounded-lg overflow-hidden border border-stone-200 bg-stone-900/5 max-h-48 flex items-center justify-center">
+                      <div className="rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] p-3 space-y-2.5">
+                        <div className="relative rounded-lg overflow-hidden border border-stone-200 dark:border-[#262626] bg-stone-900/5 max-h-48 flex items-center justify-center">
                           <img
                             src={disputeSelfieDataUrl}
                             alt="Selfie with ID preview"
@@ -4228,7 +4245,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={1.75} />
-                            <span className="text-[11px] font-medium text-stone-700 truncate max-w-[180px]">
+                            <span className="text-[11px] font-medium text-stone-700 dark:text-[#D4D4D4] truncate max-w-[180px]">
                               {disputeSelfieFileName || 'Selfie with ID uploaded'}
                             </span>
                           </div>
@@ -4237,18 +4254,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                               type="button"
                               disabled={isProcessingDisputeSelfie || isSubmittingDispute}
                               onClick={() => disputeSelfieInputRef.current?.click()}
-                              className="px-2.5 py-1 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 text-stone-700 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                              className="min-h-[44px] lg:min-h-[30px] px-3 py-1.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-white dark:bg-[#262626] hover:bg-stone-100 text-stone-700 dark:text-[#FAFAFA] text-xs lg:text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                             >
-                              <Upload className="w-3 h-3" strokeWidth={1.75} />
+                              <Upload className="w-3.5 h-3.5" strokeWidth={1.75} />
                               <span>Replace Photo</span>
                             </button>
                             <button
                               type="button"
                               disabled={isProcessingDisputeSelfie || isSubmittingDispute}
                               onClick={handleRemoveDisputeSelfie}
-                              className="px-2.5 py-1 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-[#8B181B] text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                              className="min-h-[44px] lg:min-h-[30px] px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 text-[#8B181B] dark:text-[#FB7185] text-xs lg:text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                             >
-                              <Trash2 className="w-3 h-3" strokeWidth={1.75} />
+                              <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
                               <span>Remove Photo</span>
                             </button>
                           </div>
@@ -4257,14 +4274,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     )}
 
                     {disputeSelfieError && (
-                      <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1">
+                      <p className="text-xs lg:text-[11px] font-semibold text-red-600 dark:text-[#FB7185] flex items-center gap-1">
                         <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
                         <span>{disputeSelfieError}</span>
                       </p>
                     )}
                   </div>
 
-                  <div className="pt-3 border-t border-stone-100 flex items-center justify-end gap-2.5">
+                  <div className="pt-3 border-t border-stone-100 dark:border-[#262626] flex items-center justify-end gap-2.5">
                     <button
                       type="button"
                       disabled={isSubmittingDispute}
@@ -4272,14 +4289,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         setShowDisputeModal(false);
                         setDisputeSelfieError(null);
                       }}
-                      className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-xs font-semibold hover:bg-stone-50 cursor-pointer disabled:opacity-50"
+                      className="min-h-[46px] lg:min-h-[38px] px-4 py-2 rounded-xl border border-stone-200 dark:border-[#262626] text-stone-600 dark:text-[#D4D4D4] text-[14px] lg:text-xs font-semibold hover:bg-stone-50 dark:hover:bg-[#1C1C1C] cursor-pointer disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmittingDispute || isProcessingDisputeSelfie}
-                      className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
+                      className="min-h-[46px] lg:min-h-[38px] px-5 py-2 bg-[#8B181B] dark:bg-[#E11D48] hover:bg-[#721316] text-white rounded-xl text-[14px] lg:text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
                     >
                       <Scale className="w-3.5 h-3.5" />
                       <span>{isSubmittingDispute ? 'Submitting...' : 'Submit ID Dispute'}</span>
@@ -4297,26 +4314,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           ======================================================== */}
       {showManualVerificationModal && (
         <div
-          className="fixed inset-0 bg-stone-950/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150"
+          className="fixed inset-0 bg-stone-950/60 backdrop-blur-xs flex items-end lg:items-center justify-center p-0 lg:p-4 z-50 animate-in fade-in duration-150"
           onClick={() => setShowManualVerificationModal(false)}
         >
           <div
-            className="bg-white rounded-3xl border border-stone-200 shadow-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-6 sm:p-7 relative"
+            className="bg-white dark:bg-[#121212] rounded-t-3xl lg:rounded-3xl border border-stone-200 dark:border-[#262626] shadow-2xl max-w-lg w-full max-h-[92dvh] overflow-y-auto p-5 sm:p-7 relative pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
           >
             {manualReferenceId ? (
               <div className="text-center py-6 space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200 shadow-2xs">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center mx-auto border border-emerald-200 dark:border-emerald-800 shadow-2xs">
                   <CheckCircle2 className="w-7 h-7 stroke-[2]" />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300">
+                  <span className="text-[11px] lg:text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-200 bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-300 dark:border-emerald-800">
                     Appeal Reference: #{manualReferenceId}
                   </span>
-                  <h3 className="text-xl font-bold font-sans text-stone-900 mt-2">
+                  <h3 className="text-xl font-bold font-sans text-stone-900 dark:text-[#FAFAFA] mt-2">
                     Verification Appeal Received
                   </h3>
-                  <p className="text-xs text-stone-500 leading-relaxed max-w-sm mx-auto mt-2">
+                  <p className="text-[13px] lg:text-xs text-stone-500 dark:text-[#A3A3A3] leading-relaxed max-w-sm mx-auto mt-2">
                     Your manual verification request has been queued in the <strong>Requests & Conflicts</strong> inbox. The Registrar will review your academic archives and update your status.
                   </p>
                 </div>
@@ -4327,7 +4344,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       setShowManualVerificationModal(false);
                       setManualReferenceId(null);
                     }}
-                    className="px-5 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                    className="min-h-[46px] px-6 py-2.5 bg-stone-900 dark:bg-[#E11D48] hover:bg-stone-800 text-white rounded-xl text-[14px] lg:text-xs font-bold transition-all shadow-xs cursor-pointer"
                   >
                     Done & Return to Sign In
                   </button>
@@ -4335,32 +4352,33 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between pb-4 border-b border-stone-100">
+                <div className="flex items-center justify-between pb-4 border-b border-stone-100 dark:border-[#262626]">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-red-50 text-[#8B181B] flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-xl bg-red-50 dark:bg-[#E11D48]/15 text-[#8B181B] dark:text-[#FB7185] flex items-center justify-center">
                       <FileText className="w-4 h-4 stroke-[2]" />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-stone-900">Manual Verification Request</h3>
-                      <p className="text-xs text-stone-500">For unlisted records or alumni without an electronic ID</p>
+                      <h3 className="text-base font-bold text-stone-900 dark:text-[#FAFAFA]">Manual Verification Request</h3>
+                      <p className="text-xs text-stone-500 dark:text-[#A3A3A3]">For unlisted records or alumni without an electronic ID</p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowManualVerificationModal(false)}
-                    className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 cursor-pointer"
+                    aria-label="Close manual verification modal"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-stone-400 hover:text-stone-700 dark:hover:text-[#FAFAFA] hover:bg-stone-100 dark:hover:bg-[#262626] cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
                 <form onSubmit={handleManualVerificationSubmit} className="space-y-3.5 mt-4">
-                  <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl text-[11px] text-stone-600 leading-relaxed">
+                  <div className="p-3 bg-stone-50 dark:bg-[#171717] border border-stone-200 dark:border-[#262626] rounded-xl text-xs lg:text-[11px] text-stone-600 dark:text-[#A3A3A3] leading-relaxed">
                     If you graduated before modern Student IDs were assigned or cannot locate your ID, submit your details. The Registrar will verify your graduation records against the university archives.
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-stone-700 block mb-1">
+                    <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                       Full Legal Name <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -4369,19 +4387,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       value={manualFullName}
                       onChange={(e) => setManualFullName(e.target.value)}
                       placeholder="e.g. Maria Santos Dela Cruz"
-                      className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-medium text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
+                      className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs font-medium text-stone-900 dark:text-[#FAFAFA] focus:outline-none focus:ring-2 focus:ring-[#8B181B]/20"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-bold text-stone-700 block mb-1">
+                      <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                         Degree Program <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={manualCourse}
                         onChange={(e) => setManualCourse(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900"
+                        className="w-full min-h-[46px] px-3 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs text-stone-900 dark:text-[#FAFAFA]"
                       >
                         {allDegreeOptions.map((prog) => (
                           <option key={prog} value={prog}>
@@ -4392,13 +4410,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-stone-700 block mb-1">
+                      <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                         Graduation Batch Year <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={manualBatch}
                         onChange={(e) => setManualBatch(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900"
+                        className="w-full min-h-[46px] px-3 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs text-stone-900 dark:text-[#FAFAFA]"
                       >
                         {centenaryBatches.map((yr) => (
                           <option key={yr} value={yr}>
@@ -4409,9 +4427,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-bold text-stone-700 block mb-1">
+                      <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                         Contact Email <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -4420,12 +4438,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         value={manualEmail}
                         onChange={(e) => setManualEmail(e.target.value)}
                         placeholder="you@email.com"
-                        className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs font-medium text-stone-900"
+                        className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs font-medium text-stone-900 dark:text-[#FAFAFA]"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold text-stone-700 block mb-1">
+                      <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                         Mobile / Phone Number
                       </label>
                       <input
@@ -4433,13 +4451,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         value={manualPhone}
                         onChange={(e) => setManualPhone(e.target.value)}
                         placeholder="+63 917 123 4567"
-                        className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900"
+                        className="w-full min-h-[46px] px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs text-stone-900 dark:text-[#FAFAFA]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-stone-700 block mb-1">
+                    <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                       Account Password <span className="text-red-500">*</span>
                     </label>
                     <div className="relative">
@@ -4449,7 +4467,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         value={manualPassword}
                         onChange={(e) => setManualPassword(e.target.value)}
                         placeholder="Min. 8 characters"
-                        className="w-full pl-3.5 pr-10 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900"
+                        className="w-full min-h-[46px] pl-3.5 pr-12 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs text-stone-900 dark:text-[#FAFAFA]"
                       />
                       <button
                         type="button"
@@ -4458,11 +4476,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                           position: 'absolute',
                           top: 0,
                           bottom: 0,
-                          right: '10px',
+                          right: '4px',
                           marginTop: 'auto',
                           marginBottom: 'auto',
-                          height: '30px',
-                          width: '30px',
+                          height: '44px',
+                          width: '44px',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -4475,13 +4493,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         {showManualPassword ? <EyeOff className="w-4 h-4" strokeWidth={1.75} /> : <Eye className="w-4 h-4" strokeWidth={1.75} />}
                       </button>
                     </div>
-                    <span className="text-[10px] text-stone-400 mt-0.5 block">
+                    <span className="text-[11px] lg:text-[10px] text-stone-400 dark:text-[#737373] mt-1 block">
                       This password will activate once the Registrar approves your account.
                     </span>
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-stone-700 block mb-1">
+                    <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block mb-1.5">
                       Academic Details & Remarks
                     </label>
                     <textarea
@@ -4489,16 +4507,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       value={manualNotes}
                       onChange={(e) => setManualNotes(e.target.value)}
                       placeholder="e.g., Campus branch, old student number, honors, or attendance years..."
-                      className="w-full px-3.5 py-2 rounded-xl border border-stone-200 bg-stone-50 text-xs text-stone-900 resize-none"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] text-base lg:text-xs text-stone-900 dark:text-[#FAFAFA] resize-none"
                     />
                   </div>
 
                   {/* Required Selfie with ID Upload Section */}
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-stone-700 block">
+                    <label className="text-xs font-bold text-stone-700 dark:text-[#D4D4D4] block">
                       Selfie with ID <span className="text-red-500">*</span>
                     </label>
-                    <p className="text-[11px] text-stone-500 leading-relaxed">
+                    <p className="text-xs lg:text-[11px] text-stone-500 dark:text-[#A3A3A3] leading-relaxed">
                       Upload a selfie of yourself holding your valid School ID or any valid government-issued ID. Make sure your face and ID details are clearly visible. This is required to verify that you are the legitimate account owner.
                     </p>
 
@@ -4516,25 +4534,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         type="button"
                         disabled={isProcessingManualSelfie}
                         onClick={() => manualSelfieInputRef.current?.click()}
-                        className={`w-full p-4 rounded-xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
+                        className={`w-full min-h-[104px] p-4 rounded-xl border-2 border-dashed transition-colors flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
                           manualSelfieError
-                            ? 'border-red-300 bg-red-50/40 hover:bg-red-50/70'
-                            : 'border-stone-200 bg-stone-50 hover:border-[#8B181B]/40 hover:bg-stone-100/60'
+                            ? 'border-red-300 dark:border-red-800 bg-red-50/40 dark:bg-red-950/20 hover:bg-red-50/70'
+                            : 'border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] hover:border-[#8B181B]/40 hover:bg-stone-100/60 dark:hover:bg-[#1F1F1F]'
                         }`}
                       >
-                        <div className="w-9 h-9 rounded-xl bg-white border border-stone-200 text-[#8B181B] flex items-center justify-center shadow-2xs">
+                        <div className="w-9 h-9 rounded-xl bg-white dark:bg-[#262626] border border-stone-200 dark:border-[#333] text-[#8B181B] dark:text-[#FB7185] flex items-center justify-center shadow-2xs">
                           <Camera className="w-4 h-4" strokeWidth={1.75} />
                         </div>
-                        <span className="text-xs font-bold text-stone-800">
+                        <span className="text-xs font-bold text-stone-800 dark:text-[#FAFAFA]">
                           {isProcessingManualSelfie ? 'Processing image...' : 'Upload Selfie with ID'}
                         </span>
-                        <span className="text-[10px] text-stone-500">
+                        <span className="text-[11px] text-stone-500 dark:text-[#A3A3A3]">
                           JPG, PNG, or WebP up to 10MB
                         </span>
                       </button>
                     ) : (
-                      <div className="rounded-xl border border-stone-200 bg-stone-50 p-3 space-y-2.5">
-                        <div className="relative rounded-lg overflow-hidden border border-stone-200 bg-stone-900/5 max-h-48 flex items-center justify-center">
+                      <div className="rounded-xl border border-stone-200 dark:border-[#262626] bg-stone-50 dark:bg-[#171717] p-3 space-y-2.5">
+                        <div className="relative rounded-lg overflow-hidden border border-stone-200 dark:border-[#262626] bg-stone-900/5 max-h-48 flex items-center justify-center">
                           <img
                             src={manualSelfieDataUrl}
                             alt="Selfie with ID preview"
@@ -4544,7 +4562,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" strokeWidth={1.75} />
-                            <span className="text-[11px] font-medium text-stone-700 truncate max-w-[180px]">
+                            <span className="text-[11px] font-medium text-stone-700 dark:text-[#D4D4D4] truncate max-w-[180px]">
                               {manualSelfieFileName || 'Selfie with ID uploaded'}
                             </span>
                           </div>
@@ -4552,17 +4570,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                             <button
                               type="button"
                               onClick={() => manualSelfieInputRef.current?.click()}
-                              className="px-2.5 py-1 rounded-lg border border-stone-200 bg-white hover:bg-stone-100 text-stone-700 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                              className="min-h-[44px] lg:min-h-[30px] px-3 py-1.5 rounded-xl border border-stone-200 dark:border-[#262626] bg-white dark:bg-[#262626] hover:bg-stone-100 text-stone-700 dark:text-[#FAFAFA] text-xs lg:text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
                             >
-                              <Upload className="w-3 h-3" strokeWidth={1.75} />
+                              <Upload className="w-3.5 h-3.5" strokeWidth={1.75} />
                               <span>Replace</span>
                             </button>
                             <button
                               type="button"
                               onClick={handleRemoveManualSelfie}
-                              className="px-2.5 py-1 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-[#8B181B] text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                              className="min-h-[44px] lg:min-h-[30px] px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 text-[#8B181B] dark:text-[#FB7185] text-xs lg:text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
                             >
-                              <Trash2 className="w-3 h-3" strokeWidth={1.75} />
+                              <Trash2 className="w-3.5 h-3.5" strokeWidth={1.75} />
                               <span>Remove</span>
                             </button>
                           </div>
@@ -4571,28 +4589,28 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     )}
 
                     {manualSelfieError && (
-                      <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1">
+                      <p className="text-xs lg:text-[11px] font-semibold text-red-600 dark:text-[#FB7185] flex items-center gap-1">
                         <AlertCircle className="w-3.5 h-3.5 shrink-0" strokeWidth={1.75} />
                         <span>{manualSelfieError}</span>
                       </p>
                     )}
                   </div>
 
-                  <div className="pt-3 border-t border-stone-100 flex items-center justify-end gap-2.5">
+                  <div className="pt-3 border-t border-stone-100 dark:border-[#262626] flex items-center justify-end gap-2.5">
                     <button
                       type="button"
                       onClick={() => {
                         setShowManualVerificationModal(false);
                         setManualSelfieError(null);
                       }}
-                      className="px-4 py-2 rounded-xl border border-stone-200 text-stone-600 text-xs font-semibold hover:bg-stone-50 cursor-pointer"
+                      className="min-h-[46px] lg:min-h-[38px] px-4 py-2 rounded-xl border border-stone-200 dark:border-[#262626] text-stone-600 dark:text-[#D4D4D4] text-[14px] lg:text-xs font-semibold hover:bg-stone-50 dark:hover:bg-[#1C1C1C] cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmittingAppeal || isProcessingManualSelfie}
-                      className="px-5 py-2 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                      className="min-h-[46px] lg:min-h-[38px] px-5 py-2 bg-[#8B181B] dark:bg-[#E11D48] hover:bg-[#721316] text-white rounded-xl text-[14px] lg:text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                     >
                       <Send className="w-3.5 h-3.5" />
                       <span>{isSubmittingAppeal ? 'Submitting...' : 'Submit Verification Request'}</span>

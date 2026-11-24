@@ -1102,6 +1102,12 @@ html.dark {
     background-color: var(--m-bg) !important;
     color: var(--m-text-primary);
   }
+
+  body.keyboard-visible .mobile-bottom-nav {
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+  }
 }
 
 @layer utilities {

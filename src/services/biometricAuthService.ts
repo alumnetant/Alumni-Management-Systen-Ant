@@ -11,6 +11,7 @@
  */
 
 import { Capacitor } from '@capacitor/core';
+import { isMobileOrTabletDevice } from '../lib/platform';
 import { NativeBiometric, BiometryType } from '@capgo/capacitor-native-biometric';
 import { triggerHaptic } from './hapticsService';
 import { hashSecretClient, isSaltedSecretHash, verifySecretClient } from '../lib/clientCrypto';
@@ -347,12 +348,17 @@ export async function exchangeRefreshTokenForSession(
   refreshToken: string
 ): Promise<{ success: boolean; token?: string; refreshToken?: string; user?: any; error?: string; code?: string }> {
   try {
+    const isMobileOrTablet = isMobileOrTabletDevice();
     const res = await fetch('/api/auth/refresh', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ refreshToken })
+      body: JSON.stringify({
+        refreshToken,
+        platform: isMobileOrTablet ? 'mobile' : 'web',
+        isMobileOrTablet
+      })
     });
 
     if (!res.ok) {

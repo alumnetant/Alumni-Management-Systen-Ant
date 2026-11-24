@@ -6,8 +6,9 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlumniProvider, useAlumni, STORAGE_KEYS } from './context/AlumniContext';
-import { isAdministrativeOrStaffRole } from './types';
+import { isAdministrativeOrStaffRole, normalizeSystemRole } from './types';
 import { buildPortalUrlForTab } from './lib/notificationDeepLink';
+import { isMobileOrTabletDevice, useIsMobileOrTablet } from './lib/platform';
 import { AuthPage } from './components/auth/AuthPage';
 import { LandingPage } from './components/landing/LandingPage';
 import { ToastContainer } from './components/common/ToastContainer';
@@ -38,16 +39,8 @@ import { initEventReminderScheduler } from './services/eventReminderService';
 import { useFCMNotifications } from './hooks/useFCMNotifications';
 import { InAppPushToast } from './components/notifications/InAppPushToast';
 
-// Requirement 3: Mobile and Tablet Layout / Device Detection
-export const isMobileOrTabletDevice = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  if (Capacitor.isNativePlatform()) return true;
-  const isWidthUnder1024 = window.innerWidth < 1024;
-  const isMobileUA =
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Silk/i.test(navigator.userAgent) ||
-    (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches && window.innerWidth < 1024);
-  return isWidthUnder1024 || isMobileUA;
-};
+// Re-export unified mobile & tablet device detector
+export { isMobileOrTabletDevice };
 
 function AppContent() {
   const {
@@ -70,6 +63,7 @@ function AppContent() {
 
   // Initialize Firebase Cloud Messaging listeners & device token synchronization
   useFCMNotifications();
+  const isMobileOrTablet = useIsMobileOrTablet();
 
   const [currentView, setCurrentView] = useState<'landing' | 'portal' | 'auth'>(() => {
     try {
@@ -639,7 +633,7 @@ function AppContent() {
       />
       <AnimatePresence mode="wait">
         {/* Landing page view (Only displayed on desktop; skipped on mobile and tablet) */}
-      {currentView === 'landing' && !isMobileOrTabletDevice() && (
+      {currentView === 'landing' && !isMobileOrTablet && (
         <motion.div
           key="view-landing"
           initial={{ opacity: 0 }}
@@ -673,7 +667,7 @@ function AppContent() {
             initialRole={authRole}
             onLoginSuccess={handleLoginSuccess}
             onBackToApp={
-              isMobileOrTabletDevice()
+              isMobileOrTablet
                 ? undefined
                 : () => {
                     if (currentUser) {
@@ -689,7 +683,7 @@ function AppContent() {
 
       {/* Authenticated Member Portal View or Fallback to Auth/Landing */}
       {currentView === 'portal' && (!currentUser ? (
-        isMobileOrTabletDevice() ? (
+        isMobileOrTablet ? (
           <motion.div
             key="view-auth-fallback"
             initial={{ opacity: 0 }}
@@ -739,25 +733,28 @@ function AppContent() {
               onSignOut={() => {
                 setIsAppBiometricallyLocked(false);
                 logout();
-                setCurrentView('landing');
+                setCurrentView(isMobileOrTabletDevice() ? 'auth' : 'landing');
               }}
             />
           </React.Suspense>
         </motion.div>
-      ) : (currentUser && isAdministrativeOrStaffRole(currentUser.role)) ? (
+      ) : (currentUser && (isAdministrativeOrStaffRole(currentUser.role) || (isMobileOrTablet && normalizeSystemRole(currentUser.role) !== 'alumni'))) ? (
         /* Reference-Inspired Administrative Management & Dashboard Workspace (Admin, Registrar, Employer, Staff, Moderator, Super Admin) */
         <motion.div
           key="view-portal-admin"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
           className="min-h-screen bg-[#F9FAFB] dark:bg-[#121316] flex flex-col font-sans text-stone-900 dark:text-stone-100 antialiased selection:bg-[#8B181B] selection:text-white"
         >
           <React.Suspense fallback={<CecilianLoader />}>
             <PlatformRestrictedGuard
-              title="Web-Only Administrative Access"
-              message="Administrative access is restricted to the web portal."
+              title="Desktop Browser Required"
+              message="Mobile and tablet access is reserved for verified Alumni."
+              onSignOut={() => {
+                setCurrentView(isMobileOrTabletDevice() ? 'auth' : 'landing');
+              }}
               onReturnToDashboard={() => {
                 setActiveTab('dashboard');
               }}

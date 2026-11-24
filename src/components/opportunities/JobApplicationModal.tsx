@@ -27,7 +27,7 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { currentUser, applyForJob } = useAlumni();
+  const { currentUser, applyForJob, showToast } = useAlumni();
 
   const [applicantName, setApplicantName] = useState(currentUser?.name || '');
   const [applicantEmail, setApplicantEmail] = useState(currentUser?.email || '');
@@ -45,6 +45,7 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
     currentUser?.about || 'Dedicated Cecilian alumnus with hands-on coursework and project experience.'
   );
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Compute live match score preview via precision engine
@@ -82,10 +83,13 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       setIsUploading(true);
+      setUploadError(null);
       try {
         const val = await validateUploadedFile(file, 'documents');
         if (!val.valid) {
-          alert(val.error || 'Invalid resume file format.');
+          const msg = val.error || 'Invalid resume file format.';
+          setUploadError(msg);
+          showToast(msg, 'error');
           setIsUploading(false);
           return;
         }
@@ -93,7 +97,9 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
         setResumeFileName(safeName);
         setResumeSummary(`Uploaded resume (${safeName}, ${(file.size / 1024).toFixed(1)} KB) - Security verified.`);
       } catch (err: any) {
-        alert(err?.message || 'Failed to inspect uploaded file.');
+        const msg = err?.message || 'Failed to inspect uploaded file.';
+        setUploadError(msg);
+        showToast(msg, 'error');
       } finally {
         setIsUploading(false);
       }
@@ -161,7 +167,8 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-stone-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+            aria-label="Close application modal"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -291,7 +298,7 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
                 </div>
               </div>
 
-              <label className="px-3 py-2 bg-white hover:bg-stone-100 border border-stone-200 rounded-lg text-xs font-semibold text-stone-700 cursor-pointer shadow-2xs shrink-0 flex items-center gap-1.5">
+              <label className="min-h-[44px] px-3.5 py-2 bg-white hover:bg-stone-100 border border-stone-200 rounded-xl text-xs font-semibold text-stone-700 cursor-pointer shadow-2xs shrink-0 flex items-center gap-1.5">
                 <UploadCloud className="w-3.5 h-3.5 text-stone-500" />
                 <span>{isUploading ? 'Uploading...' : 'Replace Resume'}</span>
                 <input
@@ -303,6 +310,12 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
                 />
               </label>
             </div>
+            {uploadError && (
+              <p className="mt-2.5 text-xs font-semibold text-red-600 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{uploadError}</span>
+              </p>
+            )}
           </div>
 
           {/* Portfolio Link */}
@@ -349,14 +362,14 @@ export const JobApplicationModal: React.FC<JobApplicationModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="w-full sm:w-auto px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-semibold"
+              className="w-full sm:w-auto min-h-[44px] px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-sm sm:text-xs font-semibold cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="w-full sm:w-auto px-5 py-2.5 bg-[#991B1B] hover:bg-[#7F1D1D] text-white rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full sm:w-auto min-h-[46px] px-5 py-2.5 bg-[#8B181B] hover:bg-[#721316] text-white rounded-xl text-sm sm:text-xs font-bold shadow-xs flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{submitting ? 'Submitting...' : 'Submit Official Application'}</span>

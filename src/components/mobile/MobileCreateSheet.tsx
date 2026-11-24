@@ -253,7 +253,7 @@ export const MobileCreateSheet: React.FC<MobileCreateSheetProps> = ({
                 type="button"
                 onClick={() => setImageUrl('')}
                 aria-label="Remove attached photo"
-                className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/70 text-white flex items-center justify-center cursor-pointer"
+                className="absolute top-2 right-2 w-[44px] h-[44px] rounded-full bg-black/75 text-white flex items-center justify-center cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -393,7 +393,7 @@ export const MobileCreateSheet: React.FC<MobileCreateSheetProps> = ({
                   );
                 }}
                 aria-label="Toggle anonymous post"
-                className={`min-h-[40px] px-3 rounded-full text-[12px] font-semibold flex items-center gap-1.5 cursor-pointer ${
+                className={`min-h-[44px] px-3.5 rounded-full text-[12px] font-semibold flex items-center gap-1.5 cursor-pointer ${
                   isAnonymous
                     ? 'bg-[#111827] dark:bg-[#FAFAFA] text-white dark:text-[#111827]'
                     : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#6B7280] dark:text-[#A1A1AA]'
@@ -408,10 +408,10 @@ export const MobileCreateSheet: React.FC<MobileCreateSheetProps> = ({
                 type="button"
                 onClick={() => setIsPinned((p) => !p)}
                 aria-label="Pin post"
-                className={`w-[40px] h-[40px] rounded-full flex items-center justify-center cursor-pointer ${
+                className={`w-[44px] h-[44px] rounded-full flex items-center justify-center cursor-pointer ${
                   isPinned
-                    ? 'bg-[#8B181B] text-white'
-                    : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#6B7280]'
+                    ? 'bg-[#8B181B] dark:bg-[#E11D48] text-white'
+                    : 'bg-[#F3F4F6] dark:bg-[#262626] text-[#6B7280] dark:text-[#A1A1AA]'
                 }`}
               >
                 <Pin className="w-4 h-4" />
